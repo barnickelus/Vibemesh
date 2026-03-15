@@ -31,11 +31,12 @@ export const VibeDashboard = () => {
 
   const handleSend = () => {
     sendAvatarState({
-      transcribedText: "Yo CB from the Shore — 3 Guys pizza slice in hand!!",
+      transcribedText: "Yo CB from the Shore — 3 Guys pizza slice in hand bro!!",
       gestures: [4],
       isSpeaking: true,
       valence: 0.95,
-      arousal: 0.98
+      arousal: 0.98,
+      prosody: { pitch: 0.3, speakingRate: 1.1, energy: 0.95, expressiveness: 0.9 }
     });
     setSent(s => s + 1);
   };
@@ -47,7 +48,7 @@ export const VibeDashboard = () => {
       </h1>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginTop: '30px' }}>
-        {/* LIVE RENDERERS */}
+        {/* LIVE AVATARS */}
         <div style={{ textAlign: 'center' }}>
           <VibeAvatarRenderer tier={negotiated?.agreedRenderTier ?? Tier.TEXT} state={lastState} />
           <Vibe3DRenderer tier={negotiated?.agreedRenderTier ?? Tier.TEXT} state={lastState} buildProgress={localProfile.batteryLevel / 100} />
@@ -63,7 +64,7 @@ export const VibeDashboard = () => {
 
           Battery: {localProfile.batteryLevel}%
           <input type="range" min="1" max="100" value={localProfile.batteryLevel} 
-            onChange={e => setLocalProfile((p: CapabilityProfile) => ({...p, lowDataMode: e.target.checked}))} />
+            onChange={e => setLocalProfile(p => ({...p, batteryLevel: +e.target.value}))} style={{width:'100%'}} />
 
           <label>
             <input type="checkbox" checked={localProfile.lowDataMode} 
