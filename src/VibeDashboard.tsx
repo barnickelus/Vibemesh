@@ -68,7 +68,7 @@ export const VibeDashboard = () => {
 
           <label>
             <input type="checkbox" checked={localProfile.lowDataMode} 
-              onChange={e => setLocalProfile(p => ({...p, lowDataMode: e.target.checked}))} /> Low Data Mode
+              onChange={e => setLocalProfile((p: CapabilityProfile) => ({...p, lowDataMode: e.target.checked}))} /> Low Data Mode
           </label>
 
           <button onClick={handleSend} 
