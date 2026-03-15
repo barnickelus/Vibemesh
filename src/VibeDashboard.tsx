@@ -60,11 +60,11 @@ export const VibeDashboard = () => {
           <h3>📡 Local Hardware</h3>
           Bandwidth: {localProfile.estimatedBandwidthKbps} kbps
           <input type="range" min="5" max="900" value={localProfile.estimatedBandwidthKbps} 
-            onChange={e => setLocalProfile(p => ({...p, estimatedBandwidthKbps: +e.target.value}))} style={{width:'100%'}} />
+            onChange={e => setLocalProfile((p: CapabilityProfile) => ({...p, estimatedBandwidthKbps: +e.target.value}))} style={{width:'100%'}} />
 
           Battery: {localProfile.batteryLevel}%
           <input type="range" min="1" max="100" value={localProfile.batteryLevel} 
-            onChange={e => setLocalProfile(p => ({...p, batteryLevel: +e.target.value}))} style={{width:'100%'}} />
+            onChange={e => setLocalProfile((p: CapabilityProfile) => ({...p, batteryLevel: +e.target.value}))} style={{width:'100%'}} />
 
           <label>
             <input type="checkbox" checked={localProfile.lowDataMode} 
