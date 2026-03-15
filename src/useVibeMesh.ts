@@ -1,53 +1,72 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { Tier, CapabilityProfile, negotiate, createDynamicPacket } from './vibemesh';
-
-export const useVibeMesh = (remoteProfile: CapabilityProfile | null, onSendPacket?: (packet: any) => void) => {
-  const [localProfile, setLocalProfile] = useState<CapabilityProfile>({
-    maxSendTier: Tier.AVATAR3D,
-    maxRenderTier: Tier.AVATAR3D,
-    estimatedBandwidthKbps: 450,
-    estimatedRttMs: 40,
-    batteryLevel: 92,
-    deviceClass: 3,
-    lowDataMode: false,
-  });
-
-  const negotiated = useMemo(() => {
-    if (!remoteProfile) return null;
-    return negotiate(localProfile, remoteProfile);
-  }, [localProfile, remoteProfile]);
-
-  const sequenceRef = useRef(0);
-
-  const sendAvatarState = useCallback((partialState: any) => {
-    if (!negotiated || !onSendPacket) return;
-    sequenceRef.current++;
-    const packet = createDynamicPacket(
-      "session-1",
-      sequenceRef.current,
-      negotiated.agreedSendTier,
-      partialState
-    );
-    onSendPacket(packet);
-  }, [negotiated, onSendPacket]);
-
-  // Real battery & network monitoring
-  useEffect(() => {
-    if ('getBattery' in navigator) {
-      (navigator as any).getBattery().then((b: any) => {
-        const update = () => setLocalProfile(p => ({...p, batteryLevel: Math.floor(b.level * 100)}));
-        update();
-        b.addEventListener('levelchange', update);
-      });
-    }
-  }, []);
-
+import { useState, useCallback, useMemo } from 'react';
+import {
+  Tier,
+  DeviceClass,
+  AvatarState,
+  CapabilityProfile,
+  VibePacket,
+  negotiate,
+  createDynamicPacket,
+} from './vibemesh';
+ 
+let _sequence = 0;
+const SESSION_ID = `shore-${Math.random().toString(36).slice(2, 8)}`;
+ 
+const DEFAULT_LOCAL_PROFILE: CapabilityProfile = {
+  maxSendTier: Tier.AVATAR3D,
+  maxRenderTier: Tier.AVATAR3D,
+  estimatedBandwidthKbps: 900,
+  estimatedRttMs: 20,
+  batteryLevel: 100,
+  deviceClass: DeviceClass.HIGH,
+  lowDataMode: false,
+};
+ 
+export function useVibeMesh(
+  remoteProfile: CapabilityProfile,
+  sendPacket: (packet: VibePacket) => void
+) {
+  const [localProfile, setLocalProfile] = useState<CapabilityProfile>(DEFAULT_LOCAL_PROFILE);
+ 
+  const negotiated = useMemo(
+    () => negotiate(localProfile, remoteProfile),
+    [localProfile, remoteProfile]
+  );
+ 
+  const tierNames: Record<Tier, string> = {
+    [Tier.UNSPECIFIED]: 'UNSPECIFIED',
+    [Tier.TEXT]: 'TEXT',
+    [Tier.GLYPH]: 'GLYPH',
+    [Tier.SPRITE]: 'SPRITE',
+    [Tier.PUPPET]: 'PUPPET',
+    [Tier.AVATAR3D]: 'AVATAR3D',
+  };
+ 
+  const currentTierName = tierNames[negotiated.agreedSendTier] ?? 'UNKNOWN';
+  const shouldRender3D = negotiated.agreedRenderTier >= Tier.AVATAR3D;
+ 
+  const sendAvatarState = useCallback(
+    (input: Partial<AvatarState>) => {
+      const packet = createDynamicPacket(
+        SESSION_ID,
+        ++_sequence,
+        negotiated.agreedSendTier,
+        input
+      );
+      sendPacket(packet);
+      return packet;
+    },
+    [negotiated.agreedSendTier, sendPacket]
+  );
+ 
   return {
     localProfile,
     setLocalProfile,
     negotiated,
     sendAvatarState,
-    shouldRender3D: (negotiated?.agreedRenderTier ?? 0) >= Tier.AVATAR3D,
-    currentTierName: Tier[negotiated?.agreedRenderTier ?? 0] || "TEXT",
+    shouldRender3D,
+    currentTierName,
+    sessionId: SESSION_ID,
   };
-};
+}
+ 
