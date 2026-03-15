@@ -7,6 +7,14 @@ export enum GestureType { UNSPECIFIED = 0, NOD = 1, SHAKE = 2, LAUGH = 3, FIST_P
 export interface Vec3 { x: number; y: number; z: number; }
 export interface Blendshapes { [key: string]: number; }
 
+export interface ProsodyParams {
+  pitch: number;
+  speakingRate: number;
+  energy: number;
+  expressiveness: number;
+  currentViseme?: string;
+}
+
 export interface AvatarState {
   timestampMs: number;
   sequence: number;
@@ -19,6 +27,7 @@ export interface AvatarState {
   isSpeaking: boolean;
   valence: number;
   arousal: number;
+  prosody?: ProsodyParams;
 }
 
 export interface CapabilityProfile {
@@ -86,6 +95,7 @@ export function createDynamicPacket(
       transcribedText: input.transcribedText || "",
       headRotation: isHighTier ? input.headRotation : undefined,
       blendshapes: isHighTier ? input.blendshapes ?? {} : {},
+      prosody: input.prosody,
     },
   };
 }
