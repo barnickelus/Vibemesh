@@ -63,7 +63,7 @@ export const VibeDashboard = () => {
 
           Battery: {localProfile.batteryLevel}%
           <input type="range" min="1" max="100" value={localProfile.batteryLevel} 
-            onChange={e => setLocalProfile(p => ({...p, batteryLevel: +e.target.value}))} style={{width:'100%'}} />
+            onChange={e => setLocalProfile((p: CapabilityProfile) => ({...p, lowDataMode: e.target.checked}))} />
 
           <label>
             <input type="checkbox" checked={localProfile.lowDataMode} 
