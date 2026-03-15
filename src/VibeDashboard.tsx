@@ -48,14 +48,12 @@ export const VibeDashboard = () => {
       </h1>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginTop: '30px' }}>
-        {/* LIVE AVATARS */}
         <div style={{ textAlign: 'center' }}>
           <VibeAvatarRenderer tier={negotiated?.agreedRenderTier ?? Tier.TEXT} state={lastState} />
           <Vibe3DRenderer tier={negotiated?.agreedRenderTier ?? Tier.TEXT} state={lastState} buildProgress={localProfile.batteryLevel / 100} />
           <VoiceClonePanel state={lastState} />
         </div>
 
-        {/* CONTROLS */}
         <div>
           <h3>📡 Local Hardware</h3>
           Bandwidth: {localProfile.estimatedBandwidthKbps} kbps
@@ -79,12 +77,6 @@ export const VibeDashboard = () => {
           <label style={{ display: 'block', marginTop: '15px' }}>
             <input type="checkbox" checked={autoSend} onChange={e => setAutoSend(e.target.checked)} /> Auto-send demo
           </label>
-
-          <div style={{ marginTop: '30px', background: '#111', padding: '15px', borderRadius: '10px' }}>
-            Packets sent: <strong>{sent}</strong><br/>
-            Est. packet size: <strong style={{color: packetBytes < 100 ? '#00ff88' : '#ffaa00'}}>{packetBytes} bytes</strong><br/>
-            Transport: <strong style={{color: transport.isConnected ? '#00ff88' : '#ff4757'}}>{transport.isConnected ? 'CONNECTED' : 'DISCONNECTED'}</strong>
-          </div>
         </div>
       </div>
     </div>
