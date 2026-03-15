@@ -1,103 +1,53 @@
-/* ========================= ENUMS & TYPES ========================= */
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { Tier, CapabilityProfile, negotiate, createDynamicPacket } from './vibemesh';
 
-export enum Tier { UNSPECIFIED = 0, TEXT = 1, GLYPH = 2, SPRITE = 3, PUPPET = 4, AVATAR3D = 5 }
-export enum DeviceClass { UNSPECIFIED = 0, LOW = 1, MID = 2, HIGH = 3 }
-export enum GestureType { UNSPECIFIED = 0, NOD = 1, SHAKE = 2, LAUGH = 3, FIST_PUMP = 4 }
+export const useVibeMesh = (remoteProfile: CapabilityProfile | null, onSendPacket?: (packet: any) => void) => {
+  const [localProfile, setLocalProfile] = useState<CapabilityProfile>({
+    maxSendTier: Tier.AVATAR3D,
+    maxRenderTier: Tier.AVATAR3D,
+    estimatedBandwidthKbps: 450,
+    estimatedRttMs: 40,
+    batteryLevel: 92,
+    deviceClass: 3,
+    lowDataMode: false,
+  });
 
-export interface Vec3 { x: number; y: number; z: number; }
-export interface Blendshapes { [key: string]: number; }
+  const negotiated = useMemo(() => {
+    if (!remoteProfile) return null;
+    return negotiate(localProfile, remoteProfile);
+  }, [localProfile, remoteProfile]);
 
-export interface ProsodyParams {
-  pitch: number;           // -1 to 1
-  speakingRate: number;    // 0.5 to 2.0
-  energy: number;          // 0 to 1
-  expressiveness: number;  // 0 to 1
-  currentViseme?: string;
-}
+  const sequenceRef = useRef(0);
 
-export interface AvatarState {
-  timestampMs: number;
-  sequence: number;
-  senderTier: Tier;
-  isDelta: boolean;
-  headRotation?: Vec3;
-  blendshapes: Blendshapes;
-  gestures: GestureType[];
-  transcribedText?: string;
-  isSpeaking: boolean;
-  valence: number;
-  arousal: number;
+  const sendAvatarState = useCallback((partialState: any) => {
+    if (!negotiated || !onSendPacket) return;
+    sequenceRef.current++;
+    const packet = createDynamicPacket(
+      "session-1",
+      sequenceRef.current,
+      negotiated.agreedSendTier,
+      partialState
+    );
+    onSendPacket(packet);
+  }, [negotiated, onSendPacket]);
 
-  // Voice clone support
-  prosody?: ProsodyParams;
-}
+  // Real battery & network monitoring
+  useEffect(() => {
+    if ('getBattery' in navigator) {
+      (navigator as any).getBattery().then((b: any) => {
+        const update = () => setLocalProfile(p => ({...p, batteryLevel: Math.floor(b.level * 100)}));
+        update();
+        b.addEventListener('levelchange', update);
+      });
+    }
+  }, []);
 
-export interface CapabilityProfile {
-  maxSendTier: Tier;
-  maxRenderTier: Tier;
-  estimatedBandwidthKbps: number;
-  estimatedRttMs: number;
-  batteryLevel: number;
-  deviceClass: DeviceClass;
-  lowDataMode: boolean;
-}
-
-export type VibePacket = {
-  schemaVersion: number;
-  sessionId: string;
-  packetSequence: number;
-  sentAtMs: number;
-  type: "avatar";
-  avatarState: AvatarState;
+  return {
+    localProfile,
+    setLocalProfile,
+    negotiated,
+    sendAvatarState,
+    shouldRender3D: (negotiated?.agreedRenderTier ?? 0) >= Tier.AVATAR3D,
+    currentTierName: Tier[negotiated?.agreedRenderTier ?? 0] || "TEXT",
+  };
 };
-
-/* ========================= UTILS & NEGOTIATION ========================= */
-
-export const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
-
-export function negotiate(local: CapabilityProfile, remote: CapabilityProfile) {
-  const maxSend = Math.min(local.maxSendTier, remote.maxRenderTier);
-  const maxReceive = Math.min(remote.maxSendTier, local.maxRenderTier);
-  const bw = Math.min(local.estimatedBandwidthKbps, remote.estimatedBandwidthKbps);
-
-  let cap = Tier.AVATAR3D;
-  if (bw < 30 || local.lowDataMode || remote.lowDataMode) cap = Tier.GLYPH;
-  else if (bw < 80 || local.batteryLevel < 15) cap = Tier.SPRITE;
-  else if (bw < 250 || local.batteryLevel < 30) cap = Tier.PUPPET;
-
-  return {
-    agreedSendTier: Math.min(maxSend, cap),
-    agreedRenderTier: Math.min(maxReceive, cap),
-  };
-}
-
-export function createDynamicPacket(
-  sessionId: string,
-  sequence: number,
-  tier: Tier,
-  input: Partial<AvatarState>
-): VibePacket {
-  const isHighTier = tier >= Tier.PUPPET;
-
-  return {
-    schemaVersion: 1,
-    sessionId,
-    packetSequence: sequence,
-    sentAtMs: Date.now(),
-    type: "avatar",
-    avatarState: {
-      timestampMs: Date.now(),
-      sequence,
-      senderTier: tier,
-      isDelta: true,
-      isSpeaking: input.isSpeaking ?? false,
-      valence: clamp(input.valence ?? 0, -1, 1),
-      arousal: clamp(input.arousal ?? 0, 0, 1),
-      gestures: input.gestures ?? [],
-      transcribedText: input.transcribedText || "",
-      headRotation: isHighTier ? input.headRotation : undefined,
-      blendshapes: isHighTier ? input.blendshapes ?? {} : {},
-      prosody: input.prosody,
-    },
-  };
-}
