@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Sphere } from '@react-three/drei';
 import * as THREE from 'three';
@@ -48,7 +48,7 @@ export const Vibe3DRenderer: React.FC<Props> = ({ tier, state, buildProgress }) 
   if (tier < Tier.AVATAR3D) return null;
 
   return (
-    <div style={{ width: '320px', height: '320px', borderRadius: '20px', overflow: 'hidden', background: '#000' }}>
+    <div style={{ width: '320px', height: '320px', borderRadius: '20px', overflow: 'hidden', background: '#000', position: 'relative' }}>
       <Canvas camera={{ position: [0, 0, 5] }}>
         <ambientLight intensity={0.6} />
         <pointLight position={[10, 10, 10]} />
