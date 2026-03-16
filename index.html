@@ -3,78 +3,74 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh v3.0 — Shore Edition</title>
-
-<!-- Three.js r134 + loaders -->
+<title>VibeMesh v3.1 — Shore Edition</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.134/examples/js/loaders/GLTFLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.134/examples/js/controls/OrbitControls.js"></script>
-
-<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#060610;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
-
-/* ── Header ── */
 .hdr{text-align:center;padding:14px 10px 2px}
-.hdr h1{font-size:clamp(1.3em,4vw,2em);font-weight:900;letter-spacing:1px;
+.hdr h1{font-size:clamp(1.3em,4vw,2em);font-weight:900;
   background:linear-gradient(90deg,#00f0ff,#ff00aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .hdr sub{display:block;font-size:.62em;color:#444;letter-spacing:3px;text-transform:uppercase;margin-top:1px}
 
-/* ── Call grid ── */
 .call{display:flex;justify-content:center;gap:20px;padding:10px 16px;flex-wrap:wrap}
 .avatar-box{display:flex;flex-direction:column;align-items:center;gap:5px}
 .av-name{font-size:.8em;font-weight:700;color:#00ffcc;letter-spacing:2px;text-transform:uppercase}
 
-/* ── Avatar window ── */
-.av-wrap{position:relative;width:300px;height:360px}
+/* Avatar window — the key: a fixed-size div with overflow hidden */
+.av-wrap{position:relative;width:300px;height:340px}
+.av-3d{width:300px;height:340px;border-radius:22px;overflow:hidden;
+  background:#0b0b1c;box-shadow:0 0 50px #00f0ff2a;position:relative}
 
-/* The pixelation effect: we render to a small canvas then draw it scaled-up with imageSmoothingEnabled=false */
-.av-canvas-wrap{width:300px;height:360px;border-radius:22px;overflow:hidden;
-  background:#0b0b1c;box-shadow:0 0 50px #00f0ff2a,inset 0 0 30px #00000055;position:relative}
-.av-canvas-wrap canvas.three-canvas{display:block;width:100%!important;height:100%!important;
-  image-rendering:pixelated;image-rendering:crisp-edges}
+/* Canvas inside av-3d fills it but we control actual render resolution */
+.av-3d canvas{
+  position:absolute;top:0;left:0;
+  width:300px!important;height:340px!important;
+  image-rendering:pixelated;image-rendering:crisp-edges;
+  border-radius:22px;
+}
 
-/* Fallback tier views */
-.av-glyph,.av-sprite,.av-text{display:none;width:300px;height:360px;border-radius:22px;
+/* Fallback tiers */
+.av-glyph,.av-sprite,.av-text{
+  display:none;width:300px;height:340px;border-radius:22px;
   background:#0b0b1c;box-shadow:0 0 50px #00f0ff2a;
   align-items:center;justify-content:center;flex-direction:column;gap:8px}
-.av-glyph{font-size:90px;line-height:1}
+.av-glyph{font-size:90px}
 .av-text{font-size:.95em;color:#00ffcc;padding:24px;text-align:center}
 
 /* Overlays */
 .tier-badge{position:absolute;top:10px;left:11px;padding:3px 9px;border-radius:20px;
   font-size:.6em;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
   background:#00f0ff14;border:1px solid #00f0ff44;color:#00f0ff;z-index:20;pointer-events:none}
-.build-overlay{position:absolute;inset:0;border-radius:22px;z-index:15;pointer-events:none;
-  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:14px}
-.build-track{width:100%;height:3px;background:#ffffff12;border-radius:2px;overflow:hidden}
-.build-fill{height:3px;background:linear-gradient(90deg,#00f0ff,#ff00aa);border-radius:2px;
-  width:0%;transition:width .3s linear}
-.build-pct{font-size:.6em;color:#888;letter-spacing:1px;margin-bottom:4px}
-.speak-ring{position:absolute;inset:-3px;border-radius:25px;border:3px solid #00ff88;
-  opacity:0;transition:opacity .12s;z-index:10;pointer-events:none}
+.build-overlay{position:absolute;bottom:0;left:0;right:0;padding:12px 14px;
+  border-radius:0 0 22px 22px;background:linear-gradient(transparent,#000a);
+  z-index:15;pointer-events:none}
+.build-pct{font-size:.6em;color:#aaa;letter-spacing:1px;margin-bottom:4px}
+.build-track{width:100%;height:3px;background:#ffffff18;border-radius:2px;overflow:hidden}
+.build-fill{height:3px;background:linear-gradient(90deg,#00f0ff,#ff00aa);
+  border-radius:2px;width:0%;transition:width .25s}
+.speak-ring{position:absolute;inset:-3px;border-radius:25px;
+  border:3px solid #00ff88;opacity:0;transition:opacity .12s;z-index:10;pointer-events:none}
 .speak-ring.on{opacity:1}
-.emo-pill{position:absolute;bottom:12px;right:11px;padding:3px 8px;border-radius:12px;
+@keyframes spk{0%,100%{box-shadow:0 0 6px #00ff8822}50%{box-shadow:0 0 22px #00ff8877}}
+.speak-ring.on{animation:spk .75s infinite}
+.emo-pill{position:absolute;bottom:14px;right:11px;padding:3px 8px;border-radius:12px;
   font-size:.62em;background:#ff00aa1a;border:1px solid #ff00aa44;color:#ff99cc;
   z-index:20;pointer-events:none}
 
-/* PIP cam */
-.pip{position:absolute;bottom:10px;right:10px;width:70px;height:52px;border-radius:8px;
-  overflow:hidden;border:2px solid #00f0ff55;background:#000;z-index:30}
+/* PIP */
+.pip{position:absolute;bottom:10px;right:10px;width:72px;height:54px;
+  border-radius:8px;overflow:hidden;border:2px solid #00f0ff55;background:#000;z-index:30}
 .pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
 
-/* Volume bar */
+/* Vol bar */
 .vol-wrap{width:100%;height:3px;background:#ffffff08;border-radius:2px;overflow:hidden;margin-top:4px}
-.vol-fill{height:3px;background:linear-gradient(90deg,#00f0ff,#ff00aa);border-radius:2px;
-  width:0%;transition:width .04s}
+.vol-fill{height:3px;background:linear-gradient(90deg,#00f0ff,#ff00aa);border-radius:2px;width:0%;transition:width .05s}
 
-/* ── Controls ── */
-.controls{background:#0c0c1e;padding:14px 18px;margin:6px 16px;border-radius:18px;
-  border:1px solid #ffffff08}
+/* Controls */
+.controls{background:#0c0c1e;padding:14px 18px;margin:6px 16px;border-radius:18px;border:1px solid #ffffff08}
 .sliders{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin-bottom:12px}
 .sl-row{display:flex;flex-direction:column;gap:2px}
 .sl-row label{font-size:.68em;color:#555;letter-spacing:1px;text-transform:uppercase}
@@ -82,26 +78,20 @@ body{background:#060610;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;m
 input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer}
 .sl-val{font-size:.78em;color:#00f0ff;min-width:34px;text-align:right}
 .btns{display:flex;gap:8px;flex-wrap:wrap}
-button{flex:1;min-width:110px;padding:11px 8px;font-size:.82em;font-weight:700;
-  font-family:inherit;letter-spacing:.3px;
-  background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;
-  border-radius:11px;color:#000;cursor:pointer;transition:opacity .15s,transform .1s}
+button{flex:1;min-width:100px;padding:11px 8px;font-size:.82em;font-weight:700;
+  font-family:inherit;background:linear-gradient(135deg,#ff00aa,#00f0ff);
+  border:none;border-radius:11px;color:#000;cursor:pointer;transition:opacity .15s,transform .1s}
 button:active{opacity:.72;transform:scale(.97)}
 button:disabled{background:#181828;color:#444;cursor:default;transform:none}
-button.sec{background:#181828;color:#777;border:1px solid #ffffff0e}
-button.sec:not(:disabled):hover{color:#ccc}
+button.sec{background:#181828;color:#666;border:1px solid #ffffff0e}
 
-/* ── Stats ── */
+/* Stats */
 .stats{display:flex;justify-content:center;gap:14px;padding:5px 16px 8px;flex-wrap:wrap}
-.stat{font-size:.68em;color:#444}
-.stat b{color:#00ffcc;font-weight:600}
-
-/* ── Status ── */
+.stat{font-size:.68em;color:#444}.stat b{color:#00ffcc;font-weight:600}
 .statusbar{text-align:center;padding:4px 16px 12px;font-size:.72em;color:#555;min-height:22px}
 
-/* ── Modal ── */
-#sigModal{display:none;position:fixed;inset:0;background:#000c;z-index:200;
-  align-items:center;justify-content:center}
+/* Modal */
+#sigModal{display:none;position:fixed;inset:0;background:#000c;z-index:200;align-items:center;justify-content:center}
 #sigModal.open{display:flex}
 .modal{background:#0c0c20;border:1px solid #00f0ff33;border-radius:22px;
   padding:20px;max-width:450px;width:92%;display:flex;flex-direction:column;gap:9px}
@@ -113,45 +103,35 @@ button.sec:not(:disabled):hover{color:#ccc}
 .modal textarea:focus{border-color:#00f0ff66}
 .mbtn{background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;
   border-radius:9px;padding:11px;color:#000;font-size:.85em;font-weight:700;
-  font-family:inherit;cursor:pointer;width:100%;letter-spacing:.3px}
+  font-family:inherit;cursor:pointer;width:100%}
 .mbtn.dim{background:#181828;color:#555;border:1px solid #ffffff0e}
-
-/* Sprite canvas */
-#spriteLocal,#spriteRemote{border-radius:22px}
-
-@keyframes speakPulse{0%,100%{box-shadow:0 0 6px #00ff8822}50%{box-shadow:0 0 20px #00ff8877}}
-.speak-ring.on{animation:speakPulse .75s infinite}
-
-/* Pixel-sharp rendering on the build canvas */
-canvas.pixelated{image-rendering:pixelated;image-rendering:crisp-edges}
 </style>
 </head>
 <body>
 
 <div class="hdr">
-  <h1>🏖️ VibeMesh v3.0</h1>
+  <h1>🏖️ VibeMesh v3.1</h1>
   <sub>Semantic Avatar Communication · Shore Edition</sub>
 </div>
 
 <div class="call">
-
   <!-- LOCAL -->
   <div class="avatar-box">
     <div class="av-name">You · Vancouver</div>
-    <div class="av-wrap" id="localWrap">
-      <div class="av-canvas-wrap" id="localCanvasWrap">
+    <div class="av-wrap">
+      <div class="av-3d" id="localAv">
         <div class="pip"><video id="localVid" autoplay muted playsinline></video></div>
       </div>
-      <div class="av-glyph"  id="localGlyph">😎</div>
-      <div class="av-sprite" id="localSprite"><canvas id="spriteLocal" width="300" height="360"></canvas></div>
-      <div class="av-text"   id="localText"><div style="font-size:2.2em">💬</div><div id="localTextMsg">—</div></div>
-      <div class="tier-badge"  id="localTierBadge">LOADING</div>
+      <div class="av-glyph" id="localGlyph">😎</div>
+      <div class="av-sprite" id="localSprite"><canvas id="spriteLocal" width="300" height="340"></canvas></div>
+      <div class="av-text" id="localText"><div style="font-size:2em">💬</div><div id="localTextMsg">—</div></div>
+      <div class="tier-badge" id="localTierBadge">AVATAR3D</div>
       <div class="build-overlay" id="localBuildOverlay">
-        <div class="build-pct" id="localBuildPct">Building avatar… 0%</div>
+        <div class="build-pct" id="localBuildPct">Initializing… 0%</div>
         <div class="build-track"><div class="build-fill" id="localBuildFill"></div></div>
       </div>
       <div class="speak-ring" id="localRing"></div>
-      <div class="emo-pill"   id="localEmo">😐 neutral</div>
+      <div class="emo-pill" id="localEmo">😐 neutral</div>
     </div>
     <div class="vol-wrap"><div class="vol-fill" id="localVol"></div></div>
   </div>
@@ -159,23 +139,22 @@ canvas.pixelated{image-rendering:pixelated;image-rendering:crisp-edges}
   <!-- REMOTE -->
   <div class="avatar-box">
     <div class="av-name">JerseyBro · Remote</div>
-    <div class="av-wrap" id="remoteWrap">
-      <div class="av-canvas-wrap" id="remoteCanvasWrap"></div>
-      <div class="av-glyph"  id="remoteGlyph">🤙</div>
-      <div class="av-sprite" id="remoteSprite"><canvas id="spriteRemote" width="300" height="360"></canvas></div>
-      <div class="av-text"   id="remoteText"><div style="font-size:2.2em">💬</div><div id="remoteTextMsg">Waiting for peer…</div></div>
-      <div class="tier-badge"  id="remoteTierBadge">WAITING</div>
+    <div class="av-wrap">
+      <div class="av-3d" id="remoteAv"></div>
+      <div class="av-glyph" id="remoteGlyph">🤙</div>
+      <div class="av-sprite" id="remoteSprite"><canvas id="spriteRemote" width="300" height="340"></canvas></div>
+      <div class="av-text" id="remoteText"><div style="font-size:2em">💬</div><div id="remoteTextMsg">Waiting for peer…</div></div>
+      <div class="tier-badge" id="remoteTierBadge">WAITING</div>
       <div class="build-overlay" id="remoteBuildOverlay" style="display:none">
-        <div class="build-pct" id="remoteBuildPct">Building avatar… 0%</div>
+        <div class="build-pct" id="remoteBuildPct">Initializing… 0%</div>
         <div class="build-track"><div class="build-fill" id="remoteBuildFill"></div></div>
       </div>
       <div class="speak-ring" id="remoteRing"></div>
-      <div class="emo-pill"   id="remoteEmo">😐 neutral</div>
+      <div class="emo-pill" id="remoteEmo">😐 neutral</div>
     </div>
     <div class="vol-wrap"><div class="vol-fill" id="remoteVol"></div></div>
   </div>
-
-</div><!-- /call -->
+</div>
 
 <div class="controls">
   <div class="sliders">
@@ -195,11 +174,11 @@ canvas.pixelated{image-rendering:pixelated;image-rendering:crisp-edges}
     </div>
   </div>
   <div class="btns">
-    <button id="camBtn"     onclick="startCamera()">📷 Start Camera</button>
-    <button id="micBtn"     onclick="startMic()" disabled>🎙️ Mic</button>
-    <button id="connectBtn" onclick="openModal()">📡 Connect Peer</button>
-    <button id="fistBtn"    onclick="sendFistPump()" disabled>👊 Fist Pump</button>
-    <button class="sec"     onclick="cloneVoice()">🎤 Voice Clone</button>
+    <button id="camBtn" onclick="startCamera()">📷 Start Camera</button>
+    <button id="micBtn" onclick="startMic()" disabled>🎙️ Mic</button>
+    <button onclick="openModal()">📡 Connect Peer</button>
+    <button id="fistBtn" onclick="sendFistPump()" disabled>👊 Fist Pump</button>
+    <button class="sec" onclick="cloneVoice()">🎤 Voice Clone</button>
   </div>
 </div>
 
@@ -210,852 +189,906 @@ canvas.pixelated{image-rendering:pixelated;image-rendering:crisp-edges}
   <div class="stat">RTT <b id="rttLbl">—</b>ms</div>
   <div class="stat">Peer <b id="connLbl" style="color:#ff4757">OFFLINE</b></div>
 </div>
-<div class="statusbar" id="statusbar">Click Start Camera to begin</div>
+<div class="statusbar" id="statusbar">Ready — click Start Camera to begin</div>
 
-<!-- Signaling Modal -->
 <div id="sigModal">
   <div class="modal">
     <h2>📡 Connect to Peer</h2>
-    <p>One person creates an offer, copies the JSON, sends it out-of-band (chat/text/email). The other pastes it and sends back their answer.</p>
-    <button class="mbtn" onclick="createOffer()">1️⃣ Create Offer (I go first)</button>
-    <textarea id="offerBox" placeholder="Your SDP will appear here — copy and send to peer"></textarea>
+    <p>One person clicks Create Offer, copies the JSON, sends it to the other. They paste and send back an answer.</p>
+    <button class="mbtn" onclick="createOffer()">1️⃣ Create Offer</button>
+    <textarea id="offerBox" placeholder="Your SDP appears here — copy and send to peer"></textarea>
     <p>Paste the other person's SDP here:</p>
     <textarea id="pasteBox" placeholder="Paste offer or answer from peer"></textarea>
     <button class="mbtn" onclick="handlePaste()">2️⃣ Paste & Connect</button>
-    <button class="mbtn dim" onclick="closeModal()">Dismiss</button>
+    <button class="mbtn dim" onclick="closeModal()">Close</button>
   </div>
 </div>
 
 <script>
 'use strict';
 
-// ═══════════════════════════════════════
-//  GLOBALS
-// ═══════════════════════════════════════
-const W3D = 300, H3D = 360;          // display size
-const SEND_MS   = 50;                 // 20 fps send rate
-const BUILD_MS  = 12000;              // 12 s full build
-const RPM_LOCAL  = 'https://models.readyplayer.me/6409af4ee28b5f5f6b34cfad.glb?morphTargets=ARKit&textureAtlas=1024';
-const RPM_REMOTE = 'https://models.readyplayer.me/640e85e0cf9a16d1be9a7e32.glb?morphTargets=ARKit&textureAtlas=1024';
+// ─────────────────────────────────────────────
+//  CONFIG
+// ─────────────────────────────────────────────
+const AV_W = 300, AV_H = 340;
+const MIN_RES = 16;           // start this blocky
+const BUILD_DURATION = 10000; // ms to go from pixelated → full res
+const SEND_MS = 50;           // 20fps send rate
 
-let bandwidth = 900, battery = 100, currentTier = 'AVATAR3D';
+let bw = 900, bat = 100, tier = 'AVATAR3D';
 let sentCount = 0, recvCount = 0;
-let cameraOn = false, micOn = false;
+let cameraOn = false;
 let lastSendT = 0, lastLandmarks = null;
 let localAudioLvl = 0, remoteAudioLvl = 0;
-let remoteLastState = null;
+let remoteLastState = null, remoteHasData = false;
 
-// Build progress 0..1
-const build = { local: 0, remote: 0 };
-const buildStart = { local: null, remote: null };
-
-// ═══════════════════════════════════════
-//  THREE.JS SCENE SETUP
-// ═══════════════════════════════════════
-function makeScene(wrapId, avatarUrl, who) {
-  const wrap = document.getElementById(wrapId);
-
-  // Offscreen render target — starts tiny for pixelation
-  const minRes = 12, maxRes = Math.max(W3D, H3D);
-
-  const scene    = new THREE.Scene();
-  scene.background = new THREE.Color(0x0b0b1c);
-  scene.fog        = new THREE.FogExp2(0x0b0b1c, 0.22);
-
-  const camera = new THREE.PerspectiveCamera(38, W3D / H3D, 0.01, 100);
-  camera.position.set(0, 1.58, 0.72); // tight face framing
-  camera.lookAt(0, 1.58, 0);
-
-  // Lighting rig
-  scene.add(new THREE.AmbientLight(0xffe8d0, 0.4));
-  const key  = new THREE.DirectionalLight(0xfff4e0, 1.2); key.position.set(1.5, 2, 2);  scene.add(key);
-  const fill = new THREE.DirectionalLight(0x99ccff, 0.4); fill.position.set(-2, 0.5,1.5);scene.add(fill);
-  const rim  = new THREE.DirectionalLight(0xff88cc, 0.45);rim.position.set(0,-1,-2);      scene.add(rim);
-  const top  = new THREE.DirectionalLight(0xffffff, 0.25);top.position.set(0,5,0);        scene.add(top);
-
-  // Renderer
-  const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(1); // we control resolution manually
-  renderer.setSize(minRes, Math.round(minRes * H3D / W3D));
-  renderer.domElement.style.width  = W3D + 'px';
-  renderer.domElement.style.height = H3D + 'px';
-  renderer.domElement.style.imageRendering = 'pixelated';
-  renderer.domElement.classList.add('three-canvas','pixelated');
-  wrap.insertBefore(renderer.domElement, wrap.firstChild);
-
-  const state = {
-    scene, camera, renderer, wrap,
-    mesh: null, morphDict: {},
-    buildProg: 0, loaded: false,
-    _smooth: {}
-  };
-
-  // Load GLB
-  const loader = new THREE.GLTFLoader();
-  setStatus('Loading ' + who + ' avatar model…');
-  loader.load(
-    avatarUrl,
-    gltf => {
-      gltf.scene.traverse(obj => {
-        if (obj.isMesh && obj.morphTargetInfluences) {
-          state.mesh = obj;
-          // Build morph target name → index dict
-          if (obj.morphTargetDictionary) {
-            state.morphDict = obj.morphTargetDictionary;
-          }
-        }
-      });
-      scene.add(gltf.scene);
-      state.loaded = true;
-      buildStart[who] = Date.now();
-      document.getElementById(who + 'BuildOverlay').style.display = 'flex';
-      setStatus(who === 'local' ? 'Local avatar loaded — start camera!' : 'Remote avatar loaded');
-    },
-    xhr => {
-      const pct = xhr.total ? Math.round(xhr.loaded / xhr.total * 100) : '…';
-      setStatus('Downloading ' + who + ' model: ' + pct + '%');
-    },
-    err => {
-      // Fallback: build a parametric face if GLB fails
-      console.warn('GLB load failed, using parametric fallback', err);
-      state.mesh = buildParametricFace(scene, who);
-      state.loaded = true;
-      buildStart[who] = Date.now();
-      document.getElementById(who + 'BuildOverlay').style.display = 'flex';
-      setStatus(who + ' using built-in avatar');
-    }
-  );
-
-  return state;
-}
-
-// ── Parametric fallback face (if GLB unavailable) ──
-function buildParametricFace(scene, who) {
-  const skinC = who === 'local' ? 0xd4956a : 0xe2c09a;
-  const hairC = who === 'local' ? 0x2a1508 : 0x100808;
-  const eyeC  = who === 'local' ? 0x3a6a30 : 0x2a4a7f;
-  const lipC  = who === 'local' ? 0xc06060 : 0xb05050;
-
-  const skin  = mat => new THREE.MeshStandardMaterial({color:skinC, roughness:.65, metalness:.02, ...mat});
-  const root  = new THREE.Group();
-
-  // Sculpted head
-  const hgeo = new THREE.SphereGeometry(1, 56, 40);
-  const hpos = hgeo.attributes.position;
-  for (let i = 0; i < hpos.count; i++) {
-    let x=hpos.getX(i), y=hpos.getY(i), z=hpos.getZ(i);
-    x *= .87; // flatten temples
-    if (y < -.3) { const cy=(-y-.3)/.7; x*=(1-cy*.48); z*=(1-cy*.28); } // chin
-    if (y > .55) z -= (y-.55)*.32; // forehead
-    if (z>.6 && y>-.55 && y<.35) { const fr=Math.sqrt(x*x+y*y)/.55; if(fr<1) z+=(1-fr)*.1; }
-    hpos.setXYZ(i, x, y, z);
-  }
-  hgeo.computeVertexNormals();
-  const head = new THREE.Mesh(hgeo, skin());
-  head.scale.set(1, 1.13, .94);
-  root.add(head);
-
-  // Morph targets we'll animate (fake — direct position manipulation)
-  const morphProxy = { influences: new Float32Array(52).fill(0) };
-
-  // Eyes
-  function eye(xs) {
-    const g = new THREE.Group();
-    g.add(new THREE.Mesh(new THREE.SphereGeometry(.155,24,18), new THREE.MeshStandardMaterial({color:0xf5f5f2,roughness:.4})));
-    const iris = new THREE.Mesh(new THREE.SphereGeometry(.10,20,16), new THREE.MeshStandardMaterial({color:eyeC,roughness:.35,metalness:.05}));
-    iris.position.z=.12; g.add(iris);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(.058,16,14), new THREE.MeshStandardMaterial({color:0x050505}));
-    pupil.position.z=.135; g.add(pupil);
-    const spec = new THREE.Mesh(new THREE.CircleGeometry(.022,10), new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffffff,emissiveIntensity:1}));
-    spec.position.set(.028,.028,.138); g.add(spec);
-    // Lids
-    const topLidGeo = new THREE.SphereGeometry(.168,20,8,0,Math.PI*2,0,Math.PI*.48);
-    const topLid = new THREE.Mesh(topLidGeo, skin()); topLid.rotation.x=Math.PI; g.add(topLid);
-    const botLidGeo = new THREE.SphereGeometry(.163,20,8,0,Math.PI*2,0,Math.PI*.38);
-    const botLid = new THREE.Mesh(botLidGeo, skin()); g.add(botLid);
-    g.position.set(xs, .275, .86);
-    return {g, iris, pupil, topLid, botLid};
-  }
-  const eyeL = eye(-.315), eyeR = eye(.315);
-  root.add(eyeL.g, eyeR.g);
-
-  // Brows
-  function brow(xp) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(.34,.046,.046),
-      new THREE.MeshStandardMaterial({color:hairC,roughness:.75}));
-    b.rotation.z = xp<0 ? .13 : -.13;
-    b.position.set(xp,.515,.875);
-    return b;
-  }
-  const browL=brow(-.315), browR=brow(.315);
-  root.add(browL, browR);
-
-  // Nose
-  const ng=new THREE.Group();
-  const bridge=new THREE.Mesh(new THREE.SphereGeometry(.07,14,12),skin()); bridge.scale.set(.68,2.1,.78); bridge.position.set(0,-.06,.93); ng.add(bridge);
-  const tip=new THREE.Mesh(new THREE.SphereGeometry(.1,14,12),skin()); tip.scale.set(1,.82,1.1); tip.position.set(0,-.28,1.01); ng.add(tip);
-  [-.1,.1].forEach(x=>{const n=new THREE.Mesh(new THREE.SphereGeometry(.068,12,10),skin());n.scale.set(1.1,.78,1);n.position.set(x,-.33,.96);ng.add(n);});
-  root.add(ng);
-
-  // Mouth
-  const mg=new THREE.Group(); mg.position.set(0,-.49,.89);
-  const lipMat=new THREE.MeshStandardMaterial({color:lipC,roughness:.5});
-  const ul=new THREE.Mesh(new THREE.SphereGeometry(.21,24,12,0,Math.PI*2,0,Math.PI*.5),lipMat.clone());
-  ul.rotation.x=Math.PI; ul.scale.set(1.1,1,.68); ul.position.y=.062; mg.add(ul);
-  const ll=new THREE.Mesh(new THREE.SphereGeometry(.225,24,12,0,Math.PI*2,0,Math.PI*.5),lipMat.clone());
-  ll.scale.set(1,1.08,.72); ll.position.y=-.068; mg.add(ll);
-  const teeth=new THREE.Mesh(new THREE.BoxGeometry(.28,.072,.045),
-    new THREE.MeshStandardMaterial({color:0xf2efea,roughness:.55}));
-  teeth.position.z=.04; teeth.visible=false; mg.add(teeth);
-  const cL=new THREE.Mesh(new THREE.SphereGeometry(.042,10,8),lipMat.clone()); cL.position.set(-.225,0,0); mg.add(cL);
-  const cR=new THREE.Mesh(new THREE.SphereGeometry(.042,10,8),lipMat.clone()); cR.position.set(.225,0,0);  mg.add(cR);
-  root.add(mg);
-
-  // Ears
-  [[-1,1],[1,1]].forEach(([xs])=>{
-    const g=new THREE.Group();
-    const o=new THREE.Mesh(new THREE.SphereGeometry(.2,16,14),skin()); o.scale.set(.38,.72,.42); g.add(o);
-    const i2=new THREE.Mesh(new THREE.SphereGeometry(.13,14,12),skin()); i2.scale.set(.3,.55,.48); i2.position.z=.04; g.add(i2);
-    g.position.set(xs*.935,.12,0); root.add(g);
-  });
-
-  // Hair cap
-  const hcap=new THREE.Mesh(new THREE.SphereGeometry(1.045,32,24,0,Math.PI*2,0,Math.PI*.52),
-    new THREE.MeshStandardMaterial({color:hairC,roughness:.94}));
-  hcap.scale.set(.89,1.14,.97); root.add(hcap);
-
-  // Neck + shirt hint
-  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.31,.35,.55,24),skin());
-  neck.position.y=-1.17; root.add(neck);
-  const shirt=new THREE.Mesh(new THREE.SphereGeometry(.7,20,12),
-    new THREE.MeshStandardMaterial({color: who==='local'?0x1a3a5c:0x2a1a3a, roughness:.9}));
-  shirt.scale.set(1.8,.55,.7); shirt.position.y=-1.68; root.add(shirt);
-
-  // Position root so face fills frame
-  root.position.set(0, -.05, 0);
-  scene.add(root);
-
-  // Return proxy that mimics GLB mesh interface
-  return {
-    morphTargetInfluences: morphProxy.influences,
-    morphTargetDictionary: {},
-    // Store refs for direct animation
-    _root: root, _eyeL:eyeL, _eyeR:eyeR, _browL:browL, _browR:browR,
-    _mg:mg, _ul:ul, _ll:ll, _teeth:teeth, _cL:cL, _cR:cR,
-    _isParametric: true
-  };
-}
-
-// Make scenes
-const localS  = makeScene('localCanvasWrap',  RPM_LOCAL,  'local');
-const remoteS = makeScene('remoteCanvasWrap', RPM_REMOTE, 'remote');
-
-// ═══════════════════════════════════════
-//  PIXELATED BUILD EFFECT
-// ═══════════════════════════════════════
-// Each frame we set renderer resolution = lerp(minPx, maxPx, buildProgress)
-// CSS keeps the canvas stretched to full size with pixelated rendering
-// Result: blocky pixels that sharpen into crisp detail as build completes
-
-function updateRendererRes(sc, progress) {
-  const minPx = 14;
-  const maxPx = W3D;
-  const cur = Math.round(minPx + (maxPx - minPx) * easeInOut(progress));
-  const curH = Math.round(cur * H3D / W3D);
-  const r = sc.renderer;
-  if (r.domElement.width !== cur) {
-    r.setSize(cur, curH, false); // false = don't update CSS size
-  }
-}
-
-function easeInOut(t) {
-  // Fast start, slow finish — gives satisfying build feel
-  return t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
-}
-
-// ═══════════════════════════════════════
-//  BLENDSHAPE APPLICATION
-// ═══════════════════════════════════════
-const ARKIT_MAP = {
-  // MediaPipe → ARKit morph target names used by RPM
-  jawOpen:         'jawOpen',
-  mouthSmileLeft:  'mouthSmileLeft',
-  mouthSmileRight: 'mouthSmileRight',
-  browInnerUp:     'browInnerUp',
-  browOuterUpLeft: 'browOuterUpLeft',
-  browOuterUpRight:'browOuterUpRight',
-  eyeBlinkLeft:    'eyeBlinkLeft',
-  eyeBlinkRight:   'eyeBlinkRight',
-  eyeLookOutLeft:  'eyeLookOutLeft',
-  eyeLookInLeft:   'eyeLookInLeft',
-  eyeLookUpLeft:   'eyeLookUpLeft',
-  eyeLookDownLeft: 'eyeLookDownLeft',
-  cheekPuff:       'cheekPuff',
-  mouthFunnel:     'mouthFunnel',
+// ─────────────────────────────────────────────
+//  BUILD STATE
+// ─────────────────────────────────────────────
+const buildState = {
+  local:  { start: Date.now(), progress: 0 },
+  remote: { start: null,       progress: 0 },
 };
 
-function lerp(a,b,t){ return a+(b-a)*t; }
+// ─────────────────────────────────────────────
+//  THREE.JS — HIGH QUALITY PARAMETRIC FACE
+// ─────────────────────────────────────────────
+function makeFaceScene(containerId, cfg) {
+  const container = document.getElementById(containerId);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b0b1e);
+
+  // Subtle vignette fog
+  scene.fog = new THREE.FogExp2(0x06060f, 0.28);
+
+  const camera = new THREE.PerspectiveCamera(36, AV_W / AV_H, 0.01, 50);
+  camera.position.set(0, 0.1, 3.4);
+  camera.lookAt(0, 0.1, 0);
+
+  // ── Lighting rig ──
+  // Ambient
+  scene.add(new THREE.AmbientLight(0xffeedd, 0.3));
+  // Key — warm, slightly from upper right
+  const key = new THREE.DirectionalLight(0xfff3e0, 1.15);
+  key.position.set(1.8, 2.5, 2.5); scene.add(key);
+  // Fill — cool from left
+  const fill = new THREE.DirectionalLight(0x99bbff, 0.38);
+  fill.position.set(-2.5, 0.5, 1.5); scene.add(fill);
+  // Rim — pink from behind/below for separation
+  const rim = new THREE.DirectionalLight(0xff99cc, 0.55);
+  rim.position.set(0, -1.2, -2.2); scene.add(rim);
+  // Top — soft overhead
+  const top = new THREE.DirectionalLight(0xffeeff, 0.2);
+  top.position.set(0, 4, 0.5); scene.add(top);
+
+  // ── Renderer ── start at MIN_RES, CSS stretches to full size
+  const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
+  renderer.setPixelRatio(1);
+  renderer.setSize(MIN_RES, Math.round(MIN_RES * AV_H / AV_W), false);
+  container.appendChild(renderer.domElement);
+
+  // ── Build the face ──
+  const face = buildFace(scene, cfg);
+
+  return { scene, camera, renderer, face, _sm: {} };
+}
+
+function buildFace(scene, cfg) {
+  const root = new THREE.Group();
+
+  // Materials
+  const skinMat = new THREE.MeshStandardMaterial({
+    color: cfg.skin, roughness: 0.68, metalness: 0.0,
+  });
+  const darkSkinMat = new THREE.MeshStandardMaterial({
+    color: cfg.skin, roughness: 0.72, metalness: 0.0,
+  });
+  const hairMat  = new THREE.MeshStandardMaterial({ color: cfg.hair, roughness: 0.95 });
+  const lipMat   = new THREE.MeshStandardMaterial({ color: cfg.lip,  roughness: 0.52 });
+  const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf5f3ef,  roughness: 0.45 });
+  const irisMat  = new THREE.MeshStandardMaterial({ color: cfg.iris,  roughness: 0.3, metalness: 0.05 });
+  const pupilMat = new THREE.MeshStandardMaterial({ color: 0x060606,  roughness: 0.9 });
+  const teethMat = new THREE.MeshStandardMaterial({ color: 0xeeeae4,  roughness: 0.55 });
+  const shirtMat = new THREE.MeshStandardMaterial({ color: cfg.shirt, roughness: 0.88 });
+
+  // ── HEAD — sculpted sphere ──
+  const hGeo = new THREE.SphereGeometry(1, 80, 60);
+  const hPos = hGeo.attributes.position;
+  for (let i = 0; i < hPos.count; i++) {
+    let x = hPos.getX(i), y = hPos.getY(i), z = hPos.getZ(i);
+    // Flatten temples
+    x *= 0.865;
+    // Narrow top of skull
+    if (y > 0.4) x *= (1 - (y - 0.4) * 0.22);
+    // Chin taper
+    if (y < -0.28) {
+      const t = (-y - 0.28) / 0.72;
+      x *= (1 - t * 0.52);
+      z *= (1 - t * 0.32);
+    }
+    // Forehead flatten
+    if (y > 0.62) z -= (y - 0.62) * 0.28;
+    // Face protrusion — mid-face forward
+    if (z > 0.55 && y > -0.62 && y < 0.38) {
+      const r = Math.sqrt(x*x + Math.pow(y*0.6, 2));
+      if (r < 0.52) z += (0.52 - r) * 0.14;
+    }
+    hPos.setXYZ(i, x, y, z);
+  }
+  hGeo.computeVertexNormals();
+  const headMesh = new THREE.Mesh(hGeo, skinMat);
+  headMesh.scale.set(1, 1.14, 0.93);
+  root.add(headMesh);
+
+  // ── NECK ──
+  const neckMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.29, 0.34, 0.58, 28),
+    skinMat
+  );
+  neckMesh.position.set(0, -1.19, 0);
+  root.add(neckMesh);
+
+  // ── SHOULDERS / SHIRT hint ──
+  const shirtMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.72, 22, 14),
+    shirtMat
+  );
+  shirtMesh.scale.set(1.85, 0.52, 0.72);
+  shirtMesh.position.set(0, -1.72, -0.05);
+  root.add(shirtMesh);
+
+  // ── EARS ──
+  function makeEar(sign) {
+    const g = new THREE.Group();
+    const outer = new THREE.Mesh(new THREE.SphereGeometry(0.2, 18, 14), darkSkinMat);
+    outer.scale.set(0.36, 0.74, 0.4);
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), darkSkinMat);
+    inner.scale.set(0.28, 0.52, 0.46);
+    inner.position.z = 0.05;
+    g.add(outer, inner);
+    g.position.set(sign * 0.928, 0.14, 0.0);
+    return g;
+  }
+  root.add(makeEar(-1), makeEar(1));
+
+  // ── EYEBROWS ──
+  function makeBrow(sign) {
+    const g = new THREE.Group();
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.36, 0.048, 0.048),
+      new THREE.MeshStandardMaterial({ color: cfg.brow, roughness: 0.75 })
+    );
+    // Arch
+    mesh.rotation.z = sign * -0.14;
+    g.add(mesh);
+    g.position.set(sign * 0.32, 0.522, 0.875);
+    return g;
+  }
+  const browL = makeBrow(-1), browR = makeBrow(1);
+  root.add(browL, browR);
+
+  // ── EYES ──
+  function makeEye(sign) {
+    const g = new THREE.Group();
+    // Eyeball
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.148, 28, 22), whiteMat);
+    g.add(ball);
+    // Iris
+    const iris = new THREE.Mesh(new THREE.SphereGeometry(0.098, 24, 18), irisMat);
+    iris.position.z = 0.115;
+    g.add(iris);
+    // Pupil
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.057, 18, 14), pupilMat);
+    pupil.position.z = 0.128;
+    g.add(pupil);
+    // Specular highlight
+    const spec = new THREE.Mesh(
+      new THREE.CircleGeometry(0.024, 10),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1 })
+    );
+    spec.position.set(0.032, 0.032, 0.132);
+    g.add(spec);
+    // Upper eyelid
+    const topGeo = new THREE.SphereGeometry(0.162, 22, 10, 0, Math.PI*2, 0, Math.PI*0.49);
+    const topLid = new THREE.Mesh(topGeo, skinMat.clone());
+    topLid.rotation.x = Math.PI;
+    topLid.position.z = -0.008;
+    g.add(topLid);
+    // Lower eyelid
+    const botGeo = new THREE.SphereGeometry(0.158, 22, 10, 0, Math.PI*2, 0, Math.PI*0.36);
+    const botLid = new THREE.Mesh(botGeo, skinMat.clone());
+    botLid.position.z = -0.008;
+    g.add(botLid);
+    g.position.set(sign * 0.318, 0.278, 0.858);
+    return { g, iris, pupil, topLid, botLid };
+  }
+  const eyeL = makeEye(-1), eyeR = makeEye(1);
+  root.add(eyeL.g, eyeR.g);
+
+  // ── NOSE ──
+  const noseGroup = new THREE.Group();
+  // Bridge
+  const bridge = new THREE.Mesh(new THREE.SphereGeometry(0.072, 16, 14), skinMat);
+  bridge.scale.set(0.65, 2.2, 0.78);
+  bridge.position.set(0, -0.04, 0.935);
+  noseGroup.add(bridge);
+  // Tip
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.098, 16, 14), skinMat);
+  tip.scale.set(1, 0.82, 1.12);
+  tip.position.set(0, -0.275, 1.012);
+  noseGroup.add(tip);
+  // Nostrils
+  [-0.098, 0.098].forEach(nx => {
+    const n = new THREE.Mesh(new THREE.SphereGeometry(0.065, 14, 11), skinMat);
+    n.scale.set(1.08, 0.76, 0.98);
+    n.position.set(nx, -0.318, 0.965);
+    noseGroup.add(n);
+  });
+  root.add(noseGroup);
+
+  // ── MOUTH ──
+  const mouthGroup = new THREE.Group();
+  mouthGroup.position.set(0, -0.488, 0.892);
+
+  // Upper lip
+  const ulGeo = new THREE.SphereGeometry(0.218, 28, 14, 0, Math.PI*2, 0, Math.PI*0.5);
+  const upperLip = new THREE.Mesh(ulGeo, lipMat.clone());
+  upperLip.rotation.x = Math.PI;
+  upperLip.scale.set(1.12, 0.98, 0.68);
+  upperLip.position.y = 0.065;
+  mouthGroup.add(upperLip);
+
+  // Lower lip
+  const llGeo = new THREE.SphereGeometry(0.232, 28, 14, 0, Math.PI*2, 0, Math.PI*0.5);
+  const lowerLip = new THREE.Mesh(llGeo, lipMat.clone());
+  lowerLip.scale.set(1.05, 1.1, 0.72);
+  lowerLip.position.y = -0.072;
+  mouthGroup.add(lowerLip);
+
+  // Teeth
+  const teeth = new THREE.Mesh(
+    new THREE.BoxGeometry(0.285, 0.075, 0.045), teethMat
+  );
+  teeth.position.set(0, 0, 0.042);
+  teeth.visible = false;
+  mouthGroup.add(teeth);
+
+  // Mouth corners
+  const cL = new THREE.Mesh(new THREE.SphereGeometry(0.044, 12, 10), lipMat.clone());
+  cL.position.set(-0.228, 0, 0);
+  const cR = new THREE.Mesh(new THREE.SphereGeometry(0.044, 12, 10), lipMat.clone());
+  cR.position.set(0.228, 0, 0);
+  mouthGroup.add(cL, cR);
+  root.add(mouthGroup);
+
+  // ── HAIR ──
+  const hairGeo = new THREE.SphereGeometry(1.048, 36, 26, 0, Math.PI*2, 0, Math.PI*0.53);
+  const hairMesh = new THREE.Mesh(hairGeo, hairMat);
+  hairMesh.scale.set(0.878, 1.155, 0.965);
+  hairMesh.position.y = 0.015;
+  root.add(hairMesh);
+
+  // Position root for camera framing
+  root.position.set(0, -0.04, 0);
+  scene.add(root);
+
+  return {
+    root, headMesh, eyeL, eyeR, browL, browR,
+    mouthGroup, upperLip, lowerLip, teeth, cL, cR,
+  };
+}
+
+// ─────────────────────────────────────────────
+//  AVATAR CONFIGS — distinct characters
+// ─────────────────────────────────────────────
+const LOCAL_CFG = {
+  skin: 0xd49268, hair: 0x231208, brow: 0x231208,
+  iris: 0x3d6e30, lip: 0xbf5f5f, shirt: 0x1a3a5e,
+};
+const REMOTE_CFG = {
+  skin: 0xe3be98, hair: 0x110808, brow: 0x110808,
+  iris: 0x2a4e85, lip: 0xad5050, shirt: 0x2a183a,
+};
+
+// Create scenes
+const localS  = makeFaceScene('localAv',  LOCAL_CFG);
+const remoteS = makeFaceScene('remoteAv', REMOTE_CFG);
+
+// ─────────────────────────────────────────────
+//  BLENDSHAPE APPLICATION
+// ─────────────────────────────────────────────
+function lerp(a, b, t) { return a + (b - a) * t; }
 
 function applyState(sc, state, smooth) {
-  if (!sc.loaded || !sc.mesh || !state) return;
-  const S = smooth ? 0.2 : 0.8;
-  const bs = state.blendshapes || {};
-  const hr = state.headRotation || {x:0,y:0,z:0};
-  const sm = sc._smooth;
+  if (!state) return;
+  const k    = smooth ? 0.2 : 0.82;
+  const bs   = state.blendshapes || {};
+  const hr   = state.headRotation || { x: 0, y: 0, z: 0 };
+  const s    = sc._sm;
+  const face = sc.face;
 
-  // Smooth all values
-  sm.mo  = lerp(sm.mo  ??0, bs.mouthOpen ??0, S);
-  sm.sm  = lerp(sm.sm  ??0, bs.smile     ??0, S);
-  sm.br  = lerp(sm.br  ??0, bs.browRaise ??0, S);
-  sm.bl  = lerp(sm.bl  ??0, bs.blink     ??0, S);
-  sm.gx  = lerp(sm.gx  ??0, bs.gazeX    ??0, S*.7);
-  sm.gy  = lerp(sm.gy  ??0, bs.gazeY    ??0, S*.7);
-  sm.rx  = lerp(sm.rx  ??0, hr.x, S*.85);
-  sm.ry  = lerp(sm.ry  ??0, hr.y, S*.85);
-  sm.rz  = lerp(sm.rz  ??0, hr.z, S*.7);
+  // Smooth all channels
+  s.mo = lerp(s.mo ?? 0, bs.mouthOpen  ?? 0, k);
+  s.sm = lerp(s.sm ?? 0, bs.smile      ?? 0, k);
+  s.br = lerp(s.br ?? 0, bs.browRaise  ?? 0, k);
+  s.bl = lerp(s.bl ?? 0, bs.blink      ?? 0, k);
+  s.gx = lerp(s.gx ?? 0, bs.gazeX     ?? 0, k * 0.65);
+  s.gy = lerp(s.gy ?? 0, bs.gazeY     ?? 0, k * 0.65);
+  s.rx = lerp(s.rx ?? 0, hr.x,             k * 0.88);
+  s.ry = lerp(s.ry ?? 0, hr.y,             k * 0.88);
+  s.rz = lerp(s.rz ?? 0, hr.z,             k * 0.72);
 
-  if (sc.mesh._isParametric) {
-    applyParametric(sc, sm, state);
-  } else {
-    applyRPM(sc, sm, state);
-  }
-}
+  // ── Head rotation ──
+  face.root.rotation.x = s.rx * 0.72;
+  face.root.rotation.y = s.ry * 0.88;
+  face.root.rotation.z = s.rz * 0.44;
 
-function applyRPM(sc, sm, state) {
-  const mesh = sc.mesh;
-  const md   = mesh.morphTargetDictionary;
-  const mi   = mesh.morphTargetInfluences;
-  if (!mi) return;
+  // ── Mouth open — jaw drops, lips part, teeth appear ──
+  face.upperLip.position.y =  0.065 + s.mo * 0.068;
+  face.lowerLip.position.y = -0.072 - s.mo * 0.152;
+  face.teeth.visible = s.mo > 0.07;
+  face.teeth.position.y = -s.mo * 0.04;
 
-  function set(name, val) {
-    const idx = md[name];
-    if (idx !== undefined) mi[idx] = Math.max(0, Math.min(1, val));
-  }
+  // ── Smile — corners pull back/up, mouth widens ──
+  face.cL.position.set(-0.228 - s.sm * 0.13, s.sm * 0.072, 0);
+  face.cR.position.set( 0.228 + s.sm * 0.13, s.sm * 0.072, 0);
+  face.mouthGroup.scale.x = 1 + s.sm * 0.26;
+  // Lips blush slightly with big smile
+  const blush = Math.max(0, s.sm - 0.5) * 0.18;
+  face.upperLip.material.emissiveIntensity = blush;
+  face.lowerLip.material.emissiveIntensity = blush;
 
-  // Jaw / mouth
-  set('jawOpen',          sm.mo);
-  set('mouthSmileLeft',   sm.sm);
-  set('mouthSmileRight',  sm.sm);
-  set('mouthFunnel',      sm.mo * 0.3);
+  // ── Brow raise / furrow ──
+  const frown = Math.max(0, -(state.valence ?? 0) * 0.55);
+  face.browL.position.y = 0.522 + s.br * 0.195 - frown * 0.06;
+  face.browR.position.y = 0.522 + s.br * 0.195 - frown * 0.06;
+  face.browL.rotation.z =  0.14 - s.br * 0.06 + frown * 0.22;
+  face.browR.rotation.z = -0.14 + s.br * 0.06 - frown * 0.22;
 
-  // Brows
-  set('browInnerUp',       sm.br);
-  set('browOuterUpLeft',   sm.br * 0.8);
-  set('browOuterUpRight',  sm.br * 0.8);
+  // ── Blink ──
+  const blinkY = Math.max(0.05, 1 - s.bl * 0.94);
+  face.eyeL.topLid.scale.y = blinkY;
+  face.eyeR.topLid.scale.y = blinkY;
+  face.eyeL.botLid.scale.y = blinkY;
+  face.eyeR.botLid.scale.y = blinkY;
 
-  // Frown on negative valence
-  const frown = Math.max(0, -(state.valence ?? 0) * 0.6);
-  set('browDownLeft',  frown);
-  set('browDownRight', frown);
-
-  // Blink
-  set('eyeBlinkLeft',  sm.bl);
-  set('eyeBlinkRight', sm.bl);
-
-  // Gaze
-  const gx = sm.gx, gy = sm.gy;
-  set('eyeLookOutLeft',   Math.max(0,  gx) * 0.6);
-  set('eyeLookInLeft',    Math.max(0, -gx) * 0.6);
-  set('eyeLookOutRight',  Math.max(0, -gx) * 0.6);
-  set('eyeLookInRight',   Math.max(0,  gx) * 0.6);
-  set('eyeLookUpLeft',    Math.max(0, -gy) * 0.5);
-  set('eyeLookDownLeft',  Math.max(0,  gy) * 0.5);
-  set('eyeLookUpRight',   Math.max(0, -gy) * 0.5);
-  set('eyeLookDownRight', Math.max(0,  gy) * 0.5);
-
-  // Cheek puff when really happy
-  set('cheekPuff', Math.max(0, sm.sm - 0.6) * 0.5);
-
-  // Head rotation — find head bone or rotate root
-  sc.scene.children.forEach(child => {
-    if (child.isGroup || child.isBone) {
-      child.traverse(o => {
-        if (o.isBone && (o.name.toLowerCase().includes('head') || o.name.toLowerCase().includes('neck'))) {
-          if (o.name.toLowerCase().includes('head')) {
-            o.rotation.x = sm.rx * 0.65;
-            o.rotation.y = sm.ry * 0.8;
-            o.rotation.z = sm.rz * 0.4;
-          }
-        }
-      });
-    }
+  // ── Gaze ──
+  const GR = 0.064;
+  [face.eyeL, face.eyeR].forEach(eye => {
+    eye.iris.position.x  = s.gx * GR;
+    eye.iris.position.y  = s.gy * GR * 0.72;
+    eye.pupil.position.x = s.gx * GR;
+    eye.pupil.position.y = s.gy * GR * 0.72;
   });
 
-  // Fist pump
+  // ── Fist pump — head bounce ──
   if (state.gestures?.includes(4)) {
-    sc.scene.position.y = 0.15;
-    setTimeout(() => { if(sc.scene) sc.scene.position.y = 0; }, 150);
+    face.root.position.y = 0.22;
+    setTimeout(() => { face.root.position.y = 0; }, 150);
+    s.mo = 0.7; s.sm = 0.92;
   }
 }
 
-function applyParametric(sc, sm, state) {
-  const m = sc.mesh;
-  // Head rotation
-  m._root.rotation.x = sm.rx * 0.7;
-  m._root.rotation.y = sm.ry * 0.88;
-  m._root.rotation.z = sm.rz * 0.45;
+// ─────────────────────────────────────────────
+//  PIXELATED BUILD EFFECT
+// ─────────────────────────────────────────────
+// Each frame: set renderer size = lerp(MIN_RES, MAX_RES, eased_progress)
+// CSS holds canvas at 300x340 with image-rendering:pixelated
+// Result: blocky minecraft-face that sharpens into crisp 3D portrait
 
-  // Mouth
-  m._ul.position.y =  0.062 + sm.mo * 0.065;
-  m._ll.position.y = -0.068 - sm.mo * 0.145;
-  m._teeth.visible = sm.mo > 0.08;
-
-  // Smile
-  m._cL.position.set(-0.225 - sm.sm*0.12, sm.sm*0.07, 0);
-  m._cR.position.set( 0.225 + sm.sm*0.12, sm.sm*0.07, 0);
-  m._mg.scale.x = 1 + sm.sm*0.24;
-
-  // Brows
-  m._browL.position.y = 0.515 + sm.br*0.19;
-  m._browR.position.y = 0.515 + sm.br*0.19;
-  const frown = Math.max(0, -(state.valence??0)*0.55);
-  m._browL.rotation.z =  0.13 + frown*0.18;
-  m._browR.rotation.z = -0.13 - frown*0.18;
-
-  // Blink
-  const blinkY = 1 - sm.bl*0.93;
-  m._eyeL.topLid.scale.y = blinkY;
-  m._eyeR.topLid.scale.y = blinkY;
-  m._eyeL.botLid.scale.y = blinkY;
-  m._eyeR.botLid.scale.y = blinkY;
-
-  // Gaze
-  const GR = 0.062;
-  [m._eyeL, m._eyeR].forEach(e => {
-    e.iris.position.x  = sm.gx*GR;
-    e.iris.position.y  = sm.gy*GR*.7;
-    e.pupil.position.x = sm.gx*GR;
-    e.pupil.position.y = sm.gy*GR*.7;
-  });
-
-  // Fist pump
-  if (state.gestures?.includes(4)) {
-    m._root.position.y = 0.18;
-    setTimeout(() => { if(m._root) m._root.position.y = 0; }, 145);
-  }
+function easeInOut(t) {
+  // Slow start and end, fast middle — dramatic reveal
+  return t < 0.5 ? 2*t*t : -1 + (4 - 2*t)*t;
 }
 
-// ═══════════════════════════════════════
+function getResolution(progress) {
+  const eased = easeInOut(Math.max(0, Math.min(1, progress)));
+  return Math.round(MIN_RES + (AV_W - MIN_RES) * eased);
+}
+
+function tickBuild(who) {
+  const bs = buildState[who];
+  if (!bs.start) return;
+  bs.progress = Math.min(1, (Date.now() - bs.start) / BUILD_DURATION);
+
+  const pct = Math.floor(bs.progress * 100);
+  const label = pct < 25 ? `Initializing… ${pct}%`
+              : pct < 55 ? `Building mesh… ${pct}%`
+              : pct < 82 ? `Applying textures… ${pct}%`
+              :             `Refining detail… ${pct}%`;
+
+  const fillEl = document.getElementById(who + 'BuildFill');
+  const pctEl  = document.getElementById(who + 'BuildPct');
+  const ovEl   = document.getElementById(who + 'BuildOverlay');
+  if (fillEl) fillEl.style.width = pct + '%';
+  if (pctEl)  pctEl.textContent  = label;
+
+  if (bs.progress >= 1 && ovEl && ovEl.style.opacity !== '0') {
+    ovEl.style.transition = 'opacity .7s';
+    ovEl.style.opacity = '0';
+    setTimeout(() => { ovEl.style.display = 'none'; ovEl.style.opacity = '1'; }, 750);
+  }
+
+  // Update renderer resolution
+  const sc = who === 'local' ? localS : remoteS;
+  const res = getResolution(bs.progress);
+  const resH = Math.round(res * AV_H / AV_W);
+  if (sc.renderer.domElement.width !== res) {
+    sc.renderer.setSize(res, resH, false);
+  }
+
+  // Fog clears as build completes
+  sc.scene.fog.density = 0.28 * (1 - bs.progress * 0.88);
+}
+
+// ─────────────────────────────────────────────
 //  RENDER LOOP
-// ═══════════════════════════════════════
+// ─────────────────────────────────────────────
 function renderLoop() {
   requestAnimationFrame(renderLoop);
-  const now = Date.now();
 
-  // Update build progress
-  ['local','remote'].forEach(who => {
-    const sc = who==='local' ? localS : remoteS;
-    if (buildStart[who] && build[who] < 1) {
-      build[who] = Math.min(1, (now - buildStart[who]) / BUILD_MS);
-      updateBuildUI(who, build[who]);
-      updateRendererRes(sc, build[who]);
-    }
-  });
+  const t = Date.now() * 0.001;
 
-  // Idle animation pre-camera
-  const t = now * 0.001;
-  if (!cameraOn && localS.loaded && localS.mesh?._isParametric) {
-    localS.mesh._root.rotation.y = Math.sin(t*.55)*.2;
-    localS.mesh._root.rotation.x = Math.sin(t*.38)*.05;
+  // Idle sway when camera not active
+  if (!cameraOn) {
+    localS.face.root.rotation.y  = Math.sin(t * 0.55) * 0.22;
+    localS.face.root.rotation.x  = Math.sin(t * 0.38) * 0.055;
   }
-  if (!remoteScene_hasData && remoteS.loaded && remoteS.mesh?._isParametric) {
-    remoteS.mesh._root.rotation.y = Math.sin(t*.48+1.1)*.2;
-    remoteS.mesh._root.rotation.x = Math.sin(t*.33+.8)*.05;
+  if (!remoteHasData) {
+    remoteS.face.root.rotation.y = Math.sin(t * 0.48 + 1.1) * 0.22;
+    remoteS.face.root.rotation.x = Math.sin(t * 0.33 + 0.8) * 0.055;
   }
 
-  // Remote interpolation
+  // Build tick
+  tickBuild('local');
+  tickBuild('remote');
+
+  // Apply remote state with interpolation
   if (remoteLastState) applyState(remoteS, remoteLastState, true);
 
   // Volume bars
-  setVolBar('localVol',  localAudioLvl);
-  setVolBar('remoteVol', remoteAudioLvl);
+  setEl('localVol',  'width', Math.min(100, localAudioLvl  * 320) + '%');
+  setEl('remoteVol', 'width', Math.min(100, remoteAudioLvl * 320) + '%');
 
-  localS.renderer.render(localS.scene, localS.camera);
+  localS.renderer.render(localS.scene,   localS.camera);
   remoteS.renderer.render(remoteS.scene, remoteS.camera);
 }
-let remoteScene_hasData = false;
 renderLoop();
 
-function updateBuildUI(who, p) {
-  const pct  = Math.floor(p*100);
-  const fill = document.getElementById(who+'BuildFill');
-  const lbl  = document.getElementById(who+'BuildPct');
-  const ov   = document.getElementById(who+'BuildOverlay');
-  if (!fill) return;
-  fill.style.width = pct+'%';
-  if (p < 1) {
-    lbl.textContent = pct < 30 ? `Initializing… ${pct}%` :
-                      pct < 60 ? `Building mesh… ${pct}%` :
-                      pct < 85 ? `Applying textures… ${pct}%` :
-                                 `Refining detail… ${pct}%`;
-  } else {
-    ov.style.transition = 'opacity .6s';
-    ov.style.opacity = '0';
-    setTimeout(() => { ov.style.display='none'; ov.style.opacity='1'; }, 650);
-  }
-  document.getElementById(who+'TierBadge').textContent = currentTier;
-}
-
-function setVolBar(id, lvl) {
+function setEl(id, prop, val) {
   const el = document.getElementById(id);
-  if (el) el.style.width = Math.min(100, lvl*320)+'%';
+  if (el) el.style[prop] = val;
 }
 
-// ═══════════════════════════════════════
-//  MEDIAPIPE FACE TRACKING
-// ═══════════════════════════════════════
-let faceMesh = null;
+// ─────────────────────────────────────────────
+//  MEDIAPIPE — FACE TRACKING
+// ─────────────────────────────────────────────
+let faceMeshInst = null;
 
 async function startCamera() {
+  const btn = document.getElementById('camBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Starting…';
+
   try {
-    setStatus('Requesting camera…');
+    setStatus('Requesting camera access…');
     const stream = await navigator.mediaDevices.getUserMedia({
-      video:{width:640,height:480,facingMode:'user'}, audio:false
+      video: { width: 640, height: 480, facingMode: 'user' },
+      audio: false,
     });
+
     const vid = document.getElementById('localVid');
-    vid.srcObject = stream; await vid.play();
+    vid.srcObject = stream;
+    await new Promise(res => { vid.onloadedmetadata = res; });
+    await vid.play();
 
-    setStatus('Loading MediaPipe…');
-    faceMesh = new FaceMesh({
-      locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
-    });
-    faceMesh.setOptions({
-      maxNumFaces:1, refineLandmarks:true,
-      minDetectionConfidence:.5, minTrackingConfidence:.45
-    });
-    faceMesh.onResults(onFaceResults);
+    setStatus('Initializing face tracker (first load ~10s)…');
 
+    faceMeshInst = new FaceMesh({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`,
+    });
+
+    faceMeshInst.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.45,
+    });
+
+    faceMeshInst.onResults(onFaceResults);
+
+    // Use MediaPipe Camera utility to feed frames
     const mpCam = new Camera(vid, {
-      onFrame: async()=>{ if(faceMesh) await faceMesh.send({image:vid}); },
-      width:640, height:480
+      onFrame: async () => {
+        if (faceMeshInst) await faceMeshInst.send({ image: vid });
+      },
+      width: 640,
+      height: 480,
     });
     await mpCam.start();
 
     cameraOn = true;
-    const btn = document.getElementById('camBtn');
-    btn.disabled=true; btn.textContent='✅ Camera On';
-    document.getElementById('micBtn').disabled=false;
-    document.getElementById('fistBtn').disabled=false;
+    btn.textContent = '✅ Camera On';
+    document.getElementById('micBtn').disabled = false;
+    document.getElementById('fistBtn').disabled = false;
     setStatus('Face tracking active — move your face!');
-  } catch(e){ setStatus('Camera error: '+e.message); }
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = '📷 Start Camera';
+    setStatus('Camera error: ' + e.message);
+    console.error('Camera error:', e);
+  }
 }
 
 function onFaceResults(results) {
-  if (!results.multiFaceLandmarks?.[0]) return;
+  if (!results.multiFaceLandmarks || !results.multiFaceLandmarks[0]) return;
+
   lastLandmarks = results.multiFaceLandmarks[0];
   const state = landmarksToState(lastLandmarks);
   if (!state) return;
 
+  // Drive local avatar immediately (no smoothing)
   applyState(localS, state, false);
-  document.getElementById('localRing').className = 'speak-ring'+(state.isSpeaking?' on':'');
+
+  // Speaking ring
+  document.getElementById('localRing').className =
+    'speak-ring' + (state.isSpeaking ? ' on' : '');
+
+  // Emotion pill
   updateEmoPill('localEmo', state.valence, state.arousal);
 
+  // Send to peer (throttled to SEND_MS)
   const now = Date.now();
-  if (now - lastSendT > SEND_MS) { lastSendT=now; sendState(state); }
-}
-
-function landmarksToState(lm) {
-  if (!lm||lm.length<468) return null;
-
-  const noseTip =lm[4],  chin   =lm[152];
-  const lEye    =lm[33], rEye   =lm[263];
-  const lBrow   =lm[70], rBrow  =lm[300];
-  const upLip   =lm[13], loLip  =lm[14];
-  const mL      =lm[61], mR     =lm[291];
-  const topLid  =lm[159],botLid =lm[145];
-  const irisL   =lm[468]||lm[33];
-
-  const eDX = rEye.x-lEye.x, eDY = rEye.y-lEye.y;
-  const yaw   = (noseTip.x-.5)*-2.3;
-  const pitch = (noseTip.y-(lEye.y+rEye.y)/2-.1)*2.6;
-  const roll  = Math.atan2(eDY, eDX);
-
-  const mo    = Math.min(1, Math.abs(upLip.y-loLip.y)*22);
-  const mouthW= Math.abs(mR.x-mL.x);
-  const faceW = Math.abs(rEye.x-lEye.x);
-  const smile = Math.min(1, Math.max(0,(mouthW/(faceW*1.55))-.55)*4.5);
-  const browMY= (lBrow.y+rBrow.y)/2;
-  const eyeMY = (lEye.y+rEye.y)/2;
-  const browR = Math.min(1, Math.max(0,(eyeMY-browMY-.022)*20));
-  const eyeOH = Math.abs(topLid.y-botLid.y);
-  const blink = Math.max(0, 1-eyeOH*52);
-  const gazeX = ((irisL.x-lEye.x)/(faceW*.55)-1)*1.6;
-  const gazeY = ((irisL.y-topLid.y)/Math.max(.004,eyeOH)-.5)*-1.6;
-
-  return {
-    headRotation:{x:pitch,y:yaw,z:roll},
-    blendshapes:{
-      mouthOpen:mo, smile, browRaise:browR, blink,
-      gazeX:Math.max(-1,Math.min(1,gazeX)),
-      gazeY:Math.max(-1,Math.min(1,gazeY))
-    },
-    isSpeaking: mo>.11,
-    valence: Math.max(-1,Math.min(1,smile*2.4-.65)),
-    arousal: mo*.5+browR*.5,
-    gestures:[], transcribedText:''
-  };
-}
-
-// ═══════════════════════════════════════
-//  MICROPHONE
-// ═══════════════════════════════════════
-let audioCtx=null, analyser=null;
-
-async function startMic() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-    const src = audioCtx.createMediaStreamSource(stream);
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize=512; analyser.smoothingTimeConstant=.78;
-    src.connect(analyser);
-    micOn=true;
-    document.getElementById('micBtn').disabled=true;
-    document.getElementById('micBtn').textContent='✅ Mic On';
-    setStatus('Mic active — prosody enabled');
-    const buf=new Float32Array(analyser.frequencyBinCount);
-    (function tick(){
-      if(!micOn) return; requestAnimationFrame(tick);
-      analyser.getFloatTimeDomainData(buf);
-      let s=0; for(let v of buf) s+=v*v;
-      localAudioLvl=Math.sqrt(s/buf.length);
-    })();
-  } catch(e){ setStatus('Mic error: '+e.message); }
-}
-
-// ═══════════════════════════════════════
-//  TIER SYSTEM
-// ═══════════════════════════════════════
-function calcTier(bw,bat){
-  if(bw<20)             return 'TEXT';
-  if(bw<50)             return 'GLYPH';
-  if(bw<100||bat<15)    return 'SPRITE';
-  if(bw<280||bat<30)    return 'PUPPET';
-  return 'AVATAR3D';
-}
-function onBw(v){ bandwidth=+v; document.getElementById('bwVal').textContent=v;  applyTier(); }
-function onBat(v){ battery=+v;  document.getElementById('batVal').textContent=v; applyTier(); }
-
-function applyTier(){
-  currentTier=calcTier(bandwidth,battery);
-  document.getElementById('tierLbl').textContent=currentTier;
-  setViews('local',  currentTier);
-  setViews('remote', currentTier);
-}
-
-function setViews(who, tier){
-  const show3D     = tier==='AVATAR3D'||tier==='PUPPET';
-  const showSprite = tier==='SPRITE';
-  const showGlyph  = tier==='GLYPH';
-  const showText   = tier==='TEXT';
-  document.getElementById(who+'CanvasWrap').style.display = show3D     ?'block':'none';
-  document.getElementById(who+'Glyph').style.display      = showGlyph  ?'flex' :'none';
-  document.getElementById(who+'Sprite').style.display     = showSprite ?'flex' :'none';
-  document.getElementById(who+'Text').style.display       = showText   ?'flex' :'none';
-  document.getElementById(who+'TierBadge').textContent    = tier;
-  if(showSprite) drawSprite(who, remoteLastState);
-}
-
-// ── 2D Sprite fallback ──
-function drawSprite(who, state){
-  const canvas=document.getElementById('sprite'+(who==='local'?'Local':'Remote'));
-  if(!canvas) return;
-  const ctx=canvas.getContext('2d');
-  const W=300,H=360;
-  const mo=state?.blendshapes?.mouthOpen??0.2;
-  const sm=state?.blendshapes?.smile??0.3;
-  const br=state?.blendshapes?.browRaise??0;
-  const skinC=who==='local'?'#d4956a':'#e2c09a';
-  const hairC=who==='local'?'#2a1508':'#100808';
-  const lipC =who==='local'?'#c06060':'#b05050';
-  const eyeC =who==='local'?'#3a6a30':'#2a4a7f';
-  ctx.fillStyle='#0b0b1c'; ctx.fillRect(0,0,W,H);
-  // Head
-  ctx.fillStyle=skinC; ctx.beginPath(); ctx.ellipse(150,160,84,100,0,0,Math.PI*2); ctx.fill();
-  // Hair
-  ctx.fillStyle=hairC; ctx.beginPath(); ctx.ellipse(150,100,86,65,0,Math.PI,Math.PI*2); ctx.fill();
-  // Eyes
-  [[108,138],[192,138]].forEach(([ex,ey])=>{
-    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.ellipse(ex,ey,15,10,0,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle=eyeC;   ctx.beginPath(); ctx.ellipse(ex,ey,8,8,0,0,Math.PI*2);  ctx.fill();
-    ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(ex,ey,4,4,0,0,Math.PI*2);  ctx.fill();
-    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.ellipse(ex+3,ey-3,2,2,0,0,Math.PI*2); ctx.fill();
-  });
-  // Brows
-  ctx.strokeStyle=hairC; ctx.lineWidth=4; ctx.lineCap='round';
-  const by=116-br*14;
-  ctx.beginPath(); ctx.moveTo(93,by+3);  ctx.quadraticCurveTo(108,by-2,125,by+1);  ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(175,by+1); ctx.quadraticCurveTo(192,by-2,207,by+3);  ctx.stroke();
-  // Nose
-  ctx.strokeStyle=skinC; ctx.lineWidth=2.5;
-  ctx.beginPath(); ctx.moveTo(143,157); ctx.lineTo(140,180); ctx.lineTo(147,182); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(157,157); ctx.lineTo(160,180); ctx.lineTo(153,182); ctx.stroke();
-  // Mouth
-  const mw=34+sm*22; const my=208;
-  ctx.strokeStyle=lipC; ctx.lineWidth=3;
-  ctx.beginPath(); ctx.moveTo(150-mw,my);
-  ctx.quadraticCurveTo(150, my+10+sm*14+mo*8, 150+mw, my); ctx.stroke();
-  if(mo>.1){
-    ctx.fillStyle='#2a0808';
-    ctx.beginPath(); ctx.ellipse(150,my+7,mw-5,mo*13+2,0,0,Math.PI*2); ctx.fill();
+  if (now - lastSendT > SEND_MS) {
+    lastSendT = now;
+    sendState(state);
   }
 }
 
-// ═══════════════════════════════════════
+function landmarksToState(lm) {
+  if (!lm || lm.length < 468) return null;
+
+  // Landmark indices
+  const nose  = lm[4],   chin  = lm[152];
+  const lEye  = lm[33],  rEye  = lm[263];
+  const lBrow = lm[70],  rBrow = lm[300];
+  const upLip = lm[13],  loLip = lm[14];
+  const mL    = lm[61],  mR    = lm[291];
+  const topLid= lm[159], botLid= lm[145];
+  // Refined iris (only if refineLandmarks: true)
+  const irisL = lm[468] || lm[33];
+
+  // ── Head rotation ──
+  const eDX  = rEye.x - lEye.x;
+  const eDY  = rEye.y - lEye.y;
+  const roll = Math.atan2(eDY, eDX);
+  const yaw  = (nose.x - 0.5) * -2.35;
+  const eyeMY= (lEye.y + rEye.y) * 0.5;
+  const pitch= (nose.y - eyeMY - 0.1) * 2.65;
+
+  // ── Mouth ──
+  const mouthOpen = Math.min(1, Math.abs(upLip.y - loLip.y) * 23);
+  const mouthW    = Math.abs(mR.x - mL.x);
+  const faceW     = Math.abs(rEye.x - lEye.x);
+  const smile     = Math.min(1, Math.max(0, (mouthW / (faceW * 1.55)) - 0.55) * 4.8);
+
+  // ── Brow raise ──
+  const browMY  = (lBrow.y + rBrow.y) * 0.5;
+  const browRaise = Math.min(1, Math.max(0, (eyeMY - browMY - 0.022) * 21));
+
+  // ── Blink ──
+  const eyeOH = Math.abs(topLid.y - botLid.y);
+  const blink = Math.max(0, 1 - eyeOH * 54);
+
+  // ── Gaze ──
+  const gazeX = Math.max(-1, Math.min(1, ((irisL.x - lEye.x) / (faceW * 0.52) - 1) * 1.7));
+  const gazeY = Math.max(-1, Math.min(1, ((irisL.y - topLid.y) / Math.max(0.004, eyeOH) - 0.5) * -1.7));
+
+  const isSpeaking = mouthOpen > 0.1;
+  const valence    = Math.max(-1, Math.min(1, smile * 2.5 - 0.68));
+  const arousal    = mouthOpen * 0.5 + browRaise * 0.5;
+
+  return {
+    headRotation: { x: pitch, y: yaw, z: roll },
+    blendshapes: { mouthOpen, smile, browRaise, blink, gazeX, gazeY },
+    isSpeaking,
+    valence,
+    arousal,
+    gestures: [],
+    transcribedText: '',
+  };
+}
+
+// ─────────────────────────────────────────────
+//  MICROPHONE + PROSODY
+// ─────────────────────────────────────────────
+let audioCtx = null, analyser = null;
+
+async function startMic() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    audioCtx  = new (window.AudioContext || window.webkitAudioContext)();
+    analyser  = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.78;
+    audioCtx.createMediaStreamSource(stream).connect(analyser);
+
+    const buf = new Float32Array(analyser.frequencyBinCount);
+    (function tick() {
+      requestAnimationFrame(tick);
+      analyser.getFloatTimeDomainData(buf);
+      let s = 0;
+      for (const v of buf) s += v * v;
+      localAudioLvl = Math.sqrt(s / buf.length);
+    })();
+
+    document.getElementById('micBtn').disabled = true;
+    document.getElementById('micBtn').textContent = '✅ Mic On';
+    setStatus('Mic active — prosody streaming');
+  } catch (e) {
+    setStatus('Mic error: ' + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  TIER SYSTEM
+// ─────────────────────────────────────────────
+function calcTier(bw, bat) {
+  if (bw < 20)           return 'TEXT';
+  if (bw < 50)           return 'GLYPH';
+  if (bw < 100 || bat < 15) return 'SPRITE';
+  if (bw < 280 || bat < 30) return 'PUPPET';
+  return 'AVATAR3D';
+}
+
+function onBw(v)  { bw  = +v; document.getElementById('bwVal').textContent  = v; applyTier(); }
+function onBat(v) { bat = +v; document.getElementById('batVal').textContent = v; applyTier(); }
+
+function applyTier() {
+  tier = calcTier(bw, bat);
+  document.getElementById('tierLbl').textContent = tier;
+  setView('local',  tier);
+  setView('remote', tier);
+}
+
+function setView(who, t) {
+  const show3D     = t === 'AVATAR3D' || t === 'PUPPET';
+  const showGlyph  = t === 'GLYPH';
+  const showSprite = t === 'SPRITE';
+  const showText   = t === 'TEXT';
+  document.getElementById(who + 'Av').style.display     = show3D     ? 'block' : 'none';
+  document.getElementById(who + 'Glyph').style.display  = showGlyph  ? 'flex'  : 'none';
+  document.getElementById(who + 'Sprite').style.display = showSprite ? 'flex'  : 'none';
+  document.getElementById(who + 'Text').style.display   = showText   ? 'flex'  : 'none';
+  document.getElementById(who + 'TierBadge').textContent = t;
+  if (showSprite) drawSprite(who, who === 'remote' ? remoteLastState : null);
+}
+
+// 2D Sprite fallback
+function drawSprite(who, state) {
+  const canvas = document.getElementById('sprite' + (who === 'local' ? 'Local' : 'Remote'));
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = 300, H = 340;
+  const cfg = who === 'local' ? LOCAL_CFG : REMOTE_CFG;
+  const sk = '#' + cfg.skin.toString(16).padStart(6,'0');
+  const hr = '#' + cfg.hair.toString(16).padStart(6,'0');
+  const lp = '#' + cfg.lip.toString(16).padStart(6,'0');
+  const ir = '#' + cfg.iris.toString(16).padStart(6,'0');
+  const mo = state?.blendshapes?.mouthOpen ?? 0.2;
+  const sm = state?.blendshapes?.smile     ?? 0.3;
+  const br = state?.blendshapes?.browRaise ?? 0;
+
+  ctx.fillStyle = '#0b0b1e'; ctx.fillRect(0, 0, W, H);
+  // Head
+  ctx.fillStyle = sk;
+  ctx.beginPath(); ctx.ellipse(150, 158, 86, 102, 0, 0, Math.PI*2); ctx.fill();
+  // Hair
+  ctx.fillStyle = hr;
+  ctx.beginPath(); ctx.ellipse(150, 98, 88, 68, 0, Math.PI, Math.PI*2); ctx.fill();
+  // Eyes
+  [[108, 136], [192, 136]].forEach(([ex, ey]) => {
+    ctx.fillStyle='#f5f3ef'; ctx.beginPath(); ctx.ellipse(ex,ey,15,10.5,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=ir;        ctx.beginPath(); ctx.ellipse(ex,ey,8.5,8.5,0,0,Math.PI*2);  ctx.fill();
+    ctx.fillStyle='#060606'; ctx.beginPath(); ctx.ellipse(ex,ey,4.5,4.5,0,0,Math.PI*2);  ctx.fill();
+    ctx.fillStyle='#fff';    ctx.beginPath(); ctx.ellipse(ex+3,ey-3,2.2,2.2,0,0,Math.PI*2); ctx.fill();
+  });
+  // Brows
+  const by = 114 - br * 15;
+  ctx.strokeStyle = hr; ctx.lineWidth = 4.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(92, by+3);  ctx.quadraticCurveTo(108, by-3, 125, by+1);  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(175, by+1); ctx.quadraticCurveTo(192, by-3, 208, by+3);  ctx.stroke();
+  // Nose
+  ctx.strokeStyle = sk; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(143,158); ctx.lineTo(140,181); ctx.lineTo(148,183); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(157,158); ctx.lineTo(160,181); ctx.lineTo(152,183); ctx.stroke();
+  // Mouth
+  const mw = 35 + sm * 24, my = 208;
+  ctx.strokeStyle = lp; ctx.lineWidth = 3.5;
+  ctx.beginPath(); ctx.moveTo(150 - mw, my);
+  ctx.quadraticCurveTo(150, my + 11 + sm*15 + mo*9, 150 + mw, my); ctx.stroke();
+  if (mo > 0.1) {
+    ctx.fillStyle = '#1e0808';
+    ctx.beginPath(); ctx.ellipse(150, my+8, mw-5, mo*14+2, 0, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+// ─────────────────────────────────────────────
 //  EMOTION PILL
-// ═══════════════════════════════════════
-function updateEmoPill(id,v,a){
-  const el=document.getElementById(id); if(!el) return;
-  const e=v>.5&&a>.5?'😄 hyped':v>.35?'😊 happy':v<-.4&&a>.4?'😡 tense':v<-.3?'😟 down':a>.5?'😮 surprised':'😐 neutral';
-  el.textContent=e;
+// ─────────────────────────────────────────────
+function updateEmoPill(id, v, a) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent =
+    v > 0.5 && a > 0.5 ? '😄 hyped'    :
+    v > 0.35            ? '😊 happy'    :
+    v < -0.4 && a > 0.4 ? '😤 intense' :
+    v < -0.3            ? '😟 down'     :
+    a > 0.55            ? '😮 surprised':
+                          '😐 neutral';
 }
 
-// ═══════════════════════════════════════
+// ─────────────────────────────────────────────
 //  WEBRTC
-// ═══════════════════════════════════════
-let pc=null,dc=null;
-const ICE=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}];
+// ─────────────────────────────────────────────
+let pc = null, dc = null;
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+];
 
-async function createOffer(){
-  initPC();
-  dc=pc.createDataChannel('vibe',{ordered:false,maxRetransmits:0});
+async function createOffer() {
+  setupPC();
+  dc = pc.createDataChannel('vibe', { ordered: false, maxRetransmits: 0 });
   setupDC(dc);
-  const offer=await pc.createOffer();
+  const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
-  await gatherICE();
-  document.getElementById('offerBox').value=JSON.stringify(pc.localDescription);
-  setStatus('Offer ready — copy and send to peer');
+  await waitForICE();
+  document.getElementById('offerBox').value = JSON.stringify(pc.localDescription);
+  setStatus('Offer ready — copy and send to your peer');
 }
 
-async function handlePaste(){
-  const text=document.getElementById('pasteBox').value.trim(); if(!text) return;
-  try{
-    const sdp=JSON.parse(text);
-    if(sdp.type==='offer'){
-      initPC();
-      pc.ondatachannel=e=>{dc=e.channel;setupDC(dc);};
+async function handlePaste() {
+  const text = document.getElementById('pasteBox').value.trim();
+  if (!text) return;
+  try {
+    const sdp = JSON.parse(text);
+    if (sdp.type === 'offer') {
+      setupPC();
+      pc.ondatachannel = e => { dc = e.channel; setupDC(dc); };
       await pc.setRemoteDescription(sdp);
-      const ans=await pc.createAnswer();
+      const ans = await pc.createAnswer();
       await pc.setLocalDescription(ans);
-      await gatherICE();
-      document.getElementById('offerBox').value=JSON.stringify(pc.localDescription);
+      await waitForICE();
+      document.getElementById('offerBox').value = JSON.stringify(pc.localDescription);
       setStatus('Answer ready — copy back to peer');
-    } else if(sdp.type==='answer'){
+    } else if (sdp.type === 'answer') {
       await pc.setRemoteDescription(sdp);
-      setStatus('Answer set — connecting…');
+      setStatus('Answer received — connecting…');
     }
-  }catch(e){setStatus('SDP error: '+e.message);}
+  } catch (e) { setStatus('SDP error: ' + e.message); }
 }
 
-function initPC(){
-  if(pc) pc.close();
-  pc=new RTCPeerConnection({iceServers:ICE});
-  pc.oniceconnectionstatechange=()=>{
-    const s=pc.iceConnectionState;
-    const el=document.getElementById('connLbl');
-    el.textContent=s.toUpperCase();
-    el.style.color=(s==='connected'||s==='completed')?'#00ff88':'#ff4757';
-    if(s==='connected'||s==='completed'){
+function setupPC() {
+  if (pc) pc.close();
+  pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  pc.oniceconnectionstatechange = () => {
+    const s = pc.iceConnectionState;
+    const el = document.getElementById('connLbl');
+    el.textContent = s.toUpperCase();
+    el.style.color = (s === 'connected' || s === 'completed') ? '#00ff88' : '#ff4757';
+    if (s === 'connected' || s === 'completed') {
       closeModal();
       setStatus('🔥 Peer connected — streaming live!');
-      build.remote=0; buildStart.remote=Date.now();
-      document.getElementById('remoteBuildOverlay').style.display='flex';
+      // Restart remote build animation
+      buildState.remote = { start: Date.now(), progress: 0 };
+      document.getElementById('remoteBuildOverlay').style.display = 'block';
       startPing();
     }
   };
 }
 
-function gatherICE(){
-  return new Promise(res=>{
-    if(pc.iceGatheringState==='complete'){res();return;}
-    pc.onicegatheringstatechange=()=>{if(pc.iceGatheringState==='complete')res();};
-    setTimeout(res,3500);
+function waitForICE() {
+  return new Promise(res => {
+    if (pc.iceGatheringState === 'complete') { res(); return; }
+    pc.onicegatheringstatechange = () => {
+      if (pc.iceGatheringState === 'complete') res();
+    };
+    setTimeout(res, 3500);
   });
 }
 
-function setupDC(channel){
-  channel.onopen=()=>setStatus('Data channel open 🔥');
-  channel.onclose=()=>setStatus('Data channel closed');
-  channel.onmessage=e=>{
-    try{
-      const pkt=JSON.parse(e.data);
-      if(pkt.type==='avatar'){
-        recvCount++; document.getElementById('recvLbl').textContent=recvCount;
-        remoteLastState=pkt.state;
-        remoteScene_hasData=true;
-        remoteAudioLvl=pkt.state.arousal*.14;
-        document.getElementById('remoteRing').className='speak-ring'+(pkt.state.isSpeaking?' on':'');
-        updateEmoPill('remoteEmo',pkt.state.valence,pkt.state.arousal);
-        document.getElementById('remoteTierBadge').textContent=pkt.tier||currentTier;
-        if(pkt.tier==='GLYPH'){
-          const g=pkt.state.valence>.4?'😄':pkt.state.isSpeaking?'🗣️':pkt.state.valence<-.3?'😟':'😐';
-          document.getElementById('remoteGlyph').textContent=g;
+function setupDC(channel) {
+  channel.onopen  = () => setStatus('Data channel open — live face data streaming 🔥');
+  channel.onclose = () => setStatus('Data channel closed');
+  channel.onmessage = e => {
+    try {
+      const pkt = JSON.parse(e.data);
+      if (pkt.type === 'avatar') {
+        recvCount++;
+        document.getElementById('recvLbl').textContent = recvCount;
+        remoteLastState  = pkt.state;
+        remoteHasData    = true;
+        remoteAudioLvl   = (pkt.state.arousal ?? 0) * 0.14;
+        document.getElementById('remoteRing').className =
+          'speak-ring' + (pkt.state.isSpeaking ? ' on' : '');
+        updateEmoPill('remoteEmo', pkt.state.valence, pkt.state.arousal);
+        document.getElementById('remoteTierBadge').textContent = pkt.tier || tier;
+        if (pkt.tier === 'GLYPH') {
+          const g = pkt.state.valence > 0.4 ? '😄' : pkt.state.isSpeaking ? '🗣️' : '😐';
+          document.getElementById('remoteGlyph').textContent = g;
         }
-        if(pkt.tier==='TEXT')
-          document.getElementById('remoteTextMsg').textContent=pkt.state.transcribedText||(pkt.state.isSpeaking?'(speaking…)':'…');
-        if(pkt.tier==='SPRITE') drawSprite('remote',pkt.state);
-      }else if(pkt.type==='ping'){
-        if(dc?.readyState==='open') dc.send(JSON.stringify({type:'pong',t:pkt.t}));
-      }else if(pkt.type==='pong'){
-        document.getElementById('rttLbl').textContent=Date.now()-pkt.t;
+        if (pkt.tier === 'TEXT')
+          document.getElementById('remoteTextMsg').textContent =
+            pkt.state.transcribedText || (pkt.state.isSpeaking ? '(speaking…)' : '…');
+        if (pkt.tier === 'SPRITE') drawSprite('remote', pkt.state);
+      } else if (pkt.type === 'ping') {
+        if (dc?.readyState === 'open') dc.send(JSON.stringify({ type: 'pong', t: pkt.t }));
+      } else if (pkt.type === 'pong') {
+        document.getElementById('rttLbl').textContent = Date.now() - pkt.t;
       }
-    }catch(_){}
+    } catch (_) {}
   };
 }
 
-function sendState(state){
-  if(dc?.readyState!=='open') return;
-  let s=state;
-  if(currentTier==='TEXT'||currentTier==='GLYPH'){
-    s={isSpeaking:state.isSpeaking,valence:state.valence,arousal:state.arousal,
-       gestures:state.gestures,transcribedText:state.transcribedText};
-  } else if(currentTier==='SPRITE'||currentTier==='PUPPET'){
-    s={...state,blendshapes:{mouthOpen:state.blendshapes.mouthOpen,
-       smile:state.blendshapes.smile,browRaise:state.blendshapes.browRaise,
-       blink:state.blendshapes.blink}};
+function sendState(state) {
+  if (dc?.readyState !== 'open') return;
+  let s = state;
+  // Trim packet by tier
+  if (tier === 'TEXT' || tier === 'GLYPH') {
+    s = { isSpeaking: state.isSpeaking, valence: state.valence,
+          arousal: state.arousal, gestures: state.gestures, transcribedText: '' };
+  } else if (tier === 'SPRITE' || tier === 'PUPPET') {
+    const { gazeX, gazeY, ...rest } = state.blendshapes || {};
+    s = { ...state, blendshapes: rest };
   }
-  dc.send(JSON.stringify({type:'avatar',tier:currentTier,state:s}));
-  sentCount++; document.getElementById('sentLbl').textContent=sentCount;
+  dc.send(JSON.stringify({ type: 'avatar', tier, state: s }));
+  sentCount++;
+  document.getElementById('sentLbl').textContent = sentCount;
 }
 
-function startPing(){
-  setInterval(()=>{
-    if(dc?.readyState==='open') dc.send(JSON.stringify({type:'ping',t:Date.now()}));
-  },2000);
+function startPing() {
+  setInterval(() => {
+    if (dc?.readyState === 'open') dc.send(JSON.stringify({ type: 'ping', t: Date.now() }));
+  }, 2000);
 }
 
-// ═══════════════════════════════════════
+// ─────────────────────────────────────────────
 //  GESTURES
-// ═══════════════════════════════════════
-function sendFistPump(){
-  const base=landmarksToState(lastLandmarks)||{
-    headRotation:{x:0,y:0,z:0},
-    blendshapes:{mouthOpen:.65,smile:.88,browRaise:.55,blink:0,gazeX:0,gazeY:0},
-    isSpeaking:true,valence:.95,arousal:.98,gestures:[],transcribedText:'YOOOO!!!'
+// ─────────────────────────────────────────────
+function sendFistPump() {
+  const base = landmarksToState(lastLandmarks) || {
+    headRotation: { x: 0, y: 0, z: 0 },
+    blendshapes:  { mouthOpen: 0.68, smile: 0.9, browRaise: 0.55, blink: 0, gazeX: 0, gazeY: 0 },
+    isSpeaking: true, valence: 0.95, arousal: 0.98,
+    gestures: [], transcribedText: 'YOOOO!!!',
   };
-  base.gestures=[4]; base.valence=.95;
-  applyState(localS,base,false);
+  base.gestures = [4]; base.valence = 0.95;
+  applyState(localS, base, false);
   sendState(base);
   setStatus('👊 FIST PUMP SENT!');
 }
 
-// ═══════════════════════════════════════
-//  VOICE
-// ═══════════════════════════════════════
-function cloneVoice(){
-  if(!window.speechSynthesis) return;
+// ─────────────────────────────────────────────
+//  VOICE CLONE
+// ─────────────────────────────────────────────
+function cloneVoice() {
+  if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance('Yo CB from the Shore — 3 Guys pizza slice in hand bro!');
-  u.pitch=1.1; u.rate=1.15; u.onerror=()=>{};
+  const u = new SpeechSynthesisUtterance(
+    'Yo CB from the Shore — 3 Guys pizza slice in hand bro!'
+  );
+  u.pitch = 1.1; u.rate = 1.15; u.onerror = () => {};
   window.speechSynthesis.speak(u);
 }
 
-// ═══════════════════════════════════════
-//  UI
-// ═══════════════════════════════════════
-function setStatus(m){ document.getElementById('statusbar').textContent=m; }
-function openModal(){  document.getElementById('sigModal').classList.add('open'); }
-function closeModal(){ document.getElementById('sigModal').classList.remove('open'); }
+// ─────────────────────────────────────────────
+//  UI HELPERS
+// ─────────────────────────────────────────────
+function setStatus(msg) { document.getElementById('statusbar').textContent = msg; }
+function openModal()  { document.getElementById('sigModal').classList.add('open'); }
+function closeModal() { document.getElementById('sigModal').classList.remove('open'); }
 </script>
 </body>
 </html>
