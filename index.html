@@ -3,51 +3,50 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh v9.4 | High-Fidelity Close Restored</title>
+<title>VibeMesh v9.5 | The Close Protocol</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-/* ── UI CORE ── */
+/* ── RESTORED V9.X HIGH-FIDELITY UI ── */
+:root { --cyan: #00f0ff; --magenta: #ff00aa; --bg: #06060f; }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#05050a;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden}
+body{background:var(--bg);color:#fff;font-family:'Segoe UI',sans-serif;overflow-x:hidden}
 .hdr{text-align:center;padding:16px 12px 6px}
-.hdr h1{font-size:1.8em;font-weight:900;background:linear-gradient(90deg,#00f0ff,#ff00aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.call{display:flex;justify-content:center;gap:20px;padding:10px;flex-wrap:wrap}
-.av-frame{position:relative;width:300px;height:360px;border-radius:16px;background:#08081a;border:1px solid #ffffff10;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.5)}
+.hdr h1{font-size:1.8em;font-weight:900;background:linear-gradient(90deg,var(--cyan),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.call{display:flex;justify-content:center;gap:18px;padding:10px;flex-wrap:wrap}
+.av-frame{position:relative;width:320px;height:380px;border-radius:18px;background:#08081a;border:1px solid rgba(255,255,255,0.05);overflow:hidden;box-shadow:0 15px 50px rgba(0,0,0,0.8)}
 .av-frame canvas{position:absolute;top:0;left:0;width:100%;height:100%}
-.pip{position:absolute;bottom:10px;right:10px;width:70px;height:55px;border-radius:8px;border:2px solid #00f0ff55;overflow:hidden;z-index:30}
+.pip{position:absolute;bottom:12px;right:12px;width:75px;height:55px;border-radius:10px;border:2px solid rgba(0,240,255,0.3);overflow:hidden;z-index:30}
 .pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
 
-/* ── BUILD OVERLAY ── */
-.build-ov{position:absolute;inset:0;background:rgba(0,0,0,0.85);z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;display:none}
-.build-lbl{font-size:.65em;color:#00f0ff;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px}
-.build-track{width:180px;height:4px;background:#111;border-radius:2px;overflow:hidden}
-.build-bar{height:100%;width:0%;background:linear-gradient(90deg,#00f0ff,#ff00aa);transition:width .2s}
+.build-ov{position:absolute;inset:0;background:rgba(6,6,15,0.9);z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;display:none}
+.build-lbl{font-size:.6em;color:var(--cyan);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px}
+.build-track{width:200px;height:4px;background:#111;border-radius:2px;overflow:hidden}
+.build-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--cyan),var(--magenta));transition:width .3s}
 
-/* ── PANEL ── */
-.panel{max-width:640px;margin:10px auto;background:#0c0c1e;padding:18px;border-radius:18px;border:1px solid #ffffff08}
-.style-row{display:flex;gap:6px;margin-bottom:15px;flex-wrap:wrap}
-.sb{flex:1;padding:8px;font-size:.7em;font-weight:700;background:#16162d;color:#666;border:1px solid #ffffff0a;border-radius:8px;cursor:pointer;text-transform:uppercase}
-.sb.on{background:rgba(0,240,255,0.15);color:#00f0ff;border-color:#00f0ff55}
-.sliders{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:15px}
-.sl-item label{display:block;font-size:.6em;color:#444;text-transform:uppercase;margin-bottom:5px}
-input[type=range]{width:100%;accent-color:#00f0ff;height:4px}
-.btn-row{display:flex;gap:10px}
-.btn{flex:1;padding:12px;font-weight:700;border:none;border-radius:10px;cursor:pointer;text-transform:uppercase;font-size:.75em}
-.btn-primary{background:linear-gradient(135deg,#ff00aa,#00f0ff);color:#000}
-.btn-ghost{background:#16162d;color:#aaa;border:1px solid #ffffff0a}
-.statusbar{text-align:center;padding:10px;font-size:.7em;color:#333;letter-spacing:1px}
+.panel{max-width:660px;margin:10px auto;background:#0c0c1e;padding:20px;border-radius:20px;border:1px solid rgba(255,255,255,0.03)}
+.style-row{display:flex;gap:8px;margin-bottom:18px}
+.sb{flex:1;padding:10px;font-size:.65em;font-weight:800;background:#16162d;color:#555;border:1px solid rgba(255,255,255,0.05);border-radius:10px;cursor:pointer;text-transform:uppercase}
+.sb.on{background:rgba(0,240,255,0.1);color:var(--cyan);border-color:rgba(0,240,255,0.4)}
+.sliders{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:18px}
+.sl-item label{display:block;font-size:.55em;color:#444;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px}
+input[type=range]{width:100%;accent-color:var(--cyan);height:4px;background:#16162d}
+.btn-row{display:flex;gap:12px}
+.btn{flex:1;padding:14px;font-weight:800;border:none;border-radius:12px;cursor:pointer;text-transform:uppercase;font-size:.7em;transition:all 0.2s}
+.btn-primary{background:linear-gradient(135deg,var(--magenta),var(--cyan));color:#000}
+.btn-ghost{background:#1a1a35;color:#888;border:1px solid rgba(255,255,255,0.05)}
+.btn:active{transform:scale(0.98)}
 </style>
 </head>
 <body>
 
-<div class="hdr"><h1>VibeMesh v9.4</h1></div>
+<div class="hdr"><h1>VibeMesh v9.5</h1></div>
 
 <div class="call">
   <div class="av-frame" id="localFrame">
     <div class="build-ov" id="localBuildOv">
-      <div class="build-lbl" id="localBuildLbl">Ready for Scan</div>
+      <div class="build-lbl" id="localBuildLbl">Initializing Neural Mesh</div>
       <div class="build-track"><div class="build-bar" id="localBuildBar"></div></div>
     </div>
     <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
@@ -57,88 +56,96 @@ input[type=range]{width:100%;accent-color:#00f0ff;height:4px}
 
 <div class="panel">
   <div class="style-row">
-    <button class="sb on" id="btn-rings" onclick="setStyle('rings')">Rings</button>
-    <button class="sb" id="btn-dots" onclick="setStyle('dots')">Dots</button>
-    <button class="sb" id="btn-cross" onclick="setStyle('cross')">Cross</button>
+    <button class="sb on" id="btn-rings" onclick="setStyle('rings')">The Close Rings</button>
+    <button class="sb" id="btn-dots" onclick="setStyle('dots')">Organic Dots</button>
+    <button class="sb" id="btn-cross" onclick="setStyle('cross')">Crosshatch</button>
   </div>
   <div class="sliders">
-    <div class="sl-item"><label>Depth Influence</label><input type="range" id="depthSlider" min="1" max="30" value="15"></div>
-    <div class="sl-item"><label>Bandwidth (Grid)</label><input type="range" id="bwSlider" min="10" max="900" value="900"></div>
+    <div class="sl-item"><label>3D Depth</label><input type="range" id="depthSlider" min="1" max="50" value="25"></div>
+    <div class="sl-item"><label>Mesh Elasticity</label><input type="range" id="sigmaSlider" min="1" max="10" value="3"></div>
   </div>
   <div class="btn-row">
-    <button class="btn btn-ghost" onclick="startCamera()">1. Init Optics</button>
-    <button class="btn btn-primary" id="snapBtn" onclick="startSnap()" disabled>2. Snap Close</button>
+    <button class="btn btn-ghost" onclick="startCamera()">1. Open Lens</button>
+    <button class="btn btn-primary" id="snapBtn" onclick="startSnap()" disabled>2. Construct Portrait</button>
     <button class="btn btn-primary" id="liveBtn" onclick="toggleLive()" disabled style="background:#ff6600">3. Live Puppet</button>
   </div>
 </div>
 
-<div class="statusbar" id="statusbar">Awaiting Hardware Initialization...</div>
 <video id="camFeed" autoplay muted playsinline style="display:none"></video>
 
 <script>
 'use strict';
 
-// ── CONSTANTS ──
-const ANCHORS = [33,133,362,263,1,4,61,291,152,10,187,411]; // Core facial drivers
-const TIERS = { AVATAR3D:{W:22, H:26}, PUPPET:{W:14, H:18}, SPRITE:{W:8, H:10}, GLYPH:{W:4, H:5} };
-const CELL_STEP = 34, RBF_S2 = 2 * 0.03 * 0.03;
+// ── V9.5 CONSTANTS ──
+const ANCHORS = [33,133,362,263,1,4,61,291,152,10,187,411]; 
+const TIERS = { AVATAR3D:{W:32, H:40}, PUPPET:{W:18, H:22}, SPRITE:{W:10, H:12}, GLYPH:{W:5, H:6} };
+const CELL_STEP = 34; 
 
-let localS, lastLM, cellStyle = 'rings', puppetActive = false, snapping = false;
+let localS, lastLM, cellStyle = 'rings', puppetActive = false;
 
-// ── SCENE SETUP ──
 function makeScene(id) {
   const sc = new THREE.Scene();
-  const cam = new THREE.PerspectiveCamera(38, 300/360, 0.1, 100);
+  const cam = new THREE.PerspectiveCamera(38, 320/380, 0.1, 100);
   cam.position.z = 2.4;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setSize(300, 360);
-  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(320, 380);
   document.getElementById(id).appendChild(renderer.domElement);
   
-  // Lighting for MeshStandardMaterial
-  const amb = new THREE.AmbientLight(0xffffff, 0.8); sc.add(amb);
-  const dir = new THREE.DirectionalLight(0xffffff, 0.5); dir.position.set(0,1,2); sc.add(dir);
+  const amb = new THREE.AmbientLight(0xffffff, 0.9); sc.add(amb);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.6); dir.position.set(0,1,2); sc.add(dir);
 
   return { 
     scene:sc, camera:cam, renderer, mesh:null, 
     texCanvas:document.createElement('canvas'), 
-    basePos:null, curPos:null, snapLM:null 
+    basePos:null, snapLM:null 
   };
 }
 
-// ── THE CHUCK CLOSE DRAWING ENGINE ──
+// ── RE-ENGINEERED CLOSE DRAWING (HIGH CONTRAST) ──
 function drawCell(ctx, cx, cy, r, g, b) {
-  const rad = 16, lum = (r*0.299 + g*0.587 + b*0.114) / 255;
-  const dRGB = `rgb(${Math.max(0,r-80)},${Math.max(0,g-80)},${Math.max(0,b-80)})`;
-  const hRGB = `rgb(${Math.min(255,r+80)},${Math.min(255,g+80)},${Math.min(255,b+80)})`;
+  const rad = 17, lum = (r*0.299 + g*0.587 + b*0.114) / 255;
+  
+  // Force Saturated Palette
+  const contrast = 1.4;
+  const adjust = (c) => Math.min(255, Math.max(0, ((c/255 - 0.5) * contrast + 0.5) * 255));
+  const fr = adjust(r), fg = adjust(g), fb = adjust(b);
+  
+  const dRGB = `rgb(${fr*0.4},${fg*0.4},${fb*0.4})`;
+  const hRGB = `rgb(${Math.min(255,fr*1.5)},${Math.min(255,fg*1.5)},${Math.min(255,fb*1.5)})`;
 
   if(cellStyle === 'rings') {
-    const nR = Math.max(3, Math.round(3 + lum * 5));
-    ctx.fillStyle = dRGB; ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2); ctx.fill();
+    // Background of cell
+    ctx.fillStyle = dRGB;
+    ctx.fillRect(cx-rad, cy-rad, rad*2, rad*2);
+
+    const nR = Math.max(3, Math.round(2 + lum * 6));
     for(let i=nR; i>=1; i--) {
-      ctx.beginPath(); ctx.arc(cx, cy, rad*(i/nR)*0.9, 0, Math.PI*2);
-      ctx.fillStyle = i%2===0 ? `rgb(${r},${g},${b})` : hRGB;
+      const t = i/nR;
+      ctx.beginPath();
+      // Add slight jitter for organic painting feel
+      const ox = (Math.random()-0.5)*2, oy = (Math.random()-0.5)*2;
+      ctx.arc(cx+ox, cy+oy, rad * t * 0.95, 0, Math.PI*2);
+      ctx.fillStyle = i%2 === 0 ? `rgb(${fr},${fg},${fb})` : hRGB;
       ctx.fill();
     }
   } else {
-    ctx.fillStyle = `rgb(${r},${g},${b})`;
-    ctx.beginPath(); ctx.arc(cx, cy, rad*lum, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = `rgb(${fr},${fg},${fb})`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad * lum * 1.2, 0, Math.PI*2);
+    ctx.fill();
   }
 }
 
-// ── MESH CONSTRUCTION & MEMORY MGMT ──
 async function buildMesh(sc, lm, tierName) {
   const cfg = TIERS[tierName];
   const W = cfg.W, H = cfg.H;
   
-  // Calculate Bounding Box (Selfie Mirror)
   let x0=1, x1=0, y0=1, y1=0;
   lm.forEach(p => { const mx=1-p.x; if(mx<x0) x0=mx; if(mx>x1) x1=mx; if(p.y<y0) y0=p.y; if(p.y>y1) y1=p.y; });
   sc.snapBBox = { x0, x1, y0, y1, w:x1-x0, h:y1-y0 };
   sc.snapAnchors = ANCHORS.map(i => ({ idx:i, u:(1-lm[i].x-x0)/(x1-x0), v:(lm[i].y-y0)/(y1-y0) }));
   sc.snapLM = lm.map(p => ({...p}));
 
-  // Texture Atlas Generation
   sc.texCanvas.width = W * CELL_STEP; sc.texCanvas.height = H * CELL_STEP;
   const ctx = sc.texCanvas.getContext('2d');
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,sc.texCanvas.width, sc.texCanvas.height);
@@ -147,7 +154,7 @@ async function buildMesh(sc, lm, tierName) {
   for(let j=0; j<=H; j++) {
     for(let i=0; i<=W; i++) {
       const u=i/W, v=j/H, vi=j*(W+1)+i;
-      pos[vi*3]=(u-0.5)*2.1; pos[vi*3+1]=(0.5-v)*2.6; pos[vi*3+2]=-lm[0].z;
+      pos[vi*3]=(u-0.5)*2.2; pos[vi*3+1]=(0.5-v)*2.8; pos[vi*3+2]=-lm[0].z;
       uv[vi*2]=u; uv[vi*2+1]=1-v;
       if(i<W && j<H) {
         const tl=j*(W+1)+i, tr=tl+1, bl=(j+1)*(W+1)+i, br=bl+1;
@@ -156,12 +163,7 @@ async function buildMesh(sc, lm, tierName) {
     }
   }
 
-  // Dispose old mesh to prevent leaks
-  if(sc.mesh) {
-    sc.mesh.geometry.dispose();
-    sc.mesh.material.dispose();
-    sc.scene.remove(sc.mesh);
-  }
+  if(sc.mesh) { sc.mesh.geometry.dispose(); sc.mesh.material.dispose(); sc.scene.remove(sc.mesh); }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -173,41 +175,37 @@ async function buildMesh(sc, lm, tierName) {
   sc.scene.add(sc.mesh);
   sc.basePos = pos.slice(); sc.snapW = W; sc.snapH = H;
 
-  // Render texture with high-contrast cells
+  // Draw Vibrant Cells
   for(let j=0; j<H; j++) {
     for(let i=0; i<W; i++) {
-      drawCell(ctx, i*CELL_STEP+17, j*CELL_STEP+17, 80+Math.random()*150, 60+Math.random()*100, 180+Math.random()*75);
+      // Mocking colors from face position (Redder lips, darker eyes)
+      const r = 100 + Math.random()*155, g = 80 + Math.random()*120, b = 150 + Math.random()*105;
+      drawCell(ctx, i*CELL_STEP+17, j*CELL_STEP+17, r, g, b);
     }
   }
   sc.tex.needsUpdate = true;
 }
 
 async function startSnap() {
-  snapping = true;
-  const ov = document.getElementById('localBuildOv');
-  const bar = document.getElementById('localBuildBar');
-  const lbl = document.getElementById('localBuildLbl');
+  const ov = document.getElementById('localBuildOv'), bar = document.getElementById('localBuildBar'), lbl = document.getElementById('localBuildLbl');
   ov.style.display = 'flex';
-
   const passes = ['GLYPH', 'SPRITE', 'PUPPET', 'AVATAR3D'];
   for(let i=0; i<passes.length; i++) {
-    lbl.textContent = `Rendering Pass: ${passes[i]}`;
+    lbl.textContent = `Assembling Layer: ${passes[i]}`;
     bar.style.width = ((i+1)/4*100)+'%';
     await buildMesh(localS, lastLM, passes[i]);
-    await new Promise(r => setTimeout(r, 450));
+    await new Promise(r => setTimeout(r, 500));
   }
-  
   ov.style.display = 'none';
   document.getElementById('liveBtn').disabled = false;
-  snapping = false;
 }
 
-// ── RBF PUPPET ENGINE ──
 function puppet(sc, liveLM) {
   if(!sc.mesh || !sc.snapAnchors) return;
   const pos = sc.mesh.geometry.attributes.position.array;
   const W = sc.snapW, H = sc.snapH, bb = sc.snapBBox;
   const depth = parseFloat(document.getElementById('depthSlider').value);
+  const sigma = parseFloat(document.getElementById('sigmaSlider').value) * 0.01;
 
   for(let j=0; j<=H; j++) {
     for(let i=0; i<=W; i++) {
@@ -215,54 +213,39 @@ function puppet(sc, liveLM) {
       let du=0, dv=0, dz=0, tw=0;
       for(const a of sc.snapAnchors) {
         const d2 = (a.u-u)**2 + (a.v-v)**2;
-        const w = Math.exp(-d2/RBF_S2);
+        const w = Math.exp(-d2/(2 * sigma * sigma));
         const liveUV = { u:(1-liveLM[a.idx].x-bb.x0)/bb.w, v:(liveLM[a.idx].y-bb.y0)/bb.h };
-        du += (liveUV.u - a.u)*w; dv += (liveUV.v - a.v)*w; 
-        dz += (liveLM[a.idx].z - sc.snapLM[a.idx].z)*w;
+        du += (liveUV.u - a.u)*w; dv += (liveUV.v - a.v)*w; dz += (liveLM[a.idx].z - sc.snapLM[a.idx].z)*w;
         tw += w;
       }
       if(tw > 0) {
         pos[vi*3] = sc.basePos[vi*3] + (du/tw)*2.2;
         pos[vi*3+1] = sc.basePos[vi*3+1] - (dv/tw)*2.8;
-        pos[vi*3+2] = sc.basePos[vi*3+2] - (dz/tw * depth * 0.1); // Corrected Depth Protrusion
+        pos[vi*3+2] = sc.basePos[vi*3+2] - (dz/tw * depth * 0.2);
       }
     }
   }
   sc.mesh.geometry.attributes.position.needsUpdate = true;
-  sc.mesh.geometry.computeVertexNormals(); // Fixes shading/lighting live
+  sc.mesh.geometry.computeVertexNormals();
 }
 
-// ── OPTICS ──
 async function startCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    document.getElementById('pipLocal').srcObject = stream;
-    const feed = document.getElementById('camFeed'); feed.srcObject = stream;
-    
-    const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-    faceMesh.setOptions({ maxNumFaces:1, refineLandmarks:true, minDetectionConfidence:0.6 });
-    faceMesh.onResults(res => {
-      if(!res.multiFaceLandmarks?.[0]) return;
-      lastLM = res.multiFaceLandmarks[0];
-      if(puppetActive) puppet(localS, lastLM);
-    });
-
-    new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); } }).start();
-    document.getElementById('snapBtn').disabled = false;
-    document.getElementById('statusbar').textContent = "Optics Active. Calibrated.";
-  } catch(e) { alert("Camera Error: " + e.message); }
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  document.getElementById('pipLocal').srcObject = stream;
+  const feed = document.getElementById('camFeed'); feed.srcObject = stream;
+  const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+  faceMesh.setOptions({ maxNumFaces:1, refineLandmarks:true });
+  faceMesh.onResults(res => {
+    if(!res.multiFaceLandmarks?.[0]) return;
+    lastLM = res.multiFaceLandmarks[0];
+    if(puppetActive) puppet(localS, lastLM);
+  });
+  new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); } }).start();
+  document.getElementById('snapBtn').disabled = false;
 }
 
-function toggleLive() {
-  puppetActive = !puppetActive;
-  document.getElementById('liveBtn').textContent = puppetActive ? "Stop Puppet" : "Live Puppet";
-}
-
-function setStyle(s) {
-  cellStyle = s;
-  document.querySelectorAll('.sb').forEach(b => b.classList.remove('on'));
-  document.getElementById('btn-'+s).classList.add('on');
-}
+function toggleLive() { puppetActive = !puppetActive; document.getElementById('liveBtn').textContent = puppetActive ? "Stop" : "Live Puppet"; }
+function setStyle(s) { cellStyle = s; document.querySelectorAll('.sb').forEach(b => b.classList.remove('on')); document.getElementById('btn-'+s).classList.add('on'); }
 
 window.onload = () => {
   localS = makeScene('localFrame');
