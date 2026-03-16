@@ -3,104 +3,114 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh v9.2 | High-Fidelity Close Protocol</title>
+<title>VibeMesh v9.4 | High-Fidelity Close Restored</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-/* ── All UI styles from index 9.html restored below ── */
+/* ── UI CORE ── */
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#06060f;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden}
+body{background:#05050a;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden}
 .hdr{text-align:center;padding:16px 12px 6px}
-.hdr h1{font-size:clamp(1.4em,4vw,2.1em);font-weight:900;background:linear-gradient(90deg,#00f0ff,#ff00aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.call{display:flex;justify-content:center;gap:18px;padding:8px 14px 4px;flex-wrap:wrap}
-.av-frame{position:relative;width:300px;height:360px;border-radius:16px;overflow:hidden;background:#08081a;box-shadow:0 0 40px #00f0ff12;}
+.hdr h1{font-size:1.8em;font-weight:900;background:linear-gradient(90deg,#00f0ff,#ff00aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.call{display:flex;justify-content:center;gap:20px;padding:10px;flex-wrap:wrap}
+.av-frame{position:relative;width:300px;height:360px;border-radius:16px;background:#08081a;border:1px solid #ffffff10;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.5)}
 .av-frame canvas{position:absolute;top:0;left:0;width:100%;height:100%}
-.pip{position:absolute;bottom:10px;right:10px;width:68px;height:52px;border-radius:8px;overflow:hidden;border:2px solid #00f0ff55;z-index:30}
+.pip{position:absolute;bottom:10px;right:10px;width:70px;height:55px;border-radius:8px;border:2px solid #00f0ff55;overflow:hidden;z-index:30}
 .pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-.build-ov{position:absolute;bottom:0;left:0;right:0;padding:10px 13px 12px;background:linear-gradient(transparent,#000000cc);z-index:15;}
-.build-lbl{font-size:.58em;color:#aaa;letter-spacing:1px;margin-bottom:4px}
-.build-track{height:3px;background:#ffffff10;border-radius:2px;overflow:hidden}
-.build-bar{height:3px;width:0%;background:linear-gradient(90deg,#00f0ff,#ff00aa);transition:width .2s}
-.panel{background:#0c0c1e;padding:14px 16px;margin:4px 14px 0;border-radius:14px;border:1px solid #ffffff07}
-.style-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
-.sb{padding:5px 11px;font-size:.68em;font-weight:600;background:#121224;color:#555;border:1px solid #ffffff0a;border-radius:7px;cursor:pointer}
-.sb.on{background:#00f0ff18;color:#00f0ff;border-color:#00f0ff55}
-.sliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px 16px;margin-bottom:12px}
-.sl-item{display:flex;flex-direction:column;gap:3px}
-.sl-item label{font-size:.6em;color:#444;text-transform:uppercase}
-input[type=range]{accent-color:#00f0ff;height:3px}
-.btn-row{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
-.btn{flex:1;padding:11px 10px;font-size:.78em;font-weight:700;border:none;border-radius:10px;cursor:pointer}
+
+/* ── BUILD OVERLAY ── */
+.build-ov{position:absolute;inset:0;background:rgba(0,0,0,0.85);z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;display:none}
+.build-lbl{font-size:.65em;color:#00f0ff;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px}
+.build-track{width:180px;height:4px;background:#111;border-radius:2px;overflow:hidden}
+.build-bar{height:100%;width:0%;background:linear-gradient(90deg,#00f0ff,#ff00aa);transition:width .2s}
+
+/* ── PANEL ── */
+.panel{max-width:640px;margin:10px auto;background:#0c0c1e;padding:18px;border-radius:18px;border:1px solid #ffffff08}
+.style-row{display:flex;gap:6px;margin-bottom:15px;flex-wrap:wrap}
+.sb{flex:1;padding:8px;font-size:.7em;font-weight:700;background:#16162d;color:#666;border:1px solid #ffffff0a;border-radius:8px;cursor:pointer;text-transform:uppercase}
+.sb.on{background:rgba(0,240,255,0.15);color:#00f0ff;border-color:#00f0ff55}
+.sliders{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:15px}
+.sl-item label{display:block;font-size:.6em;color:#444;text-transform:uppercase;margin-bottom:5px}
+input[type=range]{width:100%;accent-color:#00f0ff;height:4px}
+.btn-row{display:flex;gap:10px}
+.btn{flex:1;padding:12px;font-weight:700;border:none;border-radius:10px;cursor:pointer;text-transform:uppercase;font-size:.75em}
 .btn-primary{background:linear-gradient(135deg,#ff00aa,#00f0ff);color:#000}
-.btn-green{background:linear-gradient(135deg,#00c853,#00f0ff);color:#000}
-.btn-orange{background:linear-gradient(135deg,#ff6600,#ffcc00);color:#000}
-.statusbar{text-align:center;padding:5px 14px 4px;font-size:.7em;color:#444}
+.btn-ghost{background:#16162d;color:#aaa;border:1px solid #ffffff0a}
+.statusbar{text-align:center;padding:10px;font-size:.7em;color:#333;letter-spacing:1px}
 </style>
 </head>
 <body>
 
-<div class="hdr"><h1>🏖️ VibeMesh v9.2</h1></div>
+<div class="hdr"><h1>VibeMesh v9.4</h1></div>
 
 <div class="call">
   <div class="av-frame" id="localFrame">
-    <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
     <div class="build-ov" id="localBuildOv">
-      <div class="build-lbl" id="localBuildLbl">Click Snap to begin</div>
+      <div class="build-lbl" id="localBuildLbl">Ready for Scan</div>
       <div class="build-track"><div class="build-bar" id="localBuildBar"></div></div>
     </div>
+    <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
   </div>
   <div class="av-frame" id="remoteFrame"></div>
 </div>
 
 <div class="panel">
   <div class="style-row">
-    <button class="sb on" id="sb-rings" onclick="setStyle('rings')">● Rings</button>
-    <button class="sb" id="sb-diamonds" onclick="setStyle('diamonds')">◆ Diamonds</button>
-    <button class="sb" id="sb-dots" onclick="setStyle('dots')">· Dots</button>
-    <button class="sb" id="sb-cross" onclick="setStyle('cross')">✕ Crosshatch</button>
+    <button class="sb on" id="btn-rings" onclick="setStyle('rings')">Rings</button>
+    <button class="sb" id="btn-dots" onclick="setStyle('dots')">Dots</button>
+    <button class="sb" id="btn-cross" onclick="setStyle('cross')">Cross</button>
   </div>
-
   <div class="sliders">
-    <div class="sl-item"><label>Bandwidth</label><input type="range" min="5" max="900" value="900" id="bwSlider"></div>
-    <div class="sl-item"><label>Depth</label><input type="range" min="1" max="20" value="12" id="depthSlider"></div>
+    <div class="sl-item"><label>Depth Influence</label><input type="range" id="depthSlider" min="1" max="30" value="15"></div>
+    <div class="sl-item"><label>Bandwidth (Grid)</label><input type="range" id="bwSlider" min="10" max="900" value="900"></div>
   </div>
-
   <div class="btn-row">
-    <button class="btn btn-green" id="camBtn" onclick="startCamera()">📷 Start Camera</button>
-    <button class="btn btn-primary" id="snapBtn" onclick="startSnap()" disabled>📸 Snap Portrait</button>
-    <button class="btn btn-orange" id="liveBtn" onclick="toggleLive()" disabled>⚡ Live Puppet</button>
+    <button class="btn btn-ghost" onclick="startCamera()">1. Init Optics</button>
+    <button class="btn btn-primary" id="snapBtn" onclick="startSnap()" disabled>2. Snap Close</button>
+    <button class="btn btn-primary" id="liveBtn" onclick="toggleLive()" disabled style="background:#ff6600">3. Live Puppet</button>
   </div>
 </div>
 
-<div class="statusbar" id="statusbar">Awaiting Camera...</div>
+<div class="statusbar" id="statusbar">Awaiting Hardware Initialization...</div>
 <video id="camFeed" autoplay muted playsinline style="display:none"></video>
 
 <script>
 'use strict';
 
-// Restored Constants from index 9.html
-const ANCHORS = [33,133,362,263,1,4,61,291,152,10,187,411];
-const TIERS = { AVATAR3D:{W:20,H:24}, PUPPET:{W:12,H:14}, SPRITE:{W:7,H:8}, GLYPH:{W:4,H:5} };
-const CELL_STEP = 34; 
-const RBF_S2 = 2 * 0.03 * 0.03;
+// ── CONSTANTS ──
+const ANCHORS = [33,133,362,263,1,4,61,291,152,10,187,411]; // Core facial drivers
+const TIERS = { AVATAR3D:{W:22, H:26}, PUPPET:{W:14, H:18}, SPRITE:{W:8, H:10}, GLYPH:{W:4, H:5} };
+const CELL_STEP = 34, RBF_S2 = 2 * 0.03 * 0.03;
 
 let localS, lastLM, cellStyle = 'rings', puppetActive = false, snapping = false;
 
+// ── SCENE SETUP ──
 function makeScene(id) {
   const sc = new THREE.Scene();
   const cam = new THREE.PerspectiveCamera(38, 300/360, 0.1, 100);
-  cam.position.z = 2.2;
+  cam.position.z = 2.4;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(300, 360);
+  renderer.setPixelRatio(window.devicePixelRatio);
   document.getElementById(id).appendChild(renderer.domElement);
-  return { scene:sc, camera:cam, renderer, mesh:null, texCanvas:document.createElement('canvas'), basePos:null, curPos:null };
+  
+  // Lighting for MeshStandardMaterial
+  const amb = new THREE.AmbientLight(0xffffff, 0.8); sc.add(amb);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.5); dir.position.set(0,1,2); sc.add(dir);
+
+  return { 
+    scene:sc, camera:cam, renderer, mesh:null, 
+    texCanvas:document.createElement('canvas'), 
+    basePos:null, curPos:null, snapLM:null 
+  };
 }
 
+// ── THE CHUCK CLOSE DRAWING ENGINE ──
 function drawCell(ctx, cx, cy, r, g, b) {
   const rad = 16, lum = (r*0.299 + g*0.587 + b*0.114) / 255;
-  const dRGB = `rgb(${Math.max(0,r-100)},${Math.max(0,g-100)},${Math.max(0,b-100)})`;
-  const hRGB = `rgb(${Math.min(255,r+100)},${Math.min(255,g+100)},${Math.min(255,b+100)})`;
+  const dRGB = `rgb(${Math.max(0,r-80)},${Math.max(0,g-80)},${Math.max(0,b-80)})`;
+  const hRGB = `rgb(${Math.min(255,r+80)},${Math.min(255,g+80)},${Math.min(255,b+80)})`;
 
   if(cellStyle === 'rings') {
     const nR = Math.max(3, Math.round(3 + lum * 5));
@@ -112,20 +122,23 @@ function drawCell(ctx, cx, cy, r, g, b) {
     }
   } else {
     ctx.fillStyle = `rgb(${r},${g},${b})`;
-    ctx.fillRect(cx-rad, cy-rad, rad*2, rad*2);
+    ctx.beginPath(); ctx.arc(cx, cy, rad*lum, 0, Math.PI*2); ctx.fill();
   }
 }
 
-async function buildMeshTier(sc, lm, tierName) {
+// ── MESH CONSTRUCTION & MEMORY MGMT ──
+async function buildMesh(sc, lm, tierName) {
   const cfg = TIERS[tierName];
   const W = cfg.W, H = cfg.H;
   
-  // Restore Bounding Box mirror logic
+  // Calculate Bounding Box (Selfie Mirror)
   let x0=1, x1=0, y0=1, y1=0;
   lm.forEach(p => { const mx=1-p.x; if(mx<x0) x0=mx; if(mx>x1) x1=mx; if(p.y<y0) y0=p.y; if(p.y>y1) y1=p.y; });
   sc.snapBBox = { x0, x1, y0, y1, w:x1-x0, h:y1-y0 };
   sc.snapAnchors = ANCHORS.map(i => ({ idx:i, u:(1-lm[i].x-x0)/(x1-x0), v:(lm[i].y-y0)/(y1-y0) }));
+  sc.snapLM = lm.map(p => ({...p}));
 
+  // Texture Atlas Generation
   sc.texCanvas.width = W * CELL_STEP; sc.texCanvas.height = H * CELL_STEP;
   const ctx = sc.texCanvas.getContext('2d');
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,sc.texCanvas.width, sc.texCanvas.height);
@@ -134,7 +147,7 @@ async function buildMeshTier(sc, lm, tierName) {
   for(let j=0; j<=H; j++) {
     for(let i=0; i<=W; i++) {
       const u=i/W, v=j/H, vi=j*(W+1)+i;
-      pos[vi*3]=(u-0.5)*2; pos[vi*3+1]=(0.5-v)*2.4; pos[vi*3+2]=-lm[0].z;
+      pos[vi*3]=(u-0.5)*2.1; pos[vi*3+1]=(0.5-v)*2.6; pos[vi*3+2]=-lm[0].z;
       uv[vi*2]=u; uv[vi*2+1]=1-v;
       if(i<W && j<H) {
         const tl=j*(W+1)+i, tr=tl+1, bl=(j+1)*(W+1)+i, br=bl+1;
@@ -143,21 +156,27 @@ async function buildMeshTier(sc, lm, tierName) {
     }
   }
 
+  // Dispose old mesh to prevent leaks
+  if(sc.mesh) {
+    sc.mesh.geometry.dispose();
+    sc.mesh.material.dispose();
+    sc.scene.remove(sc.mesh);
+  }
+
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geo.setIndex(indices);
 
-  if(sc.mesh) sc.scene.remove(sc.mesh);
   sc.tex = new THREE.CanvasTexture(sc.texCanvas);
-  sc.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map:sc.tex, roughness:0.5 }));
+  sc.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map:sc.tex, roughness:0.4, flatShading:true }));
   sc.scene.add(sc.mesh);
-  sc.basePos = pos.slice(); sc.curPos = pos.slice(); sc.snapW = W; sc.snapH = H;
+  sc.basePos = pos.slice(); sc.snapW = W; sc.snapH = H;
 
-  // Render texture cells with random-fill animation
+  // Render texture with high-contrast cells
   for(let j=0; j<H; j++) {
     for(let i=0; i<W; i++) {
-      drawCell(ctx, i*CELL_STEP+17, j*CELL_STEP+17, 100+Math.random()*50, 120+Math.random()*50, 200);
+      drawCell(ctx, i*CELL_STEP+17, j*CELL_STEP+17, 80+Math.random()*150, 60+Math.random()*100, 180+Math.random()*75);
     }
   }
   sc.tex.needsUpdate = true;
@@ -165,69 +184,84 @@ async function buildMeshTier(sc, lm, tierName) {
 
 async function startSnap() {
   snapping = true;
+  const ov = document.getElementById('localBuildOv');
+  const bar = document.getElementById('localBuildBar');
+  const lbl = document.getElementById('localBuildLbl');
+  ov.style.display = 'flex';
+
   const passes = ['GLYPH', 'SPRITE', 'PUPPET', 'AVATAR3D'];
   for(let i=0; i<passes.length; i++) {
-    document.getElementById('localBuildBar').style.width = ((i+1)/4*100)+'%';
-    document.getElementById('localBuildLbl').textContent = `Building ${passes[i]}...`;
-    await buildMeshTier(localS, lastLM, passes[i]);
-    await new Promise(r => setTimeout(r, 400));
+    lbl.textContent = `Rendering Pass: ${passes[i]}`;
+    bar.style.width = ((i+1)/4*100)+'%';
+    await buildMesh(localS, lastLM, passes[i]);
+    await new Promise(r => setTimeout(r, 450));
   }
+  
+  ov.style.display = 'none';
   document.getElementById('liveBtn').disabled = false;
   snapping = false;
 }
 
+// ── RBF PUPPET ENGINE ──
 function puppet(sc, liveLM) {
   if(!sc.mesh || !sc.snapAnchors) return;
   const pos = sc.mesh.geometry.attributes.position.array;
   const W = sc.snapW, H = sc.snapH, bb = sc.snapBBox;
-  const depth = document.getElementById('depthSlider').value;
+  const depth = parseFloat(document.getElementById('depthSlider').value);
 
   for(let j=0; j<=H; j++) {
     for(let i=0; i<=W; i++) {
       const vi = j*(W+1)+i, u = i/W, v = j/H;
-      let du=0, dv=0, tw=0;
+      let du=0, dv=0, dz=0, tw=0;
       for(const a of sc.snapAnchors) {
         const d2 = (a.u-u)**2 + (a.v-v)**2;
         const w = Math.exp(-d2/RBF_S2);
         const liveUV = { u:(1-liveLM[a.idx].x-bb.x0)/bb.w, v:(liveLM[a.idx].y-bb.y0)/bb.h };
-        du += (liveUV.u - a.u)*w; dv += (liveUV.v - a.v)*w; tw += w;
+        du += (liveUV.u - a.u)*w; dv += (liveUV.v - a.v)*w; 
+        dz += (liveLM[a.idx].z - sc.snapLM[a.idx].z)*w;
+        tw += w;
       }
       if(tw > 0) {
-        pos[vi*3] = sc.basePos[vi*3] + (du/tw)*2;
-        pos[vi*3+1] = sc.basePos[vi*3+1] - (dv/tw)*2.4;
-        pos[vi*3+2] = sc.basePos[vi*3+2] + (liveLM[0].z * depth * 0.1);
+        pos[vi*3] = sc.basePos[vi*3] + (du/tw)*2.2;
+        pos[vi*3+1] = sc.basePos[vi*3+1] - (dv/tw)*2.8;
+        pos[vi*3+2] = sc.basePos[vi*3+2] - (dz/tw * depth * 0.1); // Corrected Depth Protrusion
       }
     }
   }
   sc.mesh.geometry.attributes.position.needsUpdate = true;
+  sc.mesh.geometry.computeVertexNormals(); // Fixes shading/lighting live
 }
 
+// ── OPTICS ──
 async function startCamera() {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-  document.getElementById('pipLocal').srcObject = stream;
-  const feed = document.getElementById('camFeed');
-  feed.srcObject = stream;
-  const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-  faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
-  faceMesh.onResults(res => {
-    if(!res.multiFaceLandmarks?.[0]) return;
-    lastLM = res.multiFaceLandmarks[0];
-    if(puppetActive) puppet(localS, lastLM);
-  });
-  new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); } }).start();
-  document.getElementById('snapBtn').disabled = false;
-  document.getElementById('camBtn').textContent = "✅ Camera Active";
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    document.getElementById('pipLocal').srcObject = stream;
+    const feed = document.getElementById('camFeed'); feed.srcObject = stream;
+    
+    const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+    faceMesh.setOptions({ maxNumFaces:1, refineLandmarks:true, minDetectionConfidence:0.6 });
+    faceMesh.onResults(res => {
+      if(!res.multiFaceLandmarks?.[0]) return;
+      lastLM = res.multiFaceLandmarks[0];
+      if(puppetActive) puppet(localS, lastLM);
+    });
+
+    new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); } }).start();
+    document.getElementById('snapBtn').disabled = false;
+    document.getElementById('statusbar').textContent = "Optics Active. Calibrated.";
+  } catch(e) { alert("Camera Error: " + e.message); }
 }
 
 function toggleLive() {
   puppetActive = !puppetActive;
-  document.getElementById('liveBtn').textContent = puppetActive ? "⏹ Stop Puppet" : "⚡ Live Puppet";
+  document.getElementById('liveBtn').textContent = puppetActive ? "Stop Puppet" : "Live Puppet";
 }
 
 function setStyle(s) {
   cellStyle = s;
   document.querySelectorAll('.sb').forEach(b => b.classList.remove('on'));
-  document.getElementById('sb-'+s).classList.add('on');
+  document.getElementById('btn-'+s).classList.add('on');
 }
 
 window.onload = () => {
