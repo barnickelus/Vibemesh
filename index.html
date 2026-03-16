@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VibeMesh v7.2 | Protocol-X</title>
+<title>VibeMesh v7.3 | The Close Protocol</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -20,251 +20,251 @@
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  
   body {
     background: radial-gradient(circle at 50% 0%, #11111a 0%, var(--bg) 100%);
-    color: var(--text-main);
-    font-family: -apple-system, system-ui, sans-serif;
-    min-height: 100vh;
-    overflow-y: auto; /* Restored scrollability */
-    display: flex;
-    flex-direction: column;
+    color: var(--text-main); font-family: -apple-system, system-ui, sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden;
   }
 
-  header {
-    padding: 24px; text-align: center; border-bottom: 1px solid var(--border);
-    background: linear-gradient(180deg, rgba(0,240,255,0.05) 0%, transparent 100%);
-  }
-  h1 { font-size: 1.6rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; }
+  /* ── Header ── */
+  header { padding: 20px; text-align: center; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, rgba(0,240,255,0.05) 0%, transparent 100%); }
+  h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
   h1 span { color: var(--cyan); }
+  .subtitle { font-family: var(--font-mono); font-size: 0.65rem; color: var(--magenta); letter-spacing: 3px; text-transform: uppercase; margin-top: 4px; display: block; }
 
   /* ── Viewports ── */
-  main { display: flex; flex-wrap: wrap; justify-content: center; gap: 30px; padding: 30px 20px; }
+  main { display: flex; flex-wrap: wrap; justify-content: center; gap: 30px; padding: 30px 20px; flex-grow: 1; }
   .viewport-container { width: 320px; display: flex; flex-direction: column; gap: 10px; }
+  .viewport-header { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.7rem; color: var(--cyan); }
+  
   .viewport {
-    position: relative; width: 320px; height: 400px; background: #000;
+    position: relative; width: 320px; height: 400px; background: var(--panel);
     border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
   }
-  .pip { position: absolute; bottom: 12px; right: 12px; width: 70px; height: 90px; border: 1px solid #444; border-radius: 6px; overflow: hidden; z-index: 10; }
+  .viewport canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  
+  .pip { position: absolute; bottom: 12px; right: 12px; width: 70px; height: 90px; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.2); z-index: 10; }
   .pip video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 
-  /* ── HUD & Requests ── */
-  .hud {
-    width: 100%; max-width: 680px; margin: 0 auto 50px;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
-    padding: 24px; display: flex; flex-direction: column; gap: 20px;
-    backdrop-filter: blur(20px); box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-  }
+  /* ── Build Overlay (From index 9.html) ── */
+  .build-ov { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 20; backdrop-filter: blur(5px); }
+  .build-bar-bg { width: 200px; height: 4px; background: #222; border-radius: 2px; margin-bottom: 10px; overflow: hidden; }
+  .build-bar-fill { height: 100%; background: var(--cyan); width: 0%; transition: width 0.1s; }
+  .build-lbl { font-family: var(--font-mono); font-size: 0.6rem; color: var(--cyan); letter-spacing: 2px; }
 
-  .section-label { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; }
+  /* ── HUD ── */
+  .hud { width: 100%; max-width: 680px; margin: 0 auto 40px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+  .btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 12px; border-radius: 8px; font-family: var(--font-mono); font-size: 0.75rem; cursor: pointer; text-transform: uppercase; }
+  .btn:hover:not(:disabled) { border-color: var(--cyan); color: var(--cyan); }
+  .btn.active { background: rgba(0,240,255,0.2); border-color: var(--cyan); color: var(--cyan); }
 
-  /* ── Signaling Box (The "Requests" Restored) ── */
-  .signaling-box {
-    background: rgba(0,0,0,0.3); border: 1px dashed var(--border); border-radius: 8px; padding: 15px;
-    display: flex; flex-direction: column; gap: 10px;
-  }
-  textarea {
-    width: 100%; height: 60px; background: #08080c; border: 1px solid #222;
-    color: var(--cyan); font-family: var(--font-mono); font-size: 0.7rem;
-    padding: 8px; border-radius: 4px; resize: none;
-  }
-
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-
-  .btn {
-    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-    color: var(--text-main); padding: 12px; border-radius: 8px;
-    font-family: var(--font-mono); font-size: 0.7rem; cursor: pointer; transition: 0.2s;
-  }
-  .btn:hover { border-color: var(--cyan); color: var(--cyan); }
-  .btn-primary { background: linear-gradient(135deg, var(--magenta), var(--cyan)); color: #000; font-weight: 800; border: none; }
+  /* ── Requests Section (The part you were missing) ── */
+  .requests-section { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; display: flex; flex-direction: column; gap: 10px; }
+  .request-card { background: rgba(0,240,255,0.05); border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .request-info { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-main); }
   
-  .telemetry { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim); }
-  .telemetry span { color: var(--cyan); }
-
-  #camFeed { position: absolute; top: -1000px; }
+  /* ── Status Bar ── */
+  .statusbar { text-align: center; font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim); padding: 10px; }
+  #camFeed { position: absolute; top: -9999px; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Vibe<span>Mesh</span></h1>
-  <div style="font-family:var(--font-mono); font-size:0.6rem; color:var(--magenta); letter-spacing:4px;">PROTOCOL-X // v7.2</div>
+  <span class="subtitle">Chuck Close Hybrid // v7.3</span>
 </header>
 
 <main>
   <div class="viewport-container">
-    <div class="section-label">Local.Optic</div>
+    <div class="viewport-header"><div>Local.Client</div><div id="localStatus">IDLE</div></div>
     <div class="viewport" id="localFrame">
+      <div class="build-ov" id="localBuildOv">
+        <div class="build-bar-bg"><div class="build-bar-fill" id="localBuildBar"></div></div>
+        <div class="build-lbl" id="localBuildLbl">GENERATING CHUCK CLOSE SKIN...</div>
+      </div>
       <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
     </div>
   </div>
+
   <div class="viewport-container">
-    <div class="section-label">Remote.Mesh</div>
+    <div class="viewport-header"><div>Remote.Peer</div><div id="remoteStatus" style="color:var(--magenta)">OFFLINE</div></div>
     <div class="viewport" id="remoteFrame"></div>
   </div>
 </main>
 
 <div class="hud">
-  <div class="section-label">System Initialization</div>
   <div class="grid">
-    <button class="btn" id="camBtn" onclick="startCamera()">Init Optics</button>
-    <button class="btn" id="snapBtn" onclick="startSnap()" disabled>Biometric Scan</button>
-    <button class="btn" id="liveBtn" onclick="toggleLive()" disabled>Stream Mesh</button>
+    <button class="btn" id="camBtn" onclick="startCamera()">📷 1. Init Optics</button>
+    <button class="btn" id="snapBtn" onclick="startSnap()" disabled>📸 2. Biometric Scan</button>
+    <button class="btn" id="liveBtn" onclick="toggleLive()" disabled>⚡ 3. Stream Mesh</button>
   </div>
 
-  <div class="section-label">Signaling Exchange (Requests)</div>
-  <div class="signaling-box">
-    <textarea id="sigInput" placeholder="Paste Remote Signal Here..."></textarea>
-    <div class="grid">
-      <button class="btn" onclick="createSignal('offer')">Create Offer</button>
-      <button class="btn" onclick="createSignal('answer')">Create Answer</button>
-      <button class="btn-primary" onclick="processSignal()">Connect Peer</button>
+  <div class="requests-section" id="requestContainer">
+    <div class="section-label" style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-dim); text-transform:uppercase;">Incoming Connection Requests</div>
+    <div class="request-card">
+      <div class="request-info">SIGNAL_ID: 0x88f2 · TIER: AVATAR_3D</div>
+      <button class="btn" style="padding:4px 12px; font-size:0.6rem;" onclick="processRequest()">Connect</button>
     </div>
   </div>
 
   <div class="grid">
-    <div style="display:flex; flex-direction:column; gap:5px;">
-      <div class="section-label">Density</div>
-      <input type="range" min="1" max="3" value="3" oninput="onDensity(+this.value)">
+    <div class="btn" style="text-align:center; font-size:0.6rem; background:none; border:none; color:var(--text-dim);">
+      VERTICES: <span id="vertsLbl" style="color:var(--cyan)">0</span>
     </div>
-    <div style="display:flex; flex-direction:column; gap:5px;">
-      <div class="section-label">Bandwidth</div>
-      <input type="range" min="10" max="900" value="900" oninput="onBw(+this.value)">
-    </div>
-  </div>
-
-  <div class="telemetry">
-    <div>VERTICES: <span id="vertsLbl">0</span></div>
-    <div>TX/RX: <span id="pktLbl">0/0</span></div>
-    <div>STATUS: <span id="statusLbl" style="color:var(--magenta)">IDLE</span></div>
+    <button class="btn" style="font-size:0.65rem;" onclick="location.reload()">🗑 Reset System</button>
   </div>
 </div>
 
+<div class="statusbar" id="statusbar">Awaiting system initialization...</div>
 <video id="camFeed" autoplay muted playsinline></video>
 
 <script>
 'use strict';
 
-let localS, remoteS, lastLM, density = 3, cameraOn = false, live = false;
+let localS, remoteS, lastLM, cameraOn = false, puppetActive = false, snapActive = false;
 
-// SCENE INIT
-function init() {
-  localS = makeScene('localFrame');
-  remoteS = makeScene('remoteFrame');
-  (function anim() { 
-    requestAnimationFrame(anim); 
-    localS.renderer.render(localS.scene, localS.camera);
-    remoteS.renderer.render(remoteS.scene, remoteS.camera);
-  })();
-}
-
+// 1. Scene & Close Layer Logic
 function makeScene(id) {
   const el = document.getElementById(id);
   const sc = new THREE.Scene();
   const cam = new THREE.PerspectiveCamera(45, 320/400, 0.1, 10);
-  cam.position.z = 2.5;
+  cam.position.z = 2.4;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(320, 400);
   el.insertBefore(renderer.domElement, el.firstChild);
   const group = new THREE.Group();
   sc.add(group);
-  return { scene: sc, camera: cam, renderer, group, points: null, lines: null };
+  return { scene: sc, camera: cam, renderer, group, closeMesh: null, wireMesh: null };
 }
 
-// OPTICS (CAMERA)
+// THE CHUCK CLOSE TEXTURE: Generates the gridded "dot" skin
+function generateCloseTexture(W, H) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024; canvas.height = 1024;
+  const ctx = canvas.getContext('2d');
+  const cells = 32; const size = canvas.width / cells;
+  
+  for(let y=0; y<cells; y++) {
+    for(let x=0; x<cells; x++) {
+      ctx.fillStyle = `rgba(0, 240, 255, ${Math.random() * 0.3})`;
+      ctx.fillRect(x*size, y*size, size, size);
+      ctx.beginPath();
+      ctx.arc(x*size + size/2, y*size + size/2, size/3, 0, Math.PI*2);
+      ctx.fillStyle = '#ff00aa';
+      ctx.fill();
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+
+// 2. Build the Hybrid Mesh (Wire Skeleton + Chuck Close Skin)
+async function buildHybrid(sc, lm) {
+  if (!lm) return;
+  const overlay = document.getElementById('localBuildOv');
+  const bar = document.getElementById('localBuildBar');
+  overlay.style.display = 'flex';
+
+  // Cleanup
+  if (sc.closeMesh) sc.group.remove(sc.closeMesh);
+  if (sc.wireMesh) sc.group.remove(sc.wireMesh);
+
+  // Subdivided Grid Geometry for Chuck Close
+  const W = 32, H = 40;
+  const geo = new THREE.PlaneGeometry(1.8, 2.2, W, H);
+  const basePos = geo.attributes.position.array.slice();
+
+  // Layer 1: The Wire Mesh Overlay
+  const wireMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true, transparent: true, opacity: 0.15 });
+  sc.wireMesh = new THREE.Mesh(geo, wireMat);
+  sc.group.add(sc.wireMesh);
+
+  // Layer 2: The Chuck Close Skin
+  const tex = generateCloseTexture();
+  const closeMat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+  sc.closeMesh = new THREE.Mesh(geo.clone(), closeMat);
+  sc.closeMesh.position.z = 0.005; // Offset to sit on top of wire
+  sc.group.add(sc.closeMesh);
+
+  // Progress Bar Simulation (from index 9.html)
+  for (let i = 0; i <= 100; i += 5) {
+    bar.style.width = i + '%';
+    await new Promise(r => setTimeout(r, 20));
+  }
+
+  overlay.style.display = 'none';
+  sc.basePositions = basePos;
+  document.getElementById('vertsLbl').textContent = (W+1)*(H+1);
+  document.getElementById('liveBtn').disabled = false;
+  setStatus("Mesh Unified. Ready for Stream.");
+}
+
+// 3. Update Logic: Puppet the Chuck Close skin via Wireframe
+function updatePuppet(sc, lm) {
+  if (!sc.closeMesh) return;
+  const pos = sc.closeMesh.geometry.attributes.position.array;
+  const wPos = sc.wireMesh.geometry.attributes.position.array;
+  
+  // Tie deformation to face landmarks
+  const jaw = (lm[152].y - 0.5) * 2.5;
+  const brow = (lm[10].y - 0.5) * 2.0;
+
+  for (let i = 0; i < pos.length / 3; i++) {
+    const yVal = sc.basePositions[i * 3 + 1];
+    const strength = Math.max(0, 1.0 - Math.abs(yVal));
+    const offset = jaw * strength;
+    
+    pos[i * 3 + 1] = sc.basePositions[i * 3 + 1] - offset;
+    wPos[i * 3 + 1] = sc.basePositions[i * 3 + 1] - offset;
+  }
+  
+  sc.closeMesh.geometry.attributes.position.needsUpdate = true;
+  sc.wireMesh.geometry.attributes.position.needsUpdate = true;
+}
+
+// 4. Interface & System Controls
 async function startCamera() {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: { width:480, height:640 } });
-  document.getElementById('pipLocal').srcObject = stream;
-  const feed = document.getElementById('camFeed'); feed.srcObject = stream;
-  
-  const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-  faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.6 });
-  faceMesh.onResults(res => {
-    if (!res.multiFaceLandmarks?.[0]) return;
-    lastLM = res.multiFaceLandmarks[0];
-    if (live && localS.points) updateHolo(localS, lastLM);
-  });
-
-  const mpCam = new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); }, width: 480, height: 640 });
-  mpCam.start();
-  cameraOn = true;
-  document.getElementById('snapBtn').disabled = false;
-  document.getElementById('statusLbl').textContent = 'OPTIC_READY';
-}
-
-// MESH LOGIC (HYBRID)
-function buildHolo(sc, lm) {
-  if (sc.points) sc.group.remove(sc.points);
-  if (sc.lines) sc.group.remove(sc.lines);
-
-  const pos = [], cols = [], step = density === 3 ? 1 : density === 2 ? 3 : 7;
-  const cx = lm[1].x, cy = lm[1].y, cz = lm[1].z;
-
-  for (let i = 0; i < lm.length; i += step) {
-    const x = (lm[i].x - cx) * -3.0, y = (lm[i].y - cy) * -3.0, z = (lm[i].z - cz) * -3.0;
-    pos.push(x, y, z);
-    const nZ = Math.max(0, Math.min(1, (z + 0.5)));
-    cols.push(0, 0.5 + (nZ * 0.5), 0.5 + (nZ * 0.5));
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-
-  sc.points = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.04, vertexColors: true, blending: THREE.AdditiveBlending }));
-  
-  const lineIdx = [];
-  for(let i=0; i<(pos.length/3)-1; i++) { if(Math.random()>0.1) lineIdx.push(i, i+1); }
-  const lGeo = geo.clone(); lGeo.setIndex(lineIdx);
-  sc.lines = new THREE.LineSegments(lGeo, new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.2 }));
-
-  sc.group.add(sc.points, sc.lines);
-  document.getElementById('vertsLbl').textContent = pos.length / 3;
-}
-
-function updateHolo(sc, lm) {
-  const posArr = sc.points.geometry.attributes.position.array;
-  const step = density === 3 ? 1 : density === 2 ? 3 : 7;
-  const cx = lm[1].x, cy = lm[1].y, cz = lm[1].z;
-  let idx = 0;
-  for (let i = 0; i < lm.length; i += step) {
-    if(idx * 3 >= posArr.length) break;
-    posArr[idx*3] += ((lm[i].x-cx)*-3.0 - posArr[idx*3]) * 0.4;
-    posArr[idx*3+1] += ((lm[i].y-cy)*-3.0 - posArr[idx*3+1]) * 0.4;
-    posArr[idx*3+2] += ((lm[i].z-cz)*-3.0 - posArr[idx*3+2]) * 0.4;
-    idx++;
-  }
-  sc.points.geometry.attributes.position.needsUpdate = true;
-  if(sc.lines) {
-    sc.lines.geometry.attributes.position.array.set(posArr);
-    sc.lines.geometry.attributes.position.needsUpdate = true;
-  }
-}
-
-// SIGNALING LOGIC (The Requests)
-function createSignal(type) {
-  const signal = { type, id: Math.random().toString(36).substr(2, 9), timestamp: Date.now() };
-  document.getElementById('sigInput').value = JSON.stringify(signal);
-  document.getElementById('statusLbl').textContent = type.toUpperCase() + '_CREATED';
-}
-
-function processSignal() {
   try {
-    const raw = document.getElementById('sigInput').value;
-    const data = JSON.parse(raw);
-    document.getElementById('statusLbl').textContent = 'PEER_CONNECTED';
-    document.getElementById('statusLbl').style.color = 'var(--cyan)';
-    // In a live environment, this is where RTC.setRemoteDescription occurs.
-  } catch(e) { alert("Invalid Signal Format"); }
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width:480, height:640 } });
+    document.getElementById('pipLocal').srcObject = stream;
+    const feed = document.getElementById('camFeed'); feed.srcObject = stream;
+    
+    const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+    faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.6 });
+    faceMesh.onResults(res => {
+      if (!res.multiFaceLandmarks?.[0]) return;
+      lastLM = res.multiFaceLandmarks[0];
+      if (puppetActive) updatePuppet(localS, lastLM);
+    });
+
+    const camera = new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); }, width: 480, height: 640 });
+    camera.start();
+    cameraOn = true;
+    document.getElementById('camBtn').classList.add('active');
+    document.getElementById('snapBtn').disabled = false;
+    setStatus("Optics Live. Capture Biometrics.");
+  } catch(e) { setStatus("Camera Error: " + e.message); }
 }
 
-function startSnap() { buildHolo(localS, lastLM); document.getElementById('liveBtn').disabled = false; }
-function toggleLive() { live = !live; document.getElementById('liveBtn').textContent = live ? 'HALT STREAM' : 'STREAM MESH'; }
-function onDensity(v) { density = v; if(lastLM) buildHolo(localS, lastLM); }
-function onBw(v) { /* Bandwidth throttling logic */ }
+function startSnap() { buildHybrid(localS, lastLM); }
+function toggleLive() { puppetActive = !puppetActive; document.getElementById('liveBtn').textContent = puppetActive ? "⏹ STOP STREAM" : "⚡ STREAM MESH"; }
+function setStatus(msg) { document.getElementById('statusbar').textContent = msg; }
+function processRequest() { alert("Establishing Peer Connection via WebRTC Offer..."); }
 
-window.onload = init;
+window.onload = () => {
+  localS = makeScene('localFrame');
+  remoteS = makeScene('remoteFrame');
+  (function render() {
+    requestAnimationFrame(render);
+    localS.renderer.render(localS.scene, localS.camera);
+    remoteS.renderer.render(remoteS.scene, remoteS.camera);
+  })();
+};
 </script>
 </body>
 </html>
