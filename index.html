@@ -1,443 +1,1039 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>VibeMesh v1.4 — Shore Edition</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:#0a0a1f;color:#fff;font-family:Impact,sans-serif;min-height:100vh;overflow-x:hidden}
-    h1{text-align:center;padding:16px 10px 8px;font-size:clamp(1.4em,4vw,2.4em);
-       background:linear-gradient(90deg,#00f0ff,#ff00aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-    .call{display:flex;justify-content:center;gap:20px;padding:10px 20px;flex-wrap:wrap}
-    .avatar-box{display:flex;flex-direction:column;align-items:center;gap:8px}
-    .name{font-size:1.2em;color:#00ffcc}
-    .avatar{width:280px;height:280px;border-radius:20px;overflow:hidden;background:#111;
-            box-shadow:0 0 30px #00f0ff;position:relative}
-    .avatar canvas{display:block}
-    .glyph{display:none;align-items:center;justify-content:center;
-           font-size:90px;width:280px;height:280px;border-radius:20px;
-           background:#111;box-shadow:0 0 30px #00f0ff}
-    .pip{position:absolute;bottom:6px;right:6px;width:80px;height:60px;
-         border-radius:8px;overflow:hidden;border:2px solid #00f0ff;background:#000;z-index:10}
-    .pip video{width:100%;height:100%;object-fit:cover}
-    .controls{background:#111;padding:16px 20px;margin:10px 20px;border-radius:16px}
-    .row{display:flex;align-items:center;gap:10px;margin:6px 0}
-    .row label{min-width:110px;font-size:.85em;color:#aaa}
-    input[type=range]{flex:1;accent-color:#00f0ff}
-    .val{min-width:50px;text-align:right;color:#00f0ff;font-size:.85em}
-    .btns{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
-    button{flex:1;min-width:140px;padding:14px;font-size:1em;font-family:Impact,sans-serif;
-           background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;
-           border-radius:12px;color:#000;cursor:pointer;transition:opacity .15s}
-    button:active{opacity:.7}
-    button:disabled{background:#333;color:#666;cursor:default}
-    .stats{display:flex;justify-content:center;gap:20px;padding:8px 20px 16px;
-           flex-wrap:wrap;font-size:.85em;color:#aaa}
-    .stats span{color:#00ffcc}
-    .status-bar{text-align:center;padding:6px;font-size:.8em;
-                background:#1a0033;border-top:1px solid #ff00aa33}
-    #sigModal{display:none;position:fixed;inset:0;background:#000a;z-index:100;
-              align-items:center;justify-content:center}
-    #sigModal.open{display:flex}
-    .modal-inner{background:#0d0d2b;border:2px solid #00f0ff;border-radius:20px;
-                 padding:24px;max-width:480px;width:90%;display:flex;flex-direction:column;gap:12px}
-    .modal-inner h2{color:#00f0ff;font-size:1.3em}
-    .modal-inner textarea{background:#111;color:#0f0;border:1px solid #00f0ff;
-                          border-radius:8px;padding:10px;font-size:.75em;font-family:monospace;
-                          resize:vertical;min-height:80px;width:100%}
-    .modal-inner .mbtn{background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;
-                       border-radius:10px;padding:12px;color:#000;font-size:1em;
-                       font-family:Impact,sans-serif;cursor:pointer;width:100%}
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VibeMesh v2.0 — Shore Edition</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080814;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
+
+.header{text-align:center;padding:14px 10px 4px}
+.header h1{font-size:clamp(1.3em,4vw,2.1em);font-weight:900;letter-spacing:1px;
+  background:linear-gradient(90deg,#00f0ff,#ff00aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header sub{font-size:.65em;color:#555;letter-spacing:3px;text-transform:uppercase;display:block;margin-top:2px}
+
+.call{display:flex;justify-content:center;gap:20px;padding:10px 16px;flex-wrap:wrap}
+.avatar-box{display:flex;flex-direction:column;align-items:center;gap:6px}
+.name{font-size:.85em;font-weight:700;color:#00ffcc;letter-spacing:2px;text-transform:uppercase}
+
+/* Avatar container */
+.av-wrap{position:relative;width:300px;height:340px}
+.av-3d{width:300px;height:340px;border-radius:22px;overflow:hidden;background:#0c0c1e;
+  box-shadow:0 0 50px #00f0ff33,inset 0 0 40px #00000066;position:relative}
+.av-3d canvas{display:block}
+
+/* Fallback views */
+.av-glyph,.av-sprite,.av-text{display:none;width:300px;height:340px;border-radius:22px;
+  background:#0c0c1e;box-shadow:0 0 50px #00f0ff33;
+  align-items:center;justify-content:center;flex-direction:column;gap:8px}
+.av-glyph{font-size:100px}
+.av-sprite canvas{border-radius:22px}
+.av-text{font-size:1em;color:#00ffcc;padding:20px;text-align:center}
+
+/* Overlays */
+.tier-badge{position:absolute;top:10px;left:12px;padding:3px 10px;border-radius:20px;
+  font-size:.62em;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  background:#00f0ff18;border:1px solid #00f0ff55;color:#00f0ff;z-index:20;pointer-events:none}
+.build-bar-wrap{position:absolute;bottom:10px;left:12px;right:12px;z-index:20;display:none}
+.build-bar-bg{background:#ffffff18;border-radius:4px;height:4px;overflow:hidden}
+.build-bar-fill{height:4px;background:linear-gradient(90deg,#00f0ff,#ff00aa);border-radius:4px;
+  width:0%;transition:width .4s}
+.build-label{font-size:.6em;color:#aaa;margin-bottom:3px;letter-spacing:1px}
+.speaking-ring{position:absolute;inset:-3px;border-radius:25px;pointer-events:none;
+  border:3px solid #00ff88;opacity:0;transition:opacity .12s;z-index:10}
+.speaking-ring.on{opacity:1;box-shadow:0 0 16px #00ff8866}
+.emotion-pill{position:absolute;bottom:12px;right:12px;padding:3px 8px;border-radius:12px;
+  font-size:.65em;background:#ff00aa22;border:1px solid #ff00aa55;color:#ff88cc;z-index:20;pointer-events:none}
+
+/* PIP */
+.pip{position:absolute;bottom:10px;right:10px;width:72px;height:54px;
+  border-radius:8px;overflow:hidden;border:2px solid #00f0ff66;background:#000;z-index:30}
+.pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+
+/* Controls */
+.controls{background:#0e0e22;padding:14px 18px;margin:8px 16px;border-radius:18px;
+  border:1px solid #ffffff0a}
+.sliders{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-bottom:12px}
+.slider-row{display:flex;flex-direction:column;gap:3px}
+.slider-row label{font-size:.72em;color:#666;letter-spacing:1px;text-transform:uppercase}
+.slider-row .row2{display:flex;align-items:center;gap:8px}
+input[type=range]{flex:1;accent-color:#00f0ff;height:4px}
+.val{font-size:.8em;color:#00f0ff;min-width:36px;text-align:right}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button{flex:1;min-width:120px;padding:12px 10px;font-size:.85em;font-weight:700;
+  letter-spacing:.5px;font-family:inherit;
+  background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;
+  border-radius:12px;color:#000;cursor:pointer;transition:opacity .15s,transform .1s}
+button:active{opacity:.75;transform:scale(.97)}
+button:disabled{background:#1e1e2e;color:#444;cursor:default;transform:none}
+button.secondary{background:#1e1e2e;color:#888;border:1px solid #ffffff11}
+button.secondary:hover{color:#fff}
+
+/* Stats */
+.stats{display:flex;justify-content:center;gap:16px;padding:6px 16px 10px;flex-wrap:wrap}
+.stat{font-size:.72em;color:#444;display:flex;gap:5px;align-items:center}
+.stat span{color:#00ffcc}
+
+/* Status */
+.statusbar{text-align:center;padding:6px 16px 10px;font-size:.75em;color:#555;min-height:24px}
+
+/* Volume visualizer */
+.vol-bar{width:100%;height:3px;background:#ffffff0a;border-radius:2px;margin-top:6px;overflow:hidden}
+.vol-fill{height:3px;background:linear-gradient(90deg,#00f0ff,#ff00aa);border-radius:2px;
+  width:0%;transition:width .05s}
+
+/* Modal */
+#sigModal{display:none;position:fixed;inset:0;background:#000b;z-index:200;
+  align-items:center;justify-content:center}
+#sigModal.open{display:flex}
+.modal{background:#0d0d22;border:1px solid #00f0ff44;border-radius:22px;
+  padding:22px;max-width:460px;width:92%;display:flex;flex-direction:column;gap:10px}
+.modal h2{color:#00f0ff;font-size:1.1em;font-weight:700}
+.modal p{font-size:.78em;color:#666;line-height:1.5}
+.modal textarea{background:#080814;color:#00ff88;border:1px solid #00f0ff33;
+  border-radius:10px;padding:10px;font-size:.72em;font-family:monospace;
+  resize:vertical;min-height:72px;width:100%;outline:none}
+.modal textarea:focus{border-color:#00f0ff88}
+.mbtn{background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;
+  border-radius:10px;padding:12px;color:#000;font-size:.9em;font-weight:700;
+  font-family:inherit;cursor:pointer;width:100%;letter-spacing:.5px}
+.mbtn.dim{background:#1a1a2e;color:#666;border:1px solid #ffffff11}
+
+/* Sprite canvas style */
+#spriteLocal,#spriteRemote{border-radius:22px}
+
+@keyframes speakPulse{0%,100%{box-shadow:0 0 8px #00ff8833}50%{box-shadow:0 0 22px #00ff8888}}
+.speaking-ring.on{animation:speakPulse 0.8s infinite}
+</style>
 </head>
 <body>
 
-<h1>🏖️ VibeMesh v1.4 — SHORE LIVE 🔥</h1>
+<div class="header">
+  <h1>🏖️ VibeMesh v2.0</h1>
+  <sub>Semantic Avatar Communication · Shore Edition</sub>
+</div>
 
 <div class="call">
+  <!-- LOCAL -->
   <div class="avatar-box">
-    <div class="name">You (Vancouver)</div>
-    <div class="avatar" id="localAvatar">
-      <div class="pip"><video id="localVideo" autoplay muted playsinline></video></div>
+    <div class="name">You · Vancouver</div>
+    <div class="av-wrap" id="localWrap">
+      <div class="av-3d" id="localAv3d">
+        <div class="pip"><video id="localVid" autoplay muted playsinline></video></div>
+      </div>
+      <div class="av-glyph" id="localGlyph">😎<span style="font-size:.3em;color:#00ffcc">You</span></div>
+      <div class="av-sprite" id="localSprite"><canvas id="spriteLocal" width="300" height="340"></canvas></div>
+      <div class="av-text" id="localText">
+        <div style="font-size:2em">💬</div>
+        <div id="localTextMsg">Waiting...</div>
+      </div>
+      <div class="tier-badge" id="localTierBadge">AVATAR3D</div>
+      <div class="build-bar-wrap" id="localBuildWrap">
+        <div class="build-label">LOADING HIGH-RES MODEL...</div>
+        <div class="build-bar-bg"><div class="build-bar-fill" id="localBuildFill"></div></div>
+      </div>
+      <div class="speaking-ring" id="localRing"></div>
+      <div class="emotion-pill" id="localEmotion">😐 neutral</div>
     </div>
-    <div class="glyph" id="localGlyph">😎</div>
+    <div class="vol-bar"><div class="vol-fill" id="localVol"></div></div>
   </div>
+
+  <!-- REMOTE -->
   <div class="avatar-box">
-    <div class="name">JerseyBro</div>
-    <div class="avatar" id="remoteAvatar"></div>
-    <div class="glyph" id="remoteGlyph">👀</div>
+    <div class="name">JerseyBro · Remote</div>
+    <div class="av-wrap" id="remoteWrap">
+      <div class="av-3d" id="remoteAv3d"></div>
+      <div class="av-glyph" id="remoteGlyph">🤙<span style="font-size:.3em;color:#00ffcc">Bro</span></div>
+      <div class="av-sprite" id="remoteSprite"><canvas id="spriteRemote" width="300" height="340"></canvas></div>
+      <div class="av-text" id="remoteText">
+        <div style="font-size:2em">💬</div>
+        <div id="remoteTextMsg">Waiting for peer...</div>
+      </div>
+      <div class="tier-badge" id="remoteTierBadge">WAITING</div>
+      <div class="build-bar-wrap" id="remoteBuildWrap">
+        <div class="build-label">LOADING HIGH-RES MODEL...</div>
+        <div class="build-bar-bg"><div class="build-bar-fill" id="remoteBuildFill"></div></div>
+      </div>
+      <div class="speaking-ring" id="remoteRing"></div>
+      <div class="emotion-pill" id="remoteEmotion">😐 neutral</div>
+    </div>
+    <div class="vol-bar"><div class="vol-fill" id="remoteVol"></div></div>
   </div>
 </div>
 
 <div class="controls">
-  <div class="row"><label>Bandwidth (kbps)</label>
-    <input type="range" min="5" max="900" value="900" id="bwSlider" oninput="onBwChange(this.value)">
-    <div class="val" id="bwVal">900</div></div>
-  <div class="row"><label>Battery %</label>
-    <input type="range" min="1" max="100" value="100" id="batSlider" oninput="onBatChange(this.value)">
-    <div class="val" id="batVal">100</div></div>
+  <div class="sliders">
+    <div class="slider-row">
+      <label>Bandwidth</label>
+      <div class="row2">
+        <input type="range" min="5" max="900" value="900" id="bwSlider" oninput="onBw(this.value)">
+        <div class="val"><span id="bwVal">900</span>k</div>
+      </div>
+    </div>
+    <div class="slider-row">
+      <label>Battery</label>
+      <div class="row2">
+        <input type="range" min="1" max="100" value="100" id="batSlider" oninput="onBat(this.value)">
+        <div class="val"><span id="batVal">100</span>%</div>
+      </div>
+    </div>
+  </div>
   <div class="btns">
-    <button id="camBtn" onclick="startCamera()">📷 START CAMERA</button>
-    <button id="connectBtn" onclick="openSigModal()">📡 CONNECT PEER</button>
-    <button id="fistBtn" onclick="sendFistPump()" disabled>👊 FIST PUMP</button>
-    <button onclick="speak()">🎤 CLONE VOICE</button>
+    <button id="camBtn" onclick="startCamera()">📷 Start Camera</button>
+    <button id="micBtn" onclick="startMic()" disabled>🎙️ Start Mic</button>
+    <button id="connectBtn" onclick="openModal()">📡 Connect Peer</button>
+    <button id="fistBtn" onclick="sendFistPump()" disabled>👊 Fist Pump</button>
+    <button class="secondary" onclick="speak()">🎤 Voice Clone</button>
   </div>
 </div>
 
 <div class="stats">
-  Tier: <span id="tierLabel">AVATAR3D</span> &nbsp;|&nbsp;
-  Sent: <span id="sentLabel">0</span> &nbsp;|&nbsp;
-  Recv: <span id="recvLabel">0</span> &nbsp;|&nbsp;
-  RTT: <span id="rttLabel">—</span> ms &nbsp;|&nbsp;
-  Transport: <span id="connLabel" style="color:#ff4757">DISCONNECTED</span>
+  <div class="stat">Tier <span id="tierLabel">AVATAR3D</span></div>
+  <div class="stat">Sent <span id="sentLabel">0</span></div>
+  <div class="stat">Recv <span id="recvLabel">0</span></div>
+  <div class="stat">RTT <span id="rttLabel">—</span>ms</div>
+  <div class="stat">Transport <span id="connLabel" style="color:#ff4757">DISCONNECTED</span></div>
 </div>
+<div class="statusbar" id="statusbar">Click Start Camera to begin face tracking</div>
 
-<div class="status-bar" id="statusBar">Click START CAMERA to begin face tracking</div>
-
-<!-- WebRTC Signaling Modal -->
+<!-- Signaling Modal -->
 <div id="sigModal">
-  <div class="modal-inner">
-    <h2>📡 Peer Connect</h2>
-    <p style="font-size:.85em;color:#aaa">Step 1: One person clicks CREATE OFFER, copies the text and sends it to the other person.</p>
-    <button class="mbtn" onclick="createOffer()">1️⃣ CREATE OFFER</button>
-    <textarea id="offerBox" placeholder="Offer SDP will appear here — copy and send to peer"></textarea>
-    <p style="font-size:.85em;color:#aaa">Step 2: Other person pastes the offer below and clicks ANSWER.</p>
-    <textarea id="answerInBox" placeholder="Paste offer or answer SDP here"></textarea>
-    <button class="mbtn" onclick="handlePaste()">2️⃣ PASTE & CONNECT</button>
-    <button class="mbtn" style="background:#333;color:#aaa" onclick="closeSigModal()">Close</button>
+  <div class="modal">
+    <h2>📡 Connect to Peer</h2>
+    <p>One person creates an offer, sends it to the other. The other pastes it and sends back an answer.</p>
+    <button class="mbtn" onclick="createOffer()">1️⃣ Create Offer (I go first)</button>
+    <textarea id="offerBox" placeholder="SDP offer will appear here — copy and send to peer"></textarea>
+    <p>Paste offer OR answer from peer here:</p>
+    <textarea id="pasteBox" placeholder="Paste SDP from peer here"></textarea>
+    <button class="mbtn" onclick="handlePaste()">2️⃣ Paste & Connect</button>
+    <button class="mbtn dim" onclick="closeModal()">Close</button>
   </div>
 </div>
 
 <script>
-// ─── CONFIG ───────────────────────────────────────────────
-let currentTier = 'AVATAR3D';
+'use strict';
+// ═══════════════════════════════════════════════
+//  CONSTANTS & STATE
+// ═══════════════════════════════════════════════
+const SEND_HZ = 20; // packets per second
+const SEND_MS = 1000 / SEND_HZ;
 let bandwidth = 900, battery = 100;
+let currentTier = 'AVATAR3D';
 let sentCount = 0, recvCount = 0;
-let cameraRunning = false;
-let lastSendTime = 0;
-const SEND_INTERVAL_MS = 50;
+let cameraOn = false, micOn = false;
+let lastSendT = 0;
+let lastLandmarks = null;
+let localAudioLevel = 0, remoteAudioLevel = 0;
+let remoteLastState = null;
 
-// ─── THREE.JS SETUP ───────────────────────────────────────
-function makeRenderer(containerId) {
-  const container = document.getElementById(containerId);
+// Build progress (simulates progressive model loading)
+let localBuild = 0, remoteBuild = 0;
+const BUILD_SPEED = 0.004;
+
+// ═══════════════════════════════════════════════
+//  THREE.JS — REALISTIC PARAMETRIC FACE
+// ═══════════════════════════════════════════════
+function createFaceScene(containerId, cfg) {
+  const el = document.getElementById(containerId);
+  const W = 300, H = 340;
+
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
-  camera.position.z = 3.5;
-  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-  const key = new THREE.PointLight(0xfff0e0, 1.4); key.position.set(3,4,4); scene.add(key);
-  const fill = new THREE.PointLight(0x00f0ff, 0.4); fill.position.set(-4,0,2); scene.add(fill);
-  const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+  scene.background = new THREE.Color(0x0c0c1e);
+  scene.fog = new THREE.FogExp2(0x0c0c1e, 0.18);
+
+  const cam = new THREE.PerspectiveCamera(42, W/H, 0.01, 100);
+  cam.position.set(0, 0.08, 3.2);
+
+  // Lighting rig — key, fill, rim, ambient
+  const ambient = new THREE.AmbientLight(0xffeedd, 0.35);
+  scene.add(ambient);
+
+  const key = new THREE.DirectionalLight(0xfff4e0, 1.1);
+  key.position.set(1.5, 2.5, 2.5);
+  scene.add(key);
+
+  const fill = new THREE.DirectionalLight(0xaaccff, 0.35);
+  fill.position.set(-2, 0.5, 1.5);
+  scene.add(fill);
+
+  const rim = new THREE.DirectionalLight(0xff88cc, 0.5);
+  rim.position.set(0, -1.5, -2);
+  scene.add(rim);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(280, 280);
-  container.appendChild(renderer.domElement);
-  return { scene, camera, renderer };
-}
+  renderer.setSize(W, H);
+  renderer.shadowMap.enabled = false;
+  el.appendChild(renderer.domElement);
 
-function buildFace(headColor) {
-  const group = new THREE.Group();
+  // ── Build realistic face from layered geometry ──
 
-  // Head
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(1, 40, 40),
-    new THREE.MeshStandardMaterial({ color: headColor, roughness: 0.6, metalness: 0.1 })
-  );
-  group.add(head);
+  const skinColor = new THREE.Color(cfg.skinHex);
+  const skinMat = () => new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.72, metalness: 0.0 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: cfg.darkHex, roughness: 0.6 });
+  const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8, roughness: 0.5 });
+  const irisMat = new THREE.MeshStandardMaterial({ color: cfg.eyeHex, roughness: 0.3, metalness: 0.1 });
+  const pupilMat = new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 0.8 });
+  const lipMat = new THREE.MeshStandardMaterial({ color: cfg.lipHex, roughness: 0.55 });
+  const teethMat = new THREE.MeshStandardMaterial({ color: 0xf0ede8, roughness: 0.6 });
 
-  // Eyes
-  const eyeWhiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-  const eyeIrisMat = new THREE.MeshStandardMaterial({ color: 0x1a1aff });
-  const pupilMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
-  function makeEye(x) {
+  const root = new THREE.Group();
+  scene.add(root);
+
+  // HEAD — oblate sphere
+  const headGeo = new THREE.SphereGeometry(1, 64, 48);
+  // Sculpt head shape via vertex displacement
+  const pos = headGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    // Flatten sides (temples)
+    x *= 0.88;
+    // Narrow top
+    const ty = (y + 1) / 2;
+    x *= (1 - ty * 0.18);
+    // Chin narrowing
+    if (y < -0.3) {
+      const cy = (-y - 0.3) / 0.7;
+      x *= (1 - cy * 0.45);
+      z *= (1 - cy * 0.25);
+    }
+    // Forehead flatten
+    if (y > 0.6) z -= (y - 0.6) * 0.3;
+    // Face protrusion (nose/mouth area)
+    if (z > 0.6 && y > -0.6 && y < 0.4) {
+      const faceR = Math.sqrt(x*x + (y-0)*y) / 0.5;
+      if (faceR < 1) z += (1 - faceR) * 0.12;
+    }
+    pos.setXYZ(i, x, y, z);
+  }
+  headGeo.computeVertexNormals();
+  const headMesh = new THREE.Mesh(headGeo, skinMat());
+  headMesh.scale.set(1, 1.12, 0.95);
+  root.add(headMesh);
+
+  // NECK
+  const neckGeo = new THREE.CylinderGeometry(0.32, 0.36, 0.6, 24);
+  const neck = new THREE.Mesh(neckGeo, skinMat());
+  neck.position.set(0, -1.18, 0);
+  root.add(neck);
+
+  // SHOULDERS hint
+  const shoulderGeo = new THREE.SphereGeometry(0.7, 20, 12);
+  const shL = new THREE.Mesh(shoulderGeo, new THREE.MeshStandardMaterial({color: cfg.shirtHex, roughness:0.9}));
+  shL.scale.set(1.8, 0.55, 0.7);
+  shL.position.set(0, -1.7, -0.1);
+  root.add(shL);
+
+  // EYE SOCKETS — subtle recess using dark sphere slightly behind face
+  function makeEyeAssembly(xPos) {
     const g = new THREE.Group();
-    g.add(new THREE.Mesh(new THREE.SphereGeometry(0.18,16,16), eyeWhiteMat));
-    const iris = new THREE.Mesh(new THREE.SphereGeometry(0.11,16,16), eyeIrisMat);
-    iris.position.z = 0.1; g.add(iris);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.06,12,12), pupilMat);
-    pupil.position.z = 0.16; g.add(pupil);
-    g.position.set(x, 0.28, 0.95);
+    // Eyeball white
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.145, 24, 20), whiteMat);
+    g.add(ball);
+    // Iris disc
+    const iris = new THREE.Mesh(new THREE.CircleGeometry(0.09, 32), irisMat);
+    iris.position.z = 0.13;
+    g.add(iris);
+    // Pupil
+    const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.055, 24), pupilMat);
+    pupil.position.z = 0.135;
+    g.add(pupil);
+    // Specular highlight
+    const spec = new THREE.Mesh(new THREE.CircleGeometry(0.022, 12),
+      new THREE.MeshStandardMaterial({color:0xffffff, emissive:0xffffff, emissiveIntensity:1}));
+    spec.position.set(0.03, 0.03, 0.138);
+    g.add(spec);
+    // Eyelid top (moves with blink)
+    const lidTopGeo = new THREE.SphereGeometry(0.158, 20, 8, 0, Math.PI*2, 0, Math.PI*0.5);
+    const lidTop = new THREE.Mesh(lidTopGeo, skinMat());
+    lidTop.rotation.x = Math.PI;
+    lidTop.position.z = -0.01;
+    g.add(lidTop);
+    // Eyelid bottom
+    const lidBotGeo = new THREE.SphereGeometry(0.154, 20, 8, 0, Math.PI*2, 0, Math.PI*0.38);
+    const lidBot = new THREE.Mesh(lidBotGeo, skinMat());
+    lidBot.position.z = -0.01;
+    g.add(lidBot);
+    g.position.set(xPos, 0.275, 0.84);
+    return { g, ball, iris, pupil, lidTop, lidBot };
+  }
+  const eyeL = makeEyeAssembly(-0.32);
+  const eyeR = makeEyeAssembly(0.32);
+  root.add(eyeL.g, eyeR.g);
+
+  // EYEBROWS — bezier-like using thin box
+  function makeBrow(xPos, cfg2) {
+    const g = new THREE.Group();
+    const bGeo = new THREE.BoxGeometry(0.36, 0.045, 0.045);
+    const bMesh = new THREE.Mesh(bGeo, new THREE.MeshStandardMaterial({color: cfg2.browHex, roughness:0.7}));
+    // Slight arch
+    bMesh.rotation.z = xPos < 0 ? 0.12 : -0.12;
+    g.add(bMesh);
+    g.position.set(xPos, 0.515, 0.86);
     return g;
   }
-  const eyeL = makeEye(-0.38);
-  const eyeR = makeEye(0.38);
-  group.add(eyeL, eyeR);
+  const browL = makeBrow(-0.32, cfg);
+  const browR = makeBrow(0.32, cfg);
+  root.add(browL, browR);
 
-  // Eyebrows
-  const browMat = new THREE.MeshStandardMaterial({ color: 0x3a2010 });
-  function makeBrow(x) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.06, 0.06), browMat);
-    b.position.set(x, 0.58, 0.95);
-    return b;
-  }
-  const browL = makeBrow(-0.38);
-  const browR = makeBrow(0.38);
-  group.add(browL, browR);
+  // NOSE — built from spheres
+  const noseGroup = new THREE.Group();
+  // Bridge
+  const noseBridge = new THREE.Mesh(new THREE.SphereGeometry(0.075,16,12), skinMat());
+  noseBridge.scale.set(0.7, 2.2, 0.8);
+  noseBridge.position.set(0, -0.06, 0.92);
+  noseGroup.add(noseBridge);
+  // Tip
+  const noseTip = new THREE.Mesh(new THREE.SphereGeometry(0.1,16,12), skinMat());
+  noseTip.scale.set(1, 0.85, 1.1);
+  noseTip.position.set(0, -0.28, 1.0);
+  noseGroup.add(noseTip);
+  // Nostrils
+  [-0.1, 0.1].forEach(x => {
+    const n = new THREE.Mesh(new THREE.SphereGeometry(0.07,12,10), skinMat());
+    n.scale.set(1.1, 0.8, 1.0);
+    n.position.set(x, -0.32, 0.95);
+    noseGroup.add(n);
+  });
+  root.add(noseGroup);
 
-  // Nose
-  const nose = new THREE.Mesh(
-    new THREE.SphereGeometry(0.1, 12, 12),
-    new THREE.MeshStandardMaterial({ color: headColor, roughness: 0.8 })
-  );
-  nose.scale.set(1, 0.7, 1.2);
-  nose.position.set(0, 0, 1.02);
-  group.add(nose);
+  // MOUTH assembly — jaw-driven
+  const mouthGroup = new THREE.Group();
+  mouthGroup.position.set(0, -0.5, 0.88);
 
-  // Mouth
-  const lipMat = new THREE.MeshStandardMaterial({ color: 0xcc4444 });
-  const mouthPivot = new THREE.Group();
-  mouthPivot.position.set(0, -0.38, 0.92);
-  const upperLip = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.1, 0.08), lipMat.clone());
-  upperLip.position.y = 0.07;
-  const lowerLip = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.1, 0.08), lipMat.clone());
+  // Upper lip
+  const ulipGeo = new THREE.SphereGeometry(0.22, 24, 12, 0, Math.PI*2, 0, Math.PI*0.5);
+  const upperLip = new THREE.Mesh(ulipGeo, lipMat);
+  upperLip.rotation.x = Math.PI;
+  upperLip.scale.set(1.1, 1, 0.7);
+  upperLip.position.y = 0.06;
+  mouthGroup.add(upperLip);
+
+  // Lower lip
+  const llipGeo = new THREE.SphereGeometry(0.24, 24, 12, 0, Math.PI*2, 0, Math.PI*0.5);
+  const lowerLip = new THREE.Mesh(llipGeo, lipMat);
+  lowerLip.scale.set(1.0, 1.1, 0.75);
   lowerLip.position.y = -0.07;
-  mouthPivot.add(upperLip, lowerLip);
-  group.add(mouthPivot);
+  mouthGroup.add(lowerLip);
 
-  // Ears
-  const earMat = new THREE.MeshStandardMaterial({ color: headColor, roughness: 0.7 });
-  function makeEar(x) {
-    const e = new THREE.Mesh(new THREE.SphereGeometry(0.18,12,12), earMat);
-    e.scale.set(0.5, 0.8, 0.5);
-    e.position.set(x, 0.1, 0);
-    return e;
+  // Teeth (hidden by default, show when mouth opens)
+  const teethGeo = new THREE.BoxGeometry(0.3, 0.08, 0.05);
+  const teeth = new THREE.Mesh(teethGeo, teethMat);
+  teeth.position.set(0, 0, 0.04);
+  teeth.visible = false;
+  mouthGroup.add(teeth);
+
+  // Mouth corners (for smile deformation)
+  const cornerL = new THREE.Mesh(new THREE.SphereGeometry(0.045,10,8), lipMat);
+  cornerL.position.set(-0.23, 0, 0);
+  const cornerR = new THREE.Mesh(new THREE.SphereGeometry(0.045,10,8), lipMat);
+  cornerR.position.set(0.23, 0, 0);
+  mouthGroup.add(cornerL, cornerR);
+
+  root.add(mouthGroup);
+
+  // JAW GROUP (lower face that opens)
+  const jawGroup = new THREE.Group();
+  jawGroup.position.set(0, -0.45, 0);
+  root.add(jawGroup);
+
+  // EARS
+  function makeEar(xSign) {
+    const g = new THREE.Group();
+    const outer = new THREE.Mesh(new THREE.SphereGeometry(0.21,16,14), skinMat());
+    outer.scale.set(0.38, 0.72, 0.42);
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(0.14,16,12), skinMat());
+    inner.scale.set(0.3, 0.55, 0.5);
+    inner.position.z = 0.04;
+    g.add(outer, inner);
+    g.position.set(xSign * 0.93, 0.12, 0.0);
+    return g;
   }
-  group.add(makeEar(-1.02), makeEar(1.02));
+  root.add(makeEar(-1), makeEar(1));
 
-  return { group, head, eyeL, eyeR, browL, browR, mouthPivot, upperLip, lowerLip };
-}
-
-const localCtx = makeRenderer('localAvatar');
-const remoteCtx = makeRenderer('remoteAvatar');
-const localFace = buildFace(0xf5c08a);
-const remoteFace = buildFace(0xa0c4ff);
-localCtx.scene.add(localFace.group);
-remoteCtx.scene.add(remoteFace.group);
-
-function animate() {
-  requestAnimationFrame(animate);
-  if (!cameraRunning) {
-    localFace.group.rotation.y = Math.sin(Date.now() * 0.001) * 0.3;
-    remoteFace.group.rotation.y = Math.sin(Date.now() * 0.001 + 1) * 0.3;
-  }
-  localCtx.renderer.render(localCtx.scene, localCtx.camera);
-  remoteCtx.renderer.render(remoteCtx.scene, remoteCtx.camera);
-}
-animate();
-
-function applyState(face, state) {
-  if (!state) return;
-  if (state.headRotation) {
-    face.group.rotation.x = state.headRotation.x * 0.8;
-    face.group.rotation.y = state.headRotation.y * 1.0;
-    face.group.rotation.z = state.headRotation.z * 0.5;
-  }
-  const mouthOpen = state.blendshapes?.mouthOpen ?? 0;
-  face.upperLip.position.y = 0.07 + mouthOpen * 0.12;
-  face.lowerLip.position.y = -0.07 - mouthOpen * 0.18;
-  const smile = state.blendshapes?.smile ?? 0;
-  face.mouthPivot.scale.x = 1 + smile * 0.5;
-  const browRaise = state.blendshapes?.browRaise ?? 0;
-  face.browL.position.y = 0.58 + browRaise * 0.2;
-  face.browR.position.y = 0.58 + browRaise * 0.2;
-  const blink = state.blendshapes?.blink ?? 0;
-  face.eyeL.scale.y = 1 - blink * 0.9;
-  face.eyeR.scale.y = 1 - blink * 0.9;
-  if (state.gestures?.includes(4)) {
-    face.group.position.y = 0.2;
-    setTimeout(() => { face.group.position.y = 0; }, 150);
-  }
-  const v = state.valence ?? 0;
-  const r = Math.floor(180 + v * 60) / 255;
-  face.upperLip.material.color.setRGB(r, 0.25, 0.25);
-  face.lowerLip.material.color.setRGB(r, 0.25, 0.25);
-}
-
-// ─── MEDIAPIPE FACE TRACKING ─────────────────────────────
-let faceMesh, lastLandmarks = null;
-
-function landmarksToState(lm) {
-  if (!lm || lm.length < 468) return null;
-  const nose = lm[1], chin = lm[152];
-  const leftEye = lm[33], rightEye = lm[263];
-  const leftBrow = lm[70], rightBrow = lm[300];
-  const upperLip = lm[13], lowerLip = lm[14];
-  const leftMouth = lm[61], rightMouth = lm[291];
-  const topLid = lm[159], botLid = lm[145];
-
-  const dx = rightEye.x - leftEye.x;
-  const dy = rightEye.y - leftEye.y;
-  const yaw = Math.atan2(dy, dx) * 0.5;
-  const pitch = (nose.y - 0.5) * -1.2;
-  const roll = (chin.x - nose.x) * 2;
-
-  const mouthH = Math.abs(upperLip.y - lowerLip.y);
-  const mouthOpen = Math.min(1, mouthH * 18);
-
-  const mouthW = Math.abs(rightMouth.x - leftMouth.x);
-  const faceW = Math.abs(rightEye.x - leftEye.x);
-  const smile = Math.min(1, Math.max(0, (mouthW / (faceW * 1.8)) - 0.3) * 3);
-
-  const browH = (leftBrow.y + rightBrow.y) / 2;
-  const eyeH = (leftEye.y + rightEye.y) / 2;
-  const browRaise = Math.min(1, Math.max(0, (eyeH - browH - 0.03) * 15));
-
-  const eyeOpen = Math.abs(topLid.y - botLid.y);
-  const blink = Math.max(0, 1 - eyeOpen * 40);
+  // HAIR — scalp cap
+  const hairGeo = new THREE.SphereGeometry(1.04, 32, 24, 0, Math.PI*2, 0, Math.PI*0.52);
+  const hair = new THREE.Mesh(hairGeo,
+    new THREE.MeshStandardMaterial({ color: cfg.hairHex, roughness: 0.95, metalness: 0.0 }));
+  hair.scale.set(0.89, 1.14, 0.97);
+  hair.position.y = 0.01;
+  root.add(hair);
 
   return {
-    headRotation: { x: pitch, y: yaw, z: roll },
-    blendshapes: { mouthOpen, smile, browRaise, blink },
-    isSpeaking: mouthOpen > 0.15,
-    valence: Math.max(-1, Math.min(1, smile * 2 - 0.5)),
-    arousal: mouthOpen * 0.5 + browRaise * 0.5,
-    gestures: [],
-    transcribedText: ''
+    scene, cam, renderer,
+    root,
+    headMesh,
+    eyeL, eyeR,
+    browL, browR,
+    mouthGroup, upperLip, lowerLip, teeth, cornerL, cornerR,
+    jawGroup,
+    noseGroup,
+    buildProgress: 0
   };
 }
 
+// AVATAR CONFIGS — distinct looks
+const localCfg = {
+  skinHex: 0xd4956a, darkHex: 0x8b5a2b, eyeHex: 0x4e7c3f,
+  lipHex: 0xc06060, hairHex: 0x3a2010, browHex: 0x3a2010,
+  shirtHex: 0x1a3a5c
+};
+const remoteCfg = {
+  skinHex: 0xe8c4a0, darkHex: 0xa07840, eyeHex: 0x3a5f8a,
+  lipHex: 0xb05555, hairHex: 0x1a1008, browHex: 0x1a1008,
+  shirtHex: 0x2a1a3a
+};
+
+const localScene = createFaceScene('localAv3d', localCfg);
+const remoteScene = createFaceScene('remoteAv3d', remoteCfg);
+
+// ═══════════════════════════════════════════════
+//  BLENDSHAPE APPLICATION
+// ═══════════════════════════════════════════════
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+// Smooth state for remote (interpolation)
+const remSmooth = { mouthOpen:0, smile:0, browRaise:0, blink:0,
+  gazeX:0, gazeY:0, rotX:0, rotY:0, rotZ:0, speaking:false };
+
+function applyBlendshapes(sc, state, smooth, buildP) {
+  if (!state) return;
+  const s = state.blendshapes || {};
+  const LERP = smooth ? 0.25 : 0.85;
+
+  const mo  = lerp(sc._mo  ?? 0, s.mouthOpen ?? 0, LERP);
+  const sm  = lerp(sc._sm  ?? 0, s.smile     ?? 0, LERP);
+  const br  = lerp(sc._br  ?? 0, s.browRaise ?? 0, LERP);
+  const bl  = lerp(sc._bl  ?? 0, s.blink     ?? 0, LERP);
+  const gx  = lerp(sc._gx  ?? 0, s.gazeX    ?? 0, LERP);
+  const gy  = lerp(sc._gy  ?? 0, s.gazeY    ?? 0, LERP);
+  sc._mo = mo; sc._sm = sm; sc._br = br; sc._bl = bl; sc._gx = gx; sc._gy = gy;
+
+  const hr = state.headRotation || {x:0,y:0,z:0};
+  const rx = lerp(sc._rx ?? 0, hr.x, LERP * 0.9);
+  const ry = lerp(sc._ry ?? 0, hr.y, LERP * 0.9);
+  const rz = lerp(sc._rz ?? 0, hr.z, LERP * 0.8);
+  sc._rx = rx; sc._ry = ry; sc._rz = rz;
+
+  // Head rotation
+  sc.root.rotation.x = rx * 0.7;
+  sc.root.rotation.y = ry * 0.85;
+  sc.root.rotation.z = rz * 0.45;
+
+  // Mouth open — jaw drops + lips part
+  sc.mouthGroup.position.y = -0.5 - mo * 0.08;
+  sc.upperLip.position.y = 0.06 + mo * 0.06;
+  sc.lowerLip.position.y = -0.07 - mo * 0.14;
+  sc.teeth.visible = mo > 0.08;
+  sc.teeth.position.y = -mo * 0.04;
+
+  // Smile — corners pull back and up
+  const smileX = sm * 0.12;
+  const smileY = sm * 0.07;
+  sc.cornerL.position.set(-0.23 - smileX, smileY, 0);
+  sc.cornerR.position.set( 0.23 + smileX, smileY, 0);
+  sc.mouthGroup.scale.x = 1 + sm * 0.22;
+  // Lip color brightens with smile
+  sc.upperLip.material.emissiveIntensity = sm * 0.12;
+  sc.lowerLip.material.emissiveIntensity = sm * 0.12;
+
+  // Brow raise
+  sc.browL.position.y = 0.515 + br * 0.18;
+  sc.browR.position.y = 0.515 + br * 0.18;
+  // Brow furrow on negative valence
+  if ((state.valence ?? 0) < -0.2) {
+    sc.browL.rotation.z =  0.12 + (-(state.valence) * 0.15);
+    sc.browR.rotation.z = -0.12 - (-(state.valence) * 0.15);
+  } else {
+    sc.browL.rotation.z =  0.08 - br * 0.06;
+    sc.browR.rotation.z = -0.08 + br * 0.06;
+  }
+
+  // Blink — eyelid scale
+  const blinkY = 1 - bl * 0.92;
+  sc.eyeL.lidTop.scale.y = blinkY;
+  sc.eyeR.lidTop.scale.y = blinkY;
+  sc.eyeL.lidBot.scale.y = blinkY;
+  sc.eyeR.lidBot.scale.y = blinkY;
+
+  // Gaze — iris/pupil offset
+  const GAZE_RANGE = 0.06;
+  [sc.eyeL, sc.eyeR].forEach(eye => {
+    eye.iris.position.x  = gx * GAZE_RANGE;
+    eye.iris.position.y  = gy * GAZE_RANGE * 0.7;
+    eye.pupil.position.x = gx * GAZE_RANGE;
+    eye.pupil.position.y = gy * GAZE_RANGE * 0.7;
+  });
+
+  // Fist pump — head bounce
+  if (state.gestures?.includes(4)) {
+    sc.root.position.y = 0.18;
+    setTimeout(() => { if(sc.root) sc.root.position.y = 0; }, 140);
+    // Mouth opens wide on fist pump
+    sc._mo = 0.6;
+    sc._sm = 0.9;
+  }
+
+  // Build progress — scale up from small (progressive loading feel)
+  if (buildP < 1) {
+    const s2 = 0.6 + buildP * 0.4;
+    // Fog clears as model loads
+    sc.scene.fog.density = 0.18 * (1 - buildP * 0.85);
+  } else {
+    sc.scene.fog.density = 0.04;
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER LOOP
+// ═══════════════════════════════════════════════
+let rafId;
+function renderLoop() {
+  rafId = requestAnimationFrame(renderLoop);
+
+  // Idle animation when no tracking
+  const t = Date.now() * 0.001;
+  if (!cameraOn) {
+    localScene.root.rotation.y = Math.sin(t * 0.6) * 0.18;
+    localScene.root.rotation.x = Math.sin(t * 0.4) * 0.06;
+  }
+  if (!remoteScene._hasData) {
+    remoteScene.root.rotation.y = Math.sin(t * 0.5 + 1.2) * 0.18;
+    remoteScene.root.rotation.x = Math.sin(t * 0.35 + 0.8) * 0.06;
+  }
+
+  // Progressive build
+  if (localBuild < 1) {
+    localBuild = Math.min(1, localBuild + BUILD_SPEED);
+    updateBuildBar('local', localBuild);
+  }
+  if (remoteBuild < 1 && remoteScene._hasData) {
+    remoteBuild = Math.min(1, remoteBuild + BUILD_SPEED * 0.7);
+    updateBuildBar('remote', remoteBuild);
+  }
+
+  // Remote interpolation
+  if (remoteLastState && (currentTier === 'AVATAR3D' || currentTier === 'PUPPET')) {
+    applyBlendshapes(remoteScene, remoteLastState, true, remoteBuild);
+  }
+
+  // Audio volume visualizers
+  updateVolBar('localVol', localAudioLevel);
+  updateVolBar('remoteVol', remoteAudioLevel);
+
+  localScene.renderer.render(localScene.scene, localScene.cam);
+  remoteScene.renderer.render(remoteScene.scene, remoteScene.cam);
+}
+renderLoop();
+
+function updateBuildBar(who, p) {
+  const wrap = document.getElementById(who + 'BuildWrap');
+  const fill = document.getElementById(who + 'BuildFill');
+  if (p >= 1) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  fill.style.width = (p * 100).toFixed(1) + '%';
+}
+
+function updateVolBar(id, level) {
+  const el = document.getElementById(id);
+  if (el) el.style.width = Math.min(100, level * 300) + '%';
+}
+
+// ═══════════════════════════════════════════════
+//  MEDIAPIPE FACE TRACKING
+// ═══════════════════════════════════════════════
+let faceMesh = null;
+
 async function startCamera() {
   try {
-    setStatus('Requesting camera access...');
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width:640, height:480, facingMode:'user' }, audio: false });
-    const video = document.getElementById('localVideo');
-    video.srcObject = stream;
-    await video.play();
-
-    setStatus('Loading MediaPipe face tracker...');
-    faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-    faceMesh.setOptions({ maxNumFaces:1, refineLandmarks:true, minDetectionConfidence:0.5, minTrackingConfidence:0.5 });
-    faceMesh.onResults(results => {
-      if (results.multiFaceLandmarks?.[0]) {
-        lastLandmarks = results.multiFaceLandmarks[0];
-        const state = landmarksToState(lastLandmarks);
-        if (state) {
-          applyState(localFace, state);
-          const now = Date.now();
-          if (now - lastSendTime > SEND_INTERVAL_MS) {
-            lastSendTime = now;
-            sendState(state);
-          }
-        }
-      }
+    setStatus('Requesting camera...');
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width:640, height:480, facingMode:'user' }, audio: false
     });
+    const vid = document.getElementById('localVid');
+    vid.srcObject = stream;
+    await vid.play();
 
-    const mpCam = new Camera(video, {
-      onFrame: async () => { await faceMesh.send({ image: video }); },
+    setStatus('Loading MediaPipe FaceMesh...');
+    faceMesh = new FaceMesh({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+    });
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.45
+    });
+    faceMesh.onResults(onFaceResults);
+
+    const mpCam = new Camera(vid, {
+      onFrame: async () => { if(faceMesh) await faceMesh.send({ image: vid }); },
       width: 640, height: 480
     });
     await mpCam.start();
 
-    cameraRunning = true;
+    cameraOn = true;
     document.getElementById('camBtn').disabled = true;
-    document.getElementById('camBtn').textContent = '✅ CAMERA ON';
+    document.getElementById('camBtn').textContent = '✅ Camera On';
+    document.getElementById('micBtn').disabled = false;
     document.getElementById('fistBtn').disabled = false;
-    setStatus('Face tracking active — move your face!');
+    setStatus('Face tracking active');
   } catch(e) {
     setStatus('Camera error: ' + e.message);
   }
 }
 
-// ─── TIER NEGOTIATION ─────────────────────────────────────
+function onFaceResults(results) {
+  if (!results.multiFaceLandmarks?.[0]) return;
+  lastLandmarks = results.multiFaceLandmarks[0];
+  const state = landmarksToState(lastLandmarks);
+  if (!state) return;
+
+  // Apply to local avatar immediately (no smoothing for local)
+  applyBlendshapes(localScene, state, false, localBuild);
+
+  // Speaking ring
+  document.getElementById('localRing').className = 'speaking-ring' + (state.isSpeaking ? ' on' : '');
+
+  // Emotion pill
+  updateEmotionPill('localEmotion', state.valence, state.arousal);
+
+  // Send over network (throttled)
+  const now = Date.now();
+  if (now - lastSendT > SEND_MS) {
+    lastSendT = now;
+    sendState(state);
+  }
+}
+
+function landmarksToState(lm) {
+  if (!lm || lm.length < 468) return null;
+
+  // Key points
+  const noseTip  = lm[4];
+  const chin     = lm[152];
+  const leftEye  = lm[33];   const rightEye  = lm[263];
+  const leftBrow = lm[70];   const rightBrow = lm[300];
+  const upLip    = lm[13];   const loLip     = lm[14];
+  const mouthL   = lm[61];   const mouthR    = lm[291];
+  const topLid   = lm[159];  const botLid    = lm[145];
+  // Gaze — iris landmarks (refined)
+  const irisL    = lm[468] || lm[33];
+  const irisR    = lm[473] || lm[263];
+
+  // Head rotation
+  const eyeMidX  = (leftEye.x + rightEye.x) / 2;
+  const eyeMidY  = (leftEye.y + rightEye.y) / 2;
+  const eyeDX    = rightEye.x - leftEye.x;
+  const eyeDY    = rightEye.y - leftEye.y;
+  const roll     = Math.atan2(eyeDY, eyeDX);
+  const yaw      = (noseTip.x - 0.5) * -2.2;
+  const pitch    = (noseTip.y - eyeMidY - 0.1) * 2.5;
+
+  // Mouth
+  const mouthOpen = Math.min(1, Math.abs(upLip.y - loLip.y) * 20);
+  const mouthW    = Math.abs(mouthR.x - mouthL.x);
+  const faceW     = Math.abs(rightEye.x - leftEye.x);
+  const smile     = Math.min(1, Math.max(0, (mouthW / (faceW * 1.6)) - 0.55) * 4);
+
+  // Brows
+  const browMidY = (leftBrow.y + rightBrow.y) / 2;
+  const eyeMidY2 = (leftEye.y + rightEye.y) / 2;
+  const browRaise = Math.min(1, Math.max(0, (eyeMidY2 - browMidY - 0.025) * 18));
+
+  // Blink
+  const eyeOpenH = Math.abs(topLid.y - botLid.y);
+  const blink    = Math.max(0, 1 - eyeOpenH * 50);
+
+  // Gaze
+  const gazeX = ((irisL.x - leftEye.x) / (faceW * 0.5) - 1) * 1.5;
+  const gazeY = ((irisL.y - topLid.y) / Math.max(0.005, eyeOpenH) - 0.5) * -1.5;
+
+  const isSpeaking = mouthOpen > 0.12;
+  const valence    = Math.max(-1, Math.min(1, smile * 2.2 - 0.6));
+  const arousal    = mouthOpen * 0.5 + browRaise * 0.5;
+
+  return {
+    headRotation: { x: pitch, y: yaw, z: roll },
+    blendshapes: {
+      mouthOpen: mouthOpen,
+      smile: smile,
+      browRaise: browRaise,
+      blink: blink,
+      gazeX: Math.max(-1, Math.min(1, gazeX)),
+      gazeY: Math.max(-1, Math.min(1, gazeY))
+    },
+    isSpeaking,
+    valence,
+    arousal,
+    gestures: [],
+    transcribedText: ''
+  };
+}
+
+// ═══════════════════════════════════════════════
+//  MICROPHONE + VOICE PROSODY
+// ═══════════════════════════════════════════════
+let audioCtx = null, analyser = null, prosodyInterval = null;
+
+async function startMic() {
+  try {
+    setStatus('Requesting microphone...');
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.75;
+    src.connect(analyser);
+
+    micOn = true;
+    document.getElementById('micBtn').disabled = true;
+    document.getElementById('micBtn').textContent = '✅ Mic On';
+    setStatus('Microphone active — voice prosody enabled');
+
+    const buf = new Float32Array(analyser.frequencyBinCount);
+    function tick() {
+      if (!micOn) return;
+      requestAnimationFrame(tick);
+      analyser.getFloatTimeDomainData(buf);
+      // RMS energy
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+      localAudioLevel = Math.sqrt(sum / buf.length);
+    }
+    tick();
+  } catch(e) {
+    setStatus('Mic error: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  TIER NEGOTIATION
+// ═══════════════════════════════════════════════
 function calcTier(bw, bat) {
-  if (bw < 30) return 'GLYPH';
-  if (bw < 80 || bat < 15) return 'SPRITE';
-  if (bw < 250 || bat < 30) return 'PUPPET';
+  if (bw < 20)              return 'TEXT';
+  if (bw < 50)              return 'GLYPH';
+  if (bw < 100 || bat < 15) return 'SPRITE';
+  if (bw < 280 || bat < 30) return 'PUPPET';
   return 'AVATAR3D';
 }
-function onBwChange(v) { bandwidth = +v; document.getElementById('bwVal').textContent = v; updateTier(); }
-function onBatChange(v) { battery = +v; document.getElementById('batVal').textContent = v; updateTier(); }
 
-function updateTier() {
+function onBw(v)  { bandwidth = +v; document.getElementById('bwVal').textContent  = v; applyTier(); }
+function onBat(v) { battery   = +v; document.getElementById('batVal').textContent = v; applyTier(); }
+
+function applyTier() {
   currentTier = calcTier(bandwidth, battery);
   document.getElementById('tierLabel').textContent = currentTier;
-  const show3D = currentTier === 'AVATAR3D' || currentTier === 'PUPPET';
-  document.getElementById('localAvatar').style.display = show3D ? 'block' : 'none';
-  document.getElementById('remoteAvatar').style.display = show3D ? 'block' : 'none';
-  const glyphMap = { GLYPH:['😎','👀'], SPRITE:['🕺','💃'], TEXT:['📝','📝'] };
-  const glyphs = glyphMap[currentTier] || ['',''];
-  document.getElementById('localGlyph').style.display = show3D ? 'none' : 'flex';
-  document.getElementById('remoteGlyph').style.display = show3D ? 'none' : 'flex';
-  document.getElementById('localGlyph').textContent = glyphs[0];
-  document.getElementById('remoteGlyph').textContent = glyphs[1];
+  document.getElementById('localTierBadge').textContent = currentTier;
+  setTierVisibility('local',  currentTier);
+  setTierVisibility('remote', currentTier);
 }
 
-// ─── WEBRTC ───────────────────────────────────────────────
-let pc, dc;
+function setTierVisibility(who, tier) {
+  const show3D     = tier === 'AVATAR3D' || tier === 'PUPPET';
+  const showSprite = tier === 'SPRITE';
+  const showGlyph  = tier === 'GLYPH';
+  const showText   = tier === 'TEXT';
+
+  document.getElementById(who + 'Av3d').style.display    = show3D     ? 'block' : 'none';
+  document.getElementById(who + 'Glyph').style.display   = showGlyph  ? 'flex'  : 'none';
+  document.getElementById(who + 'Sprite').style.display  = showSprite ? 'flex'  : 'none';
+  document.getElementById(who + 'Text').style.display    = showText   ? 'flex'  : 'none';
+
+  // Sprite: draw simple 2D puppet
+  if (showSprite) drawSprite(who, remoteLastState);
+}
+
+function drawSprite(who, state) {
+  const canvas = document.getElementById('sprite' + (who === 'local' ? 'Local' : 'Remote'));
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = 300, H = 340;
+  ctx.clearRect(0, 0, W, H);
+
+  const smile = state?.blendshapes?.smile ?? 0.3;
+  const mo    = state?.blendshapes?.mouthOpen ?? 0;
+  const br    = state?.blendshapes?.browRaise ?? 0;
+
+  const cfg2 = who === 'local' ? localCfg : remoteCfg;
+  const skinC = '#' + cfg2.skinHex.toString(16).padStart(6,'0');
+  const hairC = '#' + cfg2.hairHex.toString(16).padStart(6,'0');
+  const lipC  = '#' + cfg2.lipHex.toString(16).padStart(6,'0');
+
+  // Background
+  ctx.fillStyle = '#0c0c1e';
+  ctx.fillRect(0, 0, W, H);
+
+  // Head
+  ctx.fillStyle = skinC;
+  ctx.beginPath();
+  ctx.ellipse(150, 155, 82, 98, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Hair
+  ctx.fillStyle = hairC;
+  ctx.beginPath();
+  ctx.ellipse(150, 100, 84, 62, 0, Math.PI, Math.PI*2);
+  ctx.fill();
+
+  // Eyes
+  [[110, 135], [190, 135]].forEach(([ex, ey]) => {
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(ex, ey, 16, 11, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#3a6abf';
+    ctx.beginPath(); ctx.ellipse(ex, ey, 9, 9, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.ellipse(ex, ey, 5, 5, 0, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Brows
+  ctx.strokeStyle = hairC; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  const browY = 118 - br * 12;
+  ctx.beginPath(); ctx.moveTo(95, browY + 3); ctx.quadraticCurveTo(110, browY - 2, 126, browY + 1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(174, browY + 1); ctx.quadraticCurveTo(190, browY - 2, 205, browY + 3); ctx.stroke();
+
+  // Nose
+  ctx.strokeStyle = skinC; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(143, 155); ctx.lineTo(140, 178); ctx.lineTo(147, 180); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(157, 155); ctx.lineTo(160, 178); ctx.lineTo(153, 180); ctx.stroke();
+
+  // Mouth
+  ctx.strokeStyle = lipC; ctx.lineWidth = 3; ctx.fillStyle = lipC;
+  const mouthY = 205;
+  const mouthW2 = 32 + smile * 20;
+  ctx.beginPath();
+  ctx.moveTo(150 - mouthW2, mouthY);
+  ctx.quadraticCurveTo(150, mouthY + 10 + smile * 12 + mo * 8, 150 + mouthW2, mouthY);
+  ctx.stroke();
+  if (mo > 0.1) {
+    ctx.fillStyle = '#331010';
+    ctx.beginPath();
+    ctx.ellipse(150, mouthY + 6, mouthW2 - 4, mo * 12 + 2, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  EMOTION PILL
+// ═══════════════════════════════════════════════
+function updateEmotionPill(id, valence, arousal) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let emoji, label;
+  if (valence > 0.5 && arousal > 0.5)       { emoji = '😄'; label = 'hyped'; }
+  else if (valence > 0.35)                    { emoji = '😊'; label = 'happy'; }
+  else if (valence < -0.4 && arousal > 0.4)  { emoji = '😡'; label = 'intense'; }
+  else if (valence < -0.3)                   { emoji = '😟'; label = 'down'; }
+  else if (arousal > 0.5)                    { emoji = '😮'; label = 'surprised'; }
+  else                                        { emoji = '😐'; label = 'neutral'; }
+  el.textContent = emoji + ' ' + label;
+}
+
+// ═══════════════════════════════════════════════
+//  WEBRTC
+// ═══════════════════════════════════════════════
+let pc = null, dc = null;
+const ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 async function createOffer() {
-  pc = new RTCPeerConnection({ iceServers:[{ urls:'stun:stun.l.google.com:19302' }] });
-  setupPC();
-  dc = pc.createDataChannel('vibe', { ordered:false, maxRetransmits:0 });
+  initPC();
+  dc = pc.createDataChannel('vibe', { ordered: false, maxRetransmits: 0 });
   setupDC(dc);
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
-  await waitForICE();
+  await gatherICE();
   document.getElementById('offerBox').value = JSON.stringify(pc.localDescription);
-  setStatus('Offer created — copy it to your peer');
+  setStatus('Offer ready — copy and send to peer');
 }
 
 async function handlePaste() {
-  const text = document.getElementById('answerInBox').value.trim();
+  const text = document.getElementById('pasteBox').value.trim();
   if (!text) return;
   try {
     const sdp = JSON.parse(text);
     if (sdp.type === 'offer') {
-      pc = new RTCPeerConnection({ iceServers:[{ urls:'stun:stun.l.google.com:19302' }] });
-      setupPC();
+      initPC();
       pc.ondatachannel = e => { dc = e.channel; setupDC(dc); };
       await pc.setRemoteDescription(sdp);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      await waitForICE();
+      await gatherICE();
       document.getElementById('offerBox').value = JSON.stringify(pc.localDescription);
-      setStatus('Answer created — copy it back to the offerer');
+      setStatus('Answer ready — copy back to peer');
     } else if (sdp.type === 'answer') {
       await pc.setRemoteDescription(sdp);
-      setStatus('Answer received — connecting...');
+      setStatus('Answer set — waiting for connection...');
     }
-  } catch(e) { setStatus('Error: ' + e.message); }
+  } catch(e) { setStatus('SDP error: ' + e.message); }
 }
 
-function waitForICE() {
-  return new Promise(r => {
-    if (pc.iceGatheringState === 'complete') { r(); return; }
-    pc.onicegatheringstatechange = () => { if (pc.iceGatheringState === 'complete') r(); };
-    setTimeout(r, 3000);
-  });
-}
-
-function setupPC() {
+function initPC() {
+  pc = new RTCPeerConnection({ iceServers: ICE });
   pc.oniceconnectionstatechange = () => {
     const s = pc.iceConnectionState;
-    document.getElementById('connLabel').textContent = s.toUpperCase();
-    document.getElementById('connLabel').style.color = (s === 'connected' || s === 'completed') ? '#00ff88' : '#ff4757';
+    const el = document.getElementById('connLabel');
+    el.textContent = s.toUpperCase();
+    el.style.color = (s === 'connected' || s === 'completed') ? '#00ff88' : '#ff4757';
     if (s === 'connected' || s === 'completed') {
-      setStatus('Peer connected! Streaming live face data 🔥');
-      closeSigModal();
-      setInterval(() => { if (dc?.readyState === 'open') dc.send(JSON.stringify({ type:'ping', t:Date.now() })); }, 2000);
+      closeModal();
+      setStatus('🔥 Peer connected — streaming live face data');
+      startRTTPing();
+      remoteBuild = 0; // trigger progressive load animation
     }
   };
 }
 
+function gatherICE() {
+  return new Promise(res => {
+    if (pc.iceGatheringState === 'complete') { res(); return; }
+    pc.onicegatheringstatechange = () => { if (pc.iceGatheringState === 'complete') res(); };
+    setTimeout(res, 3500);
+  });
+}
+
 function setupDC(channel) {
-  channel.onopen = () => setStatus('Data channel open — streaming vibes!');
+  channel.onopen  = () => setStatus('Data channel open — sending vibes');
+  channel.onclose = () => setStatus('Data channel closed');
   channel.onmessage = e => {
     try {
       const pkt = JSON.parse(e.data);
       if (pkt.type === 'avatar') {
         recvCount++;
         document.getElementById('recvLabel').textContent = recvCount;
-        if (currentTier === 'AVATAR3D' || currentTier === 'PUPPET') {
-          applyState(remoteFace, pkt.state);
-        } else {
-          const g = pkt.state.valence > 0.3 ? '😄' : pkt.state.isSpeaking ? '🗣️' : '😐';
-          document.getElementById('remoteGlyph').textContent = g;
+        remoteLastState = pkt.state;
+        remoteScene._hasData = true;
+
+        // Update remote audio level from prosody
+        remoteAudioLevel = pkt.state.arousal * 0.15;
+
+        // Speaking ring
+        document.getElementById('remoteRing').className =
+          'speaking-ring' + (pkt.state.isSpeaking ? ' on' : '');
+
+        // Emotion pill
+        updateEmotionPill('remoteEmotion', pkt.state.valence, pkt.state.arousal);
+
+        // Tier badge
+        document.getElementById('remoteTierBadge').textContent = pkt.tier || currentTier;
+
+        // Text tier
+        if (pkt.tier === 'TEXT' || pkt.tier === 'GLYPH') {
+          const g = pkt.state.valence > 0.4 ? '😄' :
+                    pkt.state.isSpeaking    ? '🗣️' :
+                    pkt.state.valence < -0.3 ? '😟' : '😐';
+          document.getElementById('remoteGlyph').textContent = g + '\nBro';
+          document.getElementById('remoteTextMsg').textContent =
+            pkt.state.transcribedText || (pkt.state.isSpeaking ? '(speaking...)' : '...');
         }
+        if (pkt.tier === 'SPRITE') drawSprite('remote', pkt.state);
+
       } else if (pkt.type === 'ping') {
-        if (dc?.readyState === 'open') dc.send(JSON.stringify({ type:'pong', t:pkt.t }));
+        if (dc?.readyState === 'open') dc.send(JSON.stringify({ type:'pong', t: pkt.t }));
       } else if (pkt.type === 'pong') {
         document.getElementById('rttLabel').textContent = Date.now() - pkt.t;
       }
@@ -447,37 +1043,63 @@ function setupDC(channel) {
 
 function sendState(state) {
   if (dc?.readyState !== 'open') return;
-  dc.send(JSON.stringify({ type:'avatar', tier:currentTier, state }));
+  const pkt = { type: 'avatar', tier: currentTier, state };
+  // Trim packet based on tier
+  if (currentTier === 'TEXT' || currentTier === 'GLYPH') {
+    pkt.state = { isSpeaking: state.isSpeaking, valence: state.valence,
+                  arousal: state.arousal, gestures: state.gestures,
+                  transcribedText: state.transcribedText };
+  } else if (currentTier === 'SPRITE' || currentTier === 'PUPPET') {
+    delete pkt.state.blendshapes?.gazeX;
+    delete pkt.state.blendshapes?.gazeY;
+  }
+  dc.send(JSON.stringify(pkt));
   sentCount++;
   document.getElementById('sentLabel').textContent = sentCount;
 }
 
-// ─── GESTURES ────────────────────────────────────────────
+function startRTTPing() {
+  setInterval(() => {
+    if (dc?.readyState === 'open') dc.send(JSON.stringify({ type:'ping', t: Date.now() }));
+  }, 2000);
+}
+
+// ═══════════════════════════════════════════════
+//  GESTURES
+// ═══════════════════════════════════════════════
 function sendFistPump() {
-  const state = landmarksToState(lastLandmarks) || {
-    headRotation:{x:0,y:0,z:0}, blendshapes:{mouthOpen:0.5,smile:0.8,browRaise:0.4,blink:0},
-    isSpeaking:true, valence:0.95, arousal:0.98, gestures:[], transcribedText:''
+  const base = landmarksToState(lastLandmarks) || {
+    headRotation:{x:0,y:0,z:0},
+    blendshapes:{mouthOpen:0.6,smile:0.85,browRaise:0.5,blink:0,gazeX:0,gazeY:0},
+    isSpeaking:true, valence:0.95, arousal:0.98,
+    gestures:[], transcribedText:'YOOOO!!!'
   };
-  state.gestures = [4];
-  state.valence = 0.95;
-  applyState(localFace, state);
-  sendState(state);
+  base.gestures = [4];
+  base.valence  = 0.95;
+  applyBlendshapes(localScene, base, false, localBuild);
+  sendState(base);
   setStatus('👊 FIST PUMP SENT TO JERSEY BRO!');
 }
 
-// ─── VOICE ───────────────────────────────────────────────
+// ═══════════════════════════════════════════════
+//  VOICE CLONE
+// ═══════════════════════════════════════════════
 function speak() {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance('Yo CB from the Shore — 3 Guys pizza slice in hand bro!');
+  const u = new SpeechSynthesisUtterance(
+    'Yo CB from the Shore — 3 Guys pizza slice in hand bro!'
+  );
   u.pitch = 1.1; u.rate = 1.15; u.onerror = () => {};
   window.speechSynthesis.speak(u);
 }
 
-// ─── UI ───────────────────────────────────────────────────
-function setStatus(msg) { document.getElementById('statusBar').textContent = msg; }
-function openSigModal() { document.getElementById('sigModal').classList.add('open'); }
-function closeSigModal() { document.getElementById('sigModal').classList.remove('open'); }
+// ═══════════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════════
+function setStatus(msg) { document.getElementById('statusbar').textContent = msg; }
+function openModal()    { document.getElementById('sigModal').classList.add('open'); }
+function closeModal()   { document.getElementById('sigModal').classList.remove('open'); }
 </script>
 </body>
 </html>
