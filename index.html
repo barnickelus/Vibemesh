@@ -1,56 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>VibeMesh v9.1 | Chuck Close Edition</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VibeMesh v9.2 | High-Fidelity Close Protocol</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-  :root { --cyan: #00f0ff; --magenta: #ff00aa; --bg: #06060f; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
-  
-  .hdr { text-align: center; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-  .hdr h1 { font-size: 1.8em; background: linear-gradient(90deg, var(--cyan), var(--magenta)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  
-  .call { display: flex; justify-content: center; gap: 20px; padding: 20px; flex-wrap: wrap; }
-  .av-frame { 
-    position: relative; width: 300px; height: 360px; border-radius: 16px; 
-    background: #08081a; overflow: hidden; border: 1px solid rgba(0, 240, 255, 0.1); 
-  }
-  .av-frame canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-  
-  /* The Missing Build UI */
-  .build-ov { 
-    position: absolute; bottom: 0; left: 0; right: 0; padding: 15px; 
-    background: linear-gradient(transparent, #000); z-index: 10; 
-  }
-  .build-track { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; }
-  .build-bar { height: 100%; width: 0%; background: var(--cyan); transition: width 0.2s; }
-  .build-lbl { font-size: 0.6em; text-transform: uppercase; letter-spacing: 1px; color: var(--cyan); margin-bottom: 4px; }
-
-  .panel { max-width: 640px; margin: 0 auto; background: #0c0c1e; padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); }
-  .btn-row { display: flex; gap: 10px; margin-top: 15px; }
-  .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; text-transform: uppercase; font-size: 0.75em; }
-  .btn-primary { background: linear-gradient(135deg, var(--magenta), var(--cyan)); color: #000; }
-  .btn-ghost { background: #121224; color: #888; border: 1px solid rgba(255,255,255,0.05); }
-  
-  #camFeed { position: fixed; top: -1000px; }
-  .pip { position: absolute; bottom: 10px; right: 10px; width: 70px; height: 55px; border: 2px solid var(--cyan); border-radius: 4px; overflow: hidden; z-index: 20; }
-  .pip video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-  .statusbar { text-align: center; padding: 10px; font-size: 0.7em; color: #444; }
+/* ── All UI styles from index 9.html restored below ── */
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#06060f;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden}
+.hdr{text-align:center;padding:16px 12px 6px}
+.hdr h1{font-size:clamp(1.4em,4vw,2.1em);font-weight:900;background:linear-gradient(90deg,#00f0ff,#ff00aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.call{display:flex;justify-content:center;gap:18px;padding:8px 14px 4px;flex-wrap:wrap}
+.av-frame{position:relative;width:300px;height:360px;border-radius:16px;overflow:hidden;background:#08081a;box-shadow:0 0 40px #00f0ff12;}
+.av-frame canvas{position:absolute;top:0;left:0;width:100%;height:100%}
+.pip{position:absolute;bottom:10px;right:10px;width:68px;height:52px;border-radius:8px;overflow:hidden;border:2px solid #00f0ff55;z-index:30}
+.pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.build-ov{position:absolute;bottom:0;left:0;right:0;padding:10px 13px 12px;background:linear-gradient(transparent,#000000cc);z-index:15;}
+.build-lbl{font-size:.58em;color:#aaa;letter-spacing:1px;margin-bottom:4px}
+.build-track{height:3px;background:#ffffff10;border-radius:2px;overflow:hidden}
+.build-bar{height:3px;width:0%;background:linear-gradient(90deg,#00f0ff,#ff00aa);transition:width .2s}
+.panel{background:#0c0c1e;padding:14px 16px;margin:4px 14px 0;border-radius:14px;border:1px solid #ffffff07}
+.style-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
+.sb{padding:5px 11px;font-size:.68em;font-weight:600;background:#121224;color:#555;border:1px solid #ffffff0a;border-radius:7px;cursor:pointer}
+.sb.on{background:#00f0ff18;color:#00f0ff;border-color:#00f0ff55}
+.sliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px 16px;margin-bottom:12px}
+.sl-item{display:flex;flex-direction:column;gap:3px}
+.sl-item label{font-size:.6em;color:#444;text-transform:uppercase}
+input[type=range]{accent-color:#00f0ff;height:3px}
+.btn-row{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
+.btn{flex:1;padding:11px 10px;font-size:.78em;font-weight:700;border:none;border-radius:10px;cursor:pointer}
+.btn-primary{background:linear-gradient(135deg,#ff00aa,#00f0ff);color:#000}
+.btn-green{background:linear-gradient(135deg,#00c853,#00f0ff);color:#000}
+.btn-orange{background:linear-gradient(135deg,#ff6600,#ffcc00);color:#000}
+.statusbar{text-align:center;padding:5px 14px 4px;font-size:.7em;color:#444}
 </style>
 </head>
 <body>
 
-<div class="hdr"><h1>VibeMesh v9.1</h1><sub>The Close Protocol</sub></div>
+<div class="hdr"><h1>🏖️ VibeMesh v9.2</h1></div>
 
 <div class="call">
   <div class="av-frame" id="localFrame">
     <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
-    <div class="build-ov" id="localBuild">
-      <div class="build-lbl" id="localBuildLbl">Ready to Scan</div>
+    <div class="build-ov" id="localBuildOv">
+      <div class="build-lbl" id="localBuildLbl">Click Snap to begin</div>
       <div class="build-track"><div class="build-bar" id="localBuildBar"></div></div>
     </div>
   </div>
@@ -58,100 +54,88 @@
 </div>
 
 <div class="panel">
+  <div class="style-row">
+    <button class="sb on" id="sb-rings" onclick="setStyle('rings')">● Rings</button>
+    <button class="sb" id="sb-diamonds" onclick="setStyle('diamonds')">◆ Diamonds</button>
+    <button class="sb" id="sb-dots" onclick="setStyle('dots')">· Dots</button>
+    <button class="sb" id="sb-cross" onclick="setStyle('cross')">✕ Crosshatch</button>
+  </div>
+
+  <div class="sliders">
+    <div class="sl-item"><label>Bandwidth</label><input type="range" min="5" max="900" value="900" id="bwSlider"></div>
+    <div class="sl-item"><label>Depth</label><input type="range" min="1" max="20" value="12" id="depthSlider"></div>
+  </div>
+
   <div class="btn-row">
-    <button class="btn btn-primary" onclick="startCamera()">1. Init Optics</button>
-    <button class="btn btn-primary" id="snapBtn" onclick="startSnap()" disabled>2. Snap Portrait</button>
-    <button class="btn btn-ghost" id="liveBtn" onclick="toggleLive()" disabled>3. Live Puppet</button>
+    <button class="btn btn-green" id="camBtn" onclick="startCamera()">📷 Start Camera</button>
+    <button class="btn btn-primary" id="snapBtn" onclick="startSnap()" disabled>📸 Snap Portrait</button>
+    <button class="btn btn-orange" id="liveBtn" onclick="toggleLive()" disabled>⚡ Live Puppet</button>
   </div>
 </div>
 
-<div class="statusbar" id="status">Awaiting camera...</div>
-<video id="camFeed" autoplay muted playsinline></video>
+<div class="statusbar" id="statusbar">Awaiting Camera...</div>
+<video id="camFeed" autoplay muted playsinline style="display:none"></video>
 
 <script>
 'use strict';
 
-const ANCHORS = [33,133,362,263,1,4,61,291,152,10]; // Eyes, Nose, Mouth, Chin, Forehead
-const TIERS = { AVATAR3D: { W:20, H:24 }, PUPPET: { W:12, H:14 }, GLYPH: { W:5, H:6 } };
-const CELL_STEP = 34; // Texture slot size
+// Restored Constants from index 9.html
+const ANCHORS = [33,133,362,263,1,4,61,291,152,10,187,411];
+const TIERS = { AVATAR3D:{W:20,H:24}, PUPPET:{W:12,H:14}, SPRITE:{W:7,H:8}, GLYPH:{W:4,H:5} };
+const CELL_STEP = 34; 
+const RBF_S2 = 2 * 0.03 * 0.03;
 
-let localS, lastLM, cameraOn = false, puppetActive = false, buildRunning = false;
+let localS, lastLM, cellStyle = 'rings', puppetActive = false, snapping = false;
 
-// --- THREE.JS SETUP ---
 function makeScene(id) {
-  const el = document.getElementById(id);
   const sc = new THREE.Scene();
   const cam = new THREE.PerspectiveCamera(38, 300/360, 0.1, 100);
   cam.position.z = 2.2;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(300, 360);
-  el.insertBefore(renderer.domElement, el.firstChild);
-  
-  return {
-    scene: sc, camera: cam, renderer,
-    texCanvas: document.createElement('canvas'),
-    mesh: null, tex: null, basePos: null, curPos: null,
-    snapLM: null, snapBBox: null, snapAnchors: null
-  };
+  document.getElementById(id).appendChild(renderer.domElement);
+  return { scene:sc, camera:cam, renderer, mesh:null, texCanvas:document.createElement('canvas'), basePos:null, curPos:null };
 }
 
-// --- THE CHUCK CLOSE DRAWING ENGINE ---
-function drawCloseCell(ctx, cx, cy, r, g, b) {
-  const rad = 16;
-  const lum = (r*0.299 + g*0.587 + b*0.114) / 255;
-  const dRGB = `rgb(${r-50},${g-50},${b-50})`;
-  const hRGB = `rgb(${r+50},${g+50},${b+50})`;
+function drawCell(ctx, cx, cy, r, g, b) {
+  const rad = 16, lum = (r*0.299 + g*0.587 + b*0.114) / 255;
+  const dRGB = `rgb(${Math.max(0,r-100)},${Math.max(0,g-100)},${Math.max(0,b-100)})`;
+  const hRGB = `rgb(${Math.min(255,r+100)},${Math.min(255,g+100)},${Math.min(255,b+100)})`;
 
-  // Outer Background
-  ctx.fillStyle = dRGB;
-  ctx.fillRect(cx-rad, cy-rad, rad*2, rad*2);
-
-  // Concentric Rings (The "Close" Signature)
-  const nR = Math.max(3, Math.round(3 + lum * 5));
-  for (let i = nR; i >= 1; i--) {
-    const t = i / nR;
-    ctx.beginPath();
-    ctx.arc(cx, cy, rad * t * 0.9, 0, Math.PI*2);
-    ctx.fillStyle = i % 2 === 0 ? `rgb(${r},${g},${b})` : hRGB;
-    ctx.fill();
+  if(cellStyle === 'rings') {
+    const nR = Math.max(3, Math.round(3 + lum * 5));
+    ctx.fillStyle = dRGB; ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2); ctx.fill();
+    for(let i=nR; i>=1; i--) {
+      ctx.beginPath(); ctx.arc(cx, cy, rad*(i/nR)*0.9, 0, Math.PI*2);
+      ctx.fillStyle = i%2===0 ? `rgb(${r},${g},${b})` : hRGB;
+      ctx.fill();
+    }
+  } else {
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(cx-rad, cy-rad, rad*2, rad*2);
   }
 }
 
-// --- MESH & TEXTURE BUILDING ---
-async function buildMesh(sc, lm, tierName) {
+async function buildMeshTier(sc, lm, tierName) {
   const cfg = TIERS[tierName];
   const W = cfg.W, H = cfg.H;
   
-  // Setup Bounding Box (Mirror for selfie)
+  // Restore Bounding Box mirror logic
   let x0=1, x1=0, y0=1, y1=0;
-  lm.forEach(p => { 
-    const mx = 1-p.x;
-    if(mx<x0) x0=mx; if(mx>x1) x1=mx;
-    if(p.y<y0) y0=p.y; if(p.y>y1) y1=p.y;
-  });
-  const bbox = { x0, x1, y0, y1, w: x1-x0, h: y1-y0 };
-  
-  sc.snapLM = lm.map(p => ({...p}));
-  sc.snapBBox = bbox;
-  sc.snapAnchors = ANCHORS.map(i => ({ idx:i, u: (1-lm[i].x-x0)/bbox.w, v: (lm[i].y-y0)/bbox.h }));
+  lm.forEach(p => { const mx=1-p.x; if(mx<x0) x0=mx; if(mx>x1) x1=mx; if(p.y<y0) y0=p.y; if(p.y>y1) y1=p.y; });
+  sc.snapBBox = { x0, x1, y0, y1, w:x1-x0, h:y1-y0 };
+  sc.snapAnchors = ANCHORS.map(i => ({ idx:i, u:(1-lm[i].x-x0)/(x1-x0), v:(lm[i].y-y0)/(y1-y0) }));
 
-  // Texture Atlas
-  sc.texCanvas.width = W * CELL_STEP;
-  sc.texCanvas.height = H * CELL_STEP;
+  sc.texCanvas.width = W * CELL_STEP; sc.texCanvas.height = H * CELL_STEP;
   const ctx = sc.texCanvas.getContext('2d');
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0,0,sc.texCanvas.width, sc.texCanvas.height);
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,sc.texCanvas.width, sc.texCanvas.height);
 
-  const nV = (W+1)*(H+1);
-  const pos = new Float32Array(nV*3);
-  const uvs = new Float32Array(nV*2);
-  const indices = [];
-
+  const nV = (W+1)*(H+1), pos = new Float32Array(nV*3), uv = new Float32Array(nV*2), indices = [];
   for(let j=0; j<=H; j++) {
     for(let i=0; i<=W; i++) {
-      const u = i/W, v = j/H, vi = j*(W+1)+i;
-      pos[vi*3] = (u-0.5)*2; pos[vi*3+1] = (0.5-v)*2.4; pos[vi*3+2] = -lm[0].z;
-      uvs[vi*2] = u; uvs[vi*2+1] = 1-v;
+      const u=i/W, v=j/H, vi=j*(W+1)+i;
+      pos[vi*3]=(u-0.5)*2; pos[vi*3+1]=(0.5-v)*2.4; pos[vi*3+2]=-lm[0].z;
+      uv[vi*2]=u; uv[vi*2+1]=1-v;
       if(i<W && j<H) {
         const tl=j*(W+1)+i, tr=tl+1, bl=(j+1)*(W+1)+i, br=bl+1;
         indices.push(tl,bl,tr, bl,br,tr);
@@ -161,68 +145,57 @@ async function buildMesh(sc, lm, tierName) {
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geo.setIndex(indices);
 
   if(sc.mesh) sc.scene.remove(sc.mesh);
   sc.tex = new THREE.CanvasTexture(sc.texCanvas);
-  sc.mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: sc.tex }));
+  sc.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map:sc.tex, roughness:0.5 }));
   sc.scene.add(sc.mesh);
-  sc.basePos = pos.slice();
-  sc.curPos = pos.slice();
+  sc.basePos = pos.slice(); sc.curPos = pos.slice(); sc.snapW = W; sc.snapH = H;
 
-  // Draw the cells
+  // Render texture cells with random-fill animation
   for(let j=0; j<H; j++) {
     for(let i=0; i<W; i++) {
-      drawCloseCell(ctx, i*CELL_STEP + 17, j*CELL_STEP + 17, 100, 150, 200);
+      drawCell(ctx, i*CELL_STEP+17, j*CELL_STEP+17, 100+Math.random()*50, 120+Math.random()*50, 200);
     }
   }
   sc.tex.needsUpdate = true;
 }
 
 async function startSnap() {
-  buildRunning = true;
-  const bar = document.getElementById('localBuildBar');
-  const lbl = document.getElementById('localBuildLbl');
-  
-  const p = [{t:'GLYPH', p:30}, {t:'PUPPET', p:60}, {t:'AVATAR3D', p:100}];
-  for(const pass of p) {
-    lbl.textContent = `Building ${pass.t}...`;
-    bar.style.width = pass.p + '%';
-    await buildMesh(localS, lastLM, pass.t);
-    await new Promise(r => setTimeout(r, 600));
+  snapping = true;
+  const passes = ['GLYPH', 'SPRITE', 'PUPPET', 'AVATAR3D'];
+  for(let i=0; i<passes.length; i++) {
+    document.getElementById('localBuildBar').style.width = ((i+1)/4*100)+'%';
+    document.getElementById('localBuildLbl').textContent = `Building ${passes[i]}...`;
+    await buildMeshTier(localS, lastLM, passes[i]);
+    await new Promise(r => setTimeout(r, 400));
   }
-  
-  lbl.textContent = "Portrait Ready";
   document.getElementById('liveBtn').disabled = false;
-  buildRunning = false;
+  snapping = false;
 }
 
-// --- THE PUPPETING ENGINE (RBF) ---
 function puppet(sc, liveLM) {
-  if(!sc.mesh || !sc.snapLM) return;
+  if(!sc.mesh || !sc.snapAnchors) return;
   const pos = sc.mesh.geometry.attributes.position.array;
-  const W = (sc.texCanvas.width/CELL_STEP);
-  const H = (sc.texCanvas.height/CELL_STEP);
+  const W = sc.snapW, H = sc.snapH, bb = sc.snapBBox;
+  const depth = document.getElementById('depthSlider').value;
 
   for(let j=0; j<=H; j++) {
     for(let i=0; i<=W; i++) {
-      const vi = j*(W+1)+i;
-      const u = i/W, v = j/H;
-
+      const vi = j*(W+1)+i, u = i/W, v = j/H;
       let du=0, dv=0, tw=0;
       for(const a of sc.snapAnchors) {
         const d2 = (a.u-u)**2 + (a.v-v)**2;
-        const w = Math.exp(-d2/0.005);
-        const liveUV = { u: (1-liveLM[a.idx].x-sc.snapBBox.x0)/sc.snapBBox.w, v: (liveLM[a.idx].y-sc.snapBBox.y0)/sc.snapBBox.h };
-        du += (liveUV.u - a.u) * w;
-        dv += (liveUV.v - a.v) * w;
-        tw += w;
+        const w = Math.exp(-d2/RBF_S2);
+        const liveUV = { u:(1-liveLM[a.idx].x-bb.x0)/bb.w, v:(liveLM[a.idx].y-bb.y0)/bb.h };
+        du += (liveUV.u - a.u)*w; dv += (liveUV.v - a.v)*w; tw += w;
       }
-      
       if(tw > 0) {
         pos[vi*3] = sc.basePos[vi*3] + (du/tw)*2;
         pos[vi*3+1] = sc.basePos[vi*3+1] - (dv/tw)*2.4;
+        pos[vi*3+2] = sc.basePos[vi*3+2] + (liveLM[0].z * depth * 0.1);
       }
     }
   }
@@ -234,7 +207,6 @@ async function startCamera() {
   document.getElementById('pipLocal').srcObject = stream;
   const feed = document.getElementById('camFeed');
   feed.srcObject = stream;
-  
   const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
   faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
   faceMesh.onResults(res => {
@@ -242,24 +214,25 @@ async function startCamera() {
     lastLM = res.multiFaceLandmarks[0];
     if(puppetActive) puppet(localS, lastLM);
   });
-
-  const cam = new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); } });
-  cam.start();
+  new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); } }).start();
   document.getElementById('snapBtn').disabled = false;
-  document.getElementById('status').textContent = "Camera Active. Face Detected.";
+  document.getElementById('camBtn').textContent = "✅ Camera Active";
 }
 
 function toggleLive() {
   puppetActive = !puppetActive;
-  document.getElementById('liveBtn').textContent = puppetActive ? "Stop Puppet" : "Live Puppet";
+  document.getElementById('liveBtn').textContent = puppetActive ? "⏹ Stop Puppet" : "⚡ Live Puppet";
+}
+
+function setStyle(s) {
+  cellStyle = s;
+  document.querySelectorAll('.sb').forEach(b => b.classList.remove('on'));
+  document.getElementById('sb-'+s).classList.add('on');
 }
 
 window.onload = () => {
   localS = makeScene('localFrame');
-  (function render() {
-    requestAnimationFrame(render);
-    localS.renderer.render(localS.scene, localS.camera);
-  })();
+  (function render() { requestAnimationFrame(render); localS.renderer.render(localS.scene, localS.camera); })();
 };
 </script>
 </body>
