@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh v5.2 — Chuck Close Mesh</title>
+<title>VibeMesh v6.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -20,10 +20,10 @@ body{background:#06060f;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;m
 .av-frame{position:relative;width:320px;height:380px;border-radius:18px;overflow:hidden;
   background:#06060f;box-shadow:0 0 50px #00f0ff18,0 0 0 1px #ffffff08}
 .av-frame canvas{position:absolute;top:0;left:0;width:100%;height:100%}
-.pip{position:absolute;bottom:10px;right:10px;width:70px;height:52px;
-  border-radius:7px;overflow:hidden;border:2px solid #00f0ff44;background:#000;z-index:30}
+.pip{position:absolute;bottom:10px;right:10px;width:72px;height:54px;
+  border-radius:8px;overflow:hidden;border:2px solid #00f0ff44;background:#000;z-index:30}
 .pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-.tier-badge{position:absolute;top:9px;left:11px;padding:3px 9px;border-radius:20px;
+.overlay-badge{position:absolute;top:9px;left:11px;padding:3px 9px;border-radius:20px;
   font-size:.58em;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
   background:#00f0ff12;border:1px solid #00f0ff44;color:#00f0ff;z-index:20;pointer-events:none}
 .speak-ring{position:absolute;inset:0;border-radius:18px;border:3px solid transparent;
@@ -38,15 +38,22 @@ body{background:#06060f;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;m
 .build-track{height:3px;background:#ffffff10;border-radius:2px;overflow:hidden}
 .build-fill{height:3px;border-radius:2px;width:0%;
   background:linear-gradient(90deg,#00f0ff,#ff00aa);transition:width .18s}
+/* Snap overlay — shows countdown while averaging frames */
+.snap-ov{position:absolute;inset:0;background:#000000bb;border-radius:18px;
+  display:none;align-items:center;justify-content:center;flex-direction:column;
+  gap:10px;z-index:40}
+.snap-ov.show{display:flex}
+.snap-count{font-size:3em;font-weight:900;color:#00f0ff}
+.snap-msg{font-size:.75em;color:#aaa;letter-spacing:1px}
 .controls{background:#0b0b1c;padding:13px 18px;margin:4px 16px 6px;
   border-radius:16px;border:1px solid #ffffff07}
 .ctrl-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:flex-end}
 .ctrl-row:last-child{margin-bottom:0}
-.sl-g{flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px}
-.sl-g label{font-size:.63em;color:#444;letter-spacing:1px;text-transform:uppercase}
+.sl-g{flex:1;min-width:115px;display:flex;flex-direction:column;gap:3px}
+.sl-g label{font-size:.62em;color:#444;letter-spacing:1px;text-transform:uppercase}
 .sl-inner{display:flex;align-items:center;gap:7px}
 input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer}
-.slv{font-size:.73em;color:#00f0ff;min-width:30px;text-align:right}
+.slv{font-size:.72em;color:#00f0ff;min-width:28px;text-align:right}
 button{padding:10px 12px;font-size:.78em;font-weight:700;font-family:inherit;
   background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;border-radius:10px;
   color:#000;cursor:pointer;transition:opacity .15s,transform .1s;white-space:nowrap}
@@ -61,8 +68,7 @@ button.sec:not(:disabled):hover{color:#ccc}
 .stats{display:flex;justify-content:center;gap:12px;padding:4px 16px 6px;flex-wrap:wrap}
 .stat{font-size:.65em;color:#333}.stat b{color:#00ffcc;font-weight:600}
 .statusbar{text-align:center;padding:3px 16px 10px;font-size:.7em;color:#444;min-height:20px}
-#sigModal{display:none;position:fixed;inset:0;background:#000c;z-index:200;
-  align-items:center;justify-content:center}
+#sigModal{display:none;position:fixed;inset:0;background:#000c;z-index:200;align-items:center;justify-content:center}
 #sigModal.open{display:flex}
 .modal{background:#0b0b1e;border:1px solid #00f0ff2a;border-radius:20px;
   padding:20px;max-width:440px;width:92%;display:flex;flex-direction:column;gap:9px}
@@ -80,30 +86,36 @@ button.sec:not(:disabled):hover{color:#ccc}
 <body>
 
 <div class="hdr">
-  <h1>🏖️ VibeMesh v5.2</h1>
-  <sub>Chuck Close Mesh · Live Puppet · Shore Edition</sub>
+  <h1>🏖️ VibeMesh v6.0</h1>
+  <sub>Face Tessellation · Multi-Frame Snap · Live Puppet</sub>
 </div>
 
 <div class="call">
+  <!-- LOCAL -->
   <div class="avatar-box">
     <div class="av-label">You · Vancouver</div>
     <div class="av-frame" id="localFrame">
       <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
-      <div class="tier-badge" id="localBadge">READY</div>
-      <div class="speak-ring" id="localRing"></div>
+      <div class="overlay-badge" id="localBadge">READY</div>
+      <div class="speak-ring"   id="localRing"></div>
+      <div class="snap-ov"      id="snapOv">
+        <div class="snap-count" id="snapCount">3</div>
+        <div class="snap-msg">Hold still — averaging frames</div>
+      </div>
       <div class="build-ov" id="localBuildOv">
-        <div class="build-lbl" id="localBuildLbl">Click Snap Portrait to begin</div>
+        <div class="build-lbl"  id="localBuildLbl">Click Snap to begin</div>
         <div class="build-track"><div class="build-fill" id="localBuildFill"></div></div>
       </div>
     </div>
   </div>
+  <!-- REMOTE -->
   <div class="avatar-box">
     <div class="av-label">JerseyBro · Remote</div>
     <div class="av-frame" id="remoteFrame">
-      <div class="tier-badge" id="remoteBadge">WAITING</div>
-      <div class="speak-ring" id="remoteRing"></div>
+      <div class="overlay-badge" id="remoteBadge">WAITING</div>
+      <div class="speak-ring"    id="remoteRing"></div>
       <div class="build-ov" id="remoteBuildOv">
-        <div class="build-lbl" id="remoteBuildLbl">Waiting for peer…</div>
+        <div class="build-lbl"  id="remoteBuildLbl">Waiting for peer…</div>
         <div class="build-track"><div class="build-fill" id="remoteBuildFill"></div></div>
       </div>
     </div>
@@ -115,18 +127,18 @@ button.sec:not(:disabled):hover{color:#ccc}
 
 <div class="controls">
   <div class="ctrl-row">
-    <div style="font-size:.63em;color:#444;letter-spacing:1px;text-transform:uppercase;width:100%;margin-bottom:2px">Cell Style</div>
+    <div style="font-size:.62em;color:#444;letter-spacing:1px;text-transform:uppercase;width:100%;margin-bottom:2px">Cell Style</div>
     <div class="style-pick">
       <button class="sb on" id="sb-rings"    onclick="setStyle('rings')">Rings</button>
       <button class="sb"    id="sb-diamonds" onclick="setStyle('diamonds')">Diamonds</button>
       <button class="sb"    id="sb-dots"     onclick="setStyle('dots')">Dots</button>
-      <button class="sb"    id="sb-cross"    onclick="setStyle('cross')">Cross-hatch</button>
+      <button class="sb"    id="sb-cross"    onclick="setStyle('cross')">Crosshatch</button>
       <button class="sb"    id="sb-squares"  onclick="setStyle('squares')">Squares</button>
     </div>
   </div>
   <div class="ctrl-row">
     <div class="sl-g">
-      <label>Bandwidth → Grid Resolution</label>
+      <label>Bandwidth → Mesh Detail</label>
       <div class="sl-inner">
         <input type="range" min="5" max="900" value="900" oninput="onBw(this.value)">
         <div class="slv"><span id="bwVal">900</span>k</div>
@@ -142,14 +154,21 @@ button.sec:not(:disabled):hover{color:#ccc}
     <div class="sl-g">
       <label>Depth Scale</label>
       <div class="sl-inner">
-        <input type="range" min="1" max="12" value="6" oninput="onDepth(this.value)">
-        <div class="slv" id="depthVal">6×</div>
+        <input type="range" min="1" max="14" value="7" oninput="onDepth(this.value)">
+        <div class="slv" id="depthVal">7×</div>
+      </div>
+    </div>
+    <div class="sl-g">
+      <label>Snap Frames</label>
+      <div class="sl-inner">
+        <input type="range" min="1" max="9" value="5" step="1" oninput="onSnapFrames(this.value)">
+        <div class="slv" id="snapFramesVal">5</div>
       </div>
     </div>
   </div>
   <div class="ctrl-row">
     <button id="camBtn"  onclick="startCamera()">📷 Start Camera</button>
-    <button id="snapBtn" onclick="snapAndBuild()" disabled>📸 Snap Portrait</button>
+    <button id="snapBtn" onclick="startSnap()" disabled>📸 Snap Portrait</button>
     <button id="liveBtn" onclick="toggleLive()" disabled>⚡ Live Puppet</button>
     <button onclick="openModal()">📡 Connect Peer</button>
   </div>
@@ -162,19 +181,19 @@ button.sec:not(:disabled):hover{color:#ccc}
 </div>
 
 <div class="stats">
-  <div class="stat">Tier <b id="tierLbl">AVATAR3D</b></div>
-  <div class="stat">Grid <b id="gridLbl">40×48</b></div>
-  <div class="stat">Sent <b id="sentLbl">0</b></div>
-  <div class="stat">Recv <b id="recvLbl">0</b></div>
-  <div class="stat">RTT  <b id="rttLbl">—</b>ms</div>
-  <div class="stat">Peer <b id="connLbl" style="color:#ff4757">OFFLINE</b></div>
+  <div class="stat">Tier   <b id="tierLbl">AVATAR3D</b></div>
+  <div class="stat">Verts  <b id="vertsLbl">468</b></div>
+  <div class="stat">Sent   <b id="sentLbl">0</b></div>
+  <div class="stat">Recv   <b id="recvLbl">0</b></div>
+  <div class="stat">RTT    <b id="rttLbl">—</b>ms</div>
+  <div class="stat">Peer   <b id="connLbl" style="color:#ff4757">OFFLINE</b></div>
 </div>
 <div class="statusbar" id="statusbar">Click Start Camera to begin</div>
 
 <div id="sigModal">
   <div class="modal">
     <h2>📡 Connect to Peer</h2>
-    <p>One person creates an offer, sends the JSON to the other person out-of-band (text, email, etc). They paste it and send back an answer.</p>
+    <p>One person creates an offer and sends the JSON to the other. They paste it and send back an answer.</p>
     <button class="mbtn" onclick="createOffer()">1️⃣ Create Offer</button>
     <textarea id="offerBox" placeholder="Your SDP appears here — copy and send to peer"></textarea>
     <p>Paste peer's SDP here:</p>
@@ -187,336 +206,496 @@ button.sec:not(:disabled):hover{color:#ccc}
 <script>
 'use strict';
 
-// ══════════════════════════════════════════
-//  CONSTANTS
-// ══════════════════════════════════════════
-const AV_W = 320, AV_H = 380;
-const CELL_PX = 20;       // texture pixels per cell — larger = more dramatic marks
-const CELL_GAP = 2;       // dark gap between cells — key for Chuck Close look
-const SEND_MS  = 80;      // ~12fps
+// ════════════════════════════════════════════
+//  MEDIAPIPE FACE TESSELLATION
+//  The exact triangle connectivity for the 468 face landmarks.
+//  Source: mediapipe/python/solutions/face_mesh_connections.py
+//  Using this means our mesh PERFECTLY conforms to the face shape.
+// ════════════════════════════════════════════
+const FACE_TRIANGLES = [
+  [10,338,297],[10,297,332],[10,332,284],[10,284,251],[10,251,389],
+  [10,389,356],[10,356,454],[10,454,323],[10,323,361],[10,361,288],
+  [10,288,397],[10,397,365],[10,365,379],[10,379,378],[10,378,400],
+  [10,400,377],[10,377,152],[10,152,148],[10,148,176],[10,176,149],
+  [10,149,150],[10,150,136],[10,136,172],[10,172,58],[10,58,132],
+  [10,132,93],[10,93,234],[10,234,127],[10,127,162],[10,162,21],
+  [10,21,54],[10,54,103],[10,103,67],[10,67,109],[10,109,338],
+  // Forehead / skull top
+  [67,109,10],[109,338,10],
+  // Right eye region
+  [263,466,388],[466,263,249],[263,249,390],[390,373,249],
+  [249,373,374],[374,380,249],[380,374,381],[381,382,380],
+  [380,382,362],[362,382,384],[384,385,362],[385,386,384],
+  [386,387,385],[387,388,386],[388,466,387],
+  // Left eye region
+  [33,246,161],[246,33,7],[33,7,163],[163,144,33],
+  [33,144,145],[145,153,33],[153,145,154],[154,155,153],
+  [153,155,133],[133,155,157],[157,158,133],[158,159,157],
+  [159,160,158],[160,161,159],[161,246,160],
+  // Nose
+  [1,2,98],[2,1,97],[97,1,167],[167,164,97],[164,393,167],
+  [393,164,168],[168,8,393],[8,168,9],[9,168,151],[151,9,175],
+  [175,197,151],[197,175,196],[196,174,197],[174,196,217],
+  [217,236,174],[236,195,217],[195,236,3],[3,195,51],
+  [51,45,3],[45,4,51],[4,45,5],[5,4,275],[275,5,281],
+  [281,275,360],[360,440,281],[440,360,439],[439,438,440],
+  [438,309,439],[309,438,457],[457,460,309],
+  // Mouth / lips outer
+  [0,267,269],[269,270,0],[270,409,0],[409,291,0],
+  [291,375,0],[375,321,0],[321,405,0],[405,314,0],
+  [314,17,0],[17,84,0],[84,181,0],[181,91,0],
+  [91,146,0],[146,61,0],[61,185,0],[185,40,0],
+  [40,39,0],[39,37,0],[37,0,267],
+  // Lips inner
+  [13,312,311],[311,310,13],[310,415,13],[415,308,13],
+  [308,324,13],[324,318,13],[318,402,13],[402,317,13],
+  [317,14,13],[14,87,13],[87,178,13],[178,88,13],
+  [88,95,13],[95,78,13],[78,191,13],[191,80,13],
+  [80,81,13],[81,82,13],[82,312,13],
+  // Cheeks / jaw
+  [132,58,172],[172,136,58],[136,150,58],[150,149,136],
+  [149,176,150],[176,148,149],[148,152,176],[152,377,176],
+  [377,400,152],[400,378,377],[378,379,400],[379,365,378],
+  [365,397,379],[397,288,365],[288,361,397],[361,323,288],
+  [323,454,361],[454,356,323],[356,389,454],[389,251,356],
+  [251,284,389],[284,332,251],[332,297,284],[297,338,332],
+  // Right cheek/jaw fill
+  [127,234,93],[234,127,162],[162,21,234],[21,54,162],
+  [54,103,21],[103,54,67],[67,103,109],
+  // Face interior — forehead
+  [10,109,67],[109,10,338],
+  // Eye bags / under eye
+  [226,247,30],[247,226,161],[161,160,247],[160,159,247],
+  [159,158,247],[158,157,247],[157,173,247],[173,133,247],
+  // Nose bridge / between eyes
+  [6,351,168],[351,6,417],[417,465,351],[465,443,417],
+  [443,444,465],[444,445,443],[445,342,444],[342,446,445],
+  [446,347,342],[347,348,446],[348,349,347],[349,350,348],
+  [350,277,349],[277,437,350],[437,420,277],
+  // Between brows
+  [55,8,9],[8,55,193],[193,55,245],[245,128,193],
+  // Jaw line fill
+  [172,57,136],[57,172,43],[43,106,57],[106,43,204],
+  [204,194,106],[194,211,204],[211,32,194],[32,140,211],
+  [140,170,32],[170,169,140],[169,210,170],[210,202,169],
+  [202,216,210],[216,206,202],[206,165,216],[165,167,206],
+  // Right jaw
+  [365,288,447],[447,366,365],[366,401,447],[401,435,366],
+  [435,367,401],[367,364,435],[364,394,367],[394,395,364],
+  [395,369,394],[369,396,395],[396,175,369],[175,171,396],
+  // Nasolabial
+  [36,205,203],[205,36,186],[186,92,205],[92,165,186],
+  [165,203,92],[203,165,36],
+  [266,425,423],[425,266,426],[426,436,425],[436,432,426],
+  [432,422,436],[422,410,432],[410,287,422],
+  // Additional face interior
+  [356,454,389],[454,356,323],[323,454,361],[361,454,288],
+  [288,361,397],[397,365,288],[365,379,397],[379,365,378],
+];
 
-// Bandwidth → grid dimensions
-const TIER_GRIDS = {
-  AVATAR3D: { W:40, H:48 },
-  PUPPET:   { W:20, H:24 },
-  SPRITE:   { W:12, H:14 },
-  GLYPH:    { W: 6, H: 7 },
+// Subsample triangle indices for lower tiers
+const TIER_CONFIGS = {
+  AVATAR3D: { step:1,  label:'Full mesh (468 verts)'  },
+  PUPPET:   { step:2,  label:'Half mesh (234 verts)'  },
+  SPRITE:   { step:4,  label:'Quarter mesh'           },
+  GLYPH:    { step:8,  label:'Low mesh'               },
 };
 
-// Face oval landmark indices (MediaPipe)
-const FACE_OVAL = [
-  10,338,297,332,284,251,389,356,454,323,361,288,
-  397,365,379,378,400,377,152,148,176,149,150,136,
-  172,58,132,93,234,127,162,21,54,103,67,109
-];
-
-// ── Feature anchor points for RBF deformation ──
-// These are anatomically meaningful points that drive the puppeting.
-// Grouped by region so we can weight them correctly.
+// RBF anchor landmarks — anatomically significant points only
 const ANCHORS = [
-  // ── Eyes ──
-  33, 133,        // left eye: inner + outer corner
-  362, 263,       // right eye: inner + outer corner
-  159, 145,       // left eye: top + bottom lid center
-  386, 374,       // right eye: top + bottom lid center
-  // ── Eyebrows ──
-  70, 63,         // left brow: outer + inner
-  300, 293,       // right brow: outer + inner
-  105, 334,       // left/right brow arch
-  // ── Nose ──
-  1,              // nose bridge
-  4,              // nose tip
-  94,             // nose base
-  // ── Mouth ──
-  61, 291,        // mouth corners
-  0,  17,         // mouth top/bottom center
-  37, 267,        // upper lip flanks
-  84, 314,        // lower lip flanks
-  // ── Jaw / skull ──
-  152,            // chin tip
-  234, 454,       // jaw hinges
-  10, 338,        // top of forehead
-  // ── Mid-face ──
-  187, 411,       // cheekbones
-  116, 345,       // mid cheek
+  // Eyes
+  33,133,362,263,     // corners
+  159,145,386,374,    // lid centers
+  468,473,            // iris centers (refined landmarks)
+  // Brows
+  70,63,300,293,105,334,
+  // Nose
+  1,4,94,
+  // Mouth
+  61,291,0,17,37,267,84,314,
+  // Jaw
+  152,234,454,
+  // Cheeks
+  187,411,116,345,
+  // Forehead
+  10,
 ];
 
-// Sigma for RBF — smaller = more local deformation, more expressive
-// 0.025 in normalized [0,1] coords ≈ 2.5% of face width
-const RBF_SIGMA = 0.025;
-const RBF_SIGMA2 = 2 * RBF_SIGMA * RBF_SIGMA;
+const RBF_SIGMA2 = 2 * (0.03 * 0.03); // Gaussian sigma
 
-// ── Z-interpolation uses only reliable depth landmarks ──
-// (excludes ears, back-of-head which have noisy Z values)
-const Z_LANDMARKS = [
-  // Face oval
-  ...FACE_OVAL,
-  // Interior face
-  1,4,5,6,168,197,195,  // nose
-  33,133,362,263,        // eye corners
-  159,145,386,374,       // eye lids
-  61,291,0,17,           // mouth
-  152,                   // chin
-  10,                    // forehead center
-  187,411,               // cheeks
-];
-
-let cellStyle = 'rings';
-let bw = 900, bat = 100, depthScale = 6.0;
-let cameraOn = false, puppetActive = false, buildRunning = false;
-let lastSendT = 0, sentCount = 0, recvCount = 0;
+// State
+let cellStyle   = 'rings';
+let bw          = 900, bat = 100, depthScale = 7.0;
+let snapFrames  = 5;   // how many frames to average
+let cameraOn    = false, puppetActive = false, buildRunning = false, snapping = false;
+let lastSendT   = 0, sentCount = 0, recvCount = 0;
 let lastLandmarks = null;
 let processingFrame = false;
 
-// ══════════════════════════════════════════
-//  THREE.JS SCENE SETUP
-// ══════════════════════════════════════════
+// Frame buffer for multi-frame averaging
+let frameBuffer = [];
+
+// ════════════════════════════════════════════
+//  THREE.JS SCENE
+// ════════════════════════════════════════════
 function createScene(frameId) {
-  const frame = document.getElementById(frameId);
+  const el  = document.getElementById(frameId);
   const scene  = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(44, AV_W / AV_H, 0.01, 100);
-  camera.position.z = 2.4;
+  const camera = new THREE.PerspectiveCamera(40, 320/380, 0.01, 50);
+  camera.position.z = 2.2;
 
-  // Cinematic lighting rig
-  scene.add(new THREE.AmbientLight(0xfff0ee, 0.38));
-  const key = new THREE.DirectionalLight(0xffe8c0, 1.2);
-  key.position.set(1.5, 2.2, 2.5); scene.add(key);
-  const fill = new THREE.DirectionalLight(0x88aaff, 0.32);
-  fill.position.set(-2, 0.5, 1.5); scene.add(fill);
-  const rim = new THREE.DirectionalLight(0xff00aa, 0.45);
-  rim.position.set(0, -1.2, -2); scene.add(rim);
+  scene.add(new THREE.AmbientLight(0xfff0ee, 0.4));
+  const key  = new THREE.DirectionalLight(0xffe8c0, 1.15); key.position.set(1.5,2,2.5);  scene.add(key);
+  const fill = new THREE.DirectionalLight(0x88aaff, 0.32); fill.position.set(-2,0.5,1.5); scene.add(fill);
+  const rim  = new THREE.DirectionalLight(0xff00aa, 0.42); rim.position.set(0,-1.2,-2);   scene.add(rim);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setSize(AV_W, AV_H);
-  renderer.setClearColor(0, 0);
-  frame.insertBefore(renderer.domElement, frame.firstChild);
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(320,380);
+  renderer.setClearColor(0,0);
+  el.insertBefore(renderer.domElement, el.firstChild);
 
   return {
     scene, camera, renderer,
-    mesh: null, tex: null,
+    mesh:null, tex:null,
     texCanvas: document.createElement('canvas'),
     // Snapshot state
-    snapLM: null,       // 468 landmark snapshot
-    snapBBox: null,     // face bbox at snap time
-    snapW: 0, snapH: 0,
-    snapBBoxAR: 1,
-    snapAnchors: null,  // pre-computed anchor data for RBF
-    snapZLM: null,      // filtered landmarks for Z interp
-    // Per-vertex base positions (from snap, in 3D space)
-    basePositions: null,
-    // Smoothed current positions
-    curPositions: null,
+    snapLM: null,        // averaged landmark snapshot
+    snapAnchors: null,   // pre-built anchor data
+    usedTris: null,      // triangle list for current tier
+    // Positions
+    basePos: null,       // 3D positions at snap time
+    curPos:  null,       // smoothed current positions
   };
 }
 
 const localS  = createScene('localFrame');
 const remoteS = createScene('remoteFrame');
 
-function renderLoop() {
-  requestAnimationFrame(renderLoop);
-  localS.renderer.render(localS.scene,   localS.camera);
+;(function loop(){
+  requestAnimationFrame(loop);
+  localS.renderer.render(localS.scene,  localS.camera);
   remoteS.renderer.render(remoteS.scene, remoteS.camera);
-}
-renderLoop();
+})();
 
-// ══════════════════════════════════════════
-//  FACE BBOX — tight around face oval
-// ══════════════════════════════════════════
-function computeBBox(lm) {
-  let x0=1, x1=0, y0=1, y1=0;
-  FACE_OVAL.forEach(i => {
-    const l = lm[i];
-    if (l.x < x0) x0=l.x; if (l.x > x1) x1=l.x;
-    if (l.y < y0) y0=l.y; if (l.y > y1) y1=l.y;
-  });
-  // Tight padding — just enough to not clip
-  const pw = (x1-x0)*0.04, ph = (y1-y0)*0.04;
-  return {
-    x0: Math.max(0, x0-pw), x1: Math.min(1, x1+pw),
-    y0: Math.max(0, y0-ph), y1: Math.min(1, y1+ph),
-  };
-}
-
-// ══════════════════════════════════════════
-//  Z INTERPOLATION — IDW from reliable landmarks
-// ══════════════════════════════════════════
-function buildZLookup(lm) {
-  // Pre-filter to only reliable Z landmarks
-  return Z_LANDMARKS.map(i => lm[i]).filter(Boolean);
-}
-
-function interpZ(zLM, tx, ty, K = 6) {
-  let tw = 0, tz = 0;
-  // Find K nearest
-  const dists = zLM.map(lm => ({ d2: (lm.x-tx)**2 + (lm.y-ty)**2, z: lm.z }));
-  dists.sort((a,b) => a.d2-b.d2);
-  for (let k = 0; k < K && k < dists.length; k++) {
-    const w = dists[k].d2 < 1e-9 ? 1e9 : 1/dists[k].d2;
-    tw += w; tz += dists[k].z * w;
-  }
-  return tw > 0 ? tz/tw : 0;
-}
-
-// ══════════════════════════════════════════
-//  FACE OVAL MASK — point-in-polygon
-// ══════════════════════════════════════════
-function buildOvalPoly(lm, bbox) {
-  const bw = bbox.x1-bbox.x0, bh = bbox.y1-bbox.y0;
-  // Mirror X for selfie display
-  return FACE_OVAL.map(i => {
-    const mx = 1-lm[i].x;
-    return {
-      x: (mx - (1-bbox.x1)) / bw,
-      y: (lm[i].y - bbox.y0) / bh,
-    };
-  });
-}
-
-function inPolygon(px, py, pts) {
-  let inside = false;
-  for (let i=0, j=pts.length-1; i<pts.length; j=i++) {
-    const xi=pts[i].x, yi=pts[i].y, xj=pts[j].x, yj=pts[j].y;
-    if (((yi>py) !== (yj>py)) && (px < (xj-xi)*(py-yi)/(yj-yi)+xi))
-      inside = !inside;
-  }
-  return inside;
-}
-
-// ══════════════════════════════════════════
-//  RBF ANCHOR SETUP — precompute for puppeting
-// ══════════════════════════════════════════
-function buildAnchors(snapLM) {
-  return ANCHORS.map(idx => ({
-    idx,
-    // Mirror X
-    x: 1 - snapLM[idx].x,
-    y: snapLM[idx].y,
-    z: snapLM[idx].z,
+// ════════════════════════════════════════════
+//  MULTI-FRAME LANDMARK AVERAGING
+//  Collect N frames → average each landmark position
+//  This is equivalent to triangulating from multiple viewpoints
+//  and dramatically reduces tracking jitter
+// ════════════════════════════════════════════
+function averageLandmarks(frames) {
+  if (!frames.length) return null;
+  const N   = frames.length;
+  const len = frames[0].length;
+  return Array.from({ length: len }, (_, i) => ({
+    x: frames.reduce((s,f) => s + f[i].x, 0) / N,
+    y: frames.reduce((s,f) => s + f[i].y, 0) / N,
+    z: frames.reduce((s,f) => s + f[i].z, 0) / N,
   }));
 }
 
-// ══════════════════════════════════════════
-//  RBF DEFORMATION — compute delta at any point
-// ══════════════════════════════════════════
-function rbfDelta(snapAnchors, liveLM, px, py) {
-  let tw = 0, dx = 0, dy = 0, dz = 0;
+// ════════════════════════════════════════════
+//  COORDINATE HELPERS
+// ════════════════════════════════════════════
+// MediaPipe x is mirrored for selfie display.
+// All our 3D math uses mirrored x so the mesh
+// matches what you see in the camera preview.
+function mirrorX(lm) { return 1 - lm.x; }
 
-  for (const a of snapAnchors) {
-    const d2 = (a.x - px)**2 + (a.y - py)**2;
-    const w  = Math.exp(-d2 / RBF_SIGMA2);
-    if (w < 1e-6) continue; // ignore distant anchors
+// Compute tight face bounding box from oval landmarks
+const FACE_OVAL = [10,338,297,332,284,251,389,356,454,323,361,288,
+  397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
 
-    const liveX = 1 - liveLM[a.idx].x; // mirror
-    const liveY = liveLM[a.idx].y;
-    const liveZ = liveLM[a.idx].z;
-
-    dx += (liveX - a.x) * w;
-    dy += (liveY - a.y) * w;
-    dz += (liveZ - a.z) * w;
-    tw += w;
-  }
-
-  if (tw < 1e-9) return [0, 0, 0];
-  return [dx/tw, dy/tw, dz/tw];
+function faceBBox(lm) {
+  let x0=1,x1=0,y0=1,y1=0;
+  FACE_OVAL.forEach(i => {
+    const mx = mirrorX(lm[i]);
+    if (mx<x0) x0=mx; if (mx>x1) x1=mx;
+    if (lm[i].y<y0) y0=lm[i].y; if (lm[i].y>y1) y1=lm[i].y;
+  });
+  return { x0, x1, y0, y1, w:x1-x0, h:y1-y0 };
 }
 
-// ══════════════════════════════════════════
-//  MESH BUILD — creates the Three.js mesh
-// ══════════════════════════════════════════
-function buildMeshGeometry(sc, lm, videoEl, tierName) {
-  const cfg  = TIER_GRIDS[tierName] || TIER_GRIDS.AVATAR3D;
-  const W = cfg.W, H = cfg.H;
-  const bbox = computeBBox(lm);
-  const bw   = bbox.x1 - bbox.x0;
-  const bh   = bbox.y1 - bbox.y0;
-  const bAR  = bw / bh;
+// Map a landmark to face-normalised UV in [0,1]
+function lmToUV(lm, bbox) {
+  return {
+    u: (mirrorX(lm) - bbox.x0) / bbox.w,
+    v: (lm.y        - bbox.y0) / bbox.h,
+  };
+}
 
-  // Store snapshot state
-  sc.snapLM      = lm.map(l => ({...l}));
-  sc.snapBBox    = bbox;
-  sc.snapW       = W;
-  sc.snapH       = H;
-  sc.snapBBoxAR  = bAR;
-  sc.snapAnchors = buildAnchors(lm);
-  sc.snapZLM     = buildZLookup(lm);
+// Map landmark to 3D position (face-centred, aspect-ratio corrected)
+function lmTo3D(lm, bbox, zScale) {
+  const uv = lmToUV(lm, bbox);
+  return {
+    x:  (uv.u - 0.5) * 1.85 * (bbox.w / bbox.h),
+    y: -(uv.v - 0.5) * 1.85,
+    z:   lm.z * zScale,
+  };
+}
 
-  // ── Texture canvas ──
-  const texW = W * CELL_PX, texH = H * CELL_PX;
+// ════════════════════════════════════════════
+//  BUILD ANCHORS FOR RBF PUPPETING
+// ════════════════════════════════════════════
+function buildAnchors(lm, bbox) {
+  return ANCHORS
+    .filter(i => i < lm.length)
+    .map(i => {
+      const uv = lmToUV(lm[i], bbox);
+      return { idx: i, u: uv.u, v: uv.v };
+    });
+}
+
+// RBF delta at UV point (u,v) given snap anchors + live landmarks
+function rbfDelta(snapAnchors, snapLM, liveLM, bbox, u, v) {
+  let tw=0, du=0, dv=0, dz=0;
+  for (const a of snapAnchors) {
+    const d2 = (a.u - u)**2 + (a.v - v)**2;
+    const w  = Math.exp(-d2 / RBF_SIGMA2);
+    if (w < 1e-5) continue;
+    // Live anchor UV
+    const liveuv = lmToUV(liveLM[a.idx], bbox);
+    du += (liveuv.u - a.u) * w;
+    dv += (liveuv.v - a.v) * w;
+    dz += (liveLM[a.idx].z - snapLM[a.idx].z) * w;
+    tw += w;
+  }
+  if (tw < 1e-8) return [0, 0, 0];
+  return [du/tw, dv/tw, dz/tw];
+}
+
+// ════════════════════════════════════════════
+//  SAMPLE VIDEO PIXEL AT UV
+// ════════════════════════════════════════════
+function sampleAtUV(imageData, iw, ih, u, v) {
+  const px  = Math.min(iw-1, Math.max(0, Math.floor(u*(iw-1))));
+  const py  = Math.min(ih-1, Math.max(0, Math.floor(v*(ih-1))));
+  const idx = (py*iw + px) * 4;
+  return [imageData[idx], imageData[idx+1], imageData[idx+2]];
+}
+
+// Capture face-region pixels from video (mirrored)
+function captureFacePixels(videoEl, bbox, W, H) {
+  const cvs = document.createElement('canvas');
+  cvs.width = W; cvs.height = H;
+  const ctx = cvs.getContext('2d');
+  const vW  = videoEl.videoWidth  || 640;
+  const vH  = videoEl.videoHeight || 480;
+  // Mirror + crop
+  ctx.save();
+  ctx.scale(-1,1); ctx.translate(-W,0);
+  ctx.drawImage(videoEl,
+    (1-bbox.x1)*vW, bbox.y0*vH,
+    bbox.w*vW, bbox.h*vH,
+    0, 0, W, H
+  );
+  ctx.restore();
+  return ctx.getImageData(0, 0, W, H);
+}
+
+// ════════════════════════════════════════════
+//  CHUCK CLOSE CELL DRAWING
+// ════════════════════════════════════════════
+// Each cell is drawn at a specific (cx,cy) with radius `rad`
+// determined by the triangle size in texture space.
+function drawCell(ctx, cx, cy, rad, r, g, b) {
+  const lum  = (r*0.299 + g*0.587 + b*0.114) / 255;
+  const dr   = Math.max(0,r-85), dg=Math.max(0,g-85), db=Math.max(0,b-85);
+  const hr   = Math.min(255,r+80), hg=Math.min(255,g+80), hb=Math.min(255,b+80);
+  const dRGB = `rgb(${dr},${dg},${db})`;
+  const hRGB = `rgb(${hr},${hg},${hb})`;
+
+  switch (cellStyle) {
+    case 'rings': {
+      // Ring count driven by luminance — Chuck Close's core technique
+      const nR = Math.max(2, Math.round(2 + lum * 6)); // 2–8 rings
+      for (let i=nR; i>=1; i--) {
+        const t    = i/nR;
+        const r2   = Math.max(0.4, rad * t * 0.92);
+        const rr   = Math.round(r*t+dr*(1-t));
+        const rg2  = Math.round(g*t+dg*(1-t));
+        const rb   = Math.round(b*t+db*(1-t));
+        ctx.beginPath(); ctx.arc(cx, cy, r2, 0, Math.PI*2);
+        ctx.fillStyle = i%2===0 ? `rgb(${rr},${rg2},${rb})` : hRGB;
+        ctx.fill();
+      }
+      // Center punch
+      ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.5, rad*0.13), 0, Math.PI*2);
+      ctx.fillStyle = lum > 0.55 ? dRGB : hRGB;
+      ctx.fill();
+      break;
+    }
+    case 'diamonds': {
+      const nS = Math.max(2, Math.round(2 + lum*4));
+      for (let i=nS; i>=1; i--) {
+        const t=i/nS, hs=rad*t*0.9;
+        const rr=Math.round(r*t+dr*(1-t)), rg2=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
+        ctx.beginPath();
+        ctx.moveTo(cx,cy-hs); ctx.lineTo(cx+hs,cy); ctx.lineTo(cx,cy+hs); ctx.lineTo(cx-hs,cy);
+        ctx.closePath();
+        ctx.fillStyle = i%2===0 ? `rgb(${rr},${rg2},${rb})` : hRGB;
+        ctx.fill();
+      }
+      break;
+    }
+    case 'dots': {
+      const gn = Math.max(2, Math.round(2+lum*3));
+      const sp = (rad*2)/gn;
+      for (let gi=0;gi<gn;gi++) for (let gj=0;gj<gn;gj++) {
+        const gx = cx - rad + sp*(gi+0.5), gy = cy - rad + sp*(gj+0.5);
+        const d  = Math.sqrt((gx-cx)**2+(gy-cy)**2);
+        const r2 = Math.max(0.4, sp*0.46*(0.3+lum*0.7) - d*0.06);
+        ctx.beginPath(); ctx.arc(gx,gy,r2,0,Math.PI*2);
+        ctx.fillStyle=`rgb(${r},${g},${b})`; ctx.fill();
+      }
+      break;
+    }
+    case 'cross': {
+      const lc = Math.max(2, Math.round(rad*(0.9+(1-lum)*0.8)));
+      ctx.strokeStyle=`rgb(${r},${g},${b})`; ctx.lineWidth=Math.max(0.4, (rad*2)/(lc*3.2));
+      for (let li=0;li<=lc;li++) {
+        const ly = cy-rad+(li/lc)*rad*2;
+        ctx.beginPath(); ctx.moveTo(cx-rad,ly); ctx.lineTo(cx+rad,ly); ctx.stroke();
+      }
+      if (lum<0.7) {
+        const dl=Math.max(1,Math.round(lc*(1-lum)*0.7));
+        ctx.strokeStyle=hRGB;
+        for (let li=0;li<=dl;li++) {
+          const t=li/dl;
+          ctx.beginPath(); ctx.moveTo(cx-rad+t*rad*2,cy-rad); ctx.lineTo(cx-rad,cy-rad+t*rad*2); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(cx-rad+t*rad*2,cy+rad); ctx.lineTo(cx+rad,cy-rad+t*rad*2); ctx.stroke();
+        }
+      }
+      break;
+    }
+    case 'squares': {
+      const nS=Math.max(2,Math.round(2+lum*4));
+      for (let i=nS;i>=1;i--) {
+        const t=i/nS, hs=rad*t*0.88;
+        const rr=Math.round(r*t+dr*(1-t)), rg2=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
+        ctx.fillStyle=i%2===0?`rgb(${rr},${rg2},${rb})`:hRGB;
+        ctx.fillRect(cx-hs,cy-hs,hs*2,hs*2);
+      }
+      break;
+    }
+  }
+}
+
+// ════════════════════════════════════════════
+//  BUILD MESH FROM AVERAGED LANDMARKS
+// ════════════════════════════════════════════
+function getTrianglesForTier(tierName) {
+  const step = TIER_CONFIGS[tierName]?.step ?? 1;
+  if (step === 1) return FACE_TRIANGLES;
+  // Subsample: take every Nth triangle
+  return FACE_TRIANGLES.filter((_,i) => i % step === 0);
+}
+
+function buildFaceMesh(sc, lm, videoEl, tierName) {
+  const bbox = faceBBox(lm);
+  const tris  = getTrianglesForTier(tierName);
+  const nV    = lm.length; // 468
+
+  // ── Texture canvas — one cell per triangle ──
+  // We pack cells into a grid texture.
+  // Each triangle centroid gets a circular cell.
+  const CELL_R  = 12; // cell radius in texture px
+  const CELL_D  = CELL_R * 2 + 2; // cell diameter + 1px gap
+  const COLS    = Math.ceil(Math.sqrt(tris.length));
+  const ROWS    = Math.ceil(tris.length / COLS);
+  const texW    = COLS * CELL_D;
+  const texH    = ROWS * CELL_D;
+
   sc.texCanvas.width  = texW;
   sc.texCanvas.height = texH;
   const texCtx = sc.texCanvas.getContext('2d');
-  // Dark background for cell gaps
-  texCtx.fillStyle = '#080810';
+  texCtx.fillStyle = '#06060f';
   texCtx.fillRect(0, 0, texW, texH);
 
-  // ── Sample video pixels into face-crop canvas ──
-  const sW = Math.max(W*4, 256), sH = Math.max(H*4, 256);
-  const sCvs = document.createElement('canvas');
-  sCvs.width = sW; sCvs.height = sH;
-  const sCtx = sCvs.getContext('2d');
-  const vW   = videoEl.videoWidth  || 640;
-  const vH   = videoEl.videoHeight || 480;
-  // Mirror horizontal (selfie cam)
-  sCtx.save();
-  sCtx.scale(-1, 1); sCtx.translate(-sW, 0);
-  sCtx.drawImage(videoEl,
-    (1-bbox.x1)*vW, bbox.y0*vH, bw*vW, bh*vH,
-    0, 0, sW, sH
-  );
-  sCtx.restore();
-  const imgData = sCtx.getImageData(0, 0, sW, sH).data;
+  // ── Sample face pixels ──
+  const SPW = 256, SPH = 256;
+  const faceImg = captureFacePixels(videoEl, bbox, SPW, SPH);
 
-  function sampleRGB(u, v) {
-    const px = Math.min(sW-1, Math.max(0, Math.floor(u*(sW-1))));
-    const py = Math.min(sH-1, Math.max(0, Math.floor(v*(sH-1))));
-    const i  = (py*sW + px) * 4;
-    return [imgData[i], imgData[i+1], imgData[i+2]];
+  // ── Compute UV for each vertex ──
+  // UV maps from face-bbox space to texture atlas position
+  // We'll use per-triangle atlas UVs
+  const positions = new Float32Array(nV * 3);
+  const uvArr     = new Float32Array(nV * 2);
+
+  // Set all vertex 3D positions from landmarks
+  for (let i=0; i<nV; i++) {
+    const p3 = lmTo3D(lm[i], bbox, depthScale);
+    positions[i*3  ] = p3.x;
+    positions[i*3+1] = p3.y;
+    positions[i*3+2] = p3.z;
   }
 
-  // ── Face oval polygon for masking ──
-  const ovalPts = buildOvalPoly(lm, bbox);
+  // ── Atlas UV: each triangle maps to a circular cell in the atlas ──
+  // We need per-face UVs, which requires splitting shared vertices.
+  // Strategy: build non-indexed geometry where each triangle has 3 unique verts.
+  const triPositions = [];
+  const triUVs       = [];
+  const triCells     = []; // cell draw data
 
-  // ── Vertex positions ──
-  const nV = (W+1) * (H+1);
-  const positions  = new Float32Array(nV * 3);
-  const uvArr      = new Float32Array(nV * 2);
+  tris.forEach((tri, ti) => {
+    const [a, b, c] = tri;
+    if (a>=nV || b>=nV || c>=nV) return; // safety
 
-  for (let j = 0; j <= H; j++) {
-    for (let i = 0; i <= W; i++) {
-      const u  = i/W, v = j/H;
-      const vi = j*(W+1)+i;
+    // Triangle centroid in face UV space
+    const uvA = lmToUV(lm[a], bbox);
+    const uvB = lmToUV(lm[b], bbox);
+    const uvC = lmToUV(lm[c], bbox);
+    const cu  = (uvA.u + uvB.u + uvC.u) / 3;
+    const cv  = (uvA.v + uvB.v + uvC.v) / 3;
 
-      // Landmark-space coords (mirrored x)
-      const lx = (1-bbox.x1) + u*bw;
-      const ly = bbox.y0     + v*bh;
+    // Cell position in texture atlas
+    const col   = ti % COLS;
+    const row   = Math.floor(ti / COLS);
+    const cellCX = col * CELL_D + CELL_D/2;
+    const cellCY = row * CELL_D + CELL_D/2;
 
-      // Z from face surface
-      const z  = interpZ(sc.snapZLM, lx, ly) * depthScale;
+    // Atlas UV for each corner — map each vert relative to cell center
+    // We give each corner of the triangle a small UV offset from the cell center
+    // so the texture maps to the cell, not the whole triangle
+    const atlasCX = cellCX / texW;
+    const atlasCY = cellCY / texH;
+    const cellScale = CELL_R / texW * 0.85;
 
-      // 3D position — face-centered, aspect-ratio corrected
-      positions[vi*3  ] = (u - 0.5) * 1.85 * bAR;
-      positions[vi*3+1] = -(v - 0.5) * 1.85;
-      positions[vi*3+2] = z;
-
-      uvArr[vi*2  ] = u;
-      uvArr[vi*2+1] = 1-v; // Three.js flips V
+    // Each vert gets UV = cell_center + (vert_uv - centroid_uv) * scale
+    // Clamped within the cell disk
+    function vertAtlasUV(uv) {
+      return [
+        atlasCX + (uv.u - cu) * cellScale * 2,
+        1 - (atlasCY + (uv.v - cv) * cellScale * 2), // flip V
+      ];
     }
-  }
 
-  // ── Triangle indices ──
-  const idxArr = [];
-  for (let j=0; j<H; j++) {
-    for (let i=0; i<W; i++) {
-      const tl=j*(W+1)+i, tr=tl+1, bl=(j+1)*(W+1)+i, br=bl+1;
-      idxArr.push(tl,bl,tr, bl,br,tr);
-    }
-  }
+    // Vertex positions
+    const p3A = lmTo3D(lm[a], bbox, depthScale);
+    const p3B = lmTo3D(lm[b], bbox, depthScale);
+    const p3C = lmTo3D(lm[c], bbox, depthScale);
 
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('uv',       new THREE.BufferAttribute(uvArr, 2));
-  geo.setIndex(idxArr);
+    triPositions.push(p3A.x, p3A.y, p3A.z);
+    triPositions.push(p3B.x, p3B.y, p3B.z);
+    triPositions.push(p3C.x, p3C.y, p3C.z);
+
+    const [uaU, uaV] = vertAtlasUV(uvA);
+    const [ubU, ubV] = vertAtlasUV(uvB);
+    const [ucU, ucV] = vertAtlasUV(uvC);
+    triUVs.push(uaU, uaV, ubU, ubV, ucU, ucV);
+
+    // Sample colour at centroid
+    const [r,g,b] = sampleAtUV(faceImg.data, SPW, SPH, cu, cv);
+    triCells.push({ cx: cellCX, cy: cellCY, r, g, b });
+  });
+
+  // ── Build Three.js geometry ──
+  const posArr = new Float32Array(triPositions);
+  const uvFArr = new Float32Array(triUVs);
+  const geo    = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+  geo.setAttribute('uv',       new THREE.BufferAttribute(uvFArr, 2));
   geo.computeVertexNormals();
 
   if (sc.tex)  sc.tex.dispose();
@@ -524,289 +703,209 @@ function buildMeshGeometry(sc, lm, videoEl, tierName) {
   sc.tex.minFilter = THREE.LinearFilter;
   sc.tex.magFilter = THREE.LinearFilter;
 
-  if (sc.mesh) {
-    sc.scene.remove(sc.mesh);
-    sc.mesh.geometry.dispose();
-    sc.mesh.material.dispose();
-  }
+  if (sc.mesh) { sc.scene.remove(sc.mesh); sc.mesh.geometry.dispose(); sc.mesh.material.dispose(); }
   sc.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    map: sc.tex, transparent: true, roughness: 0.62, metalness: 0.0,
+    map: sc.tex, side: THREE.FrontSide, roughness:0.6,
   }));
   sc.scene.add(sc.mesh);
 
-  // Store base + current positions for puppeting
-  sc.basePositions = positions.slice();
-  sc.curPositions  = positions.slice();
+  // Store for puppeting
+  sc.snapLM      = lm.map(l=>({...l}));
+  sc.snapAnchors = buildAnchors(lm, bbox);
+  sc.snapBBox    = bbox;
+  sc.usedTris    = tris;
+  sc.triPositions = posArr;
+  sc.triUVs       = uvFArr;
+  sc.basePos      = posArr.slice();
+  sc.curPos       = posArr.slice();
 
-  // ── Build cell list for progressive texture fill ──
-  const cells = [];
-  for (let j=0; j<H; j++) {
-    for (let i=0; i<W; i++) {
-      const u  = (i+0.5)/W, v = (j+0.5)/H;
-      const [r,g,b] = sampleRGB(u, v);
-      cells.push({
-        tx: i*CELL_PX + CELL_PX/2,
-        ty: j*CELL_PX + CELL_PX/2,
-        r, g, b,
-        inside: inPolygon(u, v, ovalPts),
-      });
-    }
-  }
+  document.getElementById(sc === localS ? 'vertsLbl' : 'vertsLbl').textContent =
+    `${lm.length}v/${tris.length}t`;
 
-  return cells;
+  return triCells;
 }
 
-// ══════════════════════════════════════════
-//  CHUCK CLOSE CELL DRAWING
-// ══════════════════════════════════════════
-function drawCell(ctx, cx, cy, r, g, b) {
-  // Effective cell size reduced by gap
-  const size  = CELL_PX - CELL_GAP;
-  const half  = size * 0.5;
-  const lum   = (r*0.299 + g*0.587 + b*0.114) / 255;
-
-  // Color variants — more contrast makes cells "pop"
-  const dr = Math.max(0, r-80), dg = Math.max(0, g-80), db = Math.max(0, b-80);
-  const hr = Math.min(255,r+75), hg = Math.min(255,g+75), hb = Math.min(255,b+75);
-  const dRGB = `rgb(${dr},${dg},${db})`;
-  const hRGB = `rgb(${hr},${hg},${hb})`;
-  const sRGB = `rgb(${r},${g},${b})`;
-
-  switch (cellStyle) {
-    case 'rings': {
-      // Concentric rings — Chuck Close signature.
-      // Ring COUNT driven by luminance: bright areas = more rings (finer detail)
-      // Dark areas = fewer, thicker rings (heavy shadow)
-      const nRings = Math.max(2, Math.round(3 + lum * 5)); // 2-8 rings
-      for (let i = nRings; i >= 1; i--) {
-        const t   = i / nRings;
-        const rad = Math.max(0.5, half * t * 0.93);
-        // Odd rings = sample color, even rings = highlight
-        const rr = Math.round(r*t + dr*(1-t));
-        const rg = Math.round(g*t + dg*(1-t));
-        const rb = Math.round(b*t + db*(1-t));
-        ctx.beginPath();
-        ctx.arc(cx, cy, rad, 0, Math.PI*2);
-        ctx.fillStyle = i % 2 === 0 ? `rgb(${rr},${rg},${rb})` : hRGB;
-        ctx.fill();
-      }
-      // Center — punchy dark or bright dot
-      ctx.beginPath();
-      ctx.arc(cx, cy, Math.max(0.8, half * 0.14), 0, Math.PI*2);
-      ctx.fillStyle = lum > 0.6 ? dRGB : hRGB;
-      ctx.fill();
-      break;
-    }
-
-    case 'diamonds': {
-      const steps = Math.max(2, Math.round(2 + lum * 4));
-      for (let i = steps; i >= 1; i--) {
-        const t = i/steps, hs = half * t * 0.9;
-        const rr=Math.round(r*t+dr*(1-t)), rg=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
-        ctx.beginPath();
-        ctx.moveTo(cx, cy-hs); ctx.lineTo(cx+hs, cy);
-        ctx.lineTo(cx, cy+hs); ctx.lineTo(cx-hs, cy);
-        ctx.closePath();
-        ctx.fillStyle = i%2===0 ? `rgb(${rr},${rg},${rb})` : hRGB;
-        ctx.fill();
-      }
-      break;
-    }
-
-    case 'dots': {
-      const gridN = Math.max(2, Math.round(2 + lum * 3));
-      const sp    = size / gridN;
-      const maxR  = sp * 0.48 * (0.3 + lum * 0.7);
-      for (let gi=0; gi<gridN; gi++) {
-        for (let gj=0; gj<gridN; gj++) {
-          const gx = cx - half + sp*(gi+0.5);
-          const gy = cy - half + sp*(gj+0.5);
-          const d  = Math.sqrt((gx-cx)**2 + (gy-cy)**2);
-          ctx.beginPath();
-          ctx.arc(gx, gy, Math.max(0.5, maxR - d*0.08), 0, Math.PI*2);
-          ctx.fillStyle = sRGB; ctx.fill();
-        }
-      }
-      break;
-    }
-
-    case 'cross': {
-      const lc = Math.max(2, Math.round(half * (0.9 + (1-lum)*0.8)));
-      ctx.strokeStyle = sRGB;
-      ctx.lineWidth   = Math.max(0.5, size/(lc*3.2));
-      for (let li=0; li<=lc; li++) {
-        const ly = cy - half + (li/lc)*size;
-        ctx.beginPath(); ctx.moveTo(cx-half, ly); ctx.lineTo(cx+half, ly); ctx.stroke();
-      }
-      if (lum < 0.7) {
-        const dl = Math.max(1, Math.round(lc * (1-lum) * 0.8));
-        ctx.strokeStyle = hRGB;
-        for (let li=0; li<=dl; li++) {
-          const t = li/dl;
-          ctx.beginPath(); ctx.moveTo(cx-half+t*size, cy-half); ctx.lineTo(cx-half, cy-half+t*size); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(cx-half+t*size, cy+half); ctx.lineTo(cx+half, cy-half+t*size); ctx.stroke();
-        }
-      }
-      break;
-    }
-
-    case 'squares': {
-      const steps = Math.max(2, Math.round(2 + lum * 4));
-      for (let i=steps; i>=1; i--) {
-        const t=i/steps, hs=half*t*0.88;
-        const rr=Math.round(r*t+dr*(1-t)), rg=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
-        ctx.fillStyle = i%2===0 ? `rgb(${rr},${rg},${rb})` : hRGB;
-        ctx.fillRect(cx-hs, cy-hs, hs*2, hs*2);
-      }
-      break;
-    }
-  }
-}
-
-// ══════════════════════════════════════════
+// ════════════════════════════════════════════
 //  PROGRESSIVE TEXTURE FILL
-// ══════════════════════════════════════════
-async function fillTextureFull(sc, cells) {
-  const texCtx = sc.texCanvas.getContext('2d');
-  // Reset dark background
-  texCtx.fillStyle = '#080810';
-  texCtx.fillRect(0, 0, sc.texCanvas.width, sc.texCanvas.height);
+// ════════════════════════════════════════════
+async function fillCells(sc, cells) {
+  const ctx   = sc.texCanvas.getContext('2d');
+  // Dark background
+  ctx.fillStyle = '#06060f';
+  ctx.fillRect(0,0,sc.texCanvas.width,sc.texCanvas.height);
 
-  const BATCH = Math.max(4, Math.floor(cells.length / 20));
-  const order = cells.map((_,i)=>i).sort(() => Math.random()-0.5); // organic fill order
+  const CELL_R = 12;
+  const order  = cells.map((_,i)=>i).sort(()=>Math.random()-0.5);
+  const BATCH  = Math.max(4, Math.floor(cells.length/24));
 
   for (let b=0; b<order.length; b+=BATCH) {
-    for (let k=b; k<Math.min(b+BATCH, order.length); k++) {
+    for (let k=b; k<Math.min(b+BATCH,order.length); k++) {
       const c = cells[order[k]];
-      if (c.inside) drawCell(texCtx, c.tx, c.ty, c.r, c.g, c.b);
+      drawCell(ctx, c.cx, c.cy, CELL_R, c.r, c.g, c.b);
     }
     if (sc.tex) sc.tex.needsUpdate = true;
     await nextFrame();
   }
 }
 
-// ══════════════════════════════════════════
-//  PROGRESSIVE BUILD — coarse mesh → fine mesh
-// ══════════════════════════════════════════
+// ════════════════════════════════════════════
+//  PROGRESSIVE BUILD — 4 passes, coarse → fine
+// ════════════════════════════════════════════
 async function buildProgressive(sc, lm, videoEl, who) {
   buildRunning = true;
   const passes = [
-    { tier: 'GLYPH',    pct:  22, label: 'Sampling face…'     },
-    { tier: 'SPRITE',   pct:  48, label: 'Building structure…' },
-    { tier: 'PUPPET',   pct:  74, label: 'Adding detail…'      },
-    { tier: 'AVATAR3D', pct: 100, label: 'Full resolution…'    },
+    { tier:'GLYPH',    pct:20,  label:'Sampling face…'     },
+    { tier:'SPRITE',   pct:45,  label:'Building structure…' },
+    { tier:'PUPPET',   pct:72,  label:'Adding detail…'      },
+    { tier:'AVATAR3D', pct:100, label:'Full mesh…'          },
   ];
 
-  for (const pass of passes) {
-    updateBuildUI(who, pass.pct, pass.label);
-    const cells = buildMeshGeometry(sc, lm, videoEl, pass.tier);
-    await fillTextureFull(sc, cells);
-    if (pass.tier !== 'AVATAR3D') await sleep(120);
+  for (const p of passes) {
+    updateBuildUI(who, p.pct, p.label);
+    const cells = buildFaceMesh(sc, lm, videoEl, p.tier);
+    await fillCells(sc, cells);
+    if (p.tier !== 'AVATAR3D') await sleep(100);
   }
 
-  updateBuildUI(who, 100, 'Portrait built ✓');
-  await sleep(1100);
-  hideBuildUI(who);
+  updateBuildUI(who, 100, 'Portrait complete ✓');
+  await sleep(1100); hideBuildUI(who);
   buildRunning = false;
   document.getElementById('liveBtn').disabled = false;
-  setStatus('Portrait done — hit ⚡ Live Puppet to drive it with your face');
+  setStatus('Portrait built — hit ⚡ Live Puppet to animate it');
 }
 
-// ══════════════════════════════════════════
-//  LIVE PUPPET — RBF deformation from feature anchors
-// ══════════════════════════════════════════
-const LERP_SPEED = 0.28; // temporal smoothing (0=frozen, 1=instant)
+// ════════════════════════════════════════════
+//  LIVE PUPPET — RBF deformation from anchors
+// ════════════════════════════════════════════
+const LERP = 0.25;
 
 function puppet(sc, liveLM) {
   if (!sc.mesh || !sc.snapLM || !sc.snapBBox || !sc.snapAnchors) return;
 
-  const W    = sc.snapW, H = sc.snapH;
-  const bbox = sc.snapBBox;
-  const bw   = bbox.x1 - bbox.x0;
-  const bh   = bbox.y1 - bbox.y0;
-  const bAR  = sc.snapBBoxAR;
-  const base = sc.basePositions;
-  const cur  = sc.curPositions;
-  const pos  = sc.mesh.geometry.attributes.position.array;
+  const bbox  = sc.snapBBox;
+  const base  = sc.basePos;
+  const cur   = sc.curPos;
+  const pos   = sc.mesh.geometry.attributes.position.array;
+  const snap  = sc.snapLM;
+  const tris  = sc.usedTris;
+  const bAR   = bbox.w / bbox.h;
 
-  for (let j=0; j<=H; j++) {
-    for (let i=0; i<=W; i++) {
-      const vi = j*(W+1)+i;
-      const u  = i/W, v = j/H;
+  tris.forEach((tri, ti) => {
+    const [a,b,c] = tri;
+    if (a>=snap.length || b>=snap.length || c>=snap.length) return;
 
-      // Grid point in landmark space (mirrored x)
-      const px = (1-bbox.x1) + u*bw;
-      const py = bbox.y0     + v*bh;
+    // Triangle centroid in face UV space
+    const uvA = lmToUV(snap[a], bbox), uvB = lmToUV(snap[b], bbox), uvC = lmToUV(snap[c], bbox);
+    const cu  = (uvA.u+uvB.u+uvC.u)/3, cv = (uvA.v+uvB.v+uvC.v)/3;
 
-      // RBF delta from anchor displacements
-      const [ddx, ddy, ddz] = rbfDelta(sc.snapAnchors, liveLM, px, py);
+    // RBF delta at centroid
+    const [du, dv, dz] = rbfDelta(sc.snapAnchors, snap, liveLM, bbox, cu, cv);
 
-      // Base position (from snapshot)
-      const bx = base[vi*3  ];
-      const by = base[vi*3+1];
-      const bz = base[vi*3+2];
+    // Apply delta to all 3 vertices of this triangle
+    for (let vi=0; vi<3; vi++) {
+      const idx = (ti*3 + vi) * 3;
 
-      // Target = base + deformation
-      // Scale deltas to 3D space
-      const tx = bx + ddx * 1.85 * bAR;
-      const ty = by - ddy * 1.85;
-      const tz = bz + ddz * depthScale;
+      const tx = base[idx  ] + du * 1.85 * bAR;
+      const ty = base[idx+1] - dv * 1.85;
+      const tz = base[idx+2] + dz * depthScale;
 
-      // Smooth toward target
-      cur[vi*3  ] += (tx - cur[vi*3  ]) * LERP_SPEED;
-      cur[vi*3+1] += (ty - cur[vi*3+1]) * LERP_SPEED;
-      cur[vi*3+2] += (tz - cur[vi*3+2]) * LERP_SPEED;
+      cur[idx  ] += (tx - cur[idx  ]) * LERP;
+      cur[idx+1] += (ty - cur[idx+1]) * LERP;
+      cur[idx+2] += (tz - cur[idx+2]) * LERP;
 
-      pos[vi*3  ] = cur[vi*3  ];
-      pos[vi*3+1] = cur[vi*3+1];
-      pos[vi*3+2] = cur[vi*3+2];
+      pos[idx  ] = cur[idx  ];
+      pos[idx+1] = cur[idx+1];
+      pos[idx+2] = cur[idx+2];
     }
-  }
+  });
 
   sc.mesh.geometry.attributes.position.needsUpdate = true;
   sc.mesh.geometry.computeVertexNormals();
 }
 
-// ══════════════════════════════════════════
-//  LIVE COLOR DRIFT — subtle texture update from live cam
-// ══════════════════════════════════════════
-let colorDriftTick = 0;
+// Drift texture colors from live video
+let driftTick = 0;
 function driftColors(sc, videoEl) {
-  if (!sc.snapBBox || !sc.snapW) return;
-  colorDriftTick++;
-  if (colorDriftTick % 10 !== 0) return; // ~every 10 frames
+  if (!sc.snapBBox || !sc.usedTris) return;
+  if (driftTick++ % 12 !== 0) return;
+  const CELL_R = 12;
+  const COLS   = Math.ceil(Math.sqrt(sc.usedTris.length));
+  const CELL_D = CELL_R*2+2;
+  const W=80, H=80;
+  const img = captureFacePixels(videoEl, sc.snapBBox, W, H);
+  const ctx  = sc.texCanvas.getContext('2d');
 
-  const W = sc.snapW, H = sc.snapH, bbox = sc.snapBBox;
-  if (!videoEl.videoWidth) return;
-
-  const bw = bbox.x1-bbox.x0, bh = bbox.y1-bbox.y0;
-  const sW=80, sH=80;
-  const tmp = document.createElement('canvas');
-  tmp.width=sW; tmp.height=sH;
-  const tc  = tmp.getContext('2d');
-  tc.save(); tc.scale(-1,1); tc.translate(-sW,0);
-  tc.drawImage(videoEl, (1-bbox.x1)*videoEl.videoWidth, bbox.y0*videoEl.videoHeight,
-    bw*videoEl.videoWidth, bh*videoEl.videoHeight, 0,0,sW,sH);
-  tc.restore();
-  const id = tc.getImageData(0,0,sW,sH).data;
-
-  const texCtx = sc.texCanvas.getContext('2d');
-  // Update ~12% of cells per tick
-  const nUpdate = Math.max(1, Math.floor(W*H*0.12));
-  for (let k=0; k<nUpdate; k++) {
-    const i=Math.floor(Math.random()*W), j=Math.floor(Math.random()*H);
-    const u=(i+0.5)/W, v=(j+0.5)/H;
-    const px=Math.floor(u*(sW-1)), py=Math.floor(v*(sH-1));
-    const idx=(py*sW+px)*4;
-    drawCell(texCtx, i*CELL_PX+CELL_PX/2, j*CELL_PX+CELL_PX/2,
-      id[idx], id[idx+1], id[idx+2]);
+  // Update ~10% of cells
+  const n = Math.max(1, Math.floor(sc.usedTris.length * 0.10));
+  for (let k=0; k<n; k++) {
+    const ti = Math.floor(Math.random() * sc.usedTris.length);
+    const [a,b,c] = sc.usedTris[ti];
+    if (a>=sc.snapLM.length) continue;
+    const uvA=lmToUV(sc.snapLM[a],sc.snapBBox),
+          uvB=lmToUV(sc.snapLM[b],sc.snapBBox),
+          uvC=lmToUV(sc.snapLM[c],sc.snapBBox);
+    const cu=(uvA.u+uvB.u+uvC.u)/3, cv=(uvA.v+uvB.v+uvC.v)/3;
+    const [r,g,b2] = sampleAtUV(img.data, W, H, cu, cv);
+    const col=ti%COLS, row=Math.floor(ti/COLS);
+    drawCell(ctx, col*CELL_D+CELL_D/2, row*CELL_D+CELL_D/2, CELL_R, r,g,b2);
   }
   if (sc.tex) sc.tex.needsUpdate = true;
 }
 
-// ══════════════════════════════════════════
-//  CAMERA + MEDIAPIPE
-// ══════════════════════════════════════════
+// ════════════════════════════════════════════
+//  MULTI-FRAME SNAP
+// ════════════════════════════════════════════
+async function startSnap() {
+  if (!cameraOn || buildRunning || snapping) return;
+  if (!lastLandmarks) { setStatus('No face detected!'); return; }
+  const feed = document.getElementById('camFeed');
+  if (!feed.videoWidth) { setStatus('Camera not ready'); return; }
+
+  snapping = true;
+  frameBuffer = [];
+  document.getElementById('snapBtn').disabled = true;
+
+  // Show countdown overlay
+  const ov    = document.getElementById('snapOv');
+  const count = document.getElementById('snapCount');
+  ov.classList.add('show');
+
+  // Collect N frames — show countdown as we go
+  for (let i=snapFrames; i>=1; i--) {
+    count.textContent = i;
+    // Wait for next face result
+    await waitForFrame();
+    if (lastLandmarks) frameBuffer.push(lastLandmarks.map(l=>({...l})));
+  }
+
+  ov.classList.remove('show');
+
+  if (frameBuffer.length < 2) {
+    setStatus('Not enough frames — try again');
+    snapping = false;
+    document.getElementById('snapBtn').disabled = false;
+    return;
+  }
+
+  // Average all collected frames
+  const avgLM = averageLandmarks(frameBuffer);
+  setStatus(`Averaged ${frameBuffer.length} frames — building portrait…`);
+
+  await buildProgressive(localS, avgLM, feed, 'local');
+
+  snapping = false;
+  document.getElementById('snapBtn').disabled = false;
+  if (dc?.readyState === 'open') sendPortraitData(avgLM, feed);
+}
+
+// Wait for next face tracking result
+function waitForFrame() {
+  return new Promise(res => setTimeout(res, 100)); // ~10fps wait
+}
+
+// ════════════════════════════════════════════
+//  MEDIAPIPE CAMERA
+// ════════════════════════════════════════════
 let faceMeshInst = null;
 
 async function startCamera() {
@@ -814,42 +913,32 @@ async function startCamera() {
   btn.disabled=true; btn.textContent='⏳ Starting…';
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width:640, height:480, facingMode:'user' }, audio:false
+      video:{width:640,height:480,facingMode:'user'}, audio:false
     });
-
-    // PIP (mirrored preview)
-    const pip = document.getElementById('pipLocal');
-    pip.srcObject = stream;
-    await pip.play().catch(()=>{});
-
-    // Full-res feed for MediaPipe
+    const pip  = document.getElementById('pipLocal');
+    pip.srcObject = stream; await pip.play().catch(()=>{});
     const feed = document.getElementById('camFeed');
     feed.srcObject = stream;
-    await new Promise(res => { feed.onloadedmetadata = res; });
-    await feed.play();
+    await new Promise(res=>{feed.onloadedmetadata=res;}); await feed.play();
 
-    setStatus('Loading MediaPipe FaceMesh (first load ~10s)…');
-
+    setStatus('Loading MediaPipe FaceMesh (~10s first load)…');
     faceMeshInst = new FaceMesh({
-      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+      locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
     });
     faceMeshInst.setOptions({
-      maxNumFaces: 1,
-      refineLandmarks: true,          // gives iris landmarks for gaze
-      minDetectionConfidence: 0.55,
-      minTrackingConfidence:  0.50,
+      maxNumFaces:1, refineLandmarks:true,
+      minDetectionConfidence:0.55, minTrackingConfidence:0.5,
     });
     faceMeshInst.onResults(onFaceResults);
 
-    // Frame dropping prevents MediaPipe backpressure
     const mpCam = new Camera(feed, {
       onFrame: async () => {
         if (processingFrame || !faceMeshInst) return;
         processingFrame = true;
-        try { await faceMeshInst.send({ image: feed }); }
+        try { await faceMeshInst.send({image:feed}); }
         finally { processingFrame = false; }
       },
-      width: 640, height: 480,
+      width:640, height:480,
     });
     await mpCam.start();
 
@@ -857,12 +946,10 @@ async function startCamera() {
     btn.textContent = '✅ Camera On';
     document.getElementById('snapBtn').disabled = false;
     document.getElementById('fistBtn').disabled = false;
-    setStatus('Face detected — click 📸 Snap Portrait to build your avatar');
-
+    setStatus('Face tracking active — click 📸 Snap Portrait');
   } catch(e) {
     btn.disabled=false; btn.textContent='📷 Start Camera';
-    setStatus('Camera error: ' + e.message);
-    console.error(e);
+    setStatus('Camera error: '+e.message);
   }
 }
 
@@ -870,407 +957,308 @@ function onFaceResults(results) {
   if (!results.multiFaceLandmarks?.[0]) return;
   lastLandmarks = results.multiFaceLandmarks[0];
 
-  // Drive local avatar
   if (puppetActive && localS.mesh) {
     puppet(localS, lastLandmarks);
     driftColors(localS, document.getElementById('camFeed'));
   }
 
-  // Speaking detection from jaw landmark distance
-  const lm = lastLandmarks;
-  const jawOpen = Math.abs(lm[13].y - lm[14].y) * 20;
-  document.getElementById('localRing').className = 'speak-ring' + (jawOpen > 0.12 ? ' on' : '');
+  // Speaking detection
+  const lm  = lastLandmarks;
+  const jaw = Math.abs(lm[13].y - lm[14].y) * 20;
+  document.getElementById('localRing').className = 'speak-ring' + (jaw>0.12?' on':'');
 
-  // Send to peer
+  // Send landmarks to peer
   const now = Date.now();
-  if (now - lastSendT > SEND_MS) {
+  if (now-lastSendT > 80) {
     lastSendT = now;
-    sendLandmarks(lastLandmarks, jawOpen > 0.12);
+    sendLandmarks(lastLandmarks, jaw>0.12);
   }
 }
 
-// ══════════════════════════════════════════
-//  SNAP + BUILD
-// ══════════════════════════════════════════
-async function snapAndBuild() {
-  if (!cameraOn || buildRunning) return;
-  if (!lastLandmarks) { setStatus('No face detected — look at the camera!'); return; }
-  const feed = document.getElementById('camFeed');
-  if (!feed.videoWidth) { setStatus('Camera not ready'); return; }
-
-  document.getElementById('snapBtn').disabled = true;
-  setStatus('Building your Chuck Close portrait…');
-  await buildProgressive(localS, lastLandmarks, feed, 'local');
-  document.getElementById('snapBtn').disabled = false;
-
-  if (dc?.readyState === 'open') sendPortraitData(lastLandmarks, feed);
-}
-
+// ════════════════════════════════════════════
+//  LIVE PUPPET TOGGLE
+// ════════════════════════════════════════════
 function toggleLive() {
   puppetActive = !puppetActive;
   document.getElementById('liveBtn').textContent = puppetActive ? '⏹ Stop Puppet' : '⚡ Live Puppet';
-  setStatus(puppetActive
-    ? 'Live puppeting — your face drives the mesh in real time'
-    : 'Puppeting stopped'
-  );
+  setStatus(puppetActive ? 'Live puppet active — your face drives the mesh' : 'Puppet stopped');
 }
 
-// ══════════════════════════════════════════
-//  STYLE + TIER CONTROLS
-// ══════════════════════════════════════════
+// ════════════════════════════════════════════
+//  STYLE + TIER + DEPTH
+// ════════════════════════════════════════════
 function setStyle(s) {
   cellStyle = s;
-  ['rings','diamonds','dots','cross','squares'].forEach(id => {
-    document.getElementById('sb-'+id)?.classList.toggle('on', id===s);
-  });
-  // Re-render local if we have a portrait
+  ['rings','diamonds','dots','cross','squares'].forEach(id =>
+    document.getElementById('sb-'+id)?.classList.toggle('on', id===s));
+  // Re-render if portrait exists
   if (localS.snapLM) {
     const feed = document.getElementById('camFeed');
     if (feed.videoWidth) {
-      const cells = buildMeshGeometry(localS, localS.snapLM, feed, calcTier(bw,bat));
-      fillTextureFull(localS, cells);
+      const cells = buildFaceMesh(localS, localS.snapLM, feed, calcTier(bw,bat));
+      fillCells(localS, cells);
     }
-  }
-  if (remoteS.snapLM && remoteColorGrid && remoteLM) {
-    rebuildRemote(remoteLM, remoteColorGrid, remoteTierName);
   }
 }
 
-function calcTier(bw2, bat2) {
-  if (bw2 < 20)            return 'TEXT';
-  if (bw2 < 50)            return 'GLYPH';
-  if (bw2 < 100||bat2<15)  return 'SPRITE';
-  if (bw2 < 280||bat2<30)  return 'PUPPET';
+function calcTier(bw2,bat2) {
+  if(bw2<20) return 'TEXT'; if(bw2<50) return 'GLYPH';
+  if(bw2<100||bat2<15) return 'SPRITE'; if(bw2<280||bat2<30) return 'PUPPET';
   return 'AVATAR3D';
 }
 
 function onBw(v) {
-  bw = +v; document.getElementById('bwVal').textContent = v;
-  const t = calcTier(bw, bat);
-  document.getElementById('tierLbl').textContent = t;
-  document.getElementById('localBadge').textContent = t;
-  const cfg = TIER_GRIDS[t] || TIER_GRIDS.AVATAR3D;
-  document.getElementById('gridLbl').textContent = `${cfg.W}×${cfg.H}`;
+  bw=+v; document.getElementById('bwVal').textContent=v;
+  const t=calcTier(bw,bat);
+  document.getElementById('tierLbl').textContent=t;
+  document.getElementById('localBadge').textContent=t;
 }
-function onBat(v) { bat=+v; document.getElementById('batVal').textContent=v; onBw(bw); }
-function onDepth(v) { depthScale=+v; document.getElementById('depthVal').textContent=v+'×'; }
+function onBat(v){ bat=+v; document.getElementById('batVal').textContent=v; onBw(bw); }
+function onDepth(v){ depthScale=+v; document.getElementById('depthVal').textContent=v+'×'; }
+function onSnapFrames(v){ snapFrames=+v; document.getElementById('snapFramesVal').textContent=v; }
 
-// ══════════════════════════════════════════
-//  SAVE
-// ══════════════════════════════════════════
+// ════════════════════════════════════════════
+//  SAVE + CLEAR
+// ════════════════════════════════════════════
 function savePortrait() {
   localS.renderer.render(localS.scene, localS.camera);
   const a = document.createElement('a');
-  a.download = 'vibemesh-' + Date.now() + '.png';
+  a.download = 'vibemesh-'+Date.now()+'.png';
   a.href = localS.renderer.domElement.toDataURL('image/png');
-  a.click();
-  setStatus('Saved as PNG!');
+  a.click(); setStatus('Saved as PNG!');
 }
 
 function clearLocal() {
-  if (localS.mesh) {
-    localS.scene.remove(localS.mesh);
-    localS.mesh.geometry.dispose();
-    localS.mesh.material.dispose();
-    localS.mesh = null;
-  }
-  if (localS.tex) { localS.tex.dispose(); localS.tex = null; }
-  localS.snapLM = null; localS.snapBBox = null;
-  localS.basePositions = null; localS.curPositions = null;
-  puppetActive = false;
-  document.getElementById('liveBtn').disabled = true;
-  document.getElementById('liveBtn').textContent = '⚡ Live Puppet';
+  if (localS.mesh) { localS.scene.remove(localS.mesh); localS.mesh.geometry.dispose(); localS.mesh.material.dispose(); localS.mesh=null; }
+  if (localS.tex)  { localS.tex.dispose(); localS.tex=null; }
+  localS.snapLM=null; localS.basePos=null; localS.curPos=null;
+  puppetActive=false;
+  document.getElementById('liveBtn').disabled=true;
+  document.getElementById('liveBtn').textContent='⚡ Live Puppet';
   setStatus('Cleared — snap a new portrait');
 }
 
-// ══════════════════════════════════════════
+// ════════════════════════════════════════════
 //  WEBRTC
-// ══════════════════════════════════════════
+// ════════════════════════════════════════════
 let pc=null, dc=null;
-let remoteLM=null, remoteColorGrid=null, remoteTierName='AVATAR3D';
-const ICE = [
-  { urls:'stun:stun.l.google.com:19302' },
-  { urls:'stun:stun1.l.google.com:19302' },
-];
+let remoteLM=null, remoteColors=null, remoteTier='AVATAR3D';
+const ICE=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}];
 
 async function createOffer() {
-  setupPC();
-  dc = pc.createDataChannel('vibe', { ordered:false, maxRetransmits:0 });
-  setupDC(dc);
-  await pc.setLocalDescription(await pc.createOffer());
-  await waitICE();
-  document.getElementById('offerBox').value = JSON.stringify(pc.localDescription);
-  setStatus('Offer ready — copy and send to peer');
+  setupPC(); dc=pc.createDataChannel('vibe',{ordered:false,maxRetransmits:0}); setupDC(dc);
+  await pc.setLocalDescription(await pc.createOffer()); await waitICE();
+  document.getElementById('offerBox').value=JSON.stringify(pc.localDescription);
+  setStatus('Offer ready — send to peer');
 }
 
 async function handlePaste() {
-  const txt = document.getElementById('pasteBox').value.trim();
-  if (!txt) return;
+  const txt=document.getElementById('pasteBox').value.trim(); if(!txt) return;
   try {
-    const sdp = JSON.parse(txt);
-    if (sdp.type === 'offer') {
-      setupPC();
-      pc.ondatachannel = e => { dc=e.channel; setupDC(dc); };
+    const sdp=JSON.parse(txt);
+    if(sdp.type==='offer'){
+      setupPC(); pc.ondatachannel=e=>{dc=e.channel;setupDC(dc);};
       await pc.setRemoteDescription(sdp);
-      await pc.setLocalDescription(await pc.createAnswer());
-      await waitICE();
-      document.getElementById('offerBox').value = JSON.stringify(pc.localDescription);
-      setStatus('Answer ready — copy back to peer');
-    } else if (sdp.type === 'answer') {
-      await pc.setRemoteDescription(sdp);
-      setStatus('Answer set — connecting…');
+      await pc.setLocalDescription(await pc.createAnswer()); await waitICE();
+      document.getElementById('offerBox').value=JSON.stringify(pc.localDescription);
+      setStatus('Answer ready — send back to peer');
+    } else if(sdp.type==='answer'){
+      await pc.setRemoteDescription(sdp); setStatus('Answer set…');
     }
-  } catch(e) { setStatus('SDP error: '+e.message); }
+  } catch(e){ setStatus('SDP error: '+e.message); }
 }
 
-function setupPC() {
-  if (pc) pc.close();
-  pc = new RTCPeerConnection({ iceServers: ICE });
-  pc.oniceconnectionstatechange = () => {
-    const s = pc.iceConnectionState;
-    const el = document.getElementById('connLbl');
-    el.textContent = s.toUpperCase();
-    el.style.color = (s==='connected'||s==='completed') ? '#00ff88' : '#ff4757';
-    if (s==='connected'||s==='completed') {
-      closeModal();
-      setStatus('🔥 Peer connected — streaming live!');
-      startPing();
-      if (localS.snapLM) {
-        const feed = document.getElementById('camFeed');
-        if (feed.videoWidth) sendPortraitData(localS.snapLM, feed);
-      }
+function setupPC(){
+  if(pc)pc.close();
+  pc=new RTCPeerConnection({iceServers:ICE});
+  pc.oniceconnectionstatechange=()=>{
+    const s=pc.iceConnectionState,el=document.getElementById('connLbl');
+    el.textContent=s.toUpperCase();
+    el.style.color=(s==='connected'||s==='completed')?'#00ff88':'#ff4757';
+    if(s==='connected'||s==='completed'){
+      closeModal(); setStatus('🔥 Peer connected!'); startPing();
+      if(localS.snapLM){const f=document.getElementById('camFeed');if(f.videoWidth)sendPortraitData(localS.snapLM,f);}
     }
   };
 }
 
-function waitICE() {
-  return new Promise(res => {
-    if (pc.iceGatheringState==='complete') { res(); return; }
-    pc.onicegatheringstatechange = () => { if (pc.iceGatheringState==='complete') res(); };
-    setTimeout(res, 3500);
+function waitICE(){
+  return new Promise(res=>{
+    if(pc.iceGatheringState==='complete'){res();return;}
+    pc.onicegatheringstatechange=()=>{if(pc.iceGatheringState==='complete')res();};
+    setTimeout(res,3500);
   });
 }
 
-function setupDC(ch) {
-  ch.onopen  = () => setStatus('Channel open — streaming vibes 🔥');
-  ch.onclose = () => setStatus('Peer disconnected');
-  ch.onmessage = e => handlePacket(e.data);
+function setupDC(ch){
+  ch.onopen=()=>setStatus('Channel open 🔥');
+  ch.onclose=()=>setStatus('Peer disconnected');
+  ch.onmessage=e=>handlePacket(e.data);
 }
 
-function handlePacket(raw) {
+function handlePacket(raw){
   try {
-    const pkt = JSON.parse(raw);
-    if (pkt.type === 'portrait') {
-      recvCount++; document.getElementById('recvLbl').textContent = recvCount;
-      remoteLM        = pkt.lm;
-      remoteColorGrid = pkt.colors;
-      remoteTierName  = pkt.tier || 'AVATAR3D';
-      document.getElementById('remoteBadge').textContent = remoteTierName;
-      rebuildRemote(pkt.lm, pkt.colors, remoteTierName);
-
-    } else if (pkt.type === 'puppet') {
-      recvCount++; document.getElementById('recvLbl').textContent = recvCount;
-      if (remoteS.snapLM && pkt.lm) {
-        puppet(remoteS, pkt.lm);
-      }
-      document.getElementById('remoteRing').className = 'speak-ring' + (pkt.speaking ? ' on' : '');
-
-    } else if (pkt.type === 'gesture') {
+    const pkt=JSON.parse(raw);
+    if(pkt.type==='portrait'){
+      recvCount++; document.getElementById('recvLbl').textContent=recvCount;
+      remoteLM=pkt.lm; remoteColors=pkt.colors; remoteTier=pkt.tier||'AVATAR3D';
+      document.getElementById('remoteBadge').textContent=remoteTier;
+      buildRemote(pkt.lm, pkt.colors, remoteTier);
+    } else if(pkt.type==='puppet'){
+      recvCount++; document.getElementById('recvLbl').textContent=recvCount;
+      if(remoteS.snapLM&&pkt.lm) puppet(remoteS, pkt.lm);
+      document.getElementById('remoteRing').className='speak-ring'+(pkt.speaking?' on':'');
+    } else if(pkt.type==='gesture'){
       flashMesh(remoteS);
-    } else if (pkt.type === 'ping') {
-      if (dc?.readyState==='open') dc.send(JSON.stringify({ type:'pong', t:pkt.t }));
-    } else if (pkt.type === 'pong') {
-      document.getElementById('rttLbl').textContent = Date.now()-pkt.t;
+    } else if(pkt.type==='ping'){
+      if(dc?.readyState==='open')dc.send(JSON.stringify({type:'pong',t:pkt.t}));
+    } else if(pkt.type==='pong'){
+      document.getElementById('rttLbl').textContent=Date.now()-pkt.t;
     }
-  } catch(_) {}
+  } catch(_){}
 }
 
-// Build remote portrait from received data
-function rebuildRemote(lm, colors, tierName) {
-  const cfg = TIER_GRIDS[tierName] || TIER_GRIDS.AVATAR3D;
-  const W=cfg.W, H=cfg.H;
-  const bbox = computeBBoxFromArray(lm);
-  const bw   = bbox.x1-bbox.x0, bh = bbox.y1-bbox.y0, bAR=bw/bh;
+function buildRemote(lm, colors, tierName) {
+  // Reconstruct cells from received color data + landmarks
+  const bbox  = faceBBox(lm);
+  const tris  = getTrianglesForTier(tierName);
+  const CELL_R = 12, CELL_D=CELL_R*2+2;
+  const COLS   = Math.ceil(Math.sqrt(tris.length));
+  const ROWS   = Math.ceil(tris.length/COLS);
+  const texW   = COLS*CELL_D, texH = ROWS*CELL_D;
 
-  remoteS.snapLM      = lm.map(l=>({...l}));
-  remoteS.snapBBox    = bbox;
-  remoteS.snapW       = W; remoteS.snapH = H;
-  remoteS.snapBBoxAR  = bAR;
-  remoteS.snapAnchors = buildAnchors(lm);
-  remoteS.snapZLM     = buildZLookup(lm);
-
-  const texW=W*CELL_PX, texH=H*CELL_PX;
   remoteS.texCanvas.width=texW; remoteS.texCanvas.height=texH;
-  const texCtx = remoteS.texCanvas.getContext('2d');
-  texCtx.fillStyle='#080810'; texCtx.fillRect(0,0,texW,texH);
+  const texCtx=remoteS.texCanvas.getContext('2d');
+  texCtx.fillStyle='#06060f'; texCtx.fillRect(0,0,texW,texH);
 
-  const ovalPts = buildOvalPoly(lm, bbox);
-  const nV=(W+1)*(H+1);
-  const positions=new Float32Array(nV*3), uvArr=new Float32Array(nV*2);
+  // Build geometry
+  const nV=lm.length;
+  const triPositions=[], triUVs=[];
   const cells=[];
 
-  for (let j=0;j<=H;j++) for (let i=0;i<=W;i++) {
-    const u=i/W, v=j/H, vi=j*(W+1)+i;
-    const lx=(1-bbox.x1)+u*bw, ly=bbox.y0+v*bh;
-    const z=interpZ(remoteS.snapZLM, lx, ly)*depthScale;
-    positions[vi*3  ]=(u-0.5)*1.85*bAR;
-    positions[vi*3+1]=-(v-0.5)*1.85;
-    positions[vi*3+2]=z;
-    uvArr[vi*2]=u; uvArr[vi*2+1]=1-v;
-    if (i<W&&j<H) {
-      const cu=(i+0.5)/W, cv=(j+0.5)/H, cidx=(j*W+i)*3;
-      cells.push({
-        tx:i*CELL_PX+CELL_PX/2, ty:j*CELL_PX+CELL_PX/2,
-        r:colors[cidx], g:colors[cidx+1], b:colors[cidx+2],
-        inside: inPolygon(cu,cv,ovalPts),
-      });
-    }
-  }
+  tris.forEach((tri,ti)=>{
+    const [a,b,c]=tri;
+    if(a>=nV||b>=nV||c>=nV) return;
+    const uvA=lmToUV(lm[a],bbox), uvB=lmToUV(lm[b],bbox), uvC=lmToUV(lm[c],bbox);
+    const cu=(uvA.u+uvB.u+uvC.u)/3, cv=(uvA.v+uvB.v+uvC.v)/3;
+    const col=ti%COLS, row=Math.floor(ti/COLS);
+    const cellCX=col*CELL_D+CELL_D/2, cellCY=row*CELL_D+CELL_D/2;
+    const atlasCX=cellCX/texW, atlasCY=cellCY/texH;
+    const cellScale=CELL_R/texW*0.85;
+    function vUV(uv){return[atlasCX+(uv.u-cu)*cellScale*2,1-(atlasCY+(uv.v-cv)*cellScale*2)];}
+    const p3A=lmTo3D(lm[a],bbox,depthScale), p3B=lmTo3D(lm[b],bbox,depthScale), p3C=lmTo3D(lm[c],bbox,depthScale);
+    triPositions.push(p3A.x,p3A.y,p3A.z, p3B.x,p3B.y,p3B.z, p3C.x,p3C.y,p3C.z);
+    const[uaU,uaV]=vUV(uvA),[ubU,ubV]=vUV(uvB),[ucU,ucV]=vUV(uvC);
+    triUVs.push(uaU,uaV,ubU,ubV,ucU,ucV);
+    const cidx=ti*3;
+    cells.push({cx:cellCX,cy:cellCY,r:colors[cidx]||128,g:colors[cidx+1]||128,b:colors[cidx+2]||128});
+  });
 
-  const idxArr=[];
-  for (let j=0;j<H;j++) for (let i=0;i<W;i++) {
-    const tl=j*(W+1)+i,tr=tl+1,bl=(j+1)*(W+1)+i,br=bl+1;
-    idxArr.push(tl,bl,tr,bl,br,tr);
-  }
-
+  const posArr=new Float32Array(triPositions), uvArr=new Float32Array(triUVs);
   const geo=new THREE.BufferGeometry();
-  geo.setAttribute('position',new THREE.BufferAttribute(positions,3));
+  geo.setAttribute('position',new THREE.BufferAttribute(posArr,3));
   geo.setAttribute('uv',new THREE.BufferAttribute(uvArr,2));
-  geo.setIndex(idxArr); geo.computeVertexNormals();
+  geo.computeVertexNormals();
 
-  if (remoteS.tex) remoteS.tex.dispose();
-  remoteS.tex = new THREE.CanvasTexture(remoteS.texCanvas);
-  remoteS.tex.minFilter = THREE.LinearFilter;
+  if(remoteS.tex)remoteS.tex.dispose();
+  remoteS.tex=new THREE.CanvasTexture(remoteS.texCanvas);
+  remoteS.tex.minFilter=THREE.LinearFilter;
 
-  if (remoteS.mesh) {
-    remoteS.scene.remove(remoteS.mesh);
-    remoteS.mesh.geometry.dispose(); remoteS.mesh.material.dispose();
-  }
-  remoteS.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    map:remoteS.tex, transparent:true, roughness:0.62,
-  }));
+  if(remoteS.mesh){remoteS.scene.remove(remoteS.mesh);remoteS.mesh.geometry.dispose();remoteS.mesh.material.dispose();}
+  remoteS.mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({map:remoteS.tex,roughness:0.6}));
   remoteS.scene.add(remoteS.mesh);
-  remoteS.basePositions = positions.slice();
-  remoteS.curPositions  = positions.slice();
 
-  updateBuildUI('remote', 5, 'Building peer portrait…');
+  remoteS.snapLM=lm.map(l=>({...l}));
+  remoteS.snapBBox=bbox;
+  remoteS.snapAnchors=buildAnchors(lm,bbox);
+  remoteS.usedTris=tris;
+  remoteS.basePos=posArr.slice();
+  remoteS.curPos=posArr.slice();
+  remoteS.triPositions=posArr;
+  remoteS.triUVs=uvArr;
+
+  updateBuildUI('remote',5,'Building peer portrait…');
   document.getElementById('remoteBuildOv').style.display='block';
   (async()=>{
-    await fillTextureFull(remoteS, cells);
+    await fillCells(remoteS, cells);
     updateBuildUI('remote',100,'Peer portrait built ✓');
     await sleep(1000); hideBuildUI('remote');
   })();
 }
 
-function computeBBoxFromArray(lm) {
-  let x0=1,x1=0,y0=1,y1=0;
-  FACE_OVAL.forEach(i=>{
-    const l=lm[i];
-    if(l.x<x0)x0=l.x; if(l.x>x1)x1=l.x;
-    if(l.y<y0)y0=l.y; if(l.y>y1)y1=l.y;
-  });
-  const pw=(x1-x0)*0.04, ph=(y1-y0)*0.04;
-  return{x0:Math.max(0,x0-pw),x1:Math.min(1,x1+pw),y0:Math.max(0,y0-ph),y1:Math.min(1,y1+ph)};
-}
-
 function sendPortraitData(lm, videoEl) {
-  if (dc?.readyState !== 'open') return;
-  const tier = calcTier(bw, bat);
-  const cfg  = TIER_GRIDS[tier] || TIER_GRIDS.AVATAR3D;
-  const {W,H} = cfg;
-  const bbox  = computeBBox(lm);
-  const bww=bbox.x1-bbox.x0, bh=bbox.y1-bbox.y0;
-
-  const sW=W*2, sH=H*2;
-  const sCvs=document.createElement('canvas'); sCvs.width=sW; sCvs.height=sH;
-  const sCtx=sCvs.getContext('2d');
-  const vW=videoEl.videoWidth||640, vH=videoEl.videoHeight||480;
-  sCtx.save(); sCtx.scale(-1,1); sCtx.translate(-sW,0);
-  sCtx.drawImage(videoEl,(1-bbox.x1)*vW,bbox.y0*vH,bww*vW,bh*vH,0,0,sW,sH);
-  sCtx.restore();
-  const id=sCtx.getImageData(0,0,sW,sH).data;
-
+  if(dc?.readyState!=='open') return;
+  const tier=calcTier(bw,bat);
+  const bbox=faceBBox(lm);
+  const tris=getTrianglesForTier(tier);
+  const W=120, H=120;
+  const img=captureFacePixels(videoEl, bbox, W, H);
+  // One RGB entry per triangle (centroid color)
   const colors=[];
-  for (let j=0;j<H;j++) for (let i=0;i<W;i++) {
-    const u=(i+0.5)/W, v=(j+0.5)/H;
-    const px=Math.floor(u*(sW-1)), py=Math.floor(v*(sH-1)), idx=(py*sW+px)*4;
-    colors.push(id[idx],id[idx+1],id[idx+2]);
-  }
-
-  const lmArr = lm.map(l=>({
-    x: +l.x.toFixed(4), y: +l.y.toFixed(4), z: +l.z.toFixed(4)
-  }));
-
-  dc.send(JSON.stringify({ type:'portrait', tier, lm:lmArr, colors }));
+  tris.forEach((tri,ti)=>{
+    const [a,b,c]=tri;
+    if(a>=lm.length||b>=lm.length||c>=lm.length){colors.push(128,128,128);return;}
+    const uvA=lmToUV(lm[a],bbox),uvB=lmToUV(lm[b],bbox),uvC=lmToUV(lm[c],bbox);
+    const cu=(uvA.u+uvB.u+uvC.u)/3, cv=(uvA.v+uvB.v+uvC.v)/3;
+    const[r,g,b2]=sampleAtUV(img.data,W,H,cu,cv);
+    colors.push(r,g,b2);
+  });
+  const lmArr=lm.map(l=>({x:+l.x.toFixed(4),y:+l.y.toFixed(4),z:+l.z.toFixed(4)}));
+  dc.send(JSON.stringify({type:'portrait',tier,lm:lmArr,colors}));
   sentCount++; document.getElementById('sentLbl').textContent=sentCount;
   setStatus('Portrait sent to peer!');
 }
 
 function sendLandmarks(lm, speaking) {
-  if (dc?.readyState !== 'open') return;
-  const lmArr = lm.map(l=>({
-    x:+l.x.toFixed(3), y:+l.y.toFixed(3), z:+l.z.toFixed(3)
-  }));
-  dc.send(JSON.stringify({ type:'puppet', lm:lmArr, speaking }));
+  if(dc?.readyState!=='open') return;
+  const lmArr=lm.map(l=>({x:+l.x.toFixed(3),y:+l.y.toFixed(3),z:+l.z.toFixed(3)}));
+  dc.send(JSON.stringify({type:'puppet',lm:lmArr,speaking}));
   sentCount++; document.getElementById('sentLbl').textContent=sentCount;
 }
 
-function startPing() {
-  setInterval(()=>{
-    if (dc?.readyState==='open') dc.send(JSON.stringify({type:'ping',t:Date.now()}));
-  }, 2000);
-}
+function startPing(){setInterval(()=>{if(dc?.readyState==='open')dc.send(JSON.stringify({type:'ping',t:Date.now()}));},2000);}
 
-// ══════════════════════════════════════════
-//  GESTURES
-// ══════════════════════════════════════════
-function sendFistPump() {
+// ════════════════════════════════════════════
+//  GESTURES + VOICE
+// ════════════════════════════════════════════
+function sendFistPump(){
   flashMesh(localS);
-  if (dc?.readyState==='open') dc.send(JSON.stringify({type:'gesture'}));
+  if(dc?.readyState==='open')dc.send(JSON.stringify({type:'gesture'}));
   setStatus('👊 FIST PUMP!');
 }
 
-function flashMesh(sc) {
-  if (!sc.mesh) return;
-  sc.mesh.material.emissive = new THREE.Color(0xff00aa);
-  sc.mesh.material.emissiveIntensity = 0.7;
-  setTimeout(()=>{
-    if (sc.mesh) { sc.mesh.material.emissive.set(0); sc.mesh.material.emissiveIntensity=0; }
-  }, 200);
+function flashMesh(sc){
+  if(!sc.mesh)return;
+  sc.mesh.material.emissive=new THREE.Color(0xff00aa);
+  sc.mesh.material.emissiveIntensity=0.7;
+  setTimeout(()=>{if(sc.mesh){sc.mesh.material.emissive.set(0);sc.mesh.material.emissiveIntensity=0;}},200);
 }
 
-function cloneVoice() {
-  if (!window.speechSynthesis) return;
+function cloneVoice(){
+  if(!window.speechSynthesis)return;
   window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance('Yo CB from the Shore — 3 Guys pizza slice in hand bro!');
-  u.pitch=1.1; u.rate=1.15; u.onerror=()=>{};
-  window.speechSynthesis.speak(u);
+  const u=new SpeechSynthesisUtterance('Yo CB from the Shore — 3 Guys pizza slice in hand bro!');
+  u.pitch=1.1;u.rate=1.15;u.onerror=()=>{};window.speechSynthesis.speak(u);
 }
 
-// ══════════════════════════════════════════
-//  UTILITIES
-// ══════════════════════════════════════════
-const nextFrame = () => new Promise(r => requestAnimationFrame(r));
-const sleep     = ms  => new Promise(r => setTimeout(r, ms));
+// ════════════════════════════════════════════
+//  UI HELPERS
+// ════════════════════════════════════════════
+const nextFrame = () => new Promise(r=>requestAnimationFrame(r));
+const sleep     = ms  => new Promise(r=>setTimeout(r,ms));
 
-function updateBuildUI(who, pct, lbl) {
-  const f=document.getElementById(who+'BuildFill');
-  const l=document.getElementById(who+'BuildLbl');
-  const o=document.getElementById(who+'BuildOv');
-  if(f) f.style.width=pct+'%';
-  if(l) l.textContent=lbl;
-  if(o) o.style.display='block';
+function updateBuildUI(who,pct,lbl){
+  const f=document.getElementById(who+'BuildFill'),l=document.getElementById(who+'BuildLbl'),o=document.getElementById(who+'BuildOv');
+  if(f)f.style.width=pct+'%'; if(l)l.textContent=lbl; if(o)o.style.display='block';
 }
-
-function hideBuildUI(who) {
-  const o=document.getElementById(who+'BuildOv'); if(!o) return;
-  o.style.transition='opacity .7s'; o.style.opacity='0';
-  setTimeout(()=>{ o.style.display='none'; o.style.opacity='1'; }, 750);
+function hideBuildUI(who){
+  const o=document.getElementById(who+'BuildOv');if(!o)return;
+  o.style.transition='opacity .7s';o.style.opacity='0';
+  setTimeout(()=>{o.style.display='none';o.style.opacity='1';},750);
 }
-
-function setStatus(msg) { document.getElementById('statusbar').textContent = msg; }
-function openModal()    { document.getElementById('sigModal').classList.add('open'); }
-function closeModal()   { document.getElementById('sigModal').classList.remove('open'); }
+function setStatus(m){document.getElementById('statusbar').textContent=m;}
+function openModal(){document.getElementById('sigModal').classList.add('open');}
+function closeModal(){document.getElementById('sigModal').classList.remove('open');}
 </script>
 </body>
 </html>
