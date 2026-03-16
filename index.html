@@ -1,136 +1,110 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh v4.0 — Shore Edition</title>
+<title>VibeMesh v5.0 — Chuck Close Mesh</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#06060f;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
-
-.hdr{text-align:center;padding:16px 10px 6px}
-.hdr h1{font-size:clamp(1.3em,4vw,2.1em);font-weight:900;letter-spacing:1px;
-  background:linear-gradient(90deg,#00f0ff,#ff00aa);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.hdr sub{display:block;font-size:.62em;color:#333;letter-spacing:3px;
-  text-transform:uppercase;margin-top:2px}
-
-.call{display:flex;justify-content:center;gap:20px;padding:10px 16px;flex-wrap:wrap}
-.avatar-box{display:flex;flex-direction:column;align-items:center;gap:7px}
-.av-label{font-size:.78em;font-weight:700;color:#00ffcc;letter-spacing:2px;text-transform:uppercase}
-
+.hdr{text-align:center;padding:14px 10px 4px}
+.hdr h1{font-size:clamp(1.3em,4vw,2em);font-weight:900;letter-spacing:1px;
+  background:linear-gradient(90deg,#00f0ff,#ff00aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hdr sub{display:block;font-size:.6em;color:#333;letter-spacing:3px;text-transform:uppercase;margin-top:1px}
+.call{display:flex;justify-content:center;gap:20px;padding:8px 16px;flex-wrap:wrap}
+.avatar-box{display:flex;flex-direction:column;align-items:center;gap:5px}
+.av-label{font-size:.75em;font-weight:700;color:#00ffcc;letter-spacing:2px;text-transform:uppercase}
 .av-frame{position:relative;width:320px;height:380px;border-radius:18px;overflow:hidden;
-  background:#0a0a18;box-shadow:0 0 60px #00f0ff18,0 0 0 1px #ffffff08}
-
-#canvasLocal,#canvasRemote{
-  position:absolute;top:0;left:0;width:320px;height:380px;
-  image-rendering:pixelated;cursor:crosshair}
-
-#camFeed{display:none}
-
-.pip{position:absolute;bottom:10px;right:10px;width:68px;height:52px;
-  border-radius:7px;overflow:hidden;border:2px solid #00f0ff44;
-  background:#000;z-index:20}
+  background:#06060f;box-shadow:0 0 50px #00f0ff18,0 0 0 1px #ffffff08}
+.av-frame canvas{position:absolute;top:0;left:0;width:100%;height:100%}
+.pip{position:absolute;bottom:10px;right:10px;width:70px;height:52px;
+  border-radius:7px;overflow:hidden;border:2px solid #00f0ff44;background:#000;z-index:30}
 .pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-
-.tier-badge{position:absolute;top:9px;left:11px;padding:3px 9px;
-  border-radius:20px;font-size:.58em;font-weight:700;letter-spacing:1.5px;
-  text-transform:uppercase;background:#00f0ff12;border:1px solid #00f0ff44;
-  color:#00f0ff;z-index:20;pointer-events:none}
-.speak-ring{position:absolute;inset:0;border-radius:18px;
-  border:3px solid transparent;transition:border-color .12s;
-  pointer-events:none;z-index:10}
-.speak-ring.on{border-color:#00ff8888}
-@keyframes spk{0%,100%{box-shadow:inset 0 0 0 transparent}
-  50%{box-shadow:inset 0 0 20px #00ff8828}}
+.tier-badge{position:absolute;top:9px;left:11px;padding:3px 9px;border-radius:20px;
+  font-size:.58em;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  background:#00f0ff12;border:1px solid #00f0ff44;color:#00f0ff;z-index:20;pointer-events:none}
+.speak-ring{position:absolute;inset:0;border-radius:18px;border:3px solid transparent;
+  transition:border-color .12s;pointer-events:none;z-index:10}
+.speak-ring.on{border-color:#00ff8877}
+@keyframes spk{0%,100%{box-shadow:inset 0 0 0 #0000}50%{box-shadow:inset 0 0 18px #00ff8822}}
 .speak-ring.on{animation:spk .8s infinite}
-
-.build-overlay{position:absolute;bottom:0;left:0;right:0;padding:12px 14px 14px;
-  background:linear-gradient(transparent,#000000bb);
-  border-radius:0 0 18px 18px;z-index:15;pointer-events:none;transition:opacity .8s}
-.build-label{font-size:.62em;color:#999;letter-spacing:1px;margin-bottom:5px}
-.build-track{height:3px;background:#ffffff12;border-radius:2px;overflow:hidden}
+.build-ov{position:absolute;bottom:0;left:0;right:0;padding:11px 14px 13px;
+  background:linear-gradient(transparent,#000000cc);border-radius:0 0 18px 18px;
+  z-index:15;pointer-events:none;transition:opacity .7s}
+.build-lbl{font-size:.6em;color:#aaa;letter-spacing:1px;margin-bottom:4px}
+.build-track{height:3px;background:#ffffff10;border-radius:2px;overflow:hidden}
 .build-fill{height:3px;border-radius:2px;width:0%;
-  background:linear-gradient(90deg,#00f0ff,#ff00aa);transition:width .2s}
-
-.controls{background:#0b0b1c;padding:14px 18px;margin:4px 16px 8px;
+  background:linear-gradient(90deg,#00f0ff,#ff00aa);transition:width .18s}
+.controls{background:#0b0b1c;padding:13px 18px;margin:4px 16px 6px;
   border-radius:16px;border:1px solid #ffffff07}
-.ctrl-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.ctrl-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:flex-end}
 .ctrl-row:last-child{margin-bottom:0}
-.sl-wrap{flex:1;min-width:140px;display:flex;flex-direction:column;gap:3px}
-.sl-wrap label{font-size:.65em;color:#444;letter-spacing:1px;text-transform:uppercase}
+.sl-g{flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px}
+.sl-g label{font-size:.63em;color:#444;letter-spacing:1px;text-transform:uppercase}
 .sl-inner{display:flex;align-items:center;gap:7px}
-input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;height:3px}
-.slval{font-size:.75em;color:#00f0ff;min-width:32px;text-align:right}
-
-button{padding:10px 12px;font-size:.8em;font-weight:700;font-family:inherit;
-  background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;
-  border-radius:10px;color:#000;cursor:pointer;
-  transition:opacity .15s,transform .1s;white-space:nowrap}
+input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer}
+.slv{font-size:.73em;color:#00f0ff;min-width:30px;text-align:right}
+button{padding:10px 12px;font-size:.78em;font-weight:700;font-family:inherit;
+  background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;border-radius:10px;
+  color:#000;cursor:pointer;transition:opacity .15s,transform .1s;white-space:nowrap}
 button:active{opacity:.7;transform:scale(.97)}
 button:disabled{background:#161626;color:#333;cursor:default;transform:none}
 button.sec{background:#161626;color:#666;border:1px solid #ffffff0a}
 button.sec:not(:disabled):hover{color:#ccc}
-
+.style-pick{display:flex;gap:5px;flex-wrap:wrap}
+.sb{padding:5px 10px;font-size:.68em;background:#161626;color:#555;
+  border:1px solid #ffffff0a;border-radius:7px;cursor:pointer;font-family:inherit;font-weight:600}
+.sb.on{background:#00f0ff1a;color:#00f0ff;border-color:#00f0ff44}
 .stats{display:flex;justify-content:center;gap:12px;padding:4px 16px 6px;flex-wrap:wrap}
-.stat{font-size:.66em;color:#333}.stat b{color:#00ffcc;font-weight:600}
-.statusbar{text-align:center;padding:3px 16px 12px;font-size:.7em;color:#444;min-height:20px}
-
-#sigModal{display:none;position:fixed;inset:0;background:#000c;
-  z-index:300;align-items:center;justify-content:center}
+.stat{font-size:.65em;color:#333}.stat b{color:#00ffcc;font-weight:600}
+.statusbar{text-align:center;padding:3px 16px 10px;font-size:.7em;color:#444;min-height:20px}
+#sigModal{display:none;position:fixed;inset:0;background:#000c;z-index:200;
+  align-items:center;justify-content:center}
 #sigModal.open{display:flex}
 .modal{background:#0b0b1e;border:1px solid #00f0ff2a;border-radius:20px;
   padding:20px;max-width:440px;width:92%;display:flex;flex-direction:column;gap:9px}
-.modal h2{color:#00f0ff;font-size:.95em;font-weight:700}
-.modal p{font-size:.72em;color:#444;line-height:1.55}
+.modal h2{color:#00f0ff;font-size:.93em;font-weight:700}
+.modal p{font-size:.72em;color:#444;line-height:1.5}
 .modal textarea{background:#07070f;color:#00ff88;border:1px solid #00f0ff22;
   border-radius:8px;padding:9px;font-size:.68em;font-family:monospace;
-  resize:vertical;min-height:66px;width:100%;outline:none}
+  resize:vertical;min-height:64px;width:100%;outline:none}
 .modal textarea:focus{border-color:#00f0ff55}
-.mbtn{background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;
-  border-radius:9px;padding:11px;color:#000;font-size:.82em;
-  font-weight:700;font-family:inherit;cursor:pointer;width:100%}
+.mbtn{background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;border-radius:9px;
+  padding:11px;color:#000;font-size:.82em;font-weight:700;font-family:inherit;cursor:pointer;width:100%}
 .mbtn.dim{background:#161626;color:#444;border:1px solid #ffffff0a}
-
-.style-picker{display:flex;gap:6px;flex-wrap:wrap}
-.style-btn{padding:6px 12px;font-size:.72em;background:#161626;
-  color:#666;border:1px solid #ffffff0a;border-radius:8px;
-  cursor:pointer;transition:all .15s;font-family:inherit;font-weight:600}
-.style-btn.active{background:#00f0ff22;color:#00f0ff;border-color:#00f0ff55}
 </style>
 </head>
 <body>
 
 <div class="hdr">
-  <h1>🏖️ VibeMesh v4.0</h1>
-  <sub>Generative Portrait · Shore Edition</sub>
+  <h1>🏖️ VibeMesh v5.0</h1>
+  <sub>Chuck Close Mesh · Live Puppet · Shore Edition</sub>
 </div>
 
 <div class="call">
   <div class="avatar-box">
     <div class="av-label">You · Vancouver</div>
     <div class="av-frame" id="localFrame">
-      <canvas id="canvasLocal" width="320" height="380"></canvas>
       <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
-      <div class="tier-badge" id="localTier">READY</div>
+      <div class="tier-badge" id="localBadge">READY</div>
       <div class="speak-ring" id="localRing"></div>
-      <div class="build-overlay" id="localBuildOv">
-        <div class="build-label" id="localBuildLbl">Start camera to begin</div>
+      <div class="build-ov" id="localBuildOv">
+        <div class="build-lbl" id="localBuildLbl">Click Snap Portrait to begin</div>
         <div class="build-track"><div class="build-fill" id="localBuildFill"></div></div>
       </div>
     </div>
   </div>
-
   <div class="avatar-box">
     <div class="av-label">JerseyBro · Remote</div>
     <div class="av-frame" id="remoteFrame">
-      <canvas id="canvasRemote" width="320" height="380"></canvas>
-      <div class="tier-badge" id="remoteTier">WAITING</div>
+      <div class="tier-badge" id="remoteBadge">WAITING</div>
       <div class="speak-ring" id="remoteRing"></div>
-      <div class="build-overlay" id="remoteBuildOv">
-        <div class="build-label" id="remoteBuildLbl">Waiting for peer…</div>
+      <div class="build-ov" id="remoteBuildOv">
+        <div class="build-lbl" id="remoteBuildLbl">Waiting for peer…</div>
         <div class="build-track"><div class="build-fill" id="remoteBuildFill"></div></div>
       </div>
     </div>
@@ -142,56 +116,55 @@ button.sec:not(:disabled):hover{color:#ccc}
 
 <div class="controls">
   <div class="ctrl-row">
-    <div style="font-size:.65em;color:#444;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;width:100%">Cell Style</div>
-    <div class="style-picker">
-      <button class="style-btn active" onclick="setStyle('rings')"    id="s-rings">Rings</button>
-      <button class="style-btn"        onclick="setStyle('diamonds')" id="s-diamonds">Diamonds</button>
-      <button class="style-btn"        onclick="setStyle('dots')"     id="s-dots">Dots</button>
-      <button class="style-btn"        onclick="setStyle('cross')"    id="s-cross">Cross-hatch</button>
-      <button class="style-btn"        onclick="setStyle('squares')"  id="s-squares">Squares</button>
+    <div style="font-size:.63em;color:#444;letter-spacing:1px;text-transform:uppercase;width:100%;margin-bottom:2px">Cell Style</div>
+    <div class="style-pick">
+      <button class="sb on" id="sb-rings"    onclick="setStyle('rings')">Rings</button>
+      <button class="sb"    id="sb-diamonds" onclick="setStyle('diamonds')">Diamonds</button>
+      <button class="sb"    id="sb-dots"     onclick="setStyle('dots')">Dots</button>
+      <button class="sb"    id="sb-cross"    onclick="setStyle('cross')">Cross-hatch</button>
+      <button class="sb"    id="sb-squares"  onclick="setStyle('squares')">Squares</button>
     </div>
   </div>
-
   <div class="ctrl-row">
-    <div class="sl-wrap">
-      <label>Bandwidth</label>
+    <div class="sl-g">
+      <label>Bandwidth → Mesh Resolution</label>
       <div class="sl-inner">
         <input type="range" min="5" max="900" value="900" oninput="onBw(this.value)">
-        <div class="slval"><span id="bwVal">900</span>k</div>
+        <div class="slv"><span id="bwVal">900</span>k</div>
       </div>
     </div>
-    <div class="sl-wrap">
+    <div class="sl-g">
       <label>Battery</label>
       <div class="sl-inner">
         <input type="range" min="1" max="100" value="100" oninput="onBat(this.value)">
-        <div class="slval"><span id="batVal">100</span>%</div>
+        <div class="slv"><span id="batVal">100</span>%</div>
       </div>
     </div>
-    <div class="sl-wrap">
-      <label>Detail</label>
+    <div class="sl-g">
+      <label>Depth Scale</label>
       <div class="sl-inner">
-        <input type="range" min="1" max="4" value="3" step="1" oninput="onDetail(this.value)">
-        <div class="slval"><span id="detailVal">3</span>/4</div>
+        <input type="range" min="1" max="10" value="5" oninput="onDepth(this.value)">
+        <div class="slv" id="depthVal">5×</div>
       </div>
     </div>
   </div>
-
   <div class="ctrl-row">
     <button id="camBtn"  onclick="startCamera()">📷 Start Camera</button>
     <button id="snapBtn" onclick="snapAndBuild()" disabled>📸 Snap Portrait</button>
-    <button id="liveBtn" onclick="toggleLive()" disabled>⚡ Live Mode</button>
+    <button id="liveBtn" onclick="toggleLive()" disabled>⚡ Live Puppet</button>
     <button onclick="openModal()">📡 Connect Peer</button>
   </div>
   <div class="ctrl-row">
     <button id="fistBtn" onclick="sendFistPump()" disabled>👊 Fist Pump</button>
-    <button class="sec"  onclick="savePortrait()">💾 Save Portrait</button>
-    <button class="sec"  onclick="clearCanvas('local')">🗑️ Clear</button>
+    <button class="sec"  onclick="savePortrait()">💾 Save</button>
+    <button class="sec"  onclick="clearLocal()">🗑️ Clear</button>
     <button class="sec"  onclick="cloneVoice()">🎤 Voice Clone</button>
   </div>
 </div>
 
 <div class="stats">
   <div class="stat">Tier <b id="tierLbl">AVATAR3D</b></div>
+  <div class="stat">Grid <b id="gridLbl">40×50</b></div>
   <div class="stat">Sent <b id="sentLbl">0</b></div>
   <div class="stat">Recv <b id="recvLbl">0</b></div>
   <div class="stat">RTT  <b id="rttLbl">—</b>ms</div>
@@ -202,7 +175,7 @@ button.sec:not(:disabled):hover{color:#ccc}
 <div id="sigModal">
   <div class="modal">
     <h2>📡 Connect to Peer</h2>
-    <p>One person clicks Create Offer, sends the JSON to the other. They paste it and send back an answer.</p>
+    <p>One person creates an offer and sends the JSON to the other out-of-band. They paste it back with an answer.</p>
     <button class="mbtn" onclick="createOffer()">1️⃣ Create Offer</button>
     <textarea id="offerBox" placeholder="Your SDP appears here — copy and send to peer"></textarea>
     <p>Paste peer's SDP here:</p>
@@ -215,125 +188,122 @@ button.sec:not(:disabled):hover{color:#ccc}
 <script>
 'use strict';
 
-const CW = 320, CH = 380;
-const SAMPLE_W = 64, SAMPLE_H = 76;
-const SEND_MS  = 80;
-const LIVE_MS  = 120;
-const PASSES = [4, 8, 16, 32, 64];
+const AV_W = 320, AV_H = 380;
+const CELL_PX = 18;
+const SEND_MS = 80;
+
+const TIER_GRIDS = {
+  AVATAR3D: { W:40, H:50 },
+  PUPPET:   { W:20, H:25 },
+  SPRITE:   { W:12, H:15 },
+  GLYPH:    { W: 6, H: 8  },
+};
+
+const FACE_OVAL = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,
+  379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
 
 let cellStyle = 'rings';
-let bw = 900, bat = 100, currentTier = 'AVATAR3D';
+let bw = 900, bat = 100, depthScale = 5.0;
 let cameraOn = false, liveMode = false, buildRunning = false;
 let lastSendT = 0, sentCount = 0, recvCount = 0;
-let remoteHasData = false;
 let lastLandmarks = null;
-let liveInterval = null;
-let localSpeaking = false;
-let localPixels  = null;
-let remotePixels = null;
-let localLivePixels  = null;
-let localCellAnim  = {};
-let remoteCellAnim = {};
 
-const lCanvas = document.getElementById('canvasLocal');
-const rCanvas = document.getElementById('canvasRemote');
-const lCtx    = lCanvas.getContext('2d', { willReadFrequently: true });
-const rCtx    = rCanvas.getContext('2d', { willReadFrequently: true });
-
-const sampleCanvas = document.createElement('canvas');
-sampleCanvas.width = SAMPLE_W; sampleCanvas.height = SAMPLE_H;
-const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
-
-drawPlaceholder(lCtx, 'START CAMERA');
-drawPlaceholder(rCtx, 'WAITING FOR PEER');
-
-function drawPlaceholder(ctx, msg) {
-  ctx.fillStyle = '#0a0a18';
-  ctx.fillRect(0, 0, CW, CH);
-  ctx.strokeStyle = '#ffffff06'; ctx.lineWidth = 1;
-  const gs = CW / 16;
-  for (let x = 0; x <= CW; x += gs) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,CH); ctx.stroke(); }
-  for (let y = 0; y <= CH; y += gs) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CW,y); ctx.stroke(); }
-  ctx.fillStyle = '#ffffff18';
-  ctx.font = 'bold 13px Segoe UI, system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(msg, CW/2, CH/2);
+function createScene(frameId) {
+  const frame = document.getElementById(frameId);
+  const scene    = new THREE.Scene();
+  const camera   = new THREE.PerspectiveCamera(44, AV_W/AV_H, 0.01, 100);
+  camera.position.z = 2.5;
+  scene.add(new THREE.AmbientLight(0xfff0ee, 0.4));
+  const key = new THREE.DirectionalLight(0xffe8c0, 1.1); key.position.set(1.5,2,2.5); scene.add(key);
+  const fil = new THREE.DirectionalLight(0x88aaff, 0.35); fil.position.set(-2,0.5,1.5); scene.add(fil);
+  const rim = new THREE.DirectionalLight(0xff00aa, 0.4);  rim.position.set(0,-1,-2);    scene.add(rim);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(AV_W, AV_H);
+  renderer.setClearColor(0x000000, 0);
+  frame.insertBefore(renderer.domElement, frame.firstChild);
+  return { scene, camera, renderer, mesh:null, tex:null,
+    texCanvas:document.createElement('canvas'), snapLM:null, snapBBox:null,
+    snapW:0, snapH:0, snapBBoxAR:1, _sm:{} };
 }
 
-function drawCell(ctx, x, y, size, r, g, b, pass, animState) {
+const localS  = createScene('localFrame');
+const remoteS = createScene('remoteFrame');
+
+function renderLoop() {
+  requestAnimationFrame(renderLoop);
+  localS.renderer.render(localS.scene, localS.camera);
+  remoteS.renderer.render(remoteS.scene, remoteS.camera);
+}
+renderLoop();
+
+function drawCell(ctx, cx, cy, size, r, g, b) {
   const half = size * 0.5;
-  const cx = x + half, cy = y + half;
-  const lum = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
-  const dr = Math.max(0, r-60), dg = Math.max(0, g-60), db = Math.max(0, b-60);
-  const hr2 = Math.min(255,r+55), hg = Math.min(255,g+55), hb = Math.min(255,b+55);
-  ctx.fillStyle = `rgb(${dr},${dg},${db})`;
-  ctx.fillRect(x, y, size, size);
-  const pulse = animState ? animState.pulse : 0;
+  const lum  = (r*0.299 + g*0.587 + b*0.114) / 255;
+  const dr=Math.max(0,r-70), dg=Math.max(0,g-70), db=Math.max(0,b-70);
+  const hr=Math.min(255,r+65), hg=Math.min(255,g+65), hb=Math.min(255,b+65);
+  const rgb=`rgb(${r},${g},${b})`, dRGB=`rgb(${dr},${dg},${db})`, hRGB=`rgb(${hr},${hg},${hb})`;
+  ctx.fillStyle = dRGB; ctx.fillRect(cx-half, cy-half, size, size);
 
   switch (cellStyle) {
     case 'rings': {
-      const rings = Math.max(2, Math.floor(size * 0.42 * (0.5 + lum * 0.5)));
-      for (let i = rings; i >= 1; i--) {
-        const t = i / rings;
-        const radius = half * t * (0.92 + pulse * 0.06);
-        const mix = t;
-        const rr=Math.round(r*mix+dr*(1-mix)), rg2=Math.round(g*mix+dg*(1-mix)), rb=Math.round(b*mix+db*(1-mix));
-        ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.5,radius), 0, Math.PI*2);
-        ctx.fillStyle = i%2===0 ? `rgb(${rr},${rg2},${rb})` : `rgb(${hr2},${hg},${hb})`;
-        ctx.fill();
+      const nRings = Math.max(2, Math.floor(half * 0.9));
+      for (let i=nRings; i>=1; i--) {
+        const t=i/nRings, rad=half*t*0.90;
+        const rr=Math.round(r*t+dr*(1-t)), rg=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
+        ctx.beginPath(); ctx.arc(cx,cy,Math.max(0.5,rad),0,Math.PI*2);
+        ctx.fillStyle = i%2===0 ? `rgb(${rr},${rg},${rb})` : hRGB; ctx.fill();
       }
-      ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.8,half*0.18), 0, Math.PI*2);
-      ctx.fillStyle = lum>0.5 ? `rgb(${dr},${dg},${db})` : `rgb(${hr2},${hg},${hb})`;
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(cx,cy,Math.max(0.8,half*0.16),0,Math.PI*2);
+      ctx.fillStyle = lum>0.5 ? dRGB : hRGB; ctx.fill();
       break;
     }
     case 'diamonds': {
-      const steps = Math.max(2, Math.floor(size*0.38));
-      for (let i = steps; i >= 1; i--) {
-        const t = i/steps, hs = half*t*(0.9+pulse*0.08);
-        const rr=Math.round(r*t+dr*(1-t)), rg2=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
+      const steps=Math.max(2,Math.floor(half*0.88));
+      for (let i=steps; i>=1; i--) {
+        const t=i/steps, hs=half*t*0.88;
+        const rr=Math.round(r*t+dr*(1-t)), rg=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
         ctx.beginPath(); ctx.moveTo(cx,cy-hs); ctx.lineTo(cx+hs,cy);
         ctx.lineTo(cx,cy+hs); ctx.lineTo(cx-hs,cy); ctx.closePath();
-        ctx.fillStyle = i%2===0 ? `rgb(${rr},${rg2},${rb})` : `rgb(${hr2},${hg},${hb})`;
-        ctx.fill();
+        ctx.fillStyle=i%2===0?`rgb(${rr},${rg},${rb})`:hRGB; ctx.fill();
       }
       break;
     }
     case 'dots': {
-      const grid = Math.max(2, Math.floor(size/4)), spacing = size/grid;
-      const dotR = half*(0.3+lum*0.62)*(1+pulse*0.1);
-      for (let gi=0; gi<grid; gi++) for (let gj=0; gj<grid; gj++) {
-        const gx=x+spacing*(gi+0.5), gy=y+spacing*(gj+0.5);
-        const dist = Math.sqrt((gx-cx)**2+(gy-cy)**2);
-        ctx.beginPath(); ctx.arc(gx,gy,Math.max(0.5,dotR-dist*0.25),0,Math.PI*2);
-        ctx.fillStyle=`rgb(${r},${g},${b})`; ctx.fill();
+      const grid=Math.max(2,Math.floor(size/5)), sp=size/grid;
+      const maxR=sp*0.5*(0.28+lum*0.65);
+      for (let gi=0;gi<grid;gi++) for (let gj=0;gj<grid;gj++) {
+        const gx=cx-half+sp*(gi+0.5), gy=cy-half+sp*(gj+0.5);
+        const d=Math.sqrt((gx-cx)**2+(gy-cy)**2);
+        ctx.beginPath(); ctx.arc(gx,gy,Math.max(0.5,maxR-d*0.1),0,Math.PI*2);
+        ctx.fillStyle=rgb; ctx.fill();
       }
       break;
     }
     case 'cross': {
-      const lineCount = Math.max(2,Math.floor(size*0.5*(1-lum*0.6)));
-      ctx.strokeStyle=`rgb(${r},${g},${b})`; ctx.lineWidth=Math.max(0.5,size/(lineCount*3));
-      for (let li=0;li<=lineCount;li++) {
-        const ly=y+(li/lineCount)*size;
-        ctx.beginPath(); ctx.moveTo(x,ly); ctx.lineTo(x+size,ly); ctx.stroke();
+      const lc=Math.max(2,Math.floor(half*(1.1-lum*0.6)));
+      ctx.strokeStyle=rgb; ctx.lineWidth=Math.max(0.5,size/(lc*3.5));
+      for (let li=0;li<=lc;li++) {
+        const ly=cy-half+(li/lc)*size;
+        ctx.beginPath(); ctx.moveTo(cx-half,ly); ctx.lineTo(cx+half,ly); ctx.stroke();
       }
-      if (lum<0.55) {
-        const dl=Math.floor(lineCount*(1-lum));
-        ctx.strokeStyle=`rgb(${hr2},${hg},${hb})`;
+      if (lum<0.65) {
+        const dl=Math.max(1,Math.floor(lc*(1-lum)));
+        ctx.strokeStyle=hRGB;
         for (let li=0;li<=dl;li++) {
           const t2=li/dl;
-          ctx.beginPath(); ctx.moveTo(x+t2*size,y); ctx.lineTo(x,y+t2*size); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(x+t2*size,y+size); ctx.lineTo(x+size,y+t2*size); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(cx-half+t2*size,cy-half); ctx.lineTo(cx-half,cy-half+t2*size); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(cx-half+t2*size,cy+half); ctx.lineTo(cx+half,cy-half+t2*size); ctx.stroke();
         }
       }
       break;
     }
     case 'squares': {
-      const steps=Math.max(2,Math.floor(size*0.38));
+      const steps=Math.max(2,Math.floor(half*0.88));
       for (let i=steps;i>=1;i--) {
-        const t=i/steps, hs=half*t*(0.88+pulse*0.1);
-        const rr=Math.round(r*t+dr*(1-t)), rg2=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
-        ctx.fillStyle=i%2===0?`rgb(${rr},${rg2},${rb})`:`rgb(${hr2},${hg},${hb})`;
+        const t=i/steps, hs=half*t*0.85;
+        const rr=Math.round(r*t+dr*(1-t)), rg=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
+        ctx.fillStyle=i%2===0?`rgb(${rr},${rg},${rb})`:hRGB;
         ctx.fillRect(cx-hs,cy-hs,hs*2,hs*2);
       }
       break;
@@ -341,250 +311,360 @@ function drawCell(ctx, x, y, size, r, g, b, pass, animState) {
   }
 }
 
-function renderAtResolution(ctx, pixels, gridRes, who) {
-  const cellW=CW/gridRes, cellH=CH/gridRes;
-  const anim = who==='local' ? localCellAnim : remoteCellAnim;
-  for (let gy=0;gy<gridRes;gy++) for (let gx=0;gx<gridRes;gx++) {
-    const sx=Math.floor(gx/gridRes*SAMPLE_W), sy=Math.floor(gy/gridRes*SAMPLE_H);
-    const idx=(sy*SAMPLE_W+sx)*4;
-    const r=pixels[idx],g=pixels[idx+1],b=pixels[idx+2];
-    drawCell(ctx,gx*cellW,gy*cellH,cellW,r,g,b,gridRes,anim[gy*gridRes+gx]||null);
-  }
+function computeBBox(landmarks) {
+  let x0=1,x1=0,y0=1,y1=0;
+  FACE_OVAL.forEach(i=>{
+    const lm=landmarks[i];
+    if(lm.x<x0)x0=lm.x; if(lm.x>x1)x1=lm.x;
+    if(lm.y<y0)y0=lm.y; if(lm.y>y1)y1=lm.y;
+  });
+  const pw=(x1-x0)*0.07, ph=(y1-y0)*0.07;
+  return{x0:Math.max(0,x0-pw),x1:Math.min(1,x1+pw),y0:Math.max(0,y0-ph),y1:Math.min(1,y1+ph)};
 }
 
-async function progressiveBuild(ctx, pixels, who, maxPass) {
-  buildRunning = true;
-  const passCount = Math.min(maxPass, PASSES.length);
-  const labels = ['Sampling face…','Building structure…','Adding detail…','Refining texture…','Full resolution…'];
-  for (let pi=0; pi<passCount; pi++) {
-    const res=PASSES[pi], pct=Math.round((pi+1)/passCount*100);
-    updateBuildUI(who, pct, labels[pi]||'Rendering…');
-    const cellW=CW/res, cellH=CH/res, total=res*res;
-    const order=shuffleOrder(total), batchSize=Math.max(1,Math.floor(total/18));
-    for (let batch=0; batch<order.length; batch+=batchSize) {
-      for (let ci=batch; ci<Math.min(batch+batchSize,order.length); ci++) {
-        const idx=order[ci], gx=idx%res, gy=Math.floor(idx/res);
-        const sx=Math.floor(gx/res*SAMPLE_W), sy=Math.floor(gy/res*SAMPLE_H);
-        const pidx=(sy*SAMPLE_W+sx)*4;
-        drawCell(ctx,gx*cellW,gy*cellH,cellW,pixels[pidx],pixels[pidx+1],pixels[pidx+2],res,null);
-      }
-      await nextFrame();
+function interpZ(landmarks, tx, ty, K=8) {
+  let tw=0, tz=0;
+  const arr=landmarks.map(lm=>({d2:(lm.x-tx)**2+(lm.y-ty)**2,z:lm.z}));
+  arr.sort((a,b)=>a.d2-b.d2);
+  for (let k=0;k<K&&k<arr.length;k++) {
+    const w=arr[k].d2<1e-9?1e9:1/arr[k].d2; tw+=w; tz+=arr[k].z*w;
+  }
+  return tz/tw;
+}
+
+function interpXYDelta(snap, live, tx, ty, K=6) {
+  const arr=snap.map((lm,i)=>({d2:(lm.x-tx)**2+(lm.y-ty)**2,dx:live[i].x-lm.x,dy:live[i].y-lm.y}));
+  arr.sort((a,b)=>a.d2-b.d2);
+  let tw=0,tdx=0,tdy=0;
+  for (let k=0;k<K&&k<arr.length;k++) {
+    const w=arr[k].d2<1e-9?1e9:1/arr[k].d2; tw+=w; tdx+=arr[k].dx*w; tdy+=arr[k].dy*w;
+  }
+  return [tdx/tw,tdy/tw];
+}
+
+function inPolygon(px, py, pts) {
+  let inside=false;
+  for (let i=0,j=pts.length-1;i<pts.length;j=i++) {
+    const xi=pts[i].x,yi=pts[i].y,xj=pts[j].x,yj=pts[j].y;
+    if(((yi>py)!==(yj>py))&&(px<(xj-xi)*(py-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+
+function buildMeshGeometry(sc, landmarks, videoEl, tierName) {
+  const cfg=TIER_GRIDS[tierName]||TIER_GRIDS.AVATAR3D;
+  const W=cfg.W, H=cfg.H;
+  const bbox=computeBBox(landmarks);
+  const bw2=bbox.x1-bbox.x0, bh2=bbox.y1-bbox.y0, bAR=bw2/bh2;
+
+  sc.snapLM=landmarks.map(lm=>({...lm}));
+  sc.snapBBox=bbox; sc.snapW=W; sc.snapH=H; sc.snapBBoxAR=bAR;
+
+  const texW=W*CELL_PX, texH=H*CELL_PX;
+  sc.texCanvas.width=texW; sc.texCanvas.height=texH;
+  const texCtx=sc.texCanvas.getContext('2d');
+  texCtx.clearRect(0,0,texW,texH);
+
+  const sW=Math.max(W*3,128), sH=Math.max(H*3,128);
+  const sampleCvs=document.createElement('canvas');
+  sampleCvs.width=sW; sampleCvs.height=sH;
+  const sCtx=sampleCvs.getContext('2d');
+  const vW=videoEl.videoWidth||640, vH=videoEl.videoHeight||480;
+  sCtx.save(); sCtx.scale(-1,1); sCtx.translate(-sW,0);
+  sCtx.drawImage(videoEl,(1-bbox.x1)*vW,bbox.y0*vH,bw2*vW,bh2*vH,0,0,sW,sH);
+  sCtx.restore();
+  const imgData=sCtx.getImageData(0,0,sW,sH).data;
+
+  function sampleRGB(u,v) {
+    const px=Math.min(sW-1,Math.max(0,Math.floor(u*(sW-1))));
+    const py=Math.min(sH-1,Math.max(0,Math.floor(v*(sH-1))));
+    const idx=(py*sW+px)*4;
+    return [imgData[idx],imgData[idx+1],imgData[idx+2]];
+  }
+
+  const ovalPts=FACE_OVAL.map(i=>{
+    const lm=landmarks[i], mx=1-lm.x;
+    return{x:(mx-(1-bbox.x1))/bw2, y:(lm.y-bbox.y0)/bh2};
+  });
+
+  const nVerts=(W+1)*(H+1);
+  const positions=new Float32Array(nVerts*3);
+  const uvArr=new Float32Array(nVerts*2);
+
+  for (let j=0;j<=H;j++) for (let i=0;i<=W;i++) {
+    const u=i/W, v=j/H, vi=j*(W+1)+i;
+    const lx=(1-bbox.x1)+u*bw2, ly=bbox.y0+v*bh2;
+    const z=interpZ(landmarks,lx,ly);
+    positions[vi*3  ]=(u-0.5)*1.85*bAR;
+    positions[vi*3+1]=-(v-0.5)*1.85;
+    positions[vi*3+2]=z*depthScale;
+    uvArr[vi*2]=u; uvArr[vi*2+1]=1-v;
+  }
+
+  const indexArr=[];
+  for (let j=0;j<H;j++) for (let i=0;i<W;i++) {
+    const tl=j*(W+1)+i,tr=tl+1,bl=(j+1)*(W+1)+i,br=bl+1;
+    indexArr.push(tl,bl,tr,bl,br,tr);
+  }
+
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(positions,3));
+  geo.setAttribute('uv',new THREE.BufferAttribute(uvArr,2));
+  geo.setIndex(indexArr);
+  geo.computeVertexNormals();
+
+  if(sc.tex) sc.tex.dispose();
+  sc.tex=new THREE.CanvasTexture(sc.texCanvas);
+  sc.tex.minFilter=THREE.LinearFilter;
+
+  if(sc.mesh){sc.scene.remove(sc.mesh);sc.mesh.geometry.dispose();sc.mesh.material.dispose();}
+  sc.mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({map:sc.tex,transparent:true,side:THREE.FrontSide,roughness:0.65}));
+  sc.scene.add(sc.mesh);
+
+  const cells=[];
+  for (let j=0;j<H;j++) for (let i=0;i<W;i++) {
+    const u=(i+0.5)/W, v=(j+0.5)/H;
+    const inside=inPolygon(u,v,ovalPts);
+    const [r,g,b2]=sampleRGB(u,v);
+    cells.push({tx:i*CELL_PX+CELL_PX/2,ty:j*CELL_PX+CELL_PX/2,r,g,b:b2,inside});
+  }
+  return cells;
+}
+
+async function fillTexture(sc, cells) {
+  const texCtx=sc.texCanvas.getContext('2d');
+  const order=cells.map((_,i)=>i).sort(()=>Math.random()-0.5);
+  const BATCH=Math.max(3,Math.floor(cells.length/22));
+  for (let b=0;b<order.length;b+=BATCH) {
+    for (let k=b;k<Math.min(b+BATCH,order.length);k++) {
+      const c=cells[order[k]];
+      if(c.inside) drawCell(texCtx,c.tx,c.ty,CELL_PX,c.r,c.g,c.b);
     }
-    await sleep(160);
+    if(sc.tex) sc.tex.needsUpdate=true;
+    await nextFrame();
   }
-  updateBuildUI(who,100,'Portrait complete ✓');
-  await sleep(1200);
-  hideBuildUI(who);
+}
+
+async function buildProgressive(sc, landmarks, videoEl, who) {
+  buildRunning=true;
+  const passes=['GLYPH','SPRITE','PUPPET','AVATAR3D'];
+  const labels=['Sampling face…','Building structure…','Adding detail…','Refining…'];
+  for (let pi=0;pi<passes.length;pi++) {
+    const pct=Math.round((pi+1)/passes.length*100);
+    updateBuildUI(who,pct,labels[pi]);
+    const cells=buildMeshGeometry(sc,landmarks,videoEl,passes[pi]);
+    await fillTexture(sc,cells);
+    updateBuildUI(who,pct,labels[pi]+' ✓');
+    if(pi<passes.length-1) await sleep(80);
+  }
+  updateBuildUI(who,100,'Portrait built ✓');
+  await sleep(1200); hideBuildUI(who);
   buildRunning=false;
+  document.getElementById('liveBtn').disabled=false;
+  setStatus('Portrait complete — enable Live Puppet for real-time expression tracking');
 }
 
-function shuffleOrder(n) {
-  const arr=Array.from({length:n},(_,i)=>i);
-  for (let i=arr.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; }
-  return arr;
-}
-const nextFrame = () => new Promise(r => requestAnimationFrame(r));
-const sleep     = ms  => new Promise(r => setTimeout(r, ms));
+const PUPPET_SMOOTH=0.22;
+function lerpN(a,b,t){return a+(b-a)*t;}
 
-function startLiveMode() {
-  if (!localPixels) return;
-  liveMode=true;
-  document.getElementById('liveBtn').textContent='⏹ Stop Live';
-  setStatus('Live mode — portrait updating from camera');
-  liveInterval=setInterval(()=>{
-    if (!localLivePixels) return;
-    const blended=blendPixels(localPixels,localLivePixels,0.15);
-    const res=PASSES[getCurrentMaxPass()-1]||64;
-    renderAtResolution(lCtx,blended,res,'local');
-    sendPixelDelta(blended);
-  },LIVE_MS);
-}
-
-function stopLiveMode() {
-  liveMode=false; clearInterval(liveInterval);
-  document.getElementById('liveBtn').textContent='⚡ Live Mode';
-  setStatus('Live mode stopped');
+function puppet(sc, liveLM) {
+  if(!sc.mesh||!sc.snapLM||!sc.snapBBox) return;
+  const W=sc.snapW,H=sc.snapH,bbox=sc.snapBBox,snap=sc.snapLM;
+  const bw2=bbox.x1-bbox.x0,bh2=bbox.y1-bbox.y0,bAR=sc.snapBBoxAR;
+  const pos=sc.mesh.geometry.attributes.position.array;
+  for (let j=0;j<=H;j++) for (let i=0;i<=W;i++) {
+    const vi=j*(W+1)+i, u=i/W, v=j/H;
+    const lx=(1-bbox.x1)+u*bw2, ly=bbox.y0+v*bh2;
+    const nz=interpZ(liveLM,lx,ly)*depthScale;
+    pos[vi*3+2]=lerpN(pos[vi*3+2],nz,PUPPET_SMOOTH);
+    const [dx,dy]=interpXYDelta(snap,liveLM,lx,ly);
+    const nx=(u-0.5)*1.85*bAR+dx*1.85*bAR;
+    const ny=-(v-0.5)*1.85-dy*1.85;
+    pos[vi*3  ]=lerpN(pos[vi*3  ],nx,PUPPET_SMOOTH*0.5);
+    pos[vi*3+1]=lerpN(pos[vi*3+1],ny,PUPPET_SMOOTH*0.5);
+  }
+  sc.mesh.geometry.attributes.position.needsUpdate=true;
+  sc.mesh.geometry.computeVertexNormals();
 }
 
-function toggleLive() { if(liveMode) stopLiveMode(); else startLiveMode(); }
-
-function blendPixels(base,live,t) {
-  const out=new Uint8ClampedArray(base.length);
-  for (let i=0;i<base.length;i++) out[i]=Math.round(base[i]*(1-t)+live[i]*t);
-  return out;
-}
-
-let faceMeshInst=null;
+let faceMeshInst=null, puppetActive=false;
 
 async function startCamera() {
   const btn=document.getElementById('camBtn');
   btn.disabled=true; btn.textContent='⏳ Starting…';
   try {
-    setStatus('Requesting camera…');
+    setStatus('Requesting camera access…');
     const stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'},audio:false});
-    const pipVid=document.getElementById('pipLocal');
-    pipVid.srcObject=stream; await pipVid.play().catch(()=>{});
-    const camFeed=document.getElementById('camFeed');
-    camFeed.srcObject=stream;
-    await new Promise(res=>{camFeed.onloadedmetadata=res;}); await camFeed.play();
-    setStatus('Loading face tracker (first load ~10s)…');
+    const pip=document.getElementById('pipLocal');
+    pip.srcObject=stream; await pip.play().catch(()=>{});
+    const feed=document.getElementById('camFeed');
+    feed.srcObject=stream;
+    await new Promise(res=>{feed.onloadedmetadata=res;}); await feed.play();
+    setStatus('Loading MediaPipe FaceMesh (first load ~10s)…');
     faceMeshInst=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
     faceMeshInst.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.45});
     faceMeshInst.onResults(onFaceResults);
-    const mpCam=new Camera(camFeed,{onFrame:async()=>{if(faceMeshInst)await faceMeshInst.send({image:camFeed});},width:640,height:480});
+    const mpCam=new Camera(feed,{onFrame:async()=>{if(faceMeshInst)await faceMeshInst.send({image:feed});},width:640,height:480});
     await mpCam.start();
     cameraOn=true; btn.textContent='✅ Camera On';
     document.getElementById('snapBtn').disabled=false;
     document.getElementById('fistBtn').disabled=false;
-    setStatus('Face detected — click 📸 Snap Portrait to build your avatar!');
-    updateBuildUI('local',0,'Click Snap Portrait to build');
+    setStatus('Face tracking active — click 📸 Snap Portrait to build your avatar');
   } catch(e) {
     btn.disabled=false; btn.textContent='📷 Start Camera';
-    setStatus('Camera error: '+e.message);
+    setStatus('Camera error: '+e.message); console.error(e);
   }
 }
 
 function onFaceResults(results) {
-  if (!results.multiFaceLandmarks?.[0]) return;
+  if(!results.multiFaceLandmarks?.[0]) return;
   lastLandmarks=results.multiFaceLandmarks[0];
-  if (cameraOn) captureLivePixels();
+  if(puppetActive&&localS.mesh) {
+    puppet(localS,lastLandmarks);
+    updateLiveColors(localS,lastLandmarks);
+  }
   const lm=lastLandmarks, mo=Math.abs(lm[13].y-lm[14].y)*18;
-  localSpeaking=mo>0.12;
-  document.getElementById('localRing').className='speak-ring'+(localSpeaking?' on':'');
+  document.getElementById('localRing').className='speak-ring'+(mo>0.12?' on':'');
   const now=Date.now();
-  if (now-lastSendT>SEND_MS) { lastSendT=now; const s=landmarksToState(lm); if(s) sendFaceState(s); }
+  if(now-lastSendT>SEND_MS){lastSendT=now; sendLandmarks(lastLandmarks,mo>0.12);}
 }
 
-function captureLivePixels() {
-  const vid=document.getElementById('camFeed'); if(!vid.videoWidth) return;
-  sampleCtx.save(); sampleCtx.scale(-1,1); sampleCtx.translate(-SAMPLE_W,0);
-  sampleCtx.drawImage(vid,0,0,SAMPLE_W,SAMPLE_H); sampleCtx.restore();
-  localLivePixels=sampleCtx.getImageData(0,0,SAMPLE_W,SAMPLE_H).data.slice();
+let liveColorTick=0;
+function updateLiveColors(sc,landmarks) {
+  if(!sc.snapBBox) return;
+  liveColorTick++;
+  if(liveColorTick%8!==0) return;
+  const W=sc.snapW,H=sc.snapH,bbox=sc.snapBBox;
+  const bw2=bbox.x1-bbox.x0,bh2=bbox.y1-bbox.y0;
+  const feed=document.getElementById('camFeed'); if(!feed.videoWidth) return;
+  const sW=64,sH=64;
+  const tmp=document.createElement('canvas'); tmp.width=sW; tmp.height=sH;
+  const tCtx=tmp.getContext('2d');
+  tCtx.save(); tCtx.scale(-1,1); tCtx.translate(-sW,0);
+  tCtx.drawImage(feed,(1-bbox.x1)*feed.videoWidth,bbox.y0*feed.videoHeight,
+    bw2*feed.videoWidth,bh2*feed.videoHeight,0,0,sW,sH);
+  tCtx.restore();
+  const id=tCtx.getImageData(0,0,sW,sH).data;
+  const texCtx=sc.texCanvas.getContext('2d');
+  const sampleFraction=Math.max(1,Math.floor(W*H*0.08));
+  for (let k=0;k<sampleFraction;k++) {
+    const i=Math.floor(Math.random()*W), j=Math.floor(Math.random()*H);
+    const px=Math.floor((i+0.5)/W*(sW-1)), py=Math.floor((j+0.5)/H*(sH-1));
+    const idx=(py*sW+px)*4;
+    drawCell(texCtx,i*CELL_PX+CELL_PX/2,j*CELL_PX+CELL_PX/2,CELL_PX,id[idx],id[idx+1],id[idx+2]);
+  }
+  if(sc.tex) sc.tex.needsUpdate=true;
 }
 
 async function snapAndBuild() {
-  if (!cameraOn||buildRunning) return;
-  const vid=document.getElementById('camFeed'); if(!vid.videoWidth){setStatus('Camera not ready');return;}
-  sampleCtx.save(); sampleCtx.scale(-1,1); sampleCtx.translate(-SAMPLE_W,0);
-  sampleCtx.drawImage(vid,0,0,SAMPLE_W,SAMPLE_H); sampleCtx.restore();
-  localPixels=sampleCtx.getImageData(0,0,SAMPLE_W,SAMPLE_H).data.slice();
-  setStatus('Building portrait…');
-  await progressiveBuild(lCtx,localPixels,'local',getCurrentMaxPass());
-  document.getElementById('liveBtn').disabled=false;
-  setStatus('Portrait built! Enable Live Mode to keep updating, or Save.');
-  sendFullPortrait(localPixels);
+  if(!cameraOn||buildRunning) return;
+  if(!lastLandmarks){setStatus('No face detected — look at the camera!');return;}
+  const feed=document.getElementById('camFeed');
+  if(!feed.videoWidth){setStatus('Camera not ready yet');return;}
+  setStatus('Building your Chuck Close portrait…');
+  document.getElementById('snapBtn').disabled=true;
+  await buildProgressive(localS,lastLandmarks,feed,'local');
+  document.getElementById('snapBtn').disabled=false;
+  if(dc?.readyState==='open') sendPortraitData(lastLandmarks,feed);
 }
 
-function getCurrentMaxPass() { return parseInt(document.getElementById('detailVal')?.textContent||'3'); }
-
-function landmarksToState(lm) {
-  if (!lm||lm.length<468) return null;
-  const lEye=lm[33],rEye=lm[263],upLip=lm[13],loLip=lm[14];
-  const lBrow=lm[70],rBrow=lm[300],nose=lm[4],topLid=lm[159],botLid=lm[145];
-  const irisL=lm[468]||lm[33],mL=lm[61],mR=lm[291];
-  const faceW=Math.abs(rEye.x-lEye.x),eDX=rEye.x-lEye.x,eDY=rEye.y-lEye.y;
-  const eyeMY=(lEye.y+rEye.y)*0.5;
-  const mouthOpen=Math.min(1,Math.abs(upLip.y-loLip.y)*22);
-  const mouthW=Math.abs(mR.x-mL.x);
-  const smile=Math.min(1,Math.max(0,(mouthW/(faceW*1.55))-0.55)*4.8);
-  const browMY=(lBrow.y+rBrow.y)*0.5;
-  const browRaise=Math.min(1,Math.max(0,(eyeMY-browMY-0.022)*20));
-  const eyeOH=Math.abs(topLid.y-botLid.y);
-  const blink=Math.max(0,1-eyeOH*52);
-  const gazeX=Math.max(-1,Math.min(1,((irisL.x-lEye.x)/(faceW*0.52)-1)*1.7));
-  return {
-    yaw:(nose.x-0.5)*-2.35, pitch:(nose.y-eyeMY-0.1)*2.6, roll:Math.atan2(eDY,eDX),
-    mouthOpen,smile,browRaise,blink,gazeX,
-    isSpeaking:mouthOpen>0.1,
-    valence:Math.max(-1,Math.min(1,smile*2.4-0.65)),
-    arousal:mouthOpen*0.5+browRaise*0.5,
-    gestures:[],
-  };
+function toggleLive() {
+  puppetActive=!puppetActive;
+  document.getElementById('liveBtn').textContent=puppetActive?'⏹ Stop Puppet':'⚡ Live Puppet';
+  setStatus(puppetActive?'Live puppeting active — your expressions drive the mesh':'Puppeting stopped');
 }
 
-function animateCellsFromState(who,state) {
-  const anim=who==='local'?localCellAnim:remoteCellAnim;
-  const pulse=state.mouthOpen*0.4+state.browRaise*0.3;
-  for (const k in anim) anim[k]={pulse};
+function calcTier(bw2,bat2) {
+  if(bw2<20)return 'TEXT'; if(bw2<50)return 'GLYPH';
+  if(bw2<100||bat2<15)return 'SPRITE'; if(bw2<280||bat2<30)return 'PUPPET';
+  return 'AVATAR3D';
 }
+
+function onBw(v) {
+  bw=+v; document.getElementById('bwVal').textContent=v;
+  const t=calcTier(bw,bat);
+  document.getElementById('tierLbl').textContent=t;
+  document.getElementById('localBadge').textContent=t;
+  const cfg=TIER_GRIDS[t]||TIER_GRIDS.AVATAR3D;
+  document.getElementById('gridLbl').textContent=`${cfg.W}×${cfg.H}`;
+}
+
+function onBat(v){bat=+v;document.getElementById('batVal').textContent=v;onBw(bw);}
+function onDepth(v){depthScale=+v;document.getElementById('depthVal').textContent=v+'×';}
 
 function setStyle(s) {
   cellStyle=s;
   ['rings','diamonds','dots','cross','squares'].forEach(id=>{
-    document.getElementById('s-'+id)?.classList.toggle('active',id===s);
+    document.getElementById('sb-'+id)?.classList.toggle('on',id===s);
   });
-  if (localPixels) renderAtResolution(lCtx,localPixels,PASSES[getCurrentMaxPass()-1]||64,'local');
-  if (remotePixels) renderAtResolution(rCtx,remotePixels,PASSES[getCurrentMaxPass()-1]||64,'remote');
-}
-
-function onDetail(v) { document.getElementById('detailVal').textContent=v; }
-
-function calcTier(bw2,bat2) {
-  if(bw2<20) return 'TEXT'; if(bw2<50) return 'GLYPH';
-  if(bw2<100||bat2<15) return 'SPRITE'; if(bw2<280||bat2<30) return 'PUPPET';
-  return 'AVATAR3D';
-}
-function onBw(v)  { bw=+v;  document.getElementById('bwVal').textContent=v;  applyTier(); }
-function onBat(v) { bat=+v; document.getElementById('batVal').textContent=v; applyTier(); }
-function applyTier() {
-  currentTier=calcTier(bw,bat);
-  ['tierLbl','localTier','remoteTier'].forEach(id=>document.getElementById(id).textContent=currentTier);
-  if(currentTier==='GLYPH'||currentTier==='TEXT') if(localPixels) renderAtResolution(lCtx,localPixels,8,'local');
+  if(localS.snapLM){
+    const feed=document.getElementById('camFeed');
+    if(feed.videoWidth){
+      const cells=buildMeshGeometry(localS,localS.snapLM,feed,calcTier(bw,bat));
+      fillTexture(localS,cells);
+    }
+  }
+  if(remoteS.snapLM) reRenderRemote();
 }
 
 function savePortrait() {
+  localS.renderer.render(localS.scene,localS.camera);
   const a=document.createElement('a');
   a.download='vibemesh-portrait-'+Date.now()+'.png';
-  a.href=lCanvas.toDataURL('image/png'); a.click();
-  setStatus('Portrait saved as PNG!');
+  a.href=localS.renderer.domElement.toDataURL('image/png'); a.click();
+  setStatus('Portrait saved!');
 }
 
-function clearCanvas(who) {
-  if(who==='local') {
-    localPixels=null; liveMode=false; clearInterval(liveInterval);
-    document.getElementById('liveBtn').disabled=true;
-    document.getElementById('liveBtn').textContent='⚡ Live Mode';
-    drawPlaceholder(lCtx,'CLEARED — SNAP NEW PORTRAIT');
-    updateBuildUI('local',0,'Click Snap Portrait to build');
-  } else { remotePixels=null; drawPlaceholder(rCtx,'WAITING FOR PEER'); }
+function clearLocal() {
+  if(localS.mesh){localS.scene.remove(localS.mesh);localS.mesh.geometry.dispose();localS.mesh.material.dispose();localS.mesh=null;}
+  localS.snapLM=null; localS.snapBBox=null; puppetActive=false;
+  document.getElementById('liveBtn').disabled=true;
+  document.getElementById('liveBtn').textContent='⚡ Live Puppet';
+  setStatus('Cleared — snap a new portrait');
 }
 
 let pc=null,dc=null;
-const ICE_SERVERS=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}];
+const ICE=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}];
+let remoteColorGrid=null, remoteLM=null, remoteTierName='AVATAR3D';
 
 async function createOffer() {
-  setupPC(); dc=pc.createDataChannel('vibe',{ordered:true}); setupDC(dc);
-  const offer=await pc.createOffer(); await pc.setLocalDescription(offer); await waitICE();
+  setupPC(); dc=pc.createDataChannel('vibe',{ordered:false,maxRetransmits:0}); setupDC(dc);
+  await pc.setLocalDescription(await pc.createOffer()); await waitICE();
   document.getElementById('offerBox').value=JSON.stringify(pc.localDescription);
-  setStatus('Offer ready — copy and send to peer');
+  setStatus('Offer ready — copy to peer');
 }
 
 async function handlePaste() {
   const txt=document.getElementById('pasteBox').value.trim(); if(!txt) return;
   try {
     const sdp=JSON.parse(txt);
-    if(sdp.type==='offer') {
+    if(sdp.type==='offer'){
       setupPC(); pc.ondatachannel=e=>{dc=e.channel;setupDC(dc);};
-      await pc.setRemoteDescription(sdp); const ans=await pc.createAnswer();
-      await pc.setLocalDescription(ans); await waitICE();
+      await pc.setRemoteDescription(sdp);
+      await pc.setLocalDescription(await pc.createAnswer()); await waitICE();
       document.getElementById('offerBox').value=JSON.stringify(pc.localDescription);
       setStatus('Answer ready — copy back to peer');
-    } else if(sdp.type==='answer') { await pc.setRemoteDescription(sdp); setStatus('Answer received — connecting…'); }
+    } else if(sdp.type==='answer'){
+      await pc.setRemoteDescription(sdp); setStatus('Answer set — connecting…');
+    }
   } catch(e){setStatus('SDP error: '+e.message);}
 }
 
 function setupPC() {
-  if(pc) pc.close();
-  pc=new RTCPeerConnection({iceServers:ICE_SERVERS});
+  if(pc)pc.close();
+  pc=new RTCPeerConnection({iceServers:ICE});
   pc.oniceconnectionstatechange=()=>{
     const s=pc.iceConnectionState, el=document.getElementById('connLbl');
     el.textContent=s.toUpperCase();
     el.style.color=(s==='connected'||s==='completed')?'#00ff88':'#ff4757';
-    if(s==='connected'||s==='completed'){closeModal();setStatus('🔥 Peer connected!');startPing();if(localPixels)sendFullPortrait(localPixels);}
+    if(s==='connected'||s==='completed'){
+      closeModal(); setStatus('🔥 Peer connected!'); startPing();
+      if(localS.snapLM){const feed=document.getElementById('camFeed');if(feed.videoWidth)sendPortraitData(localS.snapLM,feed);}
+    }
   };
 }
 
-function waitICE() {
+function waitICE(){
   return new Promise(res=>{
     if(pc.iceGatheringState==='complete'){res();return;}
     pc.onicegatheringstatechange=()=>{if(pc.iceGatheringState==='complete')res();};
@@ -592,93 +672,172 @@ function waitICE() {
   });
 }
 
-function setupDC(channel) {
-  channel.onopen=()=>setStatus('Connected — face data streaming 🔥');
-  channel.onclose=()=>setStatus('Peer disconnected');
-  channel.onmessage=e=>handlePacket(e.data);
+function setupDC(ch){
+  ch.onopen=()=>setStatus('Data channel open 🔥');
+  ch.onclose=()=>setStatus('Peer disconnected');
+  ch.onmessage=e=>handlePacket(e.data);
 }
 
-function handlePacket(raw) {
-  try {
+function handlePacket(raw){
+  try{
     const pkt=JSON.parse(raw);
     if(pkt.type==='portrait'){
-      remotePixels=new Uint8ClampedArray(pkt.pixels); recvCount++;
-      document.getElementById('recvLbl').textContent=recvCount;
-      remoteHasData=true; document.getElementById('remoteTier').textContent=currentTier;
-      progressiveBuild(rCtx,remotePixels,'remote',getCurrentMaxPass());
-    } else if(pkt.type==='delta'){
-      if(!remotePixels) return;
-      remotePixels=blendPixels(remotePixels,new Uint8ClampedArray(pkt.pixels),pkt.blend||0.12);
       recvCount++; document.getElementById('recvLbl').textContent=recvCount;
-      renderAtResolution(rCtx,remotePixels,PASSES[getCurrentMaxPass()-1]||64,'remote');
-    } else if(pkt.type==='state'){
-      document.getElementById('remoteRing').className='speak-ring'+(pkt.isSpeaking?' on':'');
-      if(remotePixels) animateCellsFromState('remote',pkt);
+      remoteLM=pkt.lm; remoteColorGrid=pkt.colors; remoteTierName=pkt.tier||'AVATAR3D';
+      document.getElementById('remoteBadge').textContent=remoteTierName;
+      buildRemoteFromData(pkt.lm,pkt.colors,pkt.tier||'AVATAR3D');
+    } else if(pkt.type==='puppet'){
+      recvCount++; document.getElementById('recvLbl').textContent=recvCount;
+      if(remoteS.snapLM&&pkt.lm) puppet(remoteS,pkt.lm);
+      document.getElementById('remoteRing').className='speak-ring'+(pkt.speaking?' on':'');
     } else if(pkt.type==='gesture'){
-      flashPortrait('remote');
+      flashMesh(remoteS);
     } else if(pkt.type==='ping'){
-      if(dc?.readyState==='open') dc.send(JSON.stringify({type:'pong',t:pkt.t}));
+      if(dc?.readyState==='open')dc.send(JSON.stringify({type:'pong',t:pkt.t}));
     } else if(pkt.type==='pong'){
       document.getElementById('rttLbl').textContent=Date.now()-pkt.t;
     }
-  } catch(_){}
+  }catch(_){}
 }
 
-function sendFullPortrait(pixels) {
-  if(dc?.readyState!=='open') return;
-  dc.send(JSON.stringify({type:'portrait',pixels:Array.from(pixels)}));
+function buildRemoteFromData(lm,colors,tierName){
+  const cfg=TIER_GRIDS[tierName]||TIER_GRIDS.AVATAR3D;
+  const W=cfg.W,H=cfg.H;
+  const bbox=computeBBoxFromData(lm);
+  const bw2=bbox.x1-bbox.x0,bh2=bbox.y1-bbox.y0,bAR=bw2/bh2;
+  remoteS.snapLM=lm.map(l=>({...l}));
+  remoteS.snapBBox=bbox; remoteS.snapW=W; remoteS.snapH=H; remoteS.snapBBoxAR=bAR;
+  const texW=W*CELL_PX,texH=H*CELL_PX;
+  remoteS.texCanvas.width=texW; remoteS.texCanvas.height=texH;
+  const texCtx=remoteS.texCanvas.getContext('2d');
+  texCtx.clearRect(0,0,texW,texH);
+  const ovalPts=FACE_OVAL.map(i=>{
+    const lm3=lm[i],mx=1-lm3.x;
+    return{x:(mx-(1-bbox.x1))/bw2,y:(lm3.y-bbox.y0)/bh2};
+  });
+  const nVerts=(W+1)*(H+1);
+  const positions=new Float32Array(nVerts*3);
+  const uvArr=new Float32Array(nVerts*2);
+  const cells=[];
+  for(let j=0;j<=H;j++) for(let i=0;i<=W;i++){
+    const u=i/W,v=j/H,vi=j*(W+1)+i;
+    const lx=(1-bbox.x1)+u*bw2,ly=bbox.y0+v*bh2;
+    const z=interpZ(lm,lx,ly);
+    positions[vi*3  ]=(u-0.5)*1.85*bAR;
+    positions[vi*3+1]=-(v-0.5)*1.85;
+    positions[vi*3+2]=z*depthScale;
+    uvArr[vi*2]=u; uvArr[vi*2+1]=1-v;
+    if(i<W&&j<H){
+      const cu=(i+0.5)/W,cv=(j+0.5)/H,cidx=(j*W+i)*3;
+      cells.push({tx:i*CELL_PX+CELL_PX/2,ty:j*CELL_PX+CELL_PX/2,
+        r:colors[cidx],g:colors[cidx+1],b:colors[cidx+2],inside:inPolygon(cu,cv,ovalPts)});
+    }
+  }
+  const idxArr=[];
+  for(let j=0;j<H;j++) for(let i=0;i<W;i++){
+    const tl=j*(W+1)+i,tr=tl+1,bl=(j+1)*(W+1)+i,br=bl+1;
+    idxArr.push(tl,bl,tr,bl,br,tr);
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(positions,3));
+  geo.setAttribute('uv',new THREE.BufferAttribute(uvArr,2));
+  geo.setIndex(idxArr); geo.computeVertexNormals();
+  if(remoteS.tex)remoteS.tex.dispose();
+  remoteS.tex=new THREE.CanvasTexture(remoteS.texCanvas);
+  remoteS.tex.minFilter=THREE.LinearFilter;
+  if(remoteS.mesh){remoteS.scene.remove(remoteS.mesh);remoteS.mesh.geometry.dispose();remoteS.mesh.material.dispose();}
+  remoteS.mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({map:remoteS.tex,transparent:true,side:THREE.FrontSide,roughness:0.65}));
+  remoteS.scene.add(remoteS.mesh);
+  updateBuildUI('remote',5,'Building peer portrait…');
+  document.getElementById('remoteBuildOv').style.display='block';
+  (async()=>{
+    await fillTexture(remoteS,cells);
+    updateBuildUI('remote',100,'Peer portrait built ✓');
+    await sleep(1000); hideBuildUI('remote');
+  })();
+}
+
+function computeBBoxFromData(lm){
+  let x0=1,x1=0,y0=1,y1=0;
+  FACE_OVAL.forEach(i=>{const l=lm[i];if(l.x<x0)x0=l.x;if(l.x>x1)x1=l.x;if(l.y<y0)y0=l.y;if(l.y>y1)y1=l.y;});
+  const pw=(x1-x0)*0.07,ph=(y1-y0)*0.07;
+  return{x0:Math.max(0,x0-pw),x1:Math.min(1,x1+pw),y0:Math.max(0,y0-ph),y1:Math.min(1,y1+ph)};
+}
+
+function reRenderRemote(){if(!remoteLM||!remoteColorGrid)return;buildRemoteFromData(remoteLM,remoteColorGrid,remoteTierName);}
+
+function sendPortraitData(landmarks,videoEl){
+  if(dc?.readyState!=='open')return;
+  const tier=calcTier(bw,bat),cfg=TIER_GRIDS[tier]||TIER_GRIDS.AVATAR3D;
+  const {W,H}=cfg,bbox=computeBBox(landmarks);
+  const bw2=bbox.x1-bbox.x0,bh2=bbox.y1-bbox.y0;
+  const sW=W*2,sH=H*2;
+  const sCvs=document.createElement('canvas'); sCvs.width=sW; sCvs.height=sH;
+  const sCtx=sCvs.getContext('2d');
+  const vW=videoEl.videoWidth||640,vH=videoEl.videoHeight||480;
+  sCtx.save(); sCtx.scale(-1,1); sCtx.translate(-sW,0);
+  sCtx.drawImage(videoEl,(1-bbox.x1)*vW,bbox.y0*vH,bw2*vW,bh2*vH,0,0,sW,sH);
+  sCtx.restore();
+  const id=sCtx.getImageData(0,0,sW,sH).data;
+  const colors=[];
+  for(let j=0;j<H;j++) for(let i=0;i<W;i++){
+    const u=(i+0.5)/W,v=(j+0.5)/H;
+    const px=Math.floor(u*(sW-1)),py=Math.floor(v*(sH-1)),idx=(py*sW+px)*4;
+    colors.push(id[idx],id[idx+1],id[idx+2]);
+  }
+  const lmArr=landmarks.map(l=>({x:+l.x.toFixed(5),y:+l.y.toFixed(5),z:+l.z.toFixed(5)}));
+  dc.send(JSON.stringify({type:'portrait',tier,lm:lmArr,colors}));
   sentCount++; document.getElementById('sentLbl').textContent=sentCount;
   setStatus('Portrait sent to peer!');
 }
 
-function sendPixelDelta(pixels) {
-  if(dc?.readyState!=='open') return;
-  dc.send(JSON.stringify({type:'delta',pixels:Array.from(pixels),blend:0.12}));
+function sendLandmarks(landmarks,speaking){
+  if(dc?.readyState!=='open')return;
+  const lmArr=landmarks.map(l=>({x:+l.x.toFixed(4),y:+l.y.toFixed(4),z:+l.z.toFixed(4)}));
+  dc.send(JSON.stringify({type:'puppet',lm:lmArr,speaking}));
   sentCount++; document.getElementById('sentLbl').textContent=sentCount;
 }
 
-function sendFaceState(state) {
-  if(dc?.readyState!=='open') return;
-  dc.send(JSON.stringify({type:'state',...state}));
-}
+function startPing(){setInterval(()=>{if(dc?.readyState==='open')dc.send(JSON.stringify({type:'ping',t:Date.now()}));},2000);}
 
-function startPing() {
-  setInterval(()=>{if(dc?.readyState==='open')dc.send(JSON.stringify({type:'ping',t:Date.now()}));},2000);
-}
-
-function sendFistPump() {
-  flashPortrait('local');
-  if(dc?.readyState==='open') dc.send(JSON.stringify({type:'gesture',gesture:'fistpump'}));
+function sendFistPump(){
+  flashMesh(localS);
+  if(dc?.readyState==='open')dc.send(JSON.stringify({type:'gesture',g:'fistpump'}));
   setStatus('👊 FIST PUMP SENT!');
 }
 
-function flashPortrait(who) {
-  const ctx2=who==='local'?lCtx:rCtx, pixels=who==='local'?localPixels:remotePixels;
-  ctx2.fillStyle='rgba(255,255,255,0.35)'; ctx2.fillRect(0,0,CW,CH);
-  setTimeout(()=>{if(pixels)renderAtResolution(ctx2,pixels,PASSES[getCurrentMaxPass()-1]||64,who);},120);
+function flashMesh(sc){
+  if(!sc.mesh)return;
+  sc.mesh.material.emissive=new THREE.Color(0xff00aa);
+  sc.mesh.material.emissiveIntensity=0.6;
+  setTimeout(()=>{if(sc.mesh){sc.mesh.material.emissive=new THREE.Color(0x000000);sc.mesh.material.emissiveIntensity=0;}},200);
 }
 
-function cloneVoice() {
-  if(!window.speechSynthesis) return;
+function cloneVoice(){
+  if(!window.speechSynthesis)return;
   window.speechSynthesis.cancel();
   const u=new SpeechSynthesisUtterance('Yo CB from the Shore — 3 Guys pizza slice in hand bro!');
   u.pitch=1.1; u.rate=1.15; u.onerror=()=>{}; window.speechSynthesis.speak(u);
 }
 
-function updateBuildUI(who,pct,label) {
-  const f=document.getElementById(who+'BuildFill'), l=document.getElementById(who+'BuildLbl'), o=document.getElementById(who+'BuildOv');
-  if(f) f.style.width=pct+'%'; if(l) l.textContent=label; if(o) o.style.display='block';
+const nextFrame=()=>new Promise(r=>requestAnimationFrame(r));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+function updateBuildUI(who,pct,lbl){
+  const f=document.getElementById(who+'BuildFill'),l=document.getElementById(who+'BuildLbl'),o=document.getElementById(who+'BuildOv');
+  if(f)f.style.width=pct+'%'; if(l)l.textContent=lbl; if(o)o.style.display='block';
 }
 
-function hideBuildUI(who) {
-  const o=document.getElementById(who+'BuildOv'); if(!o) return;
-  o.style.transition='opacity .8s'; o.style.opacity='0';
-  setTimeout(()=>{o.style.display='none';o.style.opacity='1';},850);
+function hideBuildUI(who){
+  const o=document.getElementById(who+'BuildOv'); if(!o)return;
+  o.style.transition='opacity .7s'; o.style.opacity='0';
+  setTimeout(()=>{o.style.display='none';o.style.opacity='1';},750);
 }
 
-function setStatus(msg){ document.getElementById('statusbar').textContent=msg; }
-function openModal()   { document.getElementById('sigModal').classList.add('open'); }
-function closeModal()  { document.getElementById('sigModal').classList.remove('open'); }
+function setStatus(msg){document.getElementById('statusbar').textContent=msg;}
+function openModal(){document.getElementById('sigModal').classList.add('open');}
+function closeModal(){document.getElementById('sigModal').classList.remove('open');}
 </script>
 </body>
 </html>
+```
