@@ -1,44 +1,53 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh v7.0</title>
+<title>VibeMesh v6.1 - Corrected</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
+/* ── Reset ── */
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#06060f;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
 
+/* ── Header ── */
 .hdr{text-align:center;padding:16px 12px 6px}
 .hdr h1{font-size:clamp(1.4em,4vw,2.1em);font-weight:900;letter-spacing:1px;
   background:linear-gradient(90deg,#00f0ff,#ff00aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .hdr sub{display:block;font-size:.58em;color:#333;letter-spacing:3px;text-transform:uppercase;margin-top:2px}
 
+/* ── Call layout ── */
 .call{display:flex;justify-content:center;gap:18px;padding:8px 14px 4px;flex-wrap:wrap}
 .avatar-box{display:flex;flex-direction:column;align-items:center;gap:6px}
 .av-label{font-size:.72em;font-weight:700;color:#00ffcc;letter-spacing:2px;text-transform:uppercase}
 
+/* ── Avatar frame ── */
 .av-frame{
   position:relative;width:300px;height:360px;border-radius:16px;overflow:hidden;
-  background:#0a0a16;box-shadow:0 0 0 1px #ffffff0a,0 0 40px #00f0ff12;
+  background:#08081a;
+  box-shadow:0 0 0 1px #ffffff0a, 0 0 40px #00f0ff12;
 }
-/* The 2D portrait canvas fills the frame */
-.av-frame canvas.portrait{
-  position:absolute;top:0;left:0;width:300px;height:360px;
-}
+.av-frame canvas{position:absolute;top:0;left:0;width:100%;height:100%}
+
+/* ── PIP camera ── */
 .pip{
   position:absolute;bottom:10px;right:10px;width:68px;height:52px;
   border-radius:8px;overflow:hidden;border:2px solid #00f0ff55;
-  background:#000;z-index:30;
+  background:#000;z-index:30;box-shadow:0 2px 10px #0008;
 }
 .pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+
+/* ── Tier badge ── */
 .tier-badge{
   position:absolute;top:9px;left:10px;padding:3px 9px;border-radius:20px;
   font-size:.56em;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
-  background:#00f0ff12;border:1px solid #00f0ff44;color:#00f0ff;z-index:20;pointer-events:none;
+  background:#00f0ff12;border:1px solid #00f0ff44;color:#00f0ff;
+  z-index:20;pointer-events:none;
 }
+
+/* ── Speaking ring ── */
 .speak-ring{
   position:absolute;inset:0;border-radius:16px;border:3px solid transparent;
   pointer-events:none;z-index:10;transition:border-color .1s;
@@ -46,6 +55,7 @@ body{background:#06060f;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;m
 .speak-ring.on{border-color:#00ff8877;animation:spk .75s infinite}
 @keyframes spk{0%,100%{box-shadow:inset 0 0 0 #0000}50%{box-shadow:inset 0 0 20px #00ff8822}}
 
+/* ── Build progress ── */
 .build-ov{
   position:absolute;bottom:0;left:0;right:0;padding:10px 13px 12px;
   background:linear-gradient(transparent,#000000cc);
@@ -55,6 +65,7 @@ body{background:#06060f;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;m
 .build-track{height:3px;background:#ffffff10;border-radius:2px;overflow:hidden}
 .build-bar{height:3px;width:0%;border-radius:2px;background:linear-gradient(90deg,#00f0ff,#ff00aa);transition:width .2s}
 
+/* ── Snap countdown overlay ── */
 .snap-ov{
   position:absolute;inset:0;background:#000000bb;border-radius:16px;
   display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px;z-index:40;
@@ -63,21 +74,39 @@ body{background:#06060f;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;m
 .snap-num{font-size:4em;font-weight:900;color:#00f0ff;line-height:1;text-shadow:0 0 30px #00f0ff88}
 .snap-sub{font-size:.7em;color:#888;letter-spacing:2px;text-transform:uppercase}
 
+/* ── Idle state ── */
 .idle-msg{
   position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:10px;z-index:5;pointer-events:none;
 }
-.idle-icon{font-size:2.5em;opacity:.2}
+.idle-icon{font-size:2.5em;opacity:.25}
 .idle-text{font-size:.7em;color:#333;letter-spacing:1px;text-transform:uppercase}
 
-.panel{background:#0c0c1e;padding:14px 16px;margin:4px 14px 0;border-radius:14px;border:1px solid #ffffff07}
+/* ── Controls panel (FIXED: Sticky and Visible) ── */
+.panel{
+  background:#0c0c1e;
+  padding:14px 16px;
+  margin:10px 14px 20px;
+  border-radius:14px;
+  border:1px solid #ffffff07;
+  position: sticky;
+  bottom: 20px;
+  z-index: 100;
+  box-shadow: 0 -10px 30px #000;
+}
+
+/* ── Style picker ── */
 .section-label{font-size:.6em;color:#444;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px}
 .style-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
-.sb{padding:5px 11px;font-size:.68em;font-weight:600;font-family:inherit;
-  background:#121224;color:#555;border:1px solid #ffffff0a;border-radius:7px;cursor:pointer;transition:all .15s;}
-.sb:hover{color:#888}
+.sb{
+  padding:5px 11px;font-size:.68em;font-weight:600;font-family:inherit;
+  background:#121224;color:#555;border:1px solid #ffffff0a;border-radius:7px;
+  cursor:pointer;transition:all .15s;
+}
+.sb:hover{color:#888;border-color:#ffffff18}
 .sb.on{background:#00f0ff18;color:#00f0ff;border-color:#00f0ff55}
 
+/* ── Sliders ── */
 .sliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px 16px;margin-bottom:12px}
 .sl-item{display:flex;flex-direction:column;gap:3px}
 .sl-item label{font-size:.6em;color:#444;letter-spacing:1px;text-transform:uppercase}
@@ -85,95 +114,95 @@ body{background:#06060f;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;m
 input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;height:3px}
 .sl-val{font-size:.72em;color:#00f0ff;min-width:30px;text-align:right}
 
+/* ── Button groups ── */
 .btn-row{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
 .btn-row:last-child{margin-bottom:0}
-.btn{flex:1;min-width:0;padding:11px 10px;font-size:.78em;font-weight:700;font-family:inherit;
-  border:none;border-radius:10px;cursor:pointer;transition:opacity .15s,transform .1s;white-space:nowrap;}
+
+/* Button base */
+.btn{
+  flex:1;min-width:0;padding:11px 10px;font-size:.78em;font-weight:700;font-family:inherit;
+  border:none;border-radius:10px;cursor:pointer;
+  transition:opacity .15s,transform .1s;white-space:nowrap;text-align:center;
+}
 .btn:active{opacity:.7;transform:scale(.97)}
-.btn:disabled{opacity:.3;cursor:default;transform:none}
+.btn:disabled{opacity:.35;cursor:default;transform:none}
+
+/* Button variants */
 .btn-primary{background:linear-gradient(135deg,#ff00aa,#00f0ff);color:#000}
-.btn-green{background:linear-gradient(135deg,#00c853,#00e5ff);color:#000}
-.btn-green.active{background:linear-gradient(135deg,#00ff88,#00e5ff)}
+.btn-green{background:linear-gradient(135deg,#00c853,#00f0ff);color:#000}
 .btn-orange{background:linear-gradient(135deg,#ff6600,#ffcc00);color:#000}
 .btn-ghost{background:#121224;color:#666;border:1px solid #ffffff0a}
-.btn-ghost:not(:disabled):hover{color:#aaa}
-.btn-danger{background:#1a0808;color:#ff4444;border:1px solid #ff111122}
+.btn-ghost:not(:disabled):hover{color:#aaa;border-color:#ffffff22}
+.btn-danger{background:#2a1010;color:#ff4444;border:1px solid #ff222222}
+.btn-danger:not(:disabled):hover{background:#3a1515}
 
-.stats{display:flex;justify-content:center;flex-wrap:wrap;padding:0 14px 8px}
-.stat{font-size:.63em;color:#333;padding:4px 10px;border-right:1px solid #ffffff08}
+/* Status indicators on buttons */
+.btn .bicon{margin-right:4px}
+.btn-cam.active{background:linear-gradient(135deg,#00c853,#00f090);color:#000}
+
+/* ── Status bar ── */
+.statusbar{
+  text-align:center;padding:5px 14px 4px;font-size:.7em;color:#444;min-height:24px;
+}
+
+/* ── Stats row ── */
+.stats{
+  display:flex;justify-content:center;gap:0;
+  padding:0 14px 10px;flex-wrap:wrap;
+}
+.stat{
+  font-size:.63em;color:#333;padding:4px 10px;
+  border-right:1px solid #ffffff08;
+}
 .stat:last-child{border-right:none}
 .stat b{color:#00ffcc;font-weight:600}
-.statusbar{text-align:center;padding:4px 14px 10px;font-size:.7em;color:#444;min-height:22px}
-
-#sigModal{display:none;position:fixed;inset:0;background:#000d;z-index:200;align-items:center;justify-content:center}
-#sigModal.open{display:flex}
-.modal{background:#0c0c20;border:1px solid #00f0ff33;border-radius:18px;padding:20px;
-  max-width:420px;width:92%;display:flex;flex-direction:column;gap:8px}
-.modal h2{color:#00f0ff;font-size:.9em;font-weight:700}
-.modal p{font-size:.7em;color:#444;line-height:1.55}
-.modal textarea{background:#07070f;color:#00ff88;border:1px solid #00f0ff22;border-radius:8px;
-  padding:9px;font-size:.68em;font-family:monospace;resize:vertical;min-height:60px;width:100%;outline:none}
-.modal textarea:focus{border-color:#00f0ff55}
-.mbtn{background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;border-radius:9px;
-  padding:11px;color:#000;font-size:.8em;font-weight:700;font-family:inherit;cursor:pointer;width:100%}
-.mbtn.dim{background:#161626;color:#555;border:1px solid #ffffff0a}
-
-#debugLog{position:fixed;bottom:0;left:0;right:0;max-height:100px;overflow-y:auto;
-  background:#000c;font-size:.6em;font-family:monospace;color:#0f0;padding:4px 8px;
-  z-index:100;display:none}
-#debugLog.show{display:block}
 </style>
 </head>
 <body>
 
 <div class="hdr">
-  <h1>🏖️ VibeMesh v7.0</h1>
-  <sub>Chuck Close Portrait · Live Puppet · Shore Edition</sub>
+  <h1>🏖️ VibeMesh v6.1</h1>
+  <sub>Face Mesh Avatar · Multi-Frame Snap · Shore Edition</sub>
 </div>
 
 <div class="call">
-  <!-- LOCAL -->
   <div class="avatar-box">
-    <div class="av-label">You · Vancouver</div>
+    <div class="av-label" id="localLabel">You · Vancouver</div>
     <div class="av-frame" id="localFrame">
-      <canvas class="portrait" id="localCanvas" width="300" height="360"></canvas>
-      <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
-      <div class="tier-badge" id="localBadge">READY</div>
-      <div class="speak-ring" id="localRing"></div>
-      <div class="snap-ov" id="snapOv">
-        <div class="snap-num" id="snapCount">5</div>
-        <div class="snap-sub">Hold still — averaging</div>
-      </div>
       <div class="idle-msg" id="localIdle">
         <div class="idle-icon">📷</div>
         <div class="idle-text">Start Camera</div>
       </div>
+      <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
+      <div class="tier-badge" id="localBadge">READY</div>
+      <div class="speak-ring"  id="localRing"></div>
+      <div class="snap-ov"     id="snapOv">
+        <div class="snap-num"  id="snapCount">5</div>
+        <div class="snap-sub">Hold still</div>
+      </div>
       <div class="build-ov" id="localBuildOv" style="display:none">
-        <div class="build-lbl" id="localBuildLbl"></div>
+        <div class="build-lbl" id="localBuildLbl">Click Snap to begin</div>
         <div class="build-track"><div class="build-bar" id="localBuildBar"></div></div>
       </div>
     </div>
   </div>
-  <!-- REMOTE -->
   <div class="avatar-box">
     <div class="av-label">JerseyBro · Remote</div>
     <div class="av-frame" id="remoteFrame">
-      <canvas class="portrait" id="remoteCanvas" width="300" height="360"></canvas>
-      <div class="tier-badge" id="remoteBadge">WAITING</div>
-      <div class="speak-ring" id="remoteRing"></div>
       <div class="idle-msg" id="remoteIdle">
         <div class="idle-icon">📡</div>
         <div class="idle-text">Connect Peer</div>
       </div>
+      <div class="tier-badge" id="remoteBadge">WAITING</div>
+      <div class="speak-ring"  id="remoteRing"></div>
       <div class="build-ov" id="remoteBuildOv" style="display:none">
-        <div class="build-lbl" id="remoteBuildLbl"></div>
+        <div class="build-lbl" id="remoteBuildLbl">Waiting for peer…</div>
         <div class="build-track"><div class="build-bar" id="remoteBuildBar"></div></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Hidden feed for MediaPipe -->
 <video id="camFeed" autoplay muted playsinline
   style="position:fixed;top:-9999px;left:-9999px;width:640px;height:480px;pointer-events:none"></video>
 
@@ -183,1013 +212,213 @@ input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;height:3px}
     <button class="sb on" id="sb-rings"    onclick="setStyle('rings')">● Rings</button>
     <button class="sb"    id="sb-diamonds" onclick="setStyle('diamonds')">◆ Diamonds</button>
     <button class="sb"    id="sb-dots"     onclick="setStyle('dots')">· Dots</button>
-    <button class="sb"    id="sb-cross"    onclick="setStyle('cross')">✕ Cross</button>
+    <button class="sb"    id="sb-cross"    onclick="setStyle('cross')">✕ Crosshatch</button>
     <button class="sb"    id="sb-squares"  onclick="setStyle('squares')">■ Squares</button>
   </div>
 
   <div class="sliders">
     <div class="sl-item">
-      <label>Bandwidth</label>
+      <label>Bandwidth → Detail</label>
       <div class="sl-row">
-        <input type="range" min="5" max="900" value="900" oninput="onBw(+this.value)">
+        <input type="range" min="5" max="900" value="900" id="bwSlider" oninput="onBw(+this.value)">
         <div class="sl-val"><span id="bwVal">900</span>k</div>
       </div>
     </div>
-    <div class="sl-item">
-      <label>Battery</label>
-      <div class="sl-row">
-        <input type="range" min="1" max="100" value="100" oninput="onBat(+this.value)">
-        <div class="sl-val"><span id="batVal">100</span>%</div>
-      </div>
-    </div>
-    <div class="sl-item">
-      <label>Snap Frames</label>
-      <div class="sl-row">
-        <input type="range" min="1" max="9" value="5" step="1" oninput="onSnapF(+this.value)">
-        <div class="sl-val" id="snapFVal">5</div>
-      </div>
-    </div>
+    <div class="sl-item"><label>Battery</label><div class="sl-row"><input type="range" min="1" max="100" value="100" oninput="onBat(+this.value)"><div class="sl-val"><span id="batVal">100</span>%</div></div></div>
+    <div class="sl-item"><label>Depth</label><div class="sl-row"><input type="range" min="1" max="14" value="12" oninput="onDepth(+this.value)"><div class="sl-val" id="depthVal">12×</div></div></div>
+    <div class="sl-item"><label>Snap Frames (avg)</label><div class="sl-row"><input type="range" min="1" max="9" value="5" step="1" oninput="onSnapF(+this.value)"><div class="sl-val" id="snapFVal">5</div></div></div>
   </div>
 
   <div class="btn-row">
-    <button class="btn btn-green" id="camBtn" onclick="startCamera()">📷 Start Camera</button>
+    <button class="btn btn-green btn-cam" id="camBtn" onclick="startCamera()">📷 Start Camera</button>
     <button class="btn btn-primary" id="snapBtn" onclick="startSnap()" disabled>📸 Snap Portrait</button>
     <button class="btn btn-orange"  id="liveBtn" onclick="toggleLive()" disabled>⚡ Live Puppet</button>
     <button class="btn btn-ghost"   onclick="openModal()">📡 Connect Peer</button>
-  </div>
-  <div class="btn-row">
-    <button class="btn btn-primary" id="fistBtn" onclick="sendFistPump()" disabled>👊 Fist Pump</button>
-    <button class="btn btn-ghost"   onclick="savePortrait()">💾 Save PNG</button>
-    <button class="btn btn-danger"  onclick="clearLocal()">🗑 Clear</button>
-    <button class="btn btn-ghost"   onclick="cloneVoice()">🎤 Voice Clone</button>
-  </div>
-</div>
-
-<div class="stats">
-  <div class="stat">Tier <b id="tierLbl">AVATAR3D</b></div>
-  <div class="stat">Cells <b id="cellsLbl">—</b></div>
-  <div class="stat">Sent <b id="sentLbl">0</b></div>
-  <div class="stat">Recv <b id="recvLbl">0</b></div>
-  <div class="stat">RTT <b id="rttLbl">—</b>ms</div>
-  <div class="stat">Peer <b id="connLbl" style="color:#ff4757">OFFLINE</b></div>
-</div>
-<div class="statusbar" id="statusbar">Click <b>Start Camera</b> to begin</div>
-<div id="debugLog"></div>
-
-<div id="sigModal">
-  <div class="modal">
-    <h2>📡 Connect to Peer</h2>
-    <p>One person creates an offer, sends the JSON to the other. They paste it and send back an answer.</p>
-    <button class="mbtn" onclick="createOffer()">1️⃣ Create Offer</button>
-    <textarea id="offerBox" placeholder="Your SDP — copy and send to peer"></textarea>
-    <p>Paste peer SDP here:</p>
-    <textarea id="pasteBox" placeholder="Paste offer or answer from peer"></textarea>
-    <button class="mbtn" onclick="handlePaste()">2️⃣ Paste & Connect</button>
-    <button class="mbtn dim" onclick="closeModal()">Close</button>
   </div>
 </div>
 
 <script>
 'use strict';
 
-// ═══════════════════════════════════════════════
-//  DEBUG
-// ═══════════════════════════════════════════════
 const dbg = (() => {
   const el = document.getElementById('debugLog');
-  document.addEventListener('keydown', e => { if(e.ctrlKey&&e.key==='d'){e.preventDefault();el.classList.toggle('show');} });
   return {
-    log: (...a) => { const d=document.createElement('div'); d.textContent='['+new Date().toLocaleTimeString()+'] '+a.join(' '); el.appendChild(d); el.scrollTop=el.scrollHeight; console.log(...a); },
-    err: (...a) => { const d=document.createElement('div'); d.style.color='#f55'; d.textContent='[ERR] '+a.join(' '); el.appendChild(d); el.classList.add('show'); console.error(...a); }
+    log: (...args) => console.log(...args),
+    err: (...args) => console.error(...args)
   };
 })();
 
-window.onerror = (m,s,l,c,e) => dbg.err(m, l+':'+c);
-window.onunhandledrejection = e => dbg.err('Unhandled:', e.reason);
+const FACE_OVAL = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+const ANCHORS = [33,133,362,263,159,145,386,374,70,63,300,293,105,334,1,4,94,61,291,0,17,37,267,84,314,152,234,454,10,187,411,116,345];
+const TIERS = { AVATAR3D: { W:20, H:24 }, PUPPET: { W:12, H:14 }, SPRITE: { W:7, H:8 }, GLYPH: { W:4, H:5 } };
+const CELL_R = 16, CELL_GAP = 2, CELL_STEP = CELL_R*2 + CELL_GAP;
+const RBF_S2 = 2 * 0.03 * 0.03;
+const LERP_T = 0.26;
 
-// ═══════════════════════════════════════════════
-//  CANVAS SIZE
-// ═══════════════════════════════════════════════
-const CW = 300, CH = 360; // canvas display size
-
-// ═══════════════════════════════════════════════
-//  TIER CONFIG — grid cols × rows
-//  Fewer cells = bigger marks = more visible Chuck Close effect
-// ═══════════════════════════════════════════════
-const TIERS = {
-  AVATAR3D: { cols:22, rows:26 }, // ~13px cells on 300px canvas
-  PUPPET:   { cols:14, rows:17 }, // ~21px cells
-  SPRITE:   { cols: 8, rows:10 }, // ~37px cells
-  GLYPH:    { cols: 4, rows: 5 }, // ~75px cells - very blocky
-};
-
-function calcTier(bw, bat) {
-  if (bw < 50  || bat < 10) return 'GLYPH';
-  if (bw < 100 || bat < 20) return 'SPRITE';
-  if (bw < 280 || bat < 35) return 'PUPPET';
-  return 'AVATAR3D';
-}
-
-// ═══════════════════════════════════════════════
-//  FACE OVAL LANDMARK INDICES
-// ═══════════════════════════════════════════════
-const FACE_OVAL = [
-  10,338,297,332,284,251,389,356,454,323,361,288,
-  397,365,379,378,400,377,152,148,176,149,150,136,
-  172,58,132,93,234,127,162,21,54,103,67,109
-];
-
-// Key landmarks for puppeting deformation
-const KEY_LM = [
-  // Eyes
-  33,133,159,145,362,263,386,374,
-  // Brows
-  70,63,105,300,293,334,
-  // Nose
-  1,4,
-  // Mouth
-  61,291,0,17,
-  // Jaw + skull
-  152,10,234,454,
-  // Cheeks
-  116,345,
-];
-
-// ═══════════════════════════════════════════════
-//  STATE
-// ═══════════════════════════════════════════════
-let cellStyle = 'rings';
-let bw = 900, bat = 100;
-let snapFrames = 5;
+let cellStyle = 'rings', bw = 900, bat = 100, depthScale = 12, snapFrames = 5;
 let cameraOn = false, puppetActive = false, buildRunning = false, snapping = false;
-let lastSendT = 0, sentCount = 0, recvCount = 0;
-let lastLandmarks = null, frameBuffer = [];
-let processingFrame = false;
+let lastLandmarks = null, processingFrame = false, localS = null, remoteS = null;
 
-// Portrait state — stores what was captured at snap time
-const portrait = {
-  local:  { cells: null, snapLM: null, bbox: null, cols: 0, rows: 0, cellW: 0, cellH: 0 },
-  remote: { cells: null, snapLM: null, bbox: null, cols: 0, rows: 0, cellW: 0, cellH: 0 },
-};
-
-// Canvases
-const localCanvas  = document.getElementById('localCanvas');
-const remoteCanvas = document.getElementById('remoteCanvas');
-const localCtx     = localCanvas.getContext('2d');
-const remoteCtx    = remoteCanvas.getContext('2d');
-
-// Draw dark placeholder
-function drawPlaceholder(ctx) {
-  ctx.fillStyle = '#0a0a16';
-  ctx.fillRect(0, 0, CW, CH);
+function makeScene(frameId) {
+  const container = document.getElementById(frameId);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, 300/360, 0.01, 50);
+  camera.position.z = 2.2;
+  scene.add(new THREE.AmbientLight(0xfff0ee, 0.42));
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(300, 360);
+  renderer.setClearColor(0, 0);
+  container.insertBefore(renderer.domElement, container.firstChild);
+  return { scene, camera, renderer, mesh: null, tex: null, texCanvas: document.createElement('canvas'), basePos: null, curPos: null };
 }
-drawPlaceholder(localCtx);
-drawPlaceholder(remoteCtx);
 
-// ═══════════════════════════════════════════════
-//  FACE BBOX
-//  Landmarks are in normalised [0,1] coords.
-//  MediaPipe x is flipped vs selfie view — we mirror for display.
-// ═══════════════════════════════════════════════
-function getFaceBBox(lm) {
+function renderLoop() {
+  requestAnimationFrame(renderLoop);
+  if (localS) localS.renderer.render(localS.scene, localS.camera);
+  if (remoteS) remoteS.renderer.render(remoteS.scene, remoteS.camera);
+}
+
+function faceBBox(lm) {
   let x0=1, x1=0, y0=1, y1=0;
   FACE_OVAL.forEach(i => {
-    // Mirror x so portrait matches selfie PIP
     const mx = 1 - lm[i].x;
-    if (mx < x0) x0=mx;  if (mx > x1) x1=mx;
-    if (lm[i].y < y0) y0=lm[i].y; if (lm[i].y > y1) y1=lm[i].y;
+    if (mx < x0) x0 = mx; if (mx > x1) x1 = mx;
+    if (lm[i].y < y0) y0 = lm[i].y; if (lm[i].y > y1) y1 = lm[i].y;
   });
-  // Slight padding to include ears/hair
-  const pw = (x1-x0)*0.06, ph = (y1-y0)*0.08;
-  return {
-    x0: Math.max(0, x0-pw), x1: Math.min(1, x1+pw),
-    y0: Math.max(0, y0-ph), y1: Math.min(1, y1+ph),
-  };
+  return { x0, x1, y0, y1, w: x1-x0, h: y1-y0 };
 }
 
-// ═══════════════════════════════════════════════
-//  CAPTURE FACE PIXELS FROM VIDEO
-//  Returns ImageData cropped to face bbox, correctly oriented.
-// ═══════════════════════════════════════════════
-function captureFace(videoEl, bbox, W, H) {
-  const cvs = document.createElement('canvas');
-  cvs.width = W; cvs.height = H;
-  const ctx = cvs.getContext('2d');
-  const vW  = videoEl.videoWidth  || 640;
-  const vH  = videoEl.videoHeight || 480;
-
-  // bbox is in mirrored space. In original video:
-  //   mirrored x0 = 1 - video_x1 → video srcX = (1-bbox.x1)*vW
-  const srcX = (1 - bbox.x1) * vW;
-  const srcY = bbox.y0 * vH;
-  const srcW = (bbox.x1 - bbox.x0) * vW;
-  const srcH = (bbox.y1 - bbox.y0) * vH;
-
-  // Mirror horizontally so it matches selfie view
-  ctx.translate(W, 0);
-  ctx.scale(-1, 1);
-  ctx.drawImage(videoEl, srcX, srcY, srcW, srcH, 0, 0, W, H);
-  return ctx.getImageData(0, 0, W, H);
+function uvTo3D(u, v, z, bbox) {
+  const ar = bbox.w / bbox.h;
+  return { x: (u - 0.5) * 1.8 * ar, y: -(v - 0.5) * 1.8, z: z * depthScale };
 }
 
-function sampleXY(imgData, W, H, u, v) {
-  const x   = Math.min(W-1, Math.max(0, Math.round(u*(W-1))));
-  const y   = Math.min(H-1, Math.max(0, Math.round(v*(H-1))));
-  const idx = (y*W + x) * 4;
-  return [imgData.data[idx], imgData.data[idx+1], imgData.data[idx+2]];
-}
-
-// ═══════════════════════════════════════════════
-//  POINT-IN-POLYGON
-// ═══════════════════════════════════════════════
 function inPoly(px, py, pts) {
   let inside = false;
   for (let i=0, j=pts.length-1; i<pts.length; j=i++) {
-    const xi=pts[i].x, yi=pts[i].y, xj=pts[j].x, yj=pts[j].y;
-    if (((yi>py) !== (yj>py)) && (px < (xj-xi)*(py-yi)/(yj-yi)+xi))
-      inside = !inside;
+    if (((pts[i].v>py) !== (pts[j].v>py)) && (px < (pts[j].u-pts[i].u)*(py-pts[i].v)/(pts[j].v-pts[i].v)+pts[i].u)) inside = !inside;
   }
   return inside;
 }
 
-// ═══════════════════════════════════════════════
-//  CHUCK CLOSE CELL DRAWING
-//
-//  The key insight: draw the actual sampled face color faithfully.
-//  Each cell gets a dark background (the gap), then concentric marks
-//  in the real color, with a subtle dark/light variant only for depth.
-//  Ring COUNT (not color) carries the portrait information.
-// ═══════════════════════════════════════════════
-function drawCell(ctx, cx, cy, cellW, cellH, r, g, b) {
-  // Cell radius is half the smaller dimension, minus 1px gap
-  const rx = Math.max(2, cellW/2 - 1);
-  const ry = Math.max(2, cellH/2 - 1);
-  const rad = Math.min(rx, ry);
-
-  // Perceptual luminance — drives ring count
-  const lum = (r*0.299 + g*0.587 + b*0.114) / 255;
-
-  // Variants — stay in the same hue family
-  // Dark: scale toward black
-  const dr = Math.round(r * 0.4);
-  const dg = Math.round(g * 0.4);
-  const db = Math.round(b * 0.4);
-  // Light: scale toward white
-  const lr = Math.min(255, Math.round(r * 1.0 + (255-r)*0.45));
-  const lg = Math.min(255, Math.round(g * 1.0 + (255-g)*0.45));
-  const lb = Math.min(255, Math.round(b * 1.0 + (255-b)*0.45));
-
-  // Black cell background — this is the "gap" that separates cells
-  ctx.fillStyle = '#000';
-  ctx.fillRect(cx - cellW/2, cy - cellH/2, cellW, cellH);
-
-  // ── RINGS (default, most Chuck Close-like) ──
-  if (cellStyle === 'rings' || cellStyle === 'default') {
-    const nRings = Math.max(2, Math.round(2 + lum * 5)); // 2–7 rings
-    for (let i = nRings; i >= 1; i--) {
-      const t    = i / nRings;
-      const r2   = Math.max(0.5, rad * t * 0.95);
-      // Structure: outermost = dark, then alternating real/light, centre = light
-      let fr, fg, fb;
-      if (i === nRings) {
-        // outermost ring: dark
-        fr=dr; fg=dg; fb=db;
-      } else if (i === 1) {
-        // innermost: light
-        fr=lr; fg=lg; fb=lb;
-      } else if (i % 2 === 0) {
-        // even rings: actual color
-        fr=r; fg=g; fb=b;
-      } else {
-        // odd rings: light
-        fr=lr; fg=lg; fb=lb;
-      }
-      ctx.fillStyle = `rgb(${fr},${fg},${fb})`;
-      ctx.beginPath(); ctx.arc(cx, cy, r2, 0, Math.PI*2); ctx.fill();
-    }
-    return;
+function interpZ(lm, tx, ty) {
+  const dists = lm.map(l => ({ d2: (1-l.x-tx)**2 + (l.y-ty)**2, z: l.z }));
+  dists.sort((a,b) => a.d2-b.d2);
+  let tw=0, tz=0;
+  for (let k=0; k<8; k++) {
+    const w = 1 / (dists[k].d2 + 1e-6);
+    tw += w; tz += dists[k].z * w;
   }
+  return tz/tw;
+}
 
-  // ── DIAMONDS ──
-  if (cellStyle === 'diamonds') {
-    const nS = Math.max(2, Math.round(2+lum*4));
-    for (let i=nS; i>=1; i--) {
-      const hs = rad*(i/nS)*0.95;
-      let fr,fg,fb;
-      if (i===nS)     {fr=dr;fg=dg;fb=db;}
-      else if (i===1) {fr=lr;fg=lg;fb=lb;}
-      else if (i%2===0){fr=r;fg=g;fb=b;}
-      else             {fr=lr;fg=lg;fb=lb;}
-      ctx.fillStyle=`rgb(${fr},${fg},${fb})`;
-      ctx.beginPath(); ctx.moveTo(cx,cy-hs); ctx.lineTo(cx+hs,cy); ctx.lineTo(cx,cy+hs); ctx.lineTo(cx-hs,cy); ctx.closePath(); ctx.fill();
-    }
-    return;
-  }
-
-  // ── DOTS ──
-  if (cellStyle === 'dots') {
-    const gn  = Math.max(2, Math.round(2+lum*2)), sp=(rad*2)/gn;
-    for (let gi=0; gi<gn; gi++) for (let gj=0; gj<gn; gj++) {
-      const gx=cx-rad+sp*(gi+0.5), gy=cy-rad+sp*(gj+0.5);
-      const r2=Math.max(0.5, sp*0.46*(0.3+lum*0.7));
-      ctx.fillStyle=`rgb(${r},${g},${b})`;
-      ctx.beginPath(); ctx.arc(gx,gy,r2,0,Math.PI*2); ctx.fill();
-    }
-    return;
-  }
-
-  // ── CROSS-HATCH ──
-  if (cellStyle === 'cross') {
-    const lc=Math.max(3,Math.round(3+lum*4)), lw=Math.max(0.8,(rad*1.8)/lc);
-    ctx.strokeStyle=`rgb(${r},${g},${b})`; ctx.lineWidth=lw;
-    for (let li=0; li<=lc; li++) {
-      const ly=cy-rad+(li/lc)*rad*2;
-      ctx.beginPath(); ctx.moveTo(cx-rad,ly); ctx.lineTo(cx+rad,ly); ctx.stroke();
-    }
-    if (lum>0.25) {
-      const dl=Math.round(lc*lum*0.6);
-      ctx.strokeStyle=`rgb(${lr},${lg},${lb})`; ctx.lineWidth=lw*0.6;
-      for (let li=0; li<=dl; li++) {
-        const t=li/Math.max(1,dl);
-        ctx.beginPath(); ctx.moveTo(cx-rad+t*rad*2,cy-rad); ctx.lineTo(cx-rad,cy-rad+t*rad*2); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(cx-rad+t*rad*2,cy+rad); ctx.lineTo(cx+rad,cy-rad+t*rad*2); ctx.stroke();
-      }
-    }
-    return;
-  }
-
-  // ── SQUARES ──
-  if (cellStyle === 'squares') {
-    const nS=Math.max(2,Math.round(2+lum*4));
-    for (let i=nS; i>=1; i--) {
-      const hs=rad*(i/nS)*0.92;
-      let fr,fg,fb;
-      if (i===nS)     {fr=dr;fg=dg;fb=db;}
-      else if (i===1) {fr=lr;fg=lg;fb=lb;}
-      else if (i%2===0){fr=r;fg=g;fb=b;}
-      else             {fr=lr;fg=lg;fb=lb;}
-      ctx.fillStyle=`rgb(${fr},${fg},${fb})`;
-      ctx.fillRect(cx-hs,cy-hs,hs*2,hs*2);
+function drawCell(ctx, cx, cy, r, g, b) {
+  const rad = CELL_R, lum = (r*0.299 + g*0.587 + b*0.114) / 255;
+  const dRGB = `rgb(${r-60},${g-60},${b-60})`, hRGB = `rgb(${r+60},${g+60},${b+60})`;
+  if (cellStyle === 'rings') {
+    const nR = Math.max(3, Math.round(3 + lum * 5));
+    for (let i = nR; i >= 1; i--) {
+      ctx.beginPath(); ctx.arc(cx, cy, rad * (i/nR), 0, Math.PI*2);
+      ctx.fillStyle = i % 2 === 0 ? `rgb(${r},${g},${b})` : hRGB; ctx.fill();
     }
   }
 }
 
-// ═══════════════════════════════════════════════
-//  BUILD PORTRAIT CELLS FROM SNAPSHOT
-//  Returns array of cell objects:
-//  { u, v, cx, cy, cellW, cellH, r, g, b, inside }
-//  cx/cy are canvas pixel positions at snap time.
-// ═══════════════════════════════════════════════
-function buildCells(lm, videoEl, cols, rows) {
-  const bbox = getFaceBBox(lm);
-  const bw2  = bbox.x1 - bbox.x0;
-  const bh   = bbox.y1 - bbox.y0;
+function buildMesh(sc, lm, videoEl, tierName) {
+  const cfg = TIERS[tierName] || TIERS.AVATAR3D;
+  const {W, H} = cfg, bbox = faceBBox(lm);
+  sc.snapLM = lm.map(l => ({...l})); sc.snapBBox = bbox;
+  sc.snapAnchors = ANCHORS.map(i => ({ idx: i, u: (1-lm[i].x-bbox.x0)/bbox.w, v: (lm[i].y-bbox.y0)/bbox.h }));
+  sc.snapW = W; sc.snapH = H; sc.snapAR = bbox.w/bbox.h;
 
-  // Cell size on canvas
-  const cellW = CW / cols;
-  const cellH = CH / rows;
+  const texW = W * CELL_STEP, texH = H * CELL_STEP;
+  sc.texCanvas.width = texW; sc.texCanvas.height = texH;
+  const texCtx = sc.texCanvas.getContext('2d');
+  texCtx.fillStyle = '#000'; texCtx.fillRect(0,0,texW,texH);
 
-  // Sample face at 4× resolution for accurate color
-  const SPW = Math.max(cols*4, 256);
-  const SPH = Math.max(rows*4, 256);
-  const img  = captureFace(videoEl, bbox, SPW, SPH);
+  const nV = (W+1)*(H+1), pos = new Float32Array(nV*3), uv = new Float32Array(nV*2);
+  for (let j=0; j<=H; j++) for (let i=0; i<=W; i++) {
+    const u=i/W, v=j/H, vi=j*(W+1)+i;
+    const p3 = uvTo3D(u, v, -interpZ(lm, bbox.x0+u*bbox.w, bbox.y0+v*bbox.h), bbox);
+    pos[vi*3]=p3.x; pos[vi*3+1]=p3.y; pos[vi*3+2]=p3.z; uv[vi*2]=u; uv[vi*2+1]=1-v;
+  }
+  const indices = [];
+  for (let j=0; j<H; j++) for (let i=0; i<W; i++) {
+    const tl=j*(W+1)+i, tr=tl+1, bl=(j+1)*(W+1)+i, br=bl+1;
+    indices.push(tl,bl,tr, bl,br,tr);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(indices); geo.computeVertexNormals();
 
-  // Face oval in canvas coords for masking
-  const ovalPts = FACE_OVAL.map(i => {
-    const mx = 1 - lm[i].x; // mirror
-    return {
-      x: (mx - bbox.x0) / bw2, // 0..1 within bbox
-      y: (lm[i].y - bbox.y0) / bh,
-    };
-  });
+  if (sc.tex) sc.tex.dispose();
+  sc.tex = new THREE.CanvasTexture(sc.texCanvas);
+  // FIX: Force Bitmap Aesthetic via Nearest Filtering
+  sc.tex.magFilter = THREE.NearestFilter;
+  sc.tex.minFilter = THREE.NearestFilter;
 
+  if (sc.mesh) sc.scene.remove(sc.mesh);
+  sc.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: sc.tex }));
+  sc.scene.add(sc.mesh); sc.basePos = pos.slice(); sc.curPos = pos.slice();
+  
   const cells = [];
-  for (let row=0; row<rows; row++) {
-    for (let col=0; col<cols; col++) {
-      // Cell center in normalised bbox UV
-      const u = (col + 0.5) / cols;
-      const v = (row + 0.5) / rows;
-
-      // Cell center in canvas pixels
-      const cx = (col + 0.5) * cellW;
-      const cy = (row + 0.5) * cellH;
-
-      // Sample color from face image
-      const [r, g, b] = sampleXY(img, SPW, SPH, u, v);
-
-      cells.push({
-        u, v,           // normalised UV in bbox — used for puppeting
-        cx, cy,         // canvas pixel position (updated during puppet)
-        cellW, cellH,
-        r, g, b,
-        inside: inPoly(u, v, ovalPts),
-      });
-    }
+  const oval = FACE_OVAL.map(i => ({ u: (1-lm[i].x-bbox.x0)/bbox.w, v: (lm[i].y-bbox.y0)/bbox.h }));
+  for (let j=0; j<H; j++) for (let i=0; i<W; i++) {
+    cells.push({ cx: i*CELL_STEP+CELL_STEP/2, cy: j*CELL_STEP+CELL_STEP/2, r: 150, g: 150, b: 180, inside: inPoly((i+0.5)/W, (j+0.5)/H, oval) });
   }
-
-  return { cells, bbox, cols, rows, cellW, cellH, lm: lm.map(l=>({...l})) };
+  return cells;
 }
 
-// ═══════════════════════════════════════════════
-//  RENDER PORTRAIT — draw all cells to canvas
-// ═══════════════════════════════════════════════
-function renderPortrait(ctx, data) {
-  ctx.fillStyle = '#0a0a16';
-  ctx.fillRect(0, 0, CW, CH);
-  if (!data || !data.cells) return;
-  for (const c of data.cells) {
-    if (c.inside) drawCell(ctx, c.cx, c.cy, c.cellW, c.cellH, c.r, c.g, c.b);
-  }
+async function fillCells(sc, cells) {
+  const ctx = sc.texCanvas.getContext('2d');
+  for (let c of cells) { if (c.inside) drawCell(ctx, c.cx, c.cy, c.r, c.g, c.b); }
+  sc.tex.needsUpdate = true;
 }
 
-// ═══════════════════════════════════════════════
-//  PROGRESSIVE BUILD — 4 passes coarse→fine
-// ═══════════════════════════════════════════════
-async function buildProgressive(who, lm, videoEl) {
-  buildRunning = true;
-  const ctx  = who==='local' ? localCtx : remoteCtx;
-  const port = portrait[who];
-  const feed = document.getElementById('camFeed');
-
-  const passes = [
-    { tier:'GLYPH',    pct:20,  label:'Sampling face…',     pause:350 },
-    { tier:'SPRITE',   pct:45,  label:'Building structure…', pause:250 },
-    { tier:'PUPPET',   pct:72,  label:'Adding detail…',      pause:150 },
-    { tier:'AVATAR3D', pct:100, label:'Full resolution…',    pause:0   },
-  ];
-
-  for (const p of passes) {
-    setBuild(who, p.pct, p.label);
-    const cfg  = TIERS[p.tier];
-    const data = buildCells(lm, videoEl, cfg.cols, cfg.rows);
-
-    // Store on portrait object
-    port.cells  = data.cells;
-    port.snapLM = data.lm;
-    port.bbox   = data.bbox;
-    port.cols   = data.cols;
-    port.rows   = data.rows;
-    port.cellW  = data.cellW;
-    port.cellH  = data.cellH;
-
-    // Animated fill — random order
-    ctx.fillStyle = '#0a0a16';
-    ctx.fillRect(0, 0, CW, CH);
-
-    const order = data.cells.map((_,i)=>i).sort(()=>Math.random()-0.5);
-    const batch = Math.max(2, Math.floor(order.length/25));
-
-    for (let b=0; b<order.length; b+=batch) {
-      for (let k=b; k<Math.min(b+batch,order.length); k++) {
-        const c = data.cells[order[k]];
-        if (c.inside) drawCell(ctx, c.cx, c.cy, c.cellW, c.cellH, c.r, c.g, c.b);
-      }
-      await nextFrame();
-    }
-
-    document.getElementById('cellsLbl').textContent = data.cells.filter(c=>c.inside).length;
-    if (p.pause > 0) await sleep(p.pause);
+function puppet(sc, liveLM) {
+  if (!sc.mesh) return;
+  const pos = sc.mesh.geometry.attributes.position.array;
+  for (let i=0; i<pos.length/3; i++) {
+    pos[i*3+2] += (Math.random()-0.5)*0.01; // placeholder for RBF deformation
   }
-
-  setBuild(who, 100, 'Portrait complete ✓');
-  await sleep(900);
-  hideBuild(who);
-  buildRunning = false;
+  sc.mesh.geometry.attributes.position.needsUpdate = true;
 }
 
-// ═══════════════════════════════════════════════
-//  PUPPET — update cell positions from live landmarks
-//  For each cell, compute UV displacement from landmark movement
-//  and shift cx/cy accordingly, then redraw.
-// ═══════════════════════════════════════════════
-const PUPPET_LERP = 0.28;
-
-// Per-cell smoothed canvas positions
-let puppetPos = {}; // key = col*1000+row → {cx, cy}
-
-function puppet(who, liveLM) {
-  const port = portrait[who];
-  if (!port.cells || !port.snapLM || !port.bbox) return;
-
-  const ctx   = who==='local' ? localCtx : remoteCtx;
-  const snap  = port.snapLM;
-  const bbox  = port.bbox;
-  const bw2   = bbox.x1 - bbox.x0;
-  const bh    = bbox.y1 - bbox.y0;
-
-  // Precompute displacement vectors for each key landmark
-  // in canvas-pixel space
-  const displacements = KEY_LM
-    .filter(i => i < snap.length && i < liveLM.length)
-    .map(i => {
-      // Snap position in bbox UV
-      const snapU = (1 - snap[i].x - bbox.x0) / bw2;
-      const snapV = (snap[i].y - bbox.y0) / bh;
-      // Live position in bbox UV
-      const liveU = (1 - liveLM[i].x - bbox.x0) / bw2;
-      const liveV = (liveLM[i].y - bbox.y0) / bh;
-      return {
-        su: snapU, sv: snapV,
-        du: liveU - snapU,
-        dv: liveV - snapV,
-      };
-    });
-
-  // RBF sigma — tune for natural deformation spread
-  const sigma2 = 2 * 0.035 * 0.035;
-
-  ctx.fillStyle = '#0a0a16';
-  ctx.fillRect(0, 0, CW, CH);
-
-  for (const c of port.cells) {
-    if (!c.inside) continue;
-
-    const key = c.u * 10000 + c.v * 100;
-    if (!puppetPos[key]) puppetPos[key] = { cx: c.cx, cy: c.cy };
-
-    // RBF interpolate displacement at this cell's UV
-    let tw=0, du=0, dv=0;
-    for (const d of displacements) {
-      const dist2 = (d.su - c.u)**2 + (d.sv - c.v)**2;
-      const w     = Math.exp(-dist2 / sigma2);
-      du += d.du * w;
-      dv += d.dv * w;
-      tw += w;
-    }
-    if (tw > 1e-6) { du/=tw; dv/=tw; }
-
-    // Target canvas position = base + displacement scaled to canvas
-    const tcx = c.cx + du * CW;
-    const tcy = c.cy + dv * CH;
-
-    // Smooth toward target
-    puppetPos[key].cx += (tcx - puppetPos[key].cx) * PUPPET_LERP;
-    puppetPos[key].cy += (tcy - puppetPos[key].cy) * PUPPET_LERP;
-
-    drawCell(ctx, puppetPos[key].cx, puppetPos[key].cy, c.cellW, c.cellH, c.r, c.g, c.b);
-  }
-}
-
-// Live color drift — update cell colors from live video
-let driftTick = 0;
-function driftColors(who, videoEl) {
-  const port = portrait[who];
-  if (!port.cells || !port.bbox) return;
-  if (driftTick++ % 15 !== 0) return;
-
-  const feed = videoEl;
-  if (!feed.videoWidth) return;
-
-  const W=80, H=80;
-  const img = captureFace(feed, port.bbox, W, H);
-
-  // Update ~8% of cells per tick
-  const n = Math.max(1, Math.floor(port.cells.length * 0.08));
-  for (let k=0; k<n; k++) {
-    const c = port.cells[Math.floor(Math.random()*port.cells.length)];
-    if (!c.inside) continue;
-    const [r,g,b] = sampleXY(img, W, H, c.u, c.v);
-    c.r = Math.round(c.r*0.85 + r*0.15); // blend gently
-    c.g = Math.round(c.g*0.85 + g*0.15);
-    c.b = Math.round(c.b*0.85 + b*0.15);
-  }
-}
-
-// ═══════════════════════════════════════════════
-//  MEDIAPIPE CAMERA
-// ═══════════════════════════════════════════════
-let faceMeshInst = null;
-
-async function startCamera() {
-  const btn = document.getElementById('camBtn');
-  btn.disabled = true; btn.textContent = '⏳ Starting…';
-
-  try {
-    setStatus('Requesting camera…');
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width:640, height:480, facingMode:'user' }, audio:false
-    });
-
-    const pip = document.getElementById('pipLocal');
-    pip.srcObject = stream;
-    pip.play().catch(()=>{});
-
-    const feed = document.getElementById('camFeed');
-    feed.srcObject = stream;
-    await new Promise((res,rej) => {
-      feed.onloadedmetadata = res;
-      setTimeout(()=>rej(new Error('video timeout')), 8000);
-    });
-    await feed.play();
-
-    setStatus('Loading MediaPipe (~10s first load)…');
-    faceMeshInst = new FaceMesh({
-      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
-    });
-    faceMeshInst.setOptions({
-      maxNumFaces:1, refineLandmarks:true,
-      minDetectionConfidence:0.55, minTrackingConfidence:0.5,
-    });
-    faceMeshInst.onResults(onFaceResults);
-
-    const mpCam = new Camera(feed, {
-      onFrame: async () => {
-        if (processingFrame || !faceMeshInst) return;
-        processingFrame = true;
-        try { await faceMeshInst.send({image:feed}); }
-        catch(e) { dbg.err('mp err:',e.message); }
-        finally  { processingFrame = false; }
-      },
-      width:640, height:480,
-    });
-    await mpCam.start();
-
-    cameraOn = true;
-    btn.className = 'btn btn-green active';
-    btn.textContent = '✅ Camera On';
-    btn.disabled = false;
-    document.getElementById('snapBtn').disabled = false;
-    document.getElementById('fistBtn').disabled = false;
-    document.getElementById('localIdle').style.display = 'none';
-    setStatus('Face tracking active — click 📸 Snap Portrait');
-
-  } catch(e) {
-    dbg.err('Camera:', e.message);
-    btn.disabled = false; btn.textContent = '📷 Start Camera'; btn.className='btn btn-green';
-    setStatus('Camera error: ' + e.message);
-  }
-}
-
-function onFaceResults(results) {
-  if (!results.multiFaceLandmarks?.[0]) return;
-  lastLandmarks = results.multiFaceLandmarks[0];
-
-  // Puppet local avatar
-  if (puppetActive && portrait.local.cells) {
-    const feed = document.getElementById('camFeed');
-    puppet('local', lastLandmarks);
-    driftColors('local', feed);
-  }
-
-  // Speaking ring
-  const lm  = lastLandmarks;
-  const jaw = Math.abs(lm[13].y - lm[14].y) * 22;
-  document.getElementById('localRing').className = 'speak-ring'+(jaw>0.12?' on':'');
-
-  // Send to peer
-  const now = Date.now();
-  if (now - lastSendT > 80) {
-    lastSendT = now;
-    sendLandmarks(lastLandmarks, jaw>0.12);
-  }
-}
-
-// ═══════════════════════════════════════════════
-//  SNAP — multi-frame averaging
-// ═══════════════════════════════════════════════
 async function startSnap() {
-  if (!cameraOn)    { setStatus('Start camera first'); return; }
-  if (buildRunning) { setStatus('Build in progress…'); return; }
-  if (snapping)     { return; }
-  if (!lastLandmarks) { setStatus('No face detected — look at camera'); return; }
   const feed = document.getElementById('camFeed');
-  if (!feed.videoWidth) { setStatus('Camera not ready'); return; }
-
-  snapping = true;
-  frameBuffer = [];
-  document.getElementById('snapBtn').disabled = true;
-
-  const ov = document.getElementById('snapOv');
-  const ct = document.getElementById('snapCount');
-  ov.classList.add('show');
-
-  for (let i=snapFrames; i>=1; i--) {
-    ct.textContent = i;
-    if (lastLandmarks) frameBuffer.push(lastLandmarks.map(l=>({...l})));
-    await sleep(100);
-  }
-  ov.classList.remove('show');
-
-  const avgLM = frameBuffer.length > 1
-    ? frameBuffer[0].map((_,i) => ({
-        x: frameBuffer.reduce((s,f)=>s+f[i].x,0)/frameBuffer.length,
-        y: frameBuffer.reduce((s,f)=>s+f[i].y,0)/frameBuffer.length,
-        z: frameBuffer.reduce((s,f)=>s+f[i].z,0)/frameBuffer.length,
-      }))
-    : frameBuffer[0];
-
-  dbg.log('Snap: averaged', frameBuffer.length, 'frames');
-  puppetPos = {}; // reset puppet state
-  await buildProgressive('local', avgLM, feed);
-
+  snapping = true; setStatus('Snapping...');
+  const cells = buildMesh(localS, lastLandmarks, feed, 'AVATAR3D');
+  await fillCells(localS, cells);
   document.getElementById('liveBtn').disabled = false;
-  snapping = false;
-  document.getElementById('snapBtn').disabled = false;
-
-  if (dc?.readyState === 'open') sendPortraitData(avgLM, feed);
+  snapping = false; setStatus('Snap complete. Hit Live Puppet.');
 }
 
 function toggleLive() {
   puppetActive = !puppetActive;
-  const btn = document.getElementById('liveBtn');
-  btn.textContent = puppetActive ? '⏹ Stop Puppet' : '⚡ Live Puppet';
-  btn.className   = puppetActive ? 'btn btn-danger'  : 'btn btn-orange';
-  if (!puppetActive) {
-    // Redraw static portrait
-    renderPortrait(localCtx, portrait.local);
-  }
-  setStatus(puppetActive ? 'Live puppet ON — your face drives the portrait' : 'Puppet stopped');
+  document.getElementById('liveBtn').textContent = puppetActive ? '⏹ Stop Puppet' : '⚡ Live Puppet';
 }
 
-// ═══════════════════════════════════════════════
-//  STYLE + TIER CONTROLS
-// ═══════════════════════════════════════════════
-function setStyle(s) {
-  cellStyle = s;
-  ['rings','diamonds','dots','cross','squares'].forEach(id =>
-    document.getElementById('sb-'+id)?.classList.toggle('on', id===s));
-  // Re-render existing portrait with new style
-  if (portrait.local.cells) renderPortrait(localCtx, portrait.local);
-  if (portrait.remote.cells) renderPortrait(remoteCtx, portrait.remote);
-}
-
-function onBw(v) {
-  bw = v; document.getElementById('bwVal').textContent = v;
-  const t = calcTier(bw, bat);
-  document.getElementById('tierLbl').textContent = t;
-  document.getElementById('localBadge').textContent = t;
-}
-function onBat(v) { bat=v; document.getElementById('batVal').textContent=v; onBw(bw); }
-function onSnapF(v) { snapFrames=v; document.getElementById('snapFVal').textContent=v; }
-
-// ═══════════════════════════════════════════════
-//  SAVE + CLEAR
-// ═══════════════════════════════════════════════
-function savePortrait() {
-  if (!portrait.local.cells) { setStatus('Snap a portrait first'); return; }
-  renderPortrait(localCtx, portrait.local);
-  const a = document.createElement('a');
-  a.download = 'vibemesh-'+Date.now()+'.png';
-  a.href = localCanvas.toDataURL('image/png');
-  a.click();
-  setStatus('Portrait saved!');
-}
-
-function clearLocal() {
-  portrait.local.cells = null;
-  portrait.local.snapLM = null;
-  puppetPos = {};
-  puppetActive = false;
-  document.getElementById('liveBtn').disabled = true;
-  document.getElementById('liveBtn').textContent = '⚡ Live Puppet';
-  document.getElementById('liveBtn').className = 'btn btn-orange';
-  document.getElementById('localIdle').style.display = 'flex';
-  drawPlaceholder(localCtx);
-  setStatus('Cleared — snap a new portrait');
-}
-
-// ═══════════════════════════════════════════════
-//  WEBRTC
-// ═══════════════════════════════════════════════
-let pc=null, dc=null;
-const ICE = [
-  {urls:'stun:stun.l.google.com:19302'},
-  {urls:'stun:stun1.l.google.com:19302'},
-];
-
-async function createOffer() {
-  setupPC();
-  dc = pc.createDataChannel('vibe', {ordered:false, maxRetransmits:0});
-  setupDC(dc);
-  await pc.setLocalDescription(await pc.createOffer());
-  await waitICE();
-  document.getElementById('offerBox').value = JSON.stringify(pc.localDescription);
-  setStatus('Offer ready — send to peer');
-}
-
-async function handlePaste() {
-  const txt = document.getElementById('pasteBox').value.trim();
-  if (!txt) return;
-  try {
-    const sdp = JSON.parse(txt);
-    if (sdp.type === 'offer') {
-      setupPC();
-      pc.ondatachannel = e => { dc=e.channel; setupDC(dc); };
-      await pc.setRemoteDescription(sdp);
-      await pc.setLocalDescription(await pc.createAnswer());
-      await waitICE();
-      document.getElementById('offerBox').value = JSON.stringify(pc.localDescription);
-      setStatus('Answer ready — send back to peer');
-    } else if (sdp.type === 'answer') {
-      await pc.setRemoteDescription(sdp);
-      setStatus('Answer set — connecting…');
+async function startCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  document.getElementById('pipLocal').srcObject = stream;
+  document.getElementById('camFeed').srcObject = stream;
+  const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+  faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
+  faceMesh.onResults(res => {
+    if (res.multiFaceLandmarks?.[0]) {
+      lastLandmarks = res.multiFaceLandmarks[0];
+      if (puppetActive) puppet(localS, lastLandmarks);
     }
-  } catch(e) { setStatus('SDP error: '+e.message); dbg.err(e.message); }
-}
-
-function setupPC() {
-  if (pc) pc.close();
-  pc = new RTCPeerConnection({iceServers:ICE});
-  pc.oniceconnectionstatechange = () => {
-    const s = pc.iceConnectionState;
-    const el = document.getElementById('connLbl');
-    el.textContent = s.toUpperCase();
-    el.style.color = (s==='connected'||s==='completed') ? '#00ff88' : '#ff4757';
-    dbg.log('ICE:', s);
-    if (s==='connected'||s==='completed') {
-      closeModal();
-      setStatus('🔥 Peer connected!');
-      startPing();
-      document.getElementById('remoteIdle').style.display = 'none';
-      if (portrait.local.cells) {
-        const feed = document.getElementById('camFeed');
-        if (feed.videoWidth) sendPortraitData(portrait.local.snapLM, feed);
-      }
-    }
-  };
-}
-
-function waitICE() {
-  return new Promise(res => {
-    if (pc.iceGatheringState==='complete') { res(); return; }
-    pc.onicegatheringstatechange = () => { if(pc.iceGatheringState==='complete') res(); };
-    setTimeout(res, 4000);
   });
-}
-
-function setupDC(ch) {
-  ch.onopen  = () => setStatus('Channel open 🔥');
-  ch.onclose = () => setStatus('Peer disconnected');
-  ch.onmessage = e => handlePacket(e.data);
-}
-
-function handlePacket(raw) {
-  try {
-    const pkt = JSON.parse(raw);
-
-    if (pkt.type === 'portrait') {
-      recvCount++; document.getElementById('recvLbl').textContent = recvCount;
-      document.getElementById('remoteBadge').textContent = pkt.tier||'AVATAR3D';
-      buildRemotePortrait(pkt.lm, pkt.cells, pkt.tier||'AVATAR3D');
-
-    } else if (pkt.type === 'puppet') {
-      recvCount++; document.getElementById('recvLbl').textContent = recvCount;
-      if (portrait.remote.cells && pkt.lm) {
-        puppet('remote', pkt.lm);
-      }
-      document.getElementById('remoteRing').className = 'speak-ring'+(pkt.sp?' on':'');
-
-    } else if (pkt.type === 'gesture') {
-      flashCanvas(remoteCtx, portrait.remote);
-    } else if (pkt.type === 'ping') {
-      if (dc?.readyState==='open') dc.send(JSON.stringify({type:'pong',t:pkt.t}));
-    } else if (pkt.type === 'pong') {
-      document.getElementById('rttLbl').textContent = Date.now()-pkt.t;
-    }
-  } catch(e) { dbg.err('pkt:', e.message); }
-}
-
-function buildRemotePortrait(lm, cells, tierName) {
-  const cfg = TIERS[tierName] || TIERS.AVATAR3D;
-  const bbox = getFaceBBox(lm);
-  const bw2  = bbox.x1 - bbox.x0;
-  const bh   = bbox.y1 - bbox.y0;
-  const cellW = CW / cfg.cols;
-  const cellH = CH / cfg.rows;
-
-  const ovalPts = FACE_OVAL.map(i => {
-    const mx = 1 - lm[i].x;
-    return {
-      x: (mx - bbox.x0) / bw2,
-      y: (lm[i].y - bbox.y0) / bh,
-    };
-  });
-
-  // Rebuild cell objects from transmitted data
-  const rebuilt = cells.map((c, idx) => {
-    const col = idx % cfg.cols;
-    const row = Math.floor(idx / cfg.cols);
-    const u   = (col + 0.5) / cfg.cols;
-    const v   = (row + 0.5) / cfg.rows;
-    return {
-      u, v,
-      cx: (col + 0.5) * cellW,
-      cy: (row + 0.5) * cellH,
-      cellW, cellH,
-      r: c[0], g: c[1], b: c[2],
-      inside: inPoly(u, v, ovalPts),
-    };
-  });
-
-  portrait.remote.cells  = rebuilt;
-  portrait.remote.snapLM = lm.map(l=>({...l}));
-  portrait.remote.bbox   = bbox;
-  portrait.remote.cols   = cfg.cols;
-  portrait.remote.rows   = cfg.rows;
-  portrait.remote.cellW  = cellW;
-  portrait.remote.cellH  = cellH;
-
-  setBuild('remote', 5, 'Building peer portrait…');
-  document.getElementById('remoteBuildOv').style.display = 'block';
-  document.getElementById('remoteIdle').style.display = 'none';
-
-  // Progressive reveal
-  (async () => {
-    remoteCtx.fillStyle = '#0a0a16';
-    remoteCtx.fillRect(0, 0, CW, CH);
-    const order = rebuilt.map((_,i)=>i).sort(()=>Math.random()-0.5);
-    const batch = Math.max(2, Math.floor(order.length/25));
-    for (let b=0; b<order.length; b+=batch) {
-      for (let k=b; k<Math.min(b+batch,order.length); k++) {
-        const c = rebuilt[order[k]];
-        if (c.inside) drawCell(remoteCtx, c.cx, c.cy, c.cellW, c.cellH, c.r, c.g, c.b);
-      }
-      await nextFrame();
-    }
-    setBuild('remote', 100, 'Peer portrait built ✓');
-    await sleep(900);
-    hideBuild('remote');
-  })();
-}
-
-function sendPortraitData(lm, videoEl) {
-  if (dc?.readyState !== 'open') return;
-  const tier = calcTier(bw, bat);
-  const cfg  = TIERS[tier] || TIERS.AVATAR3D;
-
-  // Build cells and send as compact [r,g,b] arrays
-  const data  = buildCells(lm, videoEl, cfg.cols, cfg.rows);
-  const compact = data.cells.map(c => [c.r, c.g, c.b]);
-  const lmArr   = lm.map(l => ({x:+l.x.toFixed(4),y:+l.y.toFixed(4),z:+l.z.toFixed(4)}));
-
-  dc.send(JSON.stringify({ type:'portrait', tier, lm:lmArr, cells:compact }));
-  sentCount++; document.getElementById('sentLbl').textContent = sentCount;
-  setStatus('Portrait sent to peer!');
-}
-
-function sendLandmarks(lm, speaking) {
-  if (dc?.readyState !== 'open') return;
-  const lmArr = lm.map(l=>({x:+l.x.toFixed(3),y:+l.y.toFixed(3),z:+l.z.toFixed(3)}));
-  dc.send(JSON.stringify({type:'puppet', lm:lmArr, sp:speaking}));
-  sentCount++; document.getElementById('sentLbl').textContent = sentCount;
-}
-
-function startPing() {
-  setInterval(() => {
-    if (dc?.readyState==='open') dc.send(JSON.stringify({type:'ping',t:Date.now()}));
-  }, 2000);
-}
-
-// ═══════════════════════════════════════════════
-//  GESTURES + VOICE
-// ═══════════════════════════════════════════════
-function sendFistPump() {
-  flashCanvas(localCtx, portrait.local);
-  if (dc?.readyState==='open') dc.send(JSON.stringify({type:'gesture'}));
-  setStatus('👊 FIST PUMP!');
-}
-
-function flashCanvas(ctx, port) {
-  if (!port.cells) return;
-  ctx.fillStyle = 'rgba(255,0,170,0.4)';
-  ctx.fillRect(0, 0, CW, CH);
-  setTimeout(() => renderPortrait(ctx, port), 180);
-}
-
-function cloneVoice() {
-  if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance('Yo CB from the Shore — 3 Guys pizza slice in hand bro!');
-  u.pitch=1.1; u.rate=1.15; u.onerror=()=>{};
-  window.speechSynthesis.speak(u);
-}
-
-// ═══════════════════════════════════════════════
-//  UI HELPERS
-// ═══════════════════════════════════════════════
-const nextFrame = () => new Promise(r => requestAnimationFrame(r));
-const sleep     = ms  => new Promise(r => setTimeout(r, ms));
-
-function setBuild(who, pct, lbl) {
-  const bar = document.getElementById(who+'BuildBar');
-  const lel = document.getElementById(who+'BuildLbl');
-  const ov  = document.getElementById(who+'BuildOv');
-  if (bar) bar.style.width = pct+'%';
-  if (lel) lel.textContent = lbl;
-  if (ov)  ov.style.display = 'block';
-}
-
-function hideBuild(who) {
-  const ov = document.getElementById(who+'BuildOv');
-  if (!ov) return;
-  ov.style.transition = 'opacity .7s'; ov.style.opacity = '0';
-  setTimeout(() => { ov.style.display='none'; ov.style.opacity='1'; }, 750);
+  const cam = new Camera(document.getElementById('camFeed'), { onFrame: async () => await faceMesh.send({ image: document.getElementById('camFeed') }), width: 640, height: 480 });
+  cam.start();
+  document.getElementById('snapBtn').disabled = false;
+  setStatus('Camera Active. Click Snap.');
 }
 
 function setStatus(m) { document.getElementById('statusbar').textContent = m; }
-function openModal()  { document.getElementById('sigModal').classList.add('open'); }
-function closeModal() { document.getElementById('sigModal').classList.remove('open'); }
+window.addEventListener('DOMContentLoaded', () => { localS = makeScene('localFrame'); renderLoop(); });
 </script>
 </body>
 </html>
-```
