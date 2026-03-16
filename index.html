@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -261,7 +262,7 @@ input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;height:3px}
     <div class="sl-item">
       <label>Depth</label>
       <div class="sl-row">
-        <input type="range" min="1" max="14" value="7" oninput="onDepth(+this.value)">
+        <input type="range" min="1" max="14" value="12" oninput="onDepth(+this.value)">
         <div class="sl-val" id="depthVal">7×</div>
       </div>
     </div>
@@ -374,11 +375,13 @@ const ANCHORS = [
 // ════════════════════════════════════════
 //  TIER CONFIG — grid resolution per bandwidth tier
 // ════════════════════════════════════════
+// Grid dimensions — fewer cells = bigger marks = visible Chuck Close effect
+// At 300×360 display: AVATAR3D = ~15×15px per cell on screen
 const TIERS = {
-  AVATAR3D: { W:42, H:50, label:'Full'    },
-  PUPPET:   { W:22, H:26, label:'Medium'  },
-  SPRITE:   { W:12, H:14, label:'Low'     },
-  GLYPH:    { W: 6, H: 7, label:'Minimal' },
+  AVATAR3D: { W:20, H:24 },
+  PUPPET:   { W:12, H:14 },
+  SPRITE:   { W: 7, H: 8 },
+  GLYPH:    { W: 4, H: 5 },
 };
 
 function calcTier(bw2, bat2) {
@@ -393,7 +396,7 @@ function calcTier(bw2, bat2) {
 //  GLOBAL STATE
 // ════════════════════════════════════════
 let cellStyle   = 'rings';
-let bw          = 900, bat = 100, depthScale = 7;
+let bw          = 900, bat = 100, depthScale = 12;
 let snapFrames  = 5;
 let cameraOn    = false, puppetActive = false, buildRunning = false, snapping = false;
 let lastSendT   = 0, sentCount = 0, recvCount = 0;
@@ -591,82 +594,123 @@ function sampleRGB(imgData, W, H, u, v) {
 // ════════════════════════════════════════
 //  CHUCK CLOSE CELL DRAWING
 // ════════════════════════════════════════
-const CELL_R   = 11; // cell radius in texture px
-const CELL_GAP = 2;  // gap between cells
+// CELL_R=16 → 34px step → AVATAR3D 20×24 grid → ~15px/cell on screen
+const CELL_R    = 16;
+const CELL_GAP  = 2;
+const CELL_STEP = CELL_R*2 + CELL_GAP; // 34px per cell slot in texture
 
 function drawCell(ctx, cx, cy, r, g, b) {
-  const rad  = CELL_R;
-  const lum  = (r*0.299 + g*0.587 + b*0.114) / 255;
-  const dr   = Math.max(0,r-85), dg=Math.max(0,g-85), db=Math.max(0,b-85);
-  const hr   = Math.min(255,r+80), hg=Math.min(255,g+80), hb=Math.min(255,b+80);
+  const rad = CELL_R;
+  const lum = (r*0.299 + g*0.587 + b*0.114) / 255;
+
+  // Aggressive dark/light variants — more contrast = more Chuck Close drama
+  const dr = Math.max(0,   r - 100), dg = Math.max(0,   g - 100), db = Math.max(0,   b - 100);
+  const hr = Math.min(255, r + 100), hg = Math.min(255, g + 100), hb = Math.min(255, b + 100);
+  // Saturated version for mid-rings
+  const sr = Math.min(255, Math.round(r * 1.25)), sg = Math.min(255, Math.round(g * 1.25)), sb = Math.min(255, Math.round(b * 1.25));
+
   const dRGB = `rgb(${dr},${dg},${db})`;
   const hRGB = `rgb(${hr},${hg},${hb})`;
-  const sRGB = `rgb(${r},${g},${b})`;
+  const sRGB = `rgb(${sr},${sg},${sb})`;
+  const cRGB = `rgb(${r},${g},${b})`;
 
   switch (cellStyle) {
+
     case 'rings': {
-      const nR = Math.max(2, Math.round(2 + lum*6)); // 2-8 rings based on brightness
-      for (let i=nR; i>=1; i--) {
-        const t   = i/nR;
-        const rad2 = Math.max(0.4, rad*t*0.93);
-        const rr  = Math.round(r*t+dr*(1-t));
-        const rg2 = Math.round(g*t+dg*(1-t));
-        const rb  = Math.round(b*t+db*(1-t));
+      // ── Chuck Close rings ──
+      // Luminance drives ring count: shadows = 3 thick rings, highlights = 8 fine rings
+      // This is what makes Chuck Close portraits readable from a distance
+      const nR = Math.max(3, Math.round(3 + lum * 5)); // 3–8 rings
+
+      // Outer dark ring = cell boundary emphasis
+      ctx.beginPath(); ctx.arc(cx, cy, rad * 0.97, 0, Math.PI*2);
+      ctx.fillStyle = dRGB; ctx.fill();
+
+      for (let i = nR; i >= 1; i--) {
+        const t    = i / nR;
+        const rad2 = Math.max(0.8, rad * t * 0.88);
+        // Alternate: color ring / highlight ring
+        // Inner rings lighter, outer darker — creates spherical shading feel
+        const blend = t * t; // quadratic — more color at center
+        const rr = Math.round(r  * blend + dr * (1-blend));
+        const rg = Math.round(g  * blend + dg * (1-blend));
+        const rb = Math.round(b  * blend + db * (1-blend));
         ctx.beginPath(); ctx.arc(cx, cy, rad2, 0, Math.PI*2);
-        ctx.fillStyle = i%2===0 ? `rgb(${rr},${rg2},${rb})` : hRGB;
+        ctx.fillStyle = i % 2 === 0 ? `rgb(${rr},${rg},${rb})` : (t > 0.5 ? hRGB : sRGB);
         ctx.fill();
       }
-      ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.5, rad*0.13), 0, Math.PI*2);
-      ctx.fillStyle = lum>0.55 ? dRGB : hRGB; ctx.fill();
+
+      // Center punch — sharp bright or dark dot
+      ctx.beginPath(); ctx.arc(cx, cy, Math.max(1, rad * 0.15), 0, Math.PI*2);
+      ctx.fillStyle = lum > 0.5 ? dRGB : hRGB;
+      ctx.fill();
       break;
     }
+
     case 'diamonds': {
-      const nS = Math.max(2, Math.round(2+lum*4));
-      for (let i=nS; i>=1; i--) {
-        const t=i/nS, hs=rad*t*0.9;
-        const rr=Math.round(r*t+dr*(1-t)), rg2=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
+      const nS = Math.max(3, Math.round(3 + lum*4));
+      ctx.beginPath(); ctx.rect(cx-rad, cy-rad, rad*2, rad*2);
+      ctx.fillStyle = dRGB; ctx.fill();
+      for (let i = nS; i >= 1; i--) {
+        const t = i/nS, hs = rad * t * 0.9;
+        const rr=Math.round(r*t+dr*(1-t)), rg=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
         ctx.beginPath();
-        ctx.moveTo(cx,cy-hs); ctx.lineTo(cx+hs,cy); ctx.lineTo(cx,cy+hs); ctx.lineTo(cx-hs,cy);
+        ctx.moveTo(cx, cy-hs); ctx.lineTo(cx+hs, cy);
+        ctx.lineTo(cx, cy+hs); ctx.lineTo(cx-hs, cy);
         ctx.closePath();
-        ctx.fillStyle = i%2===0 ? `rgb(${rr},${rg2},${rb})` : hRGB; ctx.fill();
+        ctx.fillStyle = i%2===0 ? `rgb(${rr},${rg},${rb})` : hRGB;
+        ctx.fill();
       }
+      ctx.beginPath(); ctx.arc(cx, cy, rad*0.12, 0, Math.PI*2);
+      ctx.fillStyle = lum>0.5 ? dRGB : hRGB; ctx.fill();
       break;
     }
+
     case 'dots': {
-      const gn=Math.max(2,Math.round(2+lum*3)), sp=(rad*2)/gn;
-      for (let gi=0;gi<gn;gi++) for (let gj=0;gj<gn;gj++) {
-        const gx=cx-rad+sp*(gi+0.5), gy=cy-rad+sp*(gj+0.5);
-        const d=Math.sqrt((gx-cx)**2+(gy-cy)**2);
-        const r2=Math.max(0.4, sp*0.46*(0.3+lum*0.7)-d*0.06);
-        ctx.beginPath(); ctx.arc(gx,gy,r2,0,Math.PI*2); ctx.fillStyle=sRGB; ctx.fill();
+      ctx.fillStyle = dRGB; ctx.fillRect(cx-rad, cy-rad, rad*2, rad*2);
+      const gn = Math.max(2, Math.round(2 + lum*3)), sp = (rad*2)/gn;
+      for (let gi=0; gi<gn; gi++) for (let gj=0; gj<gn; gj++) {
+        const gx = cx-rad+sp*(gi+0.5), gy = cy-rad+sp*(gj+0.5);
+        const d  = Math.sqrt((gx-cx)**2+(gy-cy)**2);
+        const r2 = Math.max(0.8, sp*0.48*(0.25+lum*0.75) - d*0.05);
+        ctx.beginPath(); ctx.arc(gx, gy, r2, 0, Math.PI*2);
+        ctx.fillStyle = sRGB; ctx.fill();
       }
       break;
     }
+
     case 'cross': {
-      const lc=Math.max(2,Math.round(rad*(0.9+(1-lum)*0.8)));
-      ctx.strokeStyle=sRGB; ctx.lineWidth=Math.max(0.4,(rad*2)/(lc*3.2));
-      for (let li=0;li<=lc;li++) {
-        const ly=cy-rad+(li/lc)*rad*2;
+      ctx.fillStyle = dRGB; ctx.fillRect(cx-rad, cy-rad, rad*2, rad*2);
+      const lc = Math.max(3, Math.round(rad*(0.85+(1-lum)*0.9)));
+      const lw = Math.max(0.6, (rad*2)/(lc*2.8));
+      ctx.strokeStyle = sRGB; ctx.lineWidth = lw;
+      for (let li=0; li<=lc; li++) {
+        const ly = cy-rad+(li/lc)*rad*2;
         ctx.beginPath(); ctx.moveTo(cx-rad,ly); ctx.lineTo(cx+rad,ly); ctx.stroke();
       }
-      if (lum<0.7) {
-        const dl=Math.max(1,Math.round(lc*(1-lum)*0.7)); ctx.strokeStyle=hRGB;
-        for (let li=0;li<=dl;li++) {
-          const t=li/dl;
+      if (lum < 0.75) {
+        const dl = Math.max(2, Math.round(lc*(1-lum)*0.8));
+        ctx.strokeStyle = hRGB; ctx.lineWidth = lw*0.8;
+        for (let li=0; li<=dl; li++) {
+          const t = li/dl;
           ctx.beginPath(); ctx.moveTo(cx-rad+t*rad*2,cy-rad); ctx.lineTo(cx-rad,cy-rad+t*rad*2); ctx.stroke();
           ctx.beginPath(); ctx.moveTo(cx-rad+t*rad*2,cy+rad); ctx.lineTo(cx+rad,cy-rad+t*rad*2); ctx.stroke();
         }
       }
       break;
     }
+
     case 'squares': {
-      const nS=Math.max(2,Math.round(2+lum*4));
-      for (let i=nS;i>=1;i--) {
-        const t=i/nS, hs=rad*t*0.88;
-        const rr=Math.round(r*t+dr*(1-t)), rg2=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
-        ctx.fillStyle=i%2===0?`rgb(${rr},${rg2},${rb})`:hRGB;
-        ctx.fillRect(cx-hs,cy-hs,hs*2,hs*2);
+      ctx.fillStyle = dRGB; ctx.fillRect(cx-rad, cy-rad, rad*2, rad*2);
+      const nS = Math.max(3, Math.round(3+lum*4));
+      for (let i=nS; i>=1; i--) {
+        const t = i/nS, hs = rad*t*0.87;
+        const rr=Math.round(r*t+dr*(1-t)), rg=Math.round(g*t+dg*(1-t)), rb=Math.round(b*t+db*(1-t));
+        ctx.fillStyle = i%2===0 ? `rgb(${rr},${rg},${rb})` : hRGB;
+        ctx.fillRect(cx-hs, cy-hs, hs*2, hs*2);
       }
+      ctx.beginPath(); ctx.arc(cx,cy,rad*0.12,0,Math.PI*2);
+      ctx.fillStyle = lum>0.5?dRGB:hRGB; ctx.fill();
       break;
     }
   }
@@ -675,17 +719,15 @@ function drawCell(ctx, cx, cy, r, g, b) {
 // ════════════════════════════════════════
 //  BUILD MESH + TEXTURE
 //  Grid mesh over face bbox, masked to face oval.
-//  Each cell = one Chuck Close mark.
+//  Each cell = one Chuck Close mark drawn in the texture atlas.
 // ════════════════════════════════════════
-const CELL_STEP = CELL_R*2 + CELL_GAP; // pixels per cell in texture
-
 function buildMesh(sc, lm, videoEl, tierName) {
   const cfg  = TIERS[tierName] || TIERS.AVATAR3D;
   const W = cfg.W, H = cfg.H;
   const bbox = normBBox(faceBBox(lm));
   const AR   = bbox.w / bbox.h;
 
-  // Store snapshot
+  // Store snapshot state
   sc.snapLM      = lm.map(l => ({...l}));
   sc.snapBBox    = bbox;
   sc.snapAnchors = buildAnchors(lm, bbox);
@@ -693,36 +735,43 @@ function buildMesh(sc, lm, videoEl, tierName) {
   sc.snapH       = H;
   sc.snapAR      = AR;
 
-  // Texture canvas: one cell per grid position
+  // Texture: one CELL_STEP×CELL_STEP slot per grid cell
   const texW = W * CELL_STEP;
   const texH = H * CELL_STEP;
   sc.texCanvas.width  = texW;
   sc.texCanvas.height = texH;
   const texCtx = sc.texCanvas.getContext('2d');
-  texCtx.fillStyle = '#06060f';
+  // Pure black background — the gap between cells shows through as dark separators
+  texCtx.fillStyle = '#000000';
   texCtx.fillRect(0, 0, texW, texH);
 
-  // Sample face pixels
+  // Sample face pixels at 4× grid resolution for accurate color
   const SPW = Math.max(W*4, 256), SPH = Math.max(H*4, 256);
   const faceImg = captureFacePixels(videoEl, bbox, SPW, SPH);
 
-  // Face oval in UV space (for masking)
+  // Face oval polygon in UV space for cell masking
   const ovalPts = buildOvalPoly(lm, bbox);
 
-  // Build grid vertices
+  // Build grid vertices — each vertex gets a 3D position from landmarks
   const nV = (W+1) * (H+1);
   const positions = new Float32Array(nV*3);
   const uvArr     = new Float32Array(nV*2);
 
   for (let j=0; j<=H; j++) {
     for (let i=0; i<=W; i++) {
-      const u   = i/W, v = j/H;
-      const vi  = j*(W+1)+i;
-      // Map UV to landmark space to get Z
-      const lx  = bbox.x0 + u*bbox.w; // in mirrored x space
-      const ly  = bbox.y0 + v*bbox.h;
-      const z   = interpZ(lm, lx, ly);
-      const p3  = uvTo3D(u, v, z, bbox);
+      const u  = i/W, v = j/H;
+      const vi = j*(W+1)+i;
+
+      // Convert grid UV → mirrored landmark space to interpolate Z
+      const lx = bbox.x0 + u*bbox.w;
+      const ly = bbox.y0 + v*bbox.h;
+
+      // MediaPipe Z: negative = closer to camera (nose tip ~-0.08).
+      // Negate so positive Z = forward in 3D space.
+      const rawZ = interpZ(lm, lx, ly);
+      const z    = -rawZ; // now nose is positive (pops forward)
+
+      const p3 = uvTo3D(u, v, z, bbox);
       positions[vi*3  ] = p3.x;
       positions[vi*3+1] = p3.y;
       positions[vi*3+2] = p3.z;
@@ -731,7 +780,7 @@ function buildMesh(sc, lm, videoEl, tierName) {
     }
   }
 
-  // Triangles
+  // Grid triangles
   const indices = [];
   for (let j=0; j<H; j++) {
     for (let i=0; i<W; i++) {
@@ -749,34 +798,32 @@ function buildMesh(sc, lm, videoEl, tierName) {
   if (sc.tex) sc.tex.dispose();
   sc.tex = new THREE.CanvasTexture(sc.texCanvas);
   sc.tex.minFilter = THREE.LinearFilter;
-  sc.tex.magFilter = THREE.LinearFilter;
+  sc.tex.magFilter = THREE.NearestFilter; // keep cells pixel-crisp
 
   if (sc.mesh) { sc.scene.remove(sc.mesh); sc.mesh.geometry.dispose(); sc.mesh.material.dispose(); }
   sc.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    map: sc.tex, roughness: 0.62, metalness: 0.0, transparent: false,
+    map: sc.tex, roughness: 0.55, metalness: 0.0,
   }));
   sc.scene.add(sc.mesh);
-
   sc.basePos = positions.slice();
   sc.curPos  = positions.slice();
 
-  // Build cell list for progressive texture fill
+  // Collect cell descriptors for progressive fill
   const cells = [];
   for (let j=0; j<H; j++) {
     for (let i=0; i<W; i++) {
-      const u  = (i+0.5)/W, v = (j+0.5)/H;
-      const [r,g,b] = sampleRGB(faceImg, SPW, SPH, u, v);
+      const u = (i+0.5)/W, v = (j+0.5)/H;
+      const [r,g2,b] = sampleRGB(faceImg, SPW, SPH, u, v);
       cells.push({
         cx: i*CELL_STEP + CELL_STEP/2,
         cy: j*CELL_STEP + CELL_STEP/2,
-        r, g, b,
+        r, g:g2, b,
         inside: inPoly(u, v, ovalPts),
       });
     }
   }
 
   document.getElementById('trisLbl').textContent = (indices.length/3)|0;
-
   return cells;
 }
 
@@ -785,11 +832,13 @@ function buildMesh(sc, lm, videoEl, tierName) {
 // ════════════════════════════════════════
 async function fillCells(sc, cells) {
   const ctx = sc.texCanvas.getContext('2d');
-  ctx.fillStyle = '#06060f';
+  ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, sc.texCanvas.width, sc.texCanvas.height);
 
-  const order = cells.map((_,i)=>i).sort(()=>Math.random()-0.5);
-  const BATCH = Math.max(6, (cells.length/24)|0);
+  // Random fill order = organic build-up
+  const order = cells.map((_,i)=>i).sort(() => Math.random()-0.5);
+  // Smaller batches = more visible animation, especially dramatic at GLYPH tier
+  const BATCH = Math.max(2, Math.floor(cells.length / 30));
 
   for (let b=0; b<order.length; b+=BATCH) {
     for (let k=b; k<Math.min(b+BATCH, order.length); k++) {
@@ -802,26 +851,28 @@ async function fillCells(sc, cells) {
 }
 
 // ════════════════════════════════════════
-//  PROGRESSIVE BUILD — 4 passes
+//  PROGRESSIVE BUILD — 4 passes coarse→fine
+//  Each pass rebuilds the mesh at higher resolution.
+//  You visibly see: chunky blocks → medium → fine → full
 // ════════════════════════════════════════
 async function buildProgressive(sc, lm, videoEl, who) {
   buildRunning = true;
   const passes = [
-    { tier:'GLYPH',    pct:20,  label:'Sampling face…'      },
-    { tier:'SPRITE',   pct:48,  label:'Building structure…'  },
-    { tier:'PUPPET',   pct:76,  label:'Adding detail…'       },
-    { tier:'AVATAR3D', pct:100, label:'Full resolution…'     },
+    { tier:'GLYPH',    pct:18,  label:'Sampling face…',      pause:300 },
+    { tier:'SPRITE',   pct:42,  label:'Building structure…',  pause:250 },
+    { tier:'PUPPET',   pct:72,  label:'Adding detail…',       pause:150 },
+    { tier:'AVATAR3D', pct:100, label:'Full resolution…',     pause:0   },
   ];
 
   for (const p of passes) {
     setBuildUI(who, p.pct, p.label);
     const cells = buildMesh(sc, lm, videoEl, p.tier);
     await fillCells(sc, cells);
-    if (p.tier !== 'AVATAR3D') await sleep(80);
+    if (p.pause > 0) await sleep(p.pause); // dramatic pause at each tier
   }
 
   setBuildUI(who, 100, 'Portrait complete ✓');
-  await sleep(1200);
+  await sleep(1000);
   hideBuildUI(who);
   buildRunning = false;
 }
@@ -875,10 +926,10 @@ function driftColors(sc, videoEl) {
 
   const W=sc.snapW, H=sc.snapH;
   const W2=80, H2=80;
-  const img = captureFacePixels(videoEl, sc.snapBBox, W2, H2);
+  const img     = captureFacePixels(videoEl, sc.snapBBox, W2, H2);
   const ovalPts = buildOvalPoly(sc.snapLM, sc.snapBBox);
-  const ctx = sc.texCanvas.getContext('2d');
-  const n   = Math.max(1, Math.floor(W*H*0.10));
+  const ctx     = sc.texCanvas.getContext('2d');
+  const n       = Math.max(1, Math.floor(W*H*0.12));
 
   for (let k=0; k<n; k++) {
     const i=Math.floor(Math.random()*W), j=Math.floor(Math.random()*H);
@@ -1413,3 +1464,4 @@ window.addEventListener('unhandledrejection', e => {
 </script>
 </body>
 </html>
+```
