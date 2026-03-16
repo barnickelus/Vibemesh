@@ -8,15 +8,20 @@ export const VoiceClonePanel: React.FC<Props> = ({ state }) => {
 
   const speak = () => {
     if (!state?.transcribedText || isPlaying) return;
-    setIsPlaying(true);
+    if (!window.speechSynthesis) return;
+
+    window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(state.transcribedText);
-    utterance.pitch = state.prosody?.pitch ? (state.prosody.pitch + 1) / 2 + 0.5 : 1;
-    utterance.rate = state.prosody?.speakingRate || 1.1;
-    utterance.volume = state.prosody?.energy || 0.95;
+    utterance.pitch = 0.8 + (state.valence + 1) * 0.35;
+    utterance.rate = 0.9 + state.arousal * 0.5;
+    utterance.volume = 0.7 + state.arousal * 0.3;
 
     utterance.onend = () => setIsPlaying(false);
-    speechSynthesis.speak(utterance);
+    utterance.onerror = () => setIsPlaying(false);
+
+    setIsPlaying(true);
+    window.speechSynthesis.speak(utterance);
   };
 
   return (
