@@ -1,10 +1,9 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh v5.0 — Chuck Close Mesh</title>
+<title>VibeMesh v5.1 — Chuck Close Mesh</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -81,8 +80,8 @@ button.sec:not(:disabled):hover{color:#ccc}
 <body>
 
 <div class="hdr">
-  <h1>🏖️ VibeMesh v5.0</h1>
-  <sub>Chuck Close Mesh · Live Puppet · Shore Edition</sub>
+  <h1>🏖️ VibeMesh v5.1</h1>
+  <sub>Chuck Close Mesh · Live Puppet · Optimized</sub>
 </div>
 
 <div class="call">
@@ -169,6 +168,7 @@ button.sec:not(:disabled):hover{color:#ccc}
   <div class="stat">Recv <b id="recvLbl">0</b></div>
   <div class="stat">RTT  <b id="rttLbl">—</b>ms</div>
   <div class="stat">Peer <b id="connLbl" style="color:#ff4757">OFFLINE</b></div>
+  <div class="stat">Quality <b id="qualityLbl">100</b>%</div>
 </div>
 <div class="statusbar" id="statusbar">Click Start Camera to begin</div>
 
@@ -190,7 +190,7 @@ button.sec:not(:disabled):hover{color:#ccc}
 
 const AV_W = 320, AV_H = 380;
 const CELL_PX = 18;
-const SEND_MS = 80;
+const BASE_SEND_MS = 80;
 
 const TIER_GRIDS = {
   AVATAR3D: { W:40, H:50 },
@@ -206,7 +206,9 @@ let cellStyle = 'rings';
 let bw = 900, bat = 100, depthScale = 5.0;
 let cameraOn = false, liveMode = false, buildRunning = false;
 let lastSendT = 0, sentCount = 0, recvCount = 0;
-let lastLandmarks = null;
+let lastLandmarks = null, lastSentLandmarks = null;
+let processingFrame = false;
+let qualityScore = 100;
 
 function createScene(frameId) {
   const frame = document.getElementById(frameId);
@@ -224,7 +226,7 @@ function createScene(frameId) {
   frame.insertBefore(renderer.domElement, frame.firstChild);
   return { scene, camera, renderer, mesh:null, tex:null,
     texCanvas:document.createElement('canvas'), snapLM:null, snapBBox:null,
-    snapW:0, snapH:0, snapBBoxAR:1, _sm:{} };
+    snapW:0, snapH:0, snapBBoxAR:1, _sm:{}, lastPositions:null };
 }
 
 const localS  = createScene('localFrame');
@@ -332,14 +334,24 @@ function interpZ(landmarks, tx, ty, K=8) {
   return tz/tw;
 }
 
-function interpXYDelta(snap, live, tx, ty, K=6) {
-  const arr=snap.map((lm,i)=>({d2:(lm.x-tx)**2+(lm.y-ty)**2,dx:live[i].x-lm.x,dy:live[i].y-lm.y}));
-  arr.sort((a,b)=>a.d2-b.d2);
-  let tw=0,tdx=0,tdy=0;
-  for (let k=0;k<K&&k<arr.length;k++) {
-    const w=arr[k].d2<1e-9?1e9:1/arr[k].d2; tw+=w; tdx+=arr[k].dx*w; tdy+=arr[k].dy*w;
+function interpXYDeltaRBF(snap, live, tx, ty, featurePoints) {
+  let totalWeight = 0;
+  let dx = 0, dy = 0;
+  
+  featurePoints.forEach(fp => {
+    const d2 = Math.pow(fp.snap.x - tx, 2) + Math.pow(fp.snap.y - ty, 2);
+    const w = Math.exp(-d2 * 50); // Gaussian falloff
+    totalWeight += w;
+    dx += (fp.live.x - fp.snap.x) * w;
+    dy += (fp.live.y - fp.snap.y) * w;
+  });
+  
+  if (totalWeight > 0) {
+    dx /= totalWeight;
+    dy /= totalWeight;
   }
-  return [tdx/tw,tdy/tw];
+  
+  return [dx, dy];
 }
 
 function inPolygon(px, py, pts) {
@@ -417,9 +429,16 @@ function buildMeshGeometry(sc, landmarks, videoEl, tierName) {
   sc.tex=new THREE.CanvasTexture(sc.texCanvas);
   sc.tex.minFilter=THREE.LinearFilter;
 
-  if(sc.mesh){sc.scene.remove(sc.mesh);sc.mesh.geometry.dispose();sc.mesh.material.dispose();}
+  if(sc.mesh){
+    sc.scene.remove(sc.mesh);
+    sc.mesh.geometry.dispose();
+    sc.mesh.material.dispose();
+  }
   sc.mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({map:sc.tex,transparent:true,side:THREE.FrontSide,roughness:0.65}));
   sc.scene.add(sc.mesh);
+  
+  // Store last positions for smoothing
+  sc.lastPositions = positions.slice();
 
   const cells=[];
   for (let j=0;j<H;j++) for (let i=0;i<W;i++) {
@@ -431,13 +450,18 @@ function buildMeshGeometry(sc, landmarks, videoEl, tierName) {
   return cells;
 }
 
-async function fillTexture(sc, cells) {
+async function fillTexture(sc, cells, partial = false) {
   const texCtx=sc.texCanvas.getContext('2d');
-  const order=cells.map((_,i)=>i).sort(()=>Math.random()-0.5);
+  
+  if (!partial) {
+    // Full rebuild - clear canvas
+    texCtx.clearRect(0,0,sc.texCanvas.width,sc.texCanvas.height);
+  }
+  
   const BATCH=Math.max(3,Math.floor(cells.length/22));
-  for (let b=0;b<order.length;b+=BATCH) {
-    for (let k=b;k<Math.min(b+BATCH,order.length);k++) {
-      const c=cells[order[k]];
+  for (let b=0;b<cells.length;b+=BATCH) {
+    for (let k=b;k<Math.min(b+BATCH,cells.length);k++) {
+      const c=cells[k];
       if(c.inside) drawCell(texCtx,c.tx,c.ty,CELL_PX,c.r,c.g,c.b);
     }
     if(sc.tex) sc.tex.needsUpdate=true;
@@ -445,45 +469,97 @@ async function fillTexture(sc, cells) {
   }
 }
 
+async function refineTexture(sc, cells, resolution) {
+  const targetCells = TIER_GRIDS[resolution].W * TIER_GRIDS[resolution].H;
+  const totalCells = TIER_GRIDS.AVATAR3D.W * TIER_GRIDS.AVATAR3D.H;
+  const sampleRate = targetCells / totalCells;
+  
+  // Select cells to update based on resolution
+  const cellsToUpdate = cells.filter((_, i) => Math.random() < sampleRate);
+  await fillTexture(sc, cellsToUpdate, true);
+}
+
 async function buildProgressive(sc, landmarks, videoEl, who) {
-  buildRunning=true;
-  const passes=['GLYPH','SPRITE','PUPPET','AVATAR3D'];
-  const labels=['Sampling face…','Building structure…','Adding detail…','Refining…'];
-  for (let pi=0;pi<passes.length;pi++) {
-    const pct=Math.round((pi+1)/passes.length*100);
-    updateBuildUI(who,pct,labels[pi]);
-    const cells=buildMeshGeometry(sc,landmarks,videoEl,passes[pi]);
-    await fillTexture(sc,cells);
-    updateBuildUI(who,pct,labels[pi]+' ✓');
-    if(pi<passes.length-1) await sleep(80);
+  buildRunning = true;
+  
+  // Build base high-res mesh once
+  const cells = buildMeshGeometry(sc, landmarks, videoEl, 'AVATAR3D');
+  
+  // Progressive texture refinement only
+  const passes = [
+    { res: 'GLYPH', label: 'Sampling face…', pct: 25 },
+    { res: 'SPRITE', label: 'Building structure…', pct: 50 },
+    { res: 'PUPPET', label: 'Adding detail…', pct: 75 },
+    { res: 'AVATAR3D', label: 'Refining…', pct: 100 }
+  ];
+  
+  for (let pass of passes) {
+    updateBuildUI(who, pass.pct, pass.label);
+    await refineTexture(sc, cells, pass.res);
+    if (pass.res !== 'AVATAR3D') await sleep(80);
   }
-  updateBuildUI(who,100,'Portrait built ✓');
-  await sleep(1200); hideBuildUI(who);
-  buildRunning=false;
-  document.getElementById('liveBtn').disabled=false;
+  
+  updateBuildUI(who, 100, 'Portrait built ✓');
+  await sleep(1200);
+  hideBuildUI(who);
+  buildRunning = false;
+  document.getElementById('liveBtn').disabled = false;
   setStatus('Portrait complete — enable Live Puppet for real-time expression tracking');
 }
 
-const PUPPET_SMOOTH=0.22;
+const PUPPET_SMOOTH=0.3;
 function lerpN(a,b,t){return a+(b-a)*t;}
 
 function puppet(sc, liveLM) {
   if(!sc.mesh||!sc.snapLM||!sc.snapBBox) return;
-  const W=sc.snapW,H=sc.snapH,bbox=sc.snapBBox,snap=sc.snapLM;
-  const bw2=bbox.x1-bbox.x0,bh2=bbox.y1-bbox.y0,bAR=sc.snapBBoxAR;
-  const pos=sc.mesh.geometry.attributes.position.array;
-  for (let j=0;j<=H;j++) for (let i=0;i<=W;i++) {
-    const vi=j*(W+1)+i, u=i/W, v=j/H;
-    const lx=(1-bbox.x1)+u*bw2, ly=bbox.y0+v*bh2;
-    const nz=interpZ(liveLM,lx,ly)*depthScale;
-    pos[vi*3+2]=lerpN(pos[vi*3+2],nz,PUPPET_SMOOTH);
-    const [dx,dy]=interpXYDelta(snap,liveLM,lx,ly);
-    const nx=(u-0.5)*1.85*bAR+dx*1.85*bAR;
-    const ny=-(v-0.5)*1.85-dy*1.85;
-    pos[vi*3  ]=lerpN(pos[vi*3  ],nx,PUPPET_SMOOTH*0.5);
-    pos[vi*3+1]=lerpN(pos[vi*3+1],ny,PUPPET_SMOOTH*0.5);
+  
+  const W=sc.snapW,H=sc.snapH,bbox=sc.snapBBox;
+  const snap=sc.snapLM;
+  
+  // Pre-compute feature points for RBF interpolation
+  const featurePoints = FACE_OVAL.map(i => ({
+    snap: snap[i],
+    live: liveLM[i],
+    weight: 1.0
+  }));
+  
+  const pos = sc.mesh.geometry.attributes.position.array;
+  const bw2 = bbox.x1 - bbox.x0;
+  const bh2 = bbox.y1 - bbox.y0;
+  const bAR = sc.snapBBoxAR;
+  
+  for (let j = 0; j <= H; j++) {
+    for (let i = 0; i <= W; i++) {
+      const vi = j * (W + 1) + i;
+      const u = i / W, v = j / H;
+      const lx = (1 - bbox.x1) + u * bw2;
+      const ly = bbox.y0 + v * bh2;
+      
+      // Get deformation using RBF
+      const [dx, dy] = interpXYDeltaRBF(snap, liveLM, lx, ly, featurePoints);
+      const nz = interpZ(liveLM, lx, ly) * depthScale;
+      
+      // Target positions
+      const tx = (u - 0.5) * 1.85 * bAR + dx * 1.85 * bAR;
+      const ty = -(v - 0.5) * 1.85 - dy * 1.85;
+      
+      // Smooth with previous position
+      if (sc.lastPositions) {
+        pos[vi * 3] = lerpN(sc.lastPositions[vi * 3], tx, PUPPET_SMOOTH);
+        pos[vi * 3 + 1] = lerpN(sc.lastPositions[vi * 3 + 1], ty, PUPPET_SMOOTH);
+        pos[vi * 3 + 2] = lerpN(sc.lastPositions[vi * 3 + 2], nz, PUPPET_SMOOTH);
+      } else {
+        pos[vi * 3] = tx;
+        pos[vi * 3 + 1] = ty;
+        pos[vi * 3 + 2] = nz;
+      }
+    }
   }
-  sc.mesh.geometry.attributes.position.needsUpdate=true;
+  
+  // Store current positions for next frame
+  sc.lastPositions = pos.slice();
+  
+  sc.mesh.geometry.attributes.position.needsUpdate = true;
   sc.mesh.geometry.computeVertexNormals();
 }
 
@@ -504,12 +580,30 @@ async function startCamera() {
     faceMeshInst=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
     faceMeshInst.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.45});
     faceMeshInst.onResults(onFaceResults);
-    const mpCam=new Camera(feed,{onFrame:async()=>{if(faceMeshInst)await faceMeshInst.send({image:feed});},width:640,height:480});
+    
+    // Add frame dropping to prevent backpressure
+    const mpCam=new Camera(feed, {
+      onFrame: async () => {
+        if (processingFrame || !faceMeshInst) return;
+        processingFrame = true;
+        try {
+          await faceMeshInst.send({ image: feed });
+        } finally {
+          processingFrame = false;
+        }
+      },
+      width: 640,
+      height: 480
+    });
+    
     await mpCam.start();
     cameraOn=true; btn.textContent='✅ Camera On';
     document.getElementById('snapBtn').disabled=false;
     document.getElementById('fistBtn').disabled=false;
     setStatus('Face tracking active — click 📸 Snap Portrait to build your avatar');
+    
+    // Start connection quality monitoring
+    startConnectionMonitoring();
   } catch(e) {
     btn.disabled=false; btn.textContent='📷 Start Camera';
     setStatus('Camera error: '+e.message); console.error(e);
@@ -521,39 +615,83 @@ function onFaceResults(results) {
   lastLandmarks=results.multiFaceLandmarks[0];
   if(puppetActive&&localS.mesh) {
     puppet(localS,lastLandmarks);
-    updateLiveColors(localS,lastLandmarks);
+    updateLiveColorsOptimized(localS,lastLandmarks);
   }
   const lm=lastLandmarks, mo=Math.abs(lm[13].y-lm[14].y)*18;
   document.getElementById('localRing').className='speak-ring'+(mo>0.12?' on':'');
   const now=Date.now();
-  if(now-lastSendT>SEND_MS){lastSendT=now; sendLandmarks(lastLandmarks,mo>0.12);}
+  if(now-lastSendT>getAdaptiveInterval()){lastSendT=now; sendLandmarksOptimized(lastLandmarks,mo>0.12);}
+}
+
+function getAdaptiveInterval() {
+  // Scale interval based on bandwidth (lower bandwidth = higher interval)
+  return Math.max(BASE_SEND_MS, Math.min(200, Math.floor(1000 / (bw / 100))));
 }
 
 let liveColorTick=0;
-function updateLiveColors(sc,landmarks) {
-  if(!sc.snapBBox) return;
-  liveColorTick++;
-  if(liveColorTick%8!==0) return;
-  const W=sc.snapW,H=sc.snapH,bbox=sc.snapBBox;
-  const bw2=bbox.x1-bbox.x0,bh2=bbox.y1-bbox.y0;
-  const feed=document.getElementById('camFeed'); if(!feed.videoWidth) return;
-  const sW=64,sH=64;
-  const tmp=document.createElement('canvas'); tmp.width=sW; tmp.height=sH;
-  const tCtx=tmp.getContext('2d');
-  tCtx.save(); tCtx.scale(-1,1); tCtx.translate(-sW,0);
-  tCtx.drawImage(feed,(1-bbox.x1)*feed.videoWidth,bbox.y0*feed.videoHeight,
-    bw2*feed.videoWidth,bh2*feed.videoHeight,0,0,sW,sH);
-  tCtx.restore();
-  const id=tCtx.getImageData(0,0,sW,sH).data;
-  const texCtx=sc.texCanvas.getContext('2d');
-  const sampleFraction=Math.max(1,Math.floor(W*H*0.08));
-  for (let k=0;k<sampleFraction;k++) {
-    const i=Math.floor(Math.random()*W), j=Math.floor(Math.random()*H);
-    const px=Math.floor((i+0.5)/W*(sW-1)), py=Math.floor((j+0.5)/H*(sH-1));
-    const idx=(py*sW+px)*4;
-    drawCell(texCtx,i*CELL_PX+CELL_PX/2,j*CELL_PX+CELL_PX/2,CELL_PX,id[idx],id[idx+1],id[idx+2]);
+function updateLiveColorsOptimized(sc, landmarks) {
+  if (!sc.snapBBox) return;
+  
+  // Use requestAnimationFrame for throttling
+  if (liveColorTick++ % 8 !== 0) return;
+  
+  const W = sc.snapW, H = sc.snapH, bbox = sc.snapBBox;
+  const feed = document.getElementById('camFeed');
+  if (!feed.videoWidth) return;
+  
+  // Sample in grid pattern instead of random
+  const sampleRate = Math.max(1, Math.floor(Math.sqrt(W * H / 100)));
+  const texCtx = sc.texCanvas.getContext('2d');
+  const imageData = captureFaceRegion(feed, bbox);
+  
+  for (let j = 0; j < H; j += sampleRate) {
+    for (let i = 0; i < W; i += sampleRate) {
+      const color = sampleColorFromImageData(imageData, i, j, W, H);
+      drawCell(texCtx, 
+        i * CELL_PX + CELL_PX / 2, 
+        j * CELL_PX + CELL_PX / 2, 
+        CELL_PX, 
+        color.r, color.g, color.b
+      );
+    }
   }
-  if(sc.tex) sc.tex.needsUpdate=true;
+  
+  if (sc.tex) sc.tex.needsUpdate = true;
+}
+
+function captureFaceRegion(feed, bbox) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  
+  ctx.save();
+  ctx.scale(-1, 1);
+  ctx.translate(-canvas.width, 0);
+  ctx.drawImage(feed,
+    (1 - bbox.x1) * feed.videoWidth,
+    bbox.y0 * feed.videoHeight,
+    (bbox.x1 - bbox.x0) * feed.videoWidth,
+    (bbox.y1 - bbox.y0) * feed.videoHeight,
+    0, 0, canvas.width, canvas.height
+  );
+  ctx.restore();
+  
+  return ctx.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+function sampleColorFromImageData(imageData, i, j, W, H) {
+  const u = (i + 0.5) / W;
+  const v = (j + 0.5) / H;
+  const px = Math.floor(u * (imageData.width - 1));
+  const py = Math.floor(v * (imageData.height - 1));
+  const idx = (py * imageData.width + px) * 4;
+  
+  return {
+    r: imageData.data[idx],
+    g: imageData.data[idx + 1],
+    b: imageData.data[idx + 2]
+  };
 }
 
 async function snapAndBuild() {
@@ -565,7 +703,7 @@ async function snapAndBuild() {
   document.getElementById('snapBtn').disabled=true;
   await buildProgressive(localS,lastLandmarks,feed,'local');
   document.getElementById('snapBtn').disabled=false;
-  if(dc?.readyState==='open') sendPortraitData(lastLandmarks,feed);
+  if(dc?.readyState==='open') sendPortraitDataOptimized(lastLandmarks,feed);
 }
 
 function toggleLive() {
@@ -574,7 +712,7 @@ function toggleLive() {
   setStatus(puppetActive?'Live puppeting active — your expressions drive the mesh':'Puppeting stopped');
 }
 
-function calcTier(bw2,bat2) {
+function calcTier(bw2, bat2) {
   if(bw2<20)return 'TEXT'; if(bw2<50)return 'GLYPH';
   if(bw2<100||bat2<15)return 'SPRITE'; if(bw2<280||bat2<30)return 'PUPPET';
   return 'AVATAR3D';
@@ -616,10 +754,23 @@ function savePortrait() {
 }
 
 function clearLocal() {
-  if(localS.mesh){localS.scene.remove(localS.mesh);localS.mesh.geometry.dispose();localS.mesh.material.dispose();localS.mesh=null;}
-  localS.snapLM=null; localS.snapBBox=null; puppetActive=false;
-  document.getElementById('liveBtn').disabled=true;
-  document.getElementById('liveBtn').textContent='⚡ Live Puppet';
+  if (localS.mesh) {
+    localS.scene.remove(localS.mesh);
+    localS.mesh.geometry.dispose();
+    localS.mesh.material.dispose();
+    localS.mesh = null;
+  }
+  if (localS.tex) {
+    localS.tex.dispose();
+    localS.tex = null;
+  }
+  localS.texCanvas = document.createElement('canvas');
+  localS.snapLM = null;
+  localS.snapBBox = null;
+  localS.lastPositions = null;
+  puppetActive = false;
+  document.getElementById('liveBtn').disabled = true;
+  document.getElementById('liveBtn').textContent = '⚡ Live Puppet';
   setStatus('Cleared — snap a new portrait');
 }
 
@@ -658,8 +809,9 @@ function setupPC() {
     el.textContent=s.toUpperCase();
     el.style.color=(s==='connected'||s==='completed')?'#00ff88':'#ff4757';
     if(s==='connected'||s==='completed'){
-      closeModal(); setStatus('🔥 Peer connected!'); startPing();
-      if(localS.snapLM){const feed=document.getElementById('camFeed');if(feed.videoWidth)sendPortraitData(localS.snapLM,feed);}
+      closeModal(); setStatus('🔥 Peer connected!'); 
+      startPing();
+      if(localS.snapLM){const feed=document.getElementById('camFeed');if(feed.videoWidth)sendPortraitDataOptimized(localS.snapLM,feed);}
     }
   };
 }
@@ -688,16 +840,42 @@ function handlePacket(raw){
       buildRemoteFromData(pkt.lm,pkt.colors,pkt.tier||'AVATAR3D');
     } else if(pkt.type==='puppet'){
       recvCount++; document.getElementById('recvLbl').textContent=recvCount;
-      if(remoteS.snapLM&&pkt.lm) puppet(remoteS,pkt.lm);
+      if(remoteS.snapLM) {
+        // Handle delta encoding if present
+        if (pkt.d && remoteS.snapLM) {
+          // Reconstruct from deltas
+          const reconstructedLM = remoteS.snapLM.map((lm, i) => ({
+            x: lm.x + pkt.d[i].x,
+            y: lm.y + pkt.d[i].y,
+            z: lm.z + pkt.d[i].z
+          }));
+          puppet(remoteS, reconstructedLM);
+        } else if (pkt.lm) {
+          puppet(remoteS, pkt.lm);
+        }
+      }
       document.getElementById('remoteRing').className='speak-ring'+(pkt.speaking?' on':'');
     } else if(pkt.type==='gesture'){
       flashMesh(remoteS);
     } else if(pkt.type==='ping'){
       if(dc?.readyState==='open')dc.send(JSON.stringify({type:'pong',t:pkt.t}));
     } else if(pkt.type==='pong'){
-      document.getElementById('rttLbl').textContent=Date.now()-pkt.t;
+      const rtt = Date.now()-pkt.t;
+      document.getElementById('rttLbl').textContent = rtt;
+      updateQualityFromRTT(rtt);
     }
   }catch(_){}
+}
+
+function updateQualityFromRTT(rtt) {
+  // Calculate quality score based on RTT (lower is better)
+  if (rtt < 100) qualityScore = 100;
+  else if (rtt < 200) qualityScore = 80;
+  else if (rtt < 300) qualityScore = 60;
+  else if (rtt < 500) qualityScore = 40;
+  else qualityScore = 20;
+  
+  document.getElementById('qualityLbl').textContent = qualityScore;
 }
 
 function buildRemoteFromData(lm,colors,tierName){
@@ -742,12 +920,21 @@ function buildRemoteFromData(lm,colors,tierName){
   geo.setAttribute('position',new THREE.BufferAttribute(positions,3));
   geo.setAttribute('uv',new THREE.BufferAttribute(uvArr,2));
   geo.setIndex(idxArr); geo.computeVertexNormals();
-  if(remoteS.tex)remoteS.tex.dispose();
+  if(remoteS.tex){
+    remoteS.tex.dispose();
+    remoteS.tex = null;
+  }
   remoteS.tex=new THREE.CanvasTexture(remoteS.texCanvas);
   remoteS.tex.minFilter=THREE.LinearFilter;
-  if(remoteS.mesh){remoteS.scene.remove(remoteS.mesh);remoteS.mesh.geometry.dispose();remoteS.mesh.material.dispose();}
+  if(remoteS.mesh){
+    remoteS.scene.remove(remoteS.mesh);
+    remoteS.mesh.geometry.dispose();
+    remoteS.mesh.material.dispose();
+  }
   remoteS.mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({map:remoteS.tex,transparent:true,side:THREE.FrontSide,roughness:0.65}));
   remoteS.scene.add(remoteS.mesh);
+  remoteS.lastPositions = positions.slice();
+  
   updateBuildUI('remote',5,'Building peer portrait…');
   document.getElementById('remoteBuildOv').style.display='block';
   (async()=>{
@@ -766,39 +953,117 @@ function computeBBoxFromData(lm){
 
 function reRenderRemote(){if(!remoteLM||!remoteColorGrid)return;buildRemoteFromData(remoteLM,remoteColorGrid,remoteTierName);}
 
-function sendPortraitData(landmarks,videoEl){
-  if(dc?.readyState!=='open')return;
-  const tier=calcTier(bw,bat),cfg=TIER_GRIDS[tier]||TIER_GRIDS.AVATAR3D;
-  const {W,H}=cfg,bbox=computeBBox(landmarks);
-  const bw2=bbox.x1-bbox.x0,bh2=bbox.y1-bbox.y0;
-  const sW=W*2,sH=H*2;
-  const sCvs=document.createElement('canvas'); sCvs.width=sW; sCvs.height=sH;
-  const sCtx=sCvs.getContext('2d');
-  const vW=videoEl.videoWidth||640,vH=videoEl.videoHeight||480;
-  sCtx.save(); sCtx.scale(-1,1); sCtx.translate(-sW,0);
-  sCtx.drawImage(videoEl,(1-bbox.x1)*vW,bbox.y0*vH,bw2*vW,bh2*vH,0,0,sW,sH);
+function sendPortraitDataOptimized(landmarks, videoEl) {
+  if(dc?.readyState !== 'open') return;
+  
+  const tier = calcTier(bw, bat);
+  const cfg = TIER_GRIDS[tier] || TIER_GRIDS.AVATAR3D;
+  const {W, H} = cfg;
+  const bbox = computeBBox(landmarks);
+  const bw2 = bbox.x1 - bbox.x0, bh2 = bbox.y1 - bbox.y0;
+  
+  // Downsample to reduce data size
+  const sW = W, sH = H; // Use exact grid size instead of 2x
+  const sCvs = document.createElement('canvas');
+  sCvs.width = sW; 
+  sCvs.height = sH;
+  const sCtx = sCvs.getContext('2d');
+  const vW = videoEl.videoWidth || 640, vH = videoEl.videoHeight || 480;
+  
+  sCtx.save(); 
+  sCtx.scale(-1,1); 
+  sCtx.translate(-sW,0);
+  sCtx.drawImage(videoEl,
+    (1 - bbox.x1) * vW, bbox.y0 * vH, bw2 * vW, bh2 * vH,
+    0, 0, sW, sH
+  );
   sCtx.restore();
-  const id=sCtx.getImageData(0,0,sW,sH).data;
-  const colors=[];
-  for(let j=0;j<H;j++) for(let i=0;i<W;i++){
-    const u=(i+0.5)/W,v=(j+0.5)/H;
-    const px=Math.floor(u*(sW-1)),py=Math.floor(v*(sH-1)),idx=(py*sW+px)*4;
-    colors.push(id[idx],id[idx+1],id[idx+2]);
+  
+  const id = sCtx.getImageData(0, 0, sW, sH).data;
+  const colors = [];
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      const idx = (j * sW + i) * 4;
+      colors.push(id[idx], id[idx+1], id[idx+2]);
+    }
   }
-  const lmArr=landmarks.map(l=>({x:+l.x.toFixed(5),y:+l.y.toFixed(5),z:+l.z.toFixed(5)}));
-  dc.send(JSON.stringify({type:'portrait',tier,lm:lmArr,colors}));
-  sentCount++; document.getElementById('sentLbl').textContent=sentCount;
+  
+  // Quantize landmarks to reduce size
+  const lmArr = landmarks.map(l => ({
+    x: Math.round(l.x * 100) / 100,
+    y: Math.round(l.y * 100) / 100,
+    z: Math.round(l.z * 1000) / 1000
+  }));
+  
+  dc.send(JSON.stringify({type:'portrait', tier, lm: lmArr, colors}));
+  sentCount++; 
+  document.getElementById('sentLbl').textContent = sentCount;
   setStatus('Portrait sent to peer!');
 }
 
-function sendLandmarks(landmarks,speaking){
-  if(dc?.readyState!=='open')return;
-  const lmArr=landmarks.map(l=>({x:+l.x.toFixed(4),y:+l.y.toFixed(4),z:+l.z.toFixed(4)}));
-  dc.send(JSON.stringify({type:'puppet',lm:lmArr,speaking}));
-  sentCount++; document.getElementById('sentLbl').textContent=sentCount;
+function sendLandmarksOptimized(landmarks, speaking) {
+  if(dc?.readyState !== 'open') return;
+  
+  // Quantize to reduce data
+  const lmArr = landmarks.map(l => ({
+    x: Math.round(l.x * 100) / 100,
+    y: Math.round(l.y * 100) / 100,
+    z: Math.round(l.z * 1000) / 1000
+  }));
+  
+  // Use delta encoding if we have previous landmarks
+  if (lastSentLandmarks) {
+    const deltas = lmArr.map((lm, i) => ({
+      x: lm.x - lastSentLandmarks[i].x,
+      y: lm.y - lastSentLandmarks[i].y,
+      z: lm.z - lastSentLandmarks[i].z
+    }));
+    dc.send(JSON.stringify({ type: 'puppet', d: deltas, speaking }));
+  } else {
+    dc.send(JSON.stringify({ type: 'puppet', lm: lmArr, speaking }));
+  }
+  
+  lastSentLandmarks = lmArr;
+  sentCount++; 
+  document.getElementById('sentLbl').textContent = sentCount;
 }
 
-function startPing(){setInterval(()=>{if(dc?.readyState==='open')dc.send(JSON.stringify({type:'ping',t:Date.now()}));},2000);}
+function startPing() {
+  setInterval(() => {
+    if(dc?.readyState === 'open') {
+      dc.send(JSON.stringify({type:'ping', t:Date.now()}));
+    }
+  }, 2000);
+}
+
+function startConnectionMonitoring() {
+  setInterval(() => {
+    if (!pc || pc.iceConnectionState !== 'connected') return;
+    
+    pc.getStats(null).then(stats => {
+      stats.forEach(report => {
+        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+          const rtt = report.currentRoundTripTime * 1000;
+          const availableBW = report.availableOutgoingBitrate / 1000;
+          
+          if (rtt) {
+            document.getElementById('rttLbl').textContent = Math.round(rtt);
+            updateQualityFromRTT(rtt);
+          }
+          
+          // Auto-adjust bandwidth based on connection quality
+          if (rtt > 300) {
+            // High latency, reduce quality
+            onBw(Math.max(100, bw - 50));
+          } else if (availableBW && availableBW < bw * 0.8) {
+            // Network can't handle current bitrate
+            onBw(Math.floor(availableBW * 0.8));
+          }
+        }
+      });
+    });
+  }, 5000);
+}
 
 function sendFistPump(){
   flashMesh(localS);
@@ -840,4 +1105,3 @@ function closeModal(){document.getElementById('sigModal').classList.remove('open
 </script>
 </body>
 </html>
-```
