@@ -1,153 +1,483 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VibeMesh — Shore Edition</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VibeMesh v1.4 — Shore Edition</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <style>
-    body { margin:0; background:#0a0a1f; color:#fff; font-family:Impact,sans-serif; overflow-x:hidden; }
-    .header { text-align:center; padding:15px; background:linear-gradient(90deg,#00f0ff,#ff00aa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; font-size:2.5em; }
-    .call { display:flex; justify-content:space-around; padding:20px; flex-wrap:wrap; gap:20px; }
-    .avatar-box { text-align:center; }
-    .avatar { width:280px; height:280px; border-radius:20px; overflow:hidden; background:#111; box-shadow:0 0 30px #00f0ff; position:relative; }
-    .avatar canvas { display:block; }
-    .name { margin:10px 0; font-size:1.4em; color:#00ffcc; }
-    .controls { background:#111; padding:20px; margin:20px; border-radius:16px; }
-    button { width:100%; padding:16px; font-size:20px; background:linear-gradient(#ff00aa,#00f0ff); border:none; border-radius:12px; color:#000; margin:10px 0; cursor:pointer; font-family:Impact,sans-serif; }
-    button:active { opacity:0.8; }
-    input[type=range] { width:100%; accent-color:#00f0ff; margin:6px 0 14px; }
-    .live { text-align:center; color:#00ffcc; font-size:1.1em; padding-bottom:20px; }
-    label { font-size:0.9em; color:#aaa; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0a0a1f;color:#fff;font-family:Impact,sans-serif;min-height:100vh;overflow-x:hidden}
+    h1{text-align:center;padding:16px 10px 8px;font-size:clamp(1.4em,4vw,2.4em);
+       background:linear-gradient(90deg,#00f0ff,#ff00aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .call{display:flex;justify-content:center;gap:20px;padding:10px 20px;flex-wrap:wrap}
+    .avatar-box{display:flex;flex-direction:column;align-items:center;gap:8px}
+    .name{font-size:1.2em;color:#00ffcc}
+    .avatar{width:280px;height:280px;border-radius:20px;overflow:hidden;background:#111;
+            box-shadow:0 0 30px #00f0ff;position:relative}
+    .avatar canvas{display:block}
+    .glyph{display:none;align-items:center;justify-content:center;
+           font-size:90px;width:280px;height:280px;border-radius:20px;
+           background:#111;box-shadow:0 0 30px #00f0ff}
+    .pip{position:absolute;bottom:6px;right:6px;width:80px;height:60px;
+         border-radius:8px;overflow:hidden;border:2px solid #00f0ff;background:#000;z-index:10}
+    .pip video{width:100%;height:100%;object-fit:cover}
+    .controls{background:#111;padding:16px 20px;margin:10px 20px;border-radius:16px}
+    .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+    .row label{min-width:110px;font-size:.85em;color:#aaa}
+    input[type=range]{flex:1;accent-color:#00f0ff}
+    .val{min-width:50px;text-align:right;color:#00f0ff;font-size:.85em}
+    .btns{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+    button{flex:1;min-width:140px;padding:14px;font-size:1em;font-family:Impact,sans-serif;
+           background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;
+           border-radius:12px;color:#000;cursor:pointer;transition:opacity .15s}
+    button:active{opacity:.7}
+    button:disabled{background:#333;color:#666;cursor:default}
+    .stats{display:flex;justify-content:center;gap:20px;padding:8px 20px 16px;
+           flex-wrap:wrap;font-size:.85em;color:#aaa}
+    .stats span{color:#00ffcc}
+    .status-bar{text-align:center;padding:6px;font-size:.8em;
+                background:#1a0033;border-top:1px solid #ff00aa33}
+    #sigModal{display:none;position:fixed;inset:0;background:#000a;z-index:100;
+              align-items:center;justify-content:center}
+    #sigModal.open{display:flex}
+    .modal-inner{background:#0d0d2b;border:2px solid #00f0ff;border-radius:20px;
+                 padding:24px;max-width:480px;width:90%;display:flex;flex-direction:column;gap:12px}
+    .modal-inner h2{color:#00f0ff;font-size:1.3em}
+    .modal-inner textarea{background:#111;color:#0f0;border:1px solid #00f0ff;
+                          border-radius:8px;padding:10px;font-size:.75em;font-family:monospace;
+                          resize:vertical;min-height:80px;width:100%}
+    .modal-inner .mbtn{background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;
+                       border-radius:10px;padding:12px;color:#000;font-size:1em;
+                       font-family:Impact,sans-serif;cursor:pointer;width:100%}
   </style>
 </head>
 <body>
-  <div class="header">🏖️ VibeMesh v1.4 — LIVE CALL 🔥</div>
 
-  <div class="call">
-    <div class="avatar-box">
-      <div class="name">You (Vancouver)</div>
-      <div class="avatar" id="local"></div>
+<h1>🏖️ VibeMesh v1.4 — SHORE LIVE 🔥</h1>
+
+<div class="call">
+  <div class="avatar-box">
+    <div class="name">You (Vancouver)</div>
+    <div class="avatar" id="localAvatar">
+      <div class="pip"><video id="localVideo" autoplay muted playsinline></video></div>
     </div>
-    <div class="avatar-box">
-      <div class="name">JerseyBro</div>
-      <div class="avatar" id="remote"></div>
-    </div>
+    <div class="glyph" id="localGlyph">😎</div>
   </div>
-
-  <div class="controls">
-    <label>Bandwidth: <span id="bw">450</span> kbps</label>
-    <input type="range" min="5" max="900" value="450" oninput="updateBw(this.value)">
-
-    <label>Battery: <span id="bat">100</span>%</label>
-    <input type="range" min="1" max="100" value="100" oninput="document.getElementById('bat').innerText=this.value">
-
-    <button onclick="sendFistPump()">👊 SEND FIST PUMP</button>
-    <button onclick="speak()">🎤 PLAY CLONED VOICE</button>
+  <div class="avatar-box">
+    <div class="name">JerseyBro</div>
+    <div class="avatar" id="remoteAvatar"></div>
+    <div class="glyph" id="remoteGlyph">👀</div>
   </div>
+</div>
 
-  <div class="live">Tier: <span id="tier">AVATAR3D</span> • Packets: <span id="packets">0</span></div>
+<div class="controls">
+  <div class="row"><label>Bandwidth (kbps)</label>
+    <input type="range" min="5" max="900" value="900" id="bwSlider" oninput="onBwChange(this.value)">
+    <div class="val" id="bwVal">900</div></div>
+  <div class="row"><label>Battery %</label>
+    <input type="range" min="1" max="100" value="100" id="batSlider" oninput="onBatChange(this.value)">
+    <div class="val" id="batVal">100</div></div>
+  <div class="btns">
+    <button id="camBtn" onclick="startCamera()">📷 START CAMERA</button>
+    <button id="connectBtn" onclick="openSigModal()">📡 CONNECT PEER</button>
+    <button id="fistBtn" onclick="sendFistPump()" disabled>👊 FIST PUMP</button>
+    <button onclick="speak()">🎤 CLONE VOICE</button>
+  </div>
+</div>
 
-  <script>
-    let packetCount = 0;
-    let currentTier = 'AVATAR3D';
+<div class="stats">
+  Tier: <span id="tierLabel">AVATAR3D</span> &nbsp;|&nbsp;
+  Sent: <span id="sentLabel">0</span> &nbsp;|&nbsp;
+  Recv: <span id="recvLabel">0</span> &nbsp;|&nbsp;
+  RTT: <span id="rttLabel">—</span> ms &nbsp;|&nbsp;
+  Transport: <span id="connLabel" style="color:#ff4757">DISCONNECTED</span>
+</div>
 
-    function makeScene(containerId, headColor) {
-      const container = document.getElementById(containerId);
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
-      camera.position.z = 5;
+<div class="status-bar" id="statusBar">Click START CAMERA to begin face tracking</div>
 
-      const ambient = new THREE.AmbientLight(0xffffff, 0.5);
-      const point = new THREE.PointLight(0xffffff, 1.2);
-      point.position.set(5, 5, 5);
-      scene.add(ambient);
-      scene.add(point);
+<!-- WebRTC Signaling Modal -->
+<div id="sigModal">
+  <div class="modal-inner">
+    <h2>📡 Peer Connect</h2>
+    <p style="font-size:.85em;color:#aaa">Step 1: One person clicks CREATE OFFER, copies the text and sends it to the other person.</p>
+    <button class="mbtn" onclick="createOffer()">1️⃣ CREATE OFFER</button>
+    <textarea id="offerBox" placeholder="Offer SDP will appear here — copy and send to peer"></textarea>
+    <p style="font-size:.85em;color:#aaa">Step 2: Other person pastes the offer below and clicks ANSWER.</p>
+    <textarea id="answerInBox" placeholder="Paste offer or answer SDP here"></textarea>
+    <button class="mbtn" onclick="handlePaste()">2️⃣ PASTE & CONNECT</button>
+    <button class="mbtn" style="background:#333;color:#aaa" onclick="closeSigModal()">Close</button>
+  </div>
+</div>
 
-      const head = new THREE.Mesh(
-        new THREE.SphereGeometry(1.2, 32, 32),
-        new THREE.MeshStandardMaterial({ color: headColor, metalness: 0.6, roughness: 0.3 })
-      );
-      scene.add(head);
+<script>
+// ─── CONFIG ───────────────────────────────────────────────
+let currentTier = 'AVATAR3D';
+let bandwidth = 900, battery = 100;
+let sentCount = 0, recvCount = 0;
+let cameraRunning = false;
+let lastSendTime = 0;
+const SEND_INTERVAL_MS = 50;
 
-      const eyeMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
-      const eyeGeo = new THREE.SphereGeometry(0.18, 16, 16);
-      const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-      const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-      eyeL.position.set(-0.45, 0.35, 1.1);
-      eyeR.position.set(0.45, 0.35, 1.1);
-      scene.add(eyeL, eyeR);
+// ─── THREE.JS SETUP ───────────────────────────────────────
+function makeRenderer(containerId) {
+  const container = document.getElementById(containerId);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+  camera.position.z = 3.5;
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const key = new THREE.PointLight(0xfff0e0, 1.4); key.position.set(3,4,4); scene.add(key);
+  const fill = new THREE.PointLight(0x00f0ff, 0.4); fill.position.set(-4,0,2); scene.add(fill);
+  const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(280, 280);
+  container.appendChild(renderer.domElement);
+  return { scene, camera, renderer };
+}
 
-      const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setSize(280, 280);
-      container.appendChild(renderer.domElement);
+function buildFace(headColor) {
+  const group = new THREE.Group();
 
-      return { scene, camera, renderer, head };
-    }
+  // Head
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 40, 40),
+    new THREE.MeshStandardMaterial({ color: headColor, roughness: 0.6, metalness: 0.1 })
+  );
+  group.add(head);
 
-    const local = makeScene('local', 0xffaa00);
-    const remote = makeScene('remote', 0x00aaff);
+  // Eyes
+  const eyeWhiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+  const eyeIrisMat = new THREE.MeshStandardMaterial({ color: 0x1a1aff });
+  const pupilMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+  function makeEye(x) {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(0.18,16,16), eyeWhiteMat));
+    const iris = new THREE.Mesh(new THREE.SphereGeometry(0.11,16,16), eyeIrisMat);
+    iris.position.z = 0.1; g.add(iris);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.06,12,12), pupilMat);
+    pupil.position.z = 0.16; g.add(pupil);
+    g.position.set(x, 0.28, 0.95);
+    return g;
+  }
+  const eyeL = makeEye(-0.38);
+  const eyeR = makeEye(0.38);
+  group.add(eyeL, eyeR);
 
-    function makeGlyph(containerId) {
-      const el = document.createElement('div');
-      el.style.cssText = 'display:none;align-items:center;justify-content:center;font-size:100px;width:280px;height:280px;';
-      document.getElementById(containerId).appendChild(el);
-      return el;
-    }
-    const glyphLocal = makeGlyph('local');
-    const glyphRemote = makeGlyph('remote');
+  // Eyebrows
+  const browMat = new THREE.MeshStandardMaterial({ color: 0x3a2010 });
+  function makeBrow(x) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.06, 0.06), browMat);
+    b.position.set(x, 0.58, 0.95);
+    return b;
+  }
+  const browL = makeBrow(-0.38);
+  const browR = makeBrow(0.38);
+  group.add(browL, browR);
 
-    function animate() {
-      requestAnimationFrame(animate);
-      if (currentTier === 'AVATAR3D' || currentTier === 'PUPPET') {
-        local.head.rotation.y += 0.015;
-        remote.head.rotation.y += 0.012;
-        local.renderer.render(local.scene, local.camera);
-        remote.renderer.render(remote.scene, remote.camera);
+  // Nose
+  const nose = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 12, 12),
+    new THREE.MeshStandardMaterial({ color: headColor, roughness: 0.8 })
+  );
+  nose.scale.set(1, 0.7, 1.2);
+  nose.position.set(0, 0, 1.02);
+  group.add(nose);
+
+  // Mouth
+  const lipMat = new THREE.MeshStandardMaterial({ color: 0xcc4444 });
+  const mouthPivot = new THREE.Group();
+  mouthPivot.position.set(0, -0.38, 0.92);
+  const upperLip = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.1, 0.08), lipMat.clone());
+  upperLip.position.y = 0.07;
+  const lowerLip = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.1, 0.08), lipMat.clone());
+  lowerLip.position.y = -0.07;
+  mouthPivot.add(upperLip, lowerLip);
+  group.add(mouthPivot);
+
+  // Ears
+  const earMat = new THREE.MeshStandardMaterial({ color: headColor, roughness: 0.7 });
+  function makeEar(x) {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.18,12,12), earMat);
+    e.scale.set(0.5, 0.8, 0.5);
+    e.position.set(x, 0.1, 0);
+    return e;
+  }
+  group.add(makeEar(-1.02), makeEar(1.02));
+
+  return { group, head, eyeL, eyeR, browL, browR, mouthPivot, upperLip, lowerLip };
+}
+
+const localCtx = makeRenderer('localAvatar');
+const remoteCtx = makeRenderer('remoteAvatar');
+const localFace = buildFace(0xf5c08a);
+const remoteFace = buildFace(0xa0c4ff);
+localCtx.scene.add(localFace.group);
+remoteCtx.scene.add(remoteFace.group);
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (!cameraRunning) {
+    localFace.group.rotation.y = Math.sin(Date.now() * 0.001) * 0.3;
+    remoteFace.group.rotation.y = Math.sin(Date.now() * 0.001 + 1) * 0.3;
+  }
+  localCtx.renderer.render(localCtx.scene, localCtx.camera);
+  remoteCtx.renderer.render(remoteCtx.scene, remoteCtx.camera);
+}
+animate();
+
+function applyState(face, state) {
+  if (!state) return;
+  if (state.headRotation) {
+    face.group.rotation.x = state.headRotation.x * 0.8;
+    face.group.rotation.y = state.headRotation.y * 1.0;
+    face.group.rotation.z = state.headRotation.z * 0.5;
+  }
+  const mouthOpen = state.blendshapes?.mouthOpen ?? 0;
+  face.upperLip.position.y = 0.07 + mouthOpen * 0.12;
+  face.lowerLip.position.y = -0.07 - mouthOpen * 0.18;
+  const smile = state.blendshapes?.smile ?? 0;
+  face.mouthPivot.scale.x = 1 + smile * 0.5;
+  const browRaise = state.blendshapes?.browRaise ?? 0;
+  face.browL.position.y = 0.58 + browRaise * 0.2;
+  face.browR.position.y = 0.58 + browRaise * 0.2;
+  const blink = state.blendshapes?.blink ?? 0;
+  face.eyeL.scale.y = 1 - blink * 0.9;
+  face.eyeR.scale.y = 1 - blink * 0.9;
+  if (state.gestures?.includes(4)) {
+    face.group.position.y = 0.2;
+    setTimeout(() => { face.group.position.y = 0; }, 150);
+  }
+  const v = state.valence ?? 0;
+  const r = Math.floor(180 + v * 60) / 255;
+  face.upperLip.material.color.setRGB(r, 0.25, 0.25);
+  face.lowerLip.material.color.setRGB(r, 0.25, 0.25);
+}
+
+// ─── MEDIAPIPE FACE TRACKING ─────────────────────────────
+let faceMesh, lastLandmarks = null;
+
+function landmarksToState(lm) {
+  if (!lm || lm.length < 468) return null;
+  const nose = lm[1], chin = lm[152];
+  const leftEye = lm[33], rightEye = lm[263];
+  const leftBrow = lm[70], rightBrow = lm[300];
+  const upperLip = lm[13], lowerLip = lm[14];
+  const leftMouth = lm[61], rightMouth = lm[291];
+  const topLid = lm[159], botLid = lm[145];
+
+  const dx = rightEye.x - leftEye.x;
+  const dy = rightEye.y - leftEye.y;
+  const yaw = Math.atan2(dy, dx) * 0.5;
+  const pitch = (nose.y - 0.5) * -1.2;
+  const roll = (chin.x - nose.x) * 2;
+
+  const mouthH = Math.abs(upperLip.y - lowerLip.y);
+  const mouthOpen = Math.min(1, mouthH * 18);
+
+  const mouthW = Math.abs(rightMouth.x - leftMouth.x);
+  const faceW = Math.abs(rightEye.x - leftEye.x);
+  const smile = Math.min(1, Math.max(0, (mouthW / (faceW * 1.8)) - 0.3) * 3);
+
+  const browH = (leftBrow.y + rightBrow.y) / 2;
+  const eyeH = (leftEye.y + rightEye.y) / 2;
+  const browRaise = Math.min(1, Math.max(0, (eyeH - browH - 0.03) * 15));
+
+  const eyeOpen = Math.abs(topLid.y - botLid.y);
+  const blink = Math.max(0, 1 - eyeOpen * 40);
+
+  return {
+    headRotation: { x: pitch, y: yaw, z: roll },
+    blendshapes: { mouthOpen, smile, browRaise, blink },
+    isSpeaking: mouthOpen > 0.15,
+    valence: Math.max(-1, Math.min(1, smile * 2 - 0.5)),
+    arousal: mouthOpen * 0.5 + browRaise * 0.5,
+    gestures: [],
+    transcribedText: ''
+  };
+}
+
+async function startCamera() {
+  try {
+    setStatus('Requesting camera access...');
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width:640, height:480, facingMode:'user' }, audio: false });
+    const video = document.getElementById('localVideo');
+    video.srcObject = stream;
+    await video.play();
+
+    setStatus('Loading MediaPipe face tracker...');
+    faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+    faceMesh.setOptions({ maxNumFaces:1, refineLandmarks:true, minDetectionConfidence:0.5, minTrackingConfidence:0.5 });
+    faceMesh.onResults(results => {
+      if (results.multiFaceLandmarks?.[0]) {
+        lastLandmarks = results.multiFaceLandmarks[0];
+        const state = landmarksToState(lastLandmarks);
+        if (state) {
+          applyState(localFace, state);
+          const now = Date.now();
+          if (now - lastSendTime > SEND_INTERVAL_MS) {
+            lastSendTime = now;
+            sendState(state);
+          }
+        }
       }
+    });
+
+    const mpCam = new Camera(video, {
+      onFrame: async () => { await faceMesh.send({ image: video }); },
+      width: 640, height: 480
+    });
+    await mpCam.start();
+
+    cameraRunning = true;
+    document.getElementById('camBtn').disabled = true;
+    document.getElementById('camBtn').textContent = '✅ CAMERA ON';
+    document.getElementById('fistBtn').disabled = false;
+    setStatus('Face tracking active — move your face!');
+  } catch(e) {
+    setStatus('Camera error: ' + e.message);
+  }
+}
+
+// ─── TIER NEGOTIATION ─────────────────────────────────────
+function calcTier(bw, bat) {
+  if (bw < 30) return 'GLYPH';
+  if (bw < 80 || bat < 15) return 'SPRITE';
+  if (bw < 250 || bat < 30) return 'PUPPET';
+  return 'AVATAR3D';
+}
+function onBwChange(v) { bandwidth = +v; document.getElementById('bwVal').textContent = v; updateTier(); }
+function onBatChange(v) { battery = +v; document.getElementById('batVal').textContent = v; updateTier(); }
+
+function updateTier() {
+  currentTier = calcTier(bandwidth, battery);
+  document.getElementById('tierLabel').textContent = currentTier;
+  const show3D = currentTier === 'AVATAR3D' || currentTier === 'PUPPET';
+  document.getElementById('localAvatar').style.display = show3D ? 'block' : 'none';
+  document.getElementById('remoteAvatar').style.display = show3D ? 'block' : 'none';
+  const glyphMap = { GLYPH:['😎','👀'], SPRITE:['🕺','💃'], TEXT:['📝','📝'] };
+  const glyphs = glyphMap[currentTier] || ['',''];
+  document.getElementById('localGlyph').style.display = show3D ? 'none' : 'flex';
+  document.getElementById('remoteGlyph').style.display = show3D ? 'none' : 'flex';
+  document.getElementById('localGlyph').textContent = glyphs[0];
+  document.getElementById('remoteGlyph').textContent = glyphs[1];
+}
+
+// ─── WEBRTC ───────────────────────────────────────────────
+let pc, dc;
+
+async function createOffer() {
+  pc = new RTCPeerConnection({ iceServers:[{ urls:'stun:stun.l.google.com:19302' }] });
+  setupPC();
+  dc = pc.createDataChannel('vibe', { ordered:false, maxRetransmits:0 });
+  setupDC(dc);
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await waitForICE();
+  document.getElementById('offerBox').value = JSON.stringify(pc.localDescription);
+  setStatus('Offer created — copy it to your peer');
+}
+
+async function handlePaste() {
+  const text = document.getElementById('answerInBox').value.trim();
+  if (!text) return;
+  try {
+    const sdp = JSON.parse(text);
+    if (sdp.type === 'offer') {
+      pc = new RTCPeerConnection({ iceServers:[{ urls:'stun:stun.l.google.com:19302' }] });
+      setupPC();
+      pc.ondatachannel = e => { dc = e.channel; setupDC(dc); };
+      await pc.setRemoteDescription(sdp);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await waitForICE();
+      document.getElementById('offerBox').value = JSON.stringify(pc.localDescription);
+      setStatus('Answer created — copy it back to the offerer');
+    } else if (sdp.type === 'answer') {
+      await pc.setRemoteDescription(sdp);
+      setStatus('Answer received — connecting...');
     }
-    animate();
+  } catch(e) { setStatus('Error: ' + e.message); }
+}
 
-    function updateBw(bw) {
-      document.getElementById('bw').innerText = bw;
-      const tier = bw < 30 ? 'GLYPH' : bw < 80 ? 'SPRITE' : bw < 250 ? 'PUPPET' : 'AVATAR3D';
-      setTier(tier);
-      document.getElementById('packets').innerText = ++packetCount;
+function waitForICE() {
+  return new Promise(r => {
+    if (pc.iceGatheringState === 'complete') { r(); return; }
+    pc.onicegatheringstatechange = () => { if (pc.iceGatheringState === 'complete') r(); };
+    setTimeout(r, 3000);
+  });
+}
+
+function setupPC() {
+  pc.oniceconnectionstatechange = () => {
+    const s = pc.iceConnectionState;
+    document.getElementById('connLabel').textContent = s.toUpperCase();
+    document.getElementById('connLabel').style.color = (s === 'connected' || s === 'completed') ? '#00ff88' : '#ff4757';
+    if (s === 'connected' || s === 'completed') {
+      setStatus('Peer connected! Streaming live face data 🔥');
+      closeSigModal();
+      setInterval(() => { if (dc?.readyState === 'open') dc.send(JSON.stringify({ type:'ping', t:Date.now() })); }, 2000);
     }
+  };
+}
 
-    function setTier(tier) {
-      currentTier = tier;
-      document.getElementById('tier').innerText = tier;
+function setupDC(channel) {
+  channel.onopen = () => setStatus('Data channel open — streaming vibes!');
+  channel.onmessage = e => {
+    try {
+      const pkt = JSON.parse(e.data);
+      if (pkt.type === 'avatar') {
+        recvCount++;
+        document.getElementById('recvLabel').textContent = recvCount;
+        if (currentTier === 'AVATAR3D' || currentTier === 'PUPPET') {
+          applyState(remoteFace, pkt.state);
+        } else {
+          const g = pkt.state.valence > 0.3 ? '😄' : pkt.state.isSpeaking ? '🗣️' : '😐';
+          document.getElementById('remoteGlyph').textContent = g;
+        }
+      } else if (pkt.type === 'ping') {
+        if (dc?.readyState === 'open') dc.send(JSON.stringify({ type:'pong', t:pkt.t }));
+      } else if (pkt.type === 'pong') {
+        document.getElementById('rttLabel').textContent = Date.now() - pkt.t;
+      }
+    } catch(_) {}
+  };
+}
 
-      const show3D = tier === 'AVATAR3D' || tier === 'PUPPET';
-      local.renderer.domElement.style.display = show3D ? 'block' : 'none';
-      remote.renderer.domElement.style.display = show3D ? 'block' : 'none';
+function sendState(state) {
+  if (dc?.readyState !== 'open') return;
+  dc.send(JSON.stringify({ type:'avatar', tier:currentTier, state }));
+  sentCount++;
+  document.getElementById('sentLabel').textContent = sentCount;
+}
 
-      const glyph = tier === 'GLYPH' ? '😎👀' : tier === 'SPRITE' ? '🕺💃' : '';
-      glyphLocal.style.display = show3D ? 'none' : 'flex';
-      glyphRemote.style.display = show3D ? 'none' : 'flex';
-      glyphLocal.innerText = glyph;
-      glyphRemote.innerText = glyph;
-    }
+// ─── GESTURES ────────────────────────────────────────────
+function sendFistPump() {
+  const state = landmarksToState(lastLandmarks) || {
+    headRotation:{x:0,y:0,z:0}, blendshapes:{mouthOpen:0.5,smile:0.8,browRaise:0.4,blink:0},
+    isSpeaking:true, valence:0.95, arousal:0.98, gestures:[], transcribedText:''
+  };
+  state.gestures = [4];
+  state.valence = 0.95;
+  applyState(localFace, state);
+  sendState(state);
+  setStatus('👊 FIST PUMP SENT TO JERSEY BRO!');
+}
 
-    function sendFistPump() {
-      local.head.scale.set(1.3, 1.3, 1.3);
-      setTimeout(() => local.head.scale.set(1, 1, 1), 200);
-      remote.head.scale.set(1.3, 1.3, 1.3);
-      setTimeout(() => remote.head.scale.set(1, 1, 1), 300);
-      document.getElementById('packets').innerText = ++packetCount;
-    }
+// ─── VOICE ───────────────────────────────────────────────
+function speak() {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance('Yo CB from the Shore — 3 Guys pizza slice in hand bro!');
+  u.pitch = 1.1; u.rate = 1.15; u.onerror = () => {};
+  window.speechSynthesis.speak(u);
+}
 
-    function speak() {
-      if (!window.speechSynthesis) return;
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance("Yo CB from the Shore — 3 Guys pizza slice in hand bro!");
-      u.pitch = 1.1;
-      u.rate = 1.15;
-      u.onerror = () => {};
-      window.speechSynthesis.speak(u);
-    }
-  </script>
+// ─── UI ───────────────────────────────────────────────────
+function setStatus(msg) { document.getElementById('statusBar').textContent = msg; }
+function openSigModal() { document.getElementById('sigModal').classList.add('open'); }
+function closeSigModal() { document.getElementById('sigModal').classList.remove('open'); }
+</script>
 </body>
 </html>
