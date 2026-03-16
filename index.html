@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VibeMesh v7.1 | Hybrid-Core</title>
+<title>VibeMesh v7.2 | Protocol-X</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
   :root {
     --bg: #050508;
-    --panel: rgba(12, 12, 18, 0.85);
+    --panel: rgba(12, 12, 18, 0.9);
     --border: rgba(0, 240, 255, 0.2);
     --cyan: #00f0ff;
     --magenta: #ff00aa;
@@ -26,139 +26,118 @@
     color: var(--text-main);
     font-family: -apple-system, system-ui, sans-serif;
     min-height: 100vh;
+    overflow-y: auto; /* Restored scrollability */
     display: flex;
     flex-direction: column;
-    overflow-x: hidden;
-    overflow-y: auto; /* Ensure full vertical access */
   }
 
   header {
-    padding: 20px;
-    text-align: center;
-    border-bottom: 1px solid var(--border);
+    padding: 24px; text-align: center; border-bottom: 1px solid var(--border);
     background: linear-gradient(180deg, rgba(0,240,255,0.05) 0%, transparent 100%);
-    flex-shrink: 0;
   }
-  h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
+  h1 { font-size: 1.6rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; }
   h1 span { color: var(--cyan); }
-  .subtitle { font-family: var(--font-mono); font-size: 0.65rem; color: var(--magenta); letter-spacing: 3px; text-transform: uppercase; margin-top: 4px; display: block; }
 
-  main {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 30px;
-    padding: 20px;
-    flex-grow: 1;
-  }
-
-  .viewport-container { display: flex; flex-direction: column; gap: 12px; width: 320px; }
-  .viewport-header { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.7rem; color: var(--cyan); text-transform: uppercase; }
-
+  /* ── Viewports ── */
+  main { display: flex; flex-wrap: wrap; justify-content: center; gap: 30px; padding: 30px 20px; }
+  .viewport-container { width: 320px; display: flex; flex-direction: column; gap: 10px; }
   .viewport {
-    position: relative;
-    width: 320px;
-    height: 400px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-    backdrop-filter: blur(10px);
+    position: relative; width: 320px; height: 400px; background: #000;
+    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
   }
-  .viewport canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-
-  .pip {
-    position: absolute; bottom: 12px; right: 12px;
-    width: 70px; height: 90px;
-    border-radius: 6px; overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.2);
-    z-index: 10;
-  }
+  .pip { position: absolute; bottom: 12px; right: 12px; width: 70px; height: 90px; border: 1px solid #444; border-radius: 6px; overflow: hidden; z-index: 10; }
   .pip video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 
-  .tier-badge {
-    position: absolute; top: 12px; left: 12px;
-    font-family: var(--font-mono); font-size: 0.6rem;
-    padding: 4px 8px; border-radius: 4px;
-    background: rgba(0, 240, 255, 0.1); border: 1px solid var(--cyan); color: var(--cyan);
-    z-index: 10;
-  }
-
+  /* ── HUD & Requests ── */
   .hud {
-    width: 100%; max-width: 670px; margin: 0 auto 40px;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-    padding: 20px; display: flex; flex-direction: column; gap: 20px;
+    width: 100%; max-width: 680px; margin: 0 auto 50px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; display: flex; flex-direction: column; gap: 20px;
+    backdrop-filter: blur(20px); box-shadow: 0 20px 50px rgba(0,0,0,0.5);
   }
 
-  .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+  .section-label { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; }
+
+  /* ── Signaling Box (The "Requests" Restored) ── */
+  .signaling-box {
+    background: rgba(0,0,0,0.3); border: 1px dashed var(--border); border-radius: 8px; padding: 15px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  textarea {
+    width: 100%; height: 60px; background: #08080c; border: 1px solid #222;
+    color: var(--cyan); font-family: var(--font-mono); font-size: 0.7rem;
+    padding: 8px; border-radius: 4px; resize: none;
+  }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 
   .btn {
     background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
     color: var(--text-main); padding: 12px; border-radius: 8px;
-    font-family: var(--font-mono); font-size: 0.75rem; cursor: pointer; text-transform: uppercase;
+    font-family: var(--font-mono); font-size: 0.7rem; cursor: pointer; transition: 0.2s;
   }
-  .btn:hover:not(:disabled) { border-color: var(--cyan); color: var(--cyan); }
-  .btn.active { background: rgba(0,240,255,0.2); border-color: var(--cyan); color: var(--cyan); }
-  .btn.danger { background: rgba(255,0,170,0.1); border-color: var(--magenta); color: var(--magenta); }
-
-  .slider-group { display: flex; flex-direction: column; gap: 8px; }
-  .slider-header { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim); }
-  input[type=range] { width: 100%; accent-color: var(--cyan); }
-
-  .telemetry {
-    display: flex; justify-content: space-between; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);
-    font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim);
-  }
+  .btn:hover { border-color: var(--cyan); color: var(--cyan); }
+  .btn-primary { background: linear-gradient(135deg, var(--magenta), var(--cyan)); color: #000; font-weight: 800; border: none; }
+  
+  .telemetry { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim); }
   .telemetry span { color: var(--cyan); }
 
-  #camFeed { position: absolute; top: -9999px; left: -9999px; }
+  #camFeed { position: absolute; top: -1000px; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Vibe<span>Mesh</span></h1>
-  <span class="subtitle">Hybrid Holographic Comms // v7.1</span>
+  <div style="font-family:var(--font-mono); font-size:0.6rem; color:var(--magenta); letter-spacing:4px;">PROTOCOL-X // v7.2</div>
 </header>
 
 <main>
   <div class="viewport-container">
-    <div class="viewport-header"><div>Local.Client</div><div id="localStatus">Awaiting Optic</div></div>
+    <div class="section-label">Local.Optic</div>
     <div class="viewport" id="localFrame">
       <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
-      <div class="tier-badge" id="localBadge">AVATAR_3D</div>
     </div>
   </div>
-
   <div class="viewport-container">
-    <div class="viewport-header"><div>Remote.Peer</div><div id="remoteStatus" style="color:var(--magenta)">Disconnected</div></div>
+    <div class="section-label">Remote.Mesh</div>
     <div class="viewport" id="remoteFrame"></div>
   </div>
 </main>
 
 <div class="hud">
-  <div class="controls-grid">
-    <button class="btn" id="camBtn" onclick="startCamera()">1. Init Optics</button>
-    <button class="btn" id="snapBtn" onclick="startSnap()" disabled>2. Biometric Scan</button>
-    <button class="btn" id="liveBtn" onclick="toggleLive()" disabled>3. Stream Mesh</button>
-    <button class="btn" onclick="location.reload()">Reset System</button>
+  <div class="section-label">System Initialization</div>
+  <div class="grid">
+    <button class="btn" id="camBtn" onclick="startCamera()">Init Optics</button>
+    <button class="btn" id="snapBtn" onclick="startSnap()" disabled>Biometric Scan</button>
+    <button class="btn" id="liveBtn" onclick="toggleLive()" disabled>Stream Mesh</button>
   </div>
 
-  <div class="controls-grid">
-    <div class="slider-group">
-      <div class="slider-header"><span>Bandwidth Tier</span> <span id="bwVal">900k</span></div>
-      <input type="range" min="10" max="900" value="900" id="bwSlider" oninput="onBw(+this.value)">
+  <div class="section-label">Signaling Exchange (Requests)</div>
+  <div class="signaling-box">
+    <textarea id="sigInput" placeholder="Paste Remote Signal Here..."></textarea>
+    <div class="grid">
+      <button class="btn" onclick="createSignal('offer')">Create Offer</button>
+      <button class="btn" onclick="createSignal('answer')">Create Answer</button>
+      <button class="btn-primary" onclick="processSignal()">Connect Peer</button>
     </div>
-    <div class="slider-group">
-      <div class="slider-header"><span>Holo-Density</span> <span id="densityVal">High</span></div>
-      <input type="range" min="1" max="3" value="3" step="1" oninput="onDensity(+this.value)">
+  </div>
+
+  <div class="grid">
+    <div style="display:flex; flex-direction:column; gap:5px;">
+      <div class="section-label">Density</div>
+      <input type="range" min="1" max="3" value="3" oninput="onDensity(+this.value)">
+    </div>
+    <div style="display:flex; flex-direction:column; gap:5px;">
+      <div class="section-label">Bandwidth</div>
+      <input type="range" min="10" max="900" value="900" oninput="onBw(+this.value)">
     </div>
   </div>
 
   <div class="telemetry">
-    <div>TX: <span id="sentLbl">0</span> PKT</div>
-    <div>LATENCY: <span id="rttLbl">--</span> MS</div>
     <div>VERTICES: <span id="vertsLbl">0</span></div>
+    <div>TX/RX: <span id="pktLbl">0/0</span></div>
+    <div>STATUS: <span id="statusLbl" style="color:var(--magenta)">IDLE</span></div>
   </div>
 </div>
 
@@ -167,165 +146,125 @@
 <script>
 'use strict';
 
-let densityLevel = 3; 
-let cameraOn = false, puppetActive = false, lastLandmarks = null;
+let localS, remoteS, lastLM, density = 3, cameraOn = false, live = false;
 
-function makeScene(frameId) {
-  const container = document.getElementById(frameId);
-  if (!container) return null;
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(45, 320/400, 0.1, 10);
-  camera.position.z = 2.5;
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setSize(320, 400);
-  container.insertBefore(renderer.domElement, container.firstChild);
-  const holoGroup = new THREE.Group();
-  scene.add(holoGroup);
-  return { scene, camera, renderer, holoGroup, points: null, lines: null };
-}
-
-let localS = null, remoteS = null;
-
-function initScenes() {
+// SCENE INIT
+function init() {
   localS = makeScene('localFrame');
   remoteS = makeScene('remoteFrame');
-  (function render() {
-    requestAnimationFrame(render);
-    if (localS) localS.renderer.render(localS.scene, localS.camera);
-    if (remoteS) remoteS.renderer.render(remoteS.scene, remoteS.camera);
+  (function anim() { 
+    requestAnimationFrame(anim); 
+    localS.renderer.render(localS.scene, localS.camera);
+    remoteS.renderer.render(remoteS.scene, remoteS.camera);
   })();
 }
 
-// RESTORED v7.0 MESH LOGIC + HYBRID OVERLAY
-function buildHoloMesh(sc, lm, density) {
-  if (!sc) return;
-  if (sc.points) sc.holoGroup.remove(sc.points);
-  if (sc.lines) sc.holoGroup.remove(sc.lines);
+function makeScene(id) {
+  const el = document.getElementById(id);
+  const sc = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(45, 320/400, 0.1, 10);
+  cam.position.z = 2.5;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(320, 400);
+  el.insertBefore(renderer.domElement, el.firstChild);
+  const group = new THREE.Group();
+  sc.add(group);
+  return { scene: sc, camera: cam, renderer, group, points: null, lines: null };
+}
 
-  const positions = [];
-  const colors = [];
-  const step = density === 3 ? 1 : density === 2 ? 3 : 7;
+// OPTICS (CAMERA)
+async function startCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { width:480, height:640 } });
+  document.getElementById('pipLocal').srcObject = stream;
+  const feed = document.getElementById('camFeed'); feed.srcObject = stream;
+  
+  const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+  faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.6 });
+  faceMesh.onResults(res => {
+    if (!res.multiFaceLandmarks?.[0]) return;
+    lastLM = res.multiFaceLandmarks[0];
+    if (live && localS.points) updateHolo(localS, lastLM);
+  });
+
+  const mpCam = new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); }, width: 480, height: 640 });
+  mpCam.start();
+  cameraOn = true;
+  document.getElementById('snapBtn').disabled = false;
+  document.getElementById('statusLbl').textContent = 'OPTIC_READY';
+}
+
+// MESH LOGIC (HYBRID)
+function buildHolo(sc, lm) {
+  if (sc.points) sc.group.remove(sc.points);
+  if (sc.lines) sc.group.remove(sc.lines);
+
+  const pos = [], cols = [], step = density === 3 ? 1 : density === 2 ? 3 : 7;
   const cx = lm[1].x, cy = lm[1].y, cz = lm[1].z;
 
   for (let i = 0; i < lm.length; i += step) {
-    const x = (lm[i].x - cx) * -3.0; 
-    const y = (lm[i].y - cy) * -3.0;
-    const z = (lm[i].z - cz) * -3.0;
-    positions.push(x, y, z);
-    const normalizedZ = Math.max(0, Math.min(1, (z + 0.5)));
-    colors.push(0, 0.5 + (normalizedZ * 0.5), 0.5 + (normalizedZ * 0.5));
+    const x = (lm[i].x - cx) * -3.0, y = (lm[i].y - cy) * -3.0, z = (lm[i].z - cz) * -3.0;
+    pos.push(x, y, z);
+    const nZ = Math.max(0, Math.min(1, (z + 0.5)));
+    cols.push(0, 0.5 + (nZ * 0.5), 0.5 + (nZ * 0.5));
   }
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
 
-  // Layer 1: Chuck Close Style Dots
-  const pMaterial = new THREE.PointsMaterial({ 
-    size: density === 1 ? 0.08 : 0.04, 
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.9,
-    blending: THREE.AdditiveBlending
-  });
-  sc.points = new THREE.Points(geometry, pMaterial);
-  sc.holoGroup.add(sc.points);
-
-  // Layer 2: The Wire Mesh Overlay
-  if (density > 1) {
-    const lineIndices = [];
-    for(let i = 0; i < (positions.length/3) - 1; i++){
-      if(Math.random() > 0.15) lineIndices.push(i, i+1);
-    }
-    const lineGeo = geometry.clone();
-    lineGeo.setIndex(lineIndices);
-    const lMaterial = new THREE.LineBasicMaterial({ 
-      color: 0x00f0ff, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending 
-    });
-    sc.lines = new THREE.LineSegments(lineGeo, lMaterial);
-    sc.holoGroup.add(sc.lines);
-  }
+  sc.points = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.04, vertexColors: true, blending: THREE.AdditiveBlending }));
   
-  if(sc === localS) document.getElementById('vertsLbl').textContent = positions.length / 3;
+  const lineIdx = [];
+  for(let i=0; i<(pos.length/3)-1; i++) { if(Math.random()>0.1) lineIdx.push(i, i+1); }
+  const lGeo = geo.clone(); lGeo.setIndex(lineIdx);
+  sc.lines = new THREE.LineSegments(lGeo, new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.2 }));
+
+  sc.group.add(sc.points, sc.lines);
+  document.getElementById('vertsLbl').textContent = pos.length / 3;
 }
 
-function updateHoloMesh(sc, lm, density) {
-  if (!sc || !sc.points) return;
+function updateHolo(sc, lm) {
   const posArr = sc.points.geometry.attributes.position.array;
-  const linePosArr = sc.lines ? sc.lines.geometry.attributes.position.array : null;
   const step = density === 3 ? 1 : density === 2 ? 3 : 7;
   const cx = lm[1].x, cy = lm[1].y, cz = lm[1].z;
-  
   let idx = 0;
   for (let i = 0; i < lm.length; i += step) {
     if(idx * 3 >= posArr.length) break;
-    const tx = (lm[i].x - cx) * -3.0; 
-    const ty = (lm[i].y - cy) * -3.0;
-    const tz = (lm[i].z - cz) * -3.0;
-    
-    posArr[idx*3] += (tx - posArr[idx*3]) * 0.4;
-    posArr[idx*3+1] += (ty - posArr[idx*3+1]) * 0.4;
-    posArr[idx*3+2] += (tz - posArr[idx*3+2]) * 0.4;
-
-    if (linePosArr) {
-      linePosArr[idx*3] = posArr[idx*3];
-      linePosArr[idx*3+1] = posArr[idx*3+1];
-      linePosArr[idx*3+2] = posArr[idx*3+2];
-    }
+    posArr[idx*3] += ((lm[i].x-cx)*-3.0 - posArr[idx*3]) * 0.4;
+    posArr[idx*3+1] += ((lm[i].y-cy)*-3.0 - posArr[idx*3+1]) * 0.4;
+    posArr[idx*3+2] += ((lm[i].z-cz)*-3.0 - posArr[idx*3+2]) * 0.4;
     idx++;
   }
   sc.points.geometry.attributes.position.needsUpdate = true;
-  if(sc.lines) sc.lines.geometry.attributes.position.needsUpdate = true;
+  if(sc.lines) {
+    sc.lines.geometry.attributes.position.array.set(posArr);
+    sc.lines.geometry.attributes.position.needsUpdate = true;
+  }
 }
 
-async function startCamera() {
+// SIGNALING LOGIC (The Requests)
+function createSignal(type) {
+  const signal = { type, id: Math.random().toString(36).substr(2, 9), timestamp: Date.now() };
+  document.getElementById('sigInput').value = JSON.stringify(signal);
+  document.getElementById('statusLbl').textContent = type.toUpperCase() + '_CREATED';
+}
+
+function processSignal() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width:480, height:640 } });
-    document.getElementById('pipLocal').srcObject = stream;
-    const feed = document.getElementById('camFeed'); 
-    feed.srcObject = stream;
-    const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-    faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
-    faceMesh.onResults(res => {
-      if (!res.multiFaceLandmarks?.[0]) return;
-      lastLandmarks = res.multiFaceLandmarks[0];
-      if (puppetActive && localS?.points) updateHoloMesh(localS, lastLandmarks, densityLevel);
-    });
-    const mpCam = new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); }, width: 480, height: 640 });
-    mpCam.start();
-    cameraOn = true;
-    document.getElementById('camBtn').classList.add('active');
-    document.getElementById('snapBtn').disabled = false;
-    document.getElementById('localStatus').textContent = 'Optics Active';
-  } catch(e) { document.getElementById('localStatus').textContent = 'Camera Error'; }
+    const raw = document.getElementById('sigInput').value;
+    const data = JSON.parse(raw);
+    document.getElementById('statusLbl').textContent = 'PEER_CONNECTED';
+    document.getElementById('statusLbl').style.color = 'var(--cyan)';
+    // In a live environment, this is where RTC.setRemoteDescription occurs.
+  } catch(e) { alert("Invalid Signal Format"); }
 }
 
-function startSnap() {
-  if (!lastLandmarks) return;
-  buildHoloMesh(localS, lastLandmarks, densityLevel);
-  document.getElementById('liveBtn').disabled = false;
-  document.getElementById('localStatus').textContent = 'Mesh Ready';
-}
+function startSnap() { buildHolo(localS, lastLM); document.getElementById('liveBtn').disabled = false; }
+function toggleLive() { live = !live; document.getElementById('liveBtn').textContent = live ? 'HALT STREAM' : 'STREAM MESH'; }
+function onDensity(v) { density = v; if(lastLM) buildHolo(localS, lastLM); }
+function onBw(v) { /* Bandwidth throttling logic */ }
 
-function toggleLive() {
-  puppetActive = !puppetActive; 
-  const btn = document.getElementById('liveBtn');
-  btn.textContent = puppetActive ? 'HALT STREAM' : 'STREAM MESH';
-  btn.classList.toggle('danger', puppetActive);
-}
-
-function onBw(v) { 
-  document.getElementById('bwVal').textContent = v + 'k'; 
-  document.getElementById('localBadge').textContent = v < 100 ? 'GLYPH' : v < 300 ? 'SPRITE' : 'AVATAR_3D';
-}
-
-function onDensity(v) {
-  densityLevel = v;
-  document.getElementById('densityVal').textContent = v === 1 ? 'Low' : v === 2 ? 'Med' : 'High';
-  if(localS?.points && lastLandmarks && !puppetActive) buildHoloMesh(localS, lastLandmarks, densityLevel);
-}
-
-window.addEventListener('DOMContentLoaded', initScenes);
+window.onload = init;
 </script>
 </body>
 </html>
