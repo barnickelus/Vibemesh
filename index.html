@@ -2,267 +2,263 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VibeMesh v7.3 | The Close Protocol</title>
+<title>VibeMesh v9.1 | Chuck Close Edition</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-  :root {
-    --bg: #050508;
-    --panel: rgba(12, 12, 18, 0.9);
-    --border: rgba(0, 240, 255, 0.2);
-    --cyan: #00f0ff;
-    --magenta: #ff00aa;
-    --text-main: #e0e0e0;
-    --text-dim: #666;
-    --font-mono: 'SF Mono', Consolas, monospace;
-  }
-
+  :root { --cyan: #00f0ff; --magenta: #ff00aa; --bg: #06060f; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: radial-gradient(circle at 50% 0%, #11111a 0%, var(--bg) 100%);
-    color: var(--text-main); font-family: -apple-system, system-ui, sans-serif;
-    min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden;
-  }
-
-  /* ── Header ── */
-  header { padding: 20px; text-align: center; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, rgba(0,240,255,0.05) 0%, transparent 100%); }
-  h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
-  h1 span { color: var(--cyan); }
-  .subtitle { font-family: var(--font-mono); font-size: 0.65rem; color: var(--magenta); letter-spacing: 3px; text-transform: uppercase; margin-top: 4px; display: block; }
-
-  /* ── Viewports ── */
-  main { display: flex; flex-wrap: wrap; justify-content: center; gap: 30px; padding: 30px 20px; flex-grow: 1; }
-  .viewport-container { width: 320px; display: flex; flex-direction: column; gap: 10px; }
-  .viewport-header { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.7rem; color: var(--cyan); }
+  body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
   
-  .viewport {
-    position: relative; width: 320px; height: 400px; background: var(--panel);
-    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-  }
-  .viewport canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  .hdr { text-align: center; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .hdr h1 { font-size: 1.8em; background: linear-gradient(90deg, var(--cyan), var(--magenta)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
   
-  .pip { position: absolute; bottom: 12px; right: 12px; width: 70px; height: 90px; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.2); z-index: 10; }
+  .call { display: flex; justify-content: center; gap: 20px; padding: 20px; flex-wrap: wrap; }
+  .av-frame { 
+    position: relative; width: 300px; height: 360px; border-radius: 16px; 
+    background: #08081a; overflow: hidden; border: 1px solid rgba(0, 240, 255, 0.1); 
+  }
+  .av-frame canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  
+  /* The Missing Build UI */
+  .build-ov { 
+    position: absolute; bottom: 0; left: 0; right: 0; padding: 15px; 
+    background: linear-gradient(transparent, #000); z-index: 10; 
+  }
+  .build-track { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+  .build-bar { height: 100%; width: 0%; background: var(--cyan); transition: width 0.2s; }
+  .build-lbl { font-size: 0.6em; text-transform: uppercase; letter-spacing: 1px; color: var(--cyan); margin-bottom: 4px; }
+
+  .panel { max-width: 640px; margin: 0 auto; background: #0c0c1e; padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); }
+  .btn-row { display: flex; gap: 10px; margin-top: 15px; }
+  .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; text-transform: uppercase; font-size: 0.75em; }
+  .btn-primary { background: linear-gradient(135deg, var(--magenta), var(--cyan)); color: #000; }
+  .btn-ghost { background: #121224; color: #888; border: 1px solid rgba(255,255,255,0.05); }
+  
+  #camFeed { position: fixed; top: -1000px; }
+  .pip { position: absolute; bottom: 10px; right: 10px; width: 70px; height: 55px; border: 2px solid var(--cyan); border-radius: 4px; overflow: hidden; z-index: 20; }
   .pip video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-
-  /* ── Build Overlay (From index 9.html) ── */
-  .build-ov { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 20; backdrop-filter: blur(5px); }
-  .build-bar-bg { width: 200px; height: 4px; background: #222; border-radius: 2px; margin-bottom: 10px; overflow: hidden; }
-  .build-bar-fill { height: 100%; background: var(--cyan); width: 0%; transition: width 0.1s; }
-  .build-lbl { font-family: var(--font-mono); font-size: 0.6rem; color: var(--cyan); letter-spacing: 2px; }
-
-  /* ── HUD ── */
-  .hud { width: 100%; max-width: 680px; margin: 0 auto 40px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
-  .btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 12px; border-radius: 8px; font-family: var(--font-mono); font-size: 0.75rem; cursor: pointer; text-transform: uppercase; }
-  .btn:hover:not(:disabled) { border-color: var(--cyan); color: var(--cyan); }
-  .btn.active { background: rgba(0,240,255,0.2); border-color: var(--cyan); color: var(--cyan); }
-
-  /* ── Requests Section (The part you were missing) ── */
-  .requests-section { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; display: flex; flex-direction: column; gap: 10px; }
-  .request-card { background: rgba(0,240,255,0.05); border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
-  .request-info { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-main); }
-  
-  /* ── Status Bar ── */
-  .statusbar { text-align: center; font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim); padding: 10px; }
-  #camFeed { position: absolute; top: -9999px; }
+  .statusbar { text-align: center; padding: 10px; font-size: 0.7em; color: #444; }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>Vibe<span>Mesh</span></h1>
-  <span class="subtitle">Chuck Close Hybrid // v7.3</span>
-</header>
+<div class="hdr"><h1>VibeMesh v9.1</h1><sub>The Close Protocol</sub></div>
 
-<main>
-  <div class="viewport-container">
-    <div class="viewport-header"><div>Local.Client</div><div id="localStatus">IDLE</div></div>
-    <div class="viewport" id="localFrame">
-      <div class="build-ov" id="localBuildOv">
-        <div class="build-bar-bg"><div class="build-bar-fill" id="localBuildBar"></div></div>
-        <div class="build-lbl" id="localBuildLbl">GENERATING CHUCK CLOSE SKIN...</div>
-      </div>
-      <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
+<div class="call">
+  <div class="av-frame" id="localFrame">
+    <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
+    <div class="build-ov" id="localBuild">
+      <div class="build-lbl" id="localBuildLbl">Ready to Scan</div>
+      <div class="build-track"><div class="build-bar" id="localBuildBar"></div></div>
     </div>
   </div>
+  <div class="av-frame" id="remoteFrame"></div>
+</div>
 
-  <div class="viewport-container">
-    <div class="viewport-header"><div>Remote.Peer</div><div id="remoteStatus" style="color:var(--magenta)">OFFLINE</div></div>
-    <div class="viewport" id="remoteFrame"></div>
-  </div>
-</main>
-
-<div class="hud">
-  <div class="grid">
-    <button class="btn" id="camBtn" onclick="startCamera()">📷 1. Init Optics</button>
-    <button class="btn" id="snapBtn" onclick="startSnap()" disabled>📸 2. Biometric Scan</button>
-    <button class="btn" id="liveBtn" onclick="toggleLive()" disabled>⚡ 3. Stream Mesh</button>
-  </div>
-
-  <div class="requests-section" id="requestContainer">
-    <div class="section-label" style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-dim); text-transform:uppercase;">Incoming Connection Requests</div>
-    <div class="request-card">
-      <div class="request-info">SIGNAL_ID: 0x88f2 · TIER: AVATAR_3D</div>
-      <button class="btn" style="padding:4px 12px; font-size:0.6rem;" onclick="processRequest()">Connect</button>
-    </div>
-  </div>
-
-  <div class="grid">
-    <div class="btn" style="text-align:center; font-size:0.6rem; background:none; border:none; color:var(--text-dim);">
-      VERTICES: <span id="vertsLbl" style="color:var(--cyan)">0</span>
-    </div>
-    <button class="btn" style="font-size:0.65rem;" onclick="location.reload()">🗑 Reset System</button>
+<div class="panel">
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="startCamera()">1. Init Optics</button>
+    <button class="btn btn-primary" id="snapBtn" onclick="startSnap()" disabled>2. Snap Portrait</button>
+    <button class="btn btn-ghost" id="liveBtn" onclick="toggleLive()" disabled>3. Live Puppet</button>
   </div>
 </div>
 
-<div class="statusbar" id="statusbar">Awaiting system initialization...</div>
+<div class="statusbar" id="status">Awaiting camera...</div>
 <video id="camFeed" autoplay muted playsinline></video>
 
 <script>
 'use strict';
 
-let localS, remoteS, lastLM, cameraOn = false, puppetActive = false, snapActive = false;
+const ANCHORS = [33,133,362,263,1,4,61,291,152,10]; // Eyes, Nose, Mouth, Chin, Forehead
+const TIERS = { AVATAR3D: { W:20, H:24 }, PUPPET: { W:12, H:14 }, GLYPH: { W:5, H:6 } };
+const CELL_STEP = 34; // Texture slot size
 
-// 1. Scene & Close Layer Logic
+let localS, lastLM, cameraOn = false, puppetActive = false, buildRunning = false;
+
+// --- THREE.JS SETUP ---
 function makeScene(id) {
   const el = document.getElementById(id);
   const sc = new THREE.Scene();
-  const cam = new THREE.PerspectiveCamera(45, 320/400, 0.1, 10);
-  cam.position.z = 2.4;
+  const cam = new THREE.PerspectiveCamera(38, 300/360, 0.1, 100);
+  cam.position.z = 2.2;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setSize(320, 400);
+  renderer.setSize(300, 360);
   el.insertBefore(renderer.domElement, el.firstChild);
-  const group = new THREE.Group();
-  sc.add(group);
-  return { scene: sc, camera: cam, renderer, group, closeMesh: null, wireMesh: null };
+  
+  return {
+    scene: sc, camera: cam, renderer,
+    texCanvas: document.createElement('canvas'),
+    mesh: null, tex: null, basePos: null, curPos: null,
+    snapLM: null, snapBBox: null, snapAnchors: null
+  };
 }
 
-// THE CHUCK CLOSE TEXTURE: Generates the gridded "dot" skin
-function generateCloseTexture(W, H) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024; canvas.height = 1024;
-  const ctx = canvas.getContext('2d');
-  const cells = 32; const size = canvas.width / cells;
+// --- THE CHUCK CLOSE DRAWING ENGINE ---
+function drawCloseCell(ctx, cx, cy, r, g, b) {
+  const rad = 16;
+  const lum = (r*0.299 + g*0.587 + b*0.114) / 255;
+  const dRGB = `rgb(${r-50},${g-50},${b-50})`;
+  const hRGB = `rgb(${r+50},${g+50},${b+50})`;
+
+  // Outer Background
+  ctx.fillStyle = dRGB;
+  ctx.fillRect(cx-rad, cy-rad, rad*2, rad*2);
+
+  // Concentric Rings (The "Close" Signature)
+  const nR = Math.max(3, Math.round(3 + lum * 5));
+  for (let i = nR; i >= 1; i--) {
+    const t = i / nR;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad * t * 0.9, 0, Math.PI*2);
+    ctx.fillStyle = i % 2 === 0 ? `rgb(${r},${g},${b})` : hRGB;
+    ctx.fill();
+  }
+}
+
+// --- MESH & TEXTURE BUILDING ---
+async function buildMesh(sc, lm, tierName) {
+  const cfg = TIERS[tierName];
+  const W = cfg.W, H = cfg.H;
   
-  for(let y=0; y<cells; y++) {
-    for(let x=0; x<cells; x++) {
-      ctx.fillStyle = `rgba(0, 240, 255, ${Math.random() * 0.3})`;
-      ctx.fillRect(x*size, y*size, size, size);
-      ctx.beginPath();
-      ctx.arc(x*size + size/2, y*size + size/2, size/3, 0, Math.PI*2);
-      ctx.fillStyle = '#ff00aa';
-      ctx.fill();
-      ctx.strokeStyle = '#00f0ff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+  // Setup Bounding Box (Mirror for selfie)
+  let x0=1, x1=0, y0=1, y1=0;
+  lm.forEach(p => { 
+    const mx = 1-p.x;
+    if(mx<x0) x0=mx; if(mx>x1) x1=mx;
+    if(p.y<y0) y0=p.y; if(p.y>y1) y1=p.y;
+  });
+  const bbox = { x0, x1, y0, y1, w: x1-x0, h: y1-y0 };
+  
+  sc.snapLM = lm.map(p => ({...p}));
+  sc.snapBBox = bbox;
+  sc.snapAnchors = ANCHORS.map(i => ({ idx:i, u: (1-lm[i].x-x0)/bbox.w, v: (lm[i].y-y0)/bbox.h }));
+
+  // Texture Atlas
+  sc.texCanvas.width = W * CELL_STEP;
+  sc.texCanvas.height = H * CELL_STEP;
+  const ctx = sc.texCanvas.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0,0,sc.texCanvas.width, sc.texCanvas.height);
+
+  const nV = (W+1)*(H+1);
+  const pos = new Float32Array(nV*3);
+  const uvs = new Float32Array(nV*2);
+  const indices = [];
+
+  for(let j=0; j<=H; j++) {
+    for(let i=0; i<=W; i++) {
+      const u = i/W, v = j/H, vi = j*(W+1)+i;
+      pos[vi*3] = (u-0.5)*2; pos[vi*3+1] = (0.5-v)*2.4; pos[vi*3+2] = -lm[0].z;
+      uvs[vi*2] = u; uvs[vi*2+1] = 1-v;
+      if(i<W && j<H) {
+        const tl=j*(W+1)+i, tr=tl+1, bl=(j+1)*(W+1)+i, br=bl+1;
+        indices.push(tl,bl,tr, bl,br,tr);
+      }
     }
   }
-  return new THREE.CanvasTexture(canvas);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+
+  if(sc.mesh) sc.scene.remove(sc.mesh);
+  sc.tex = new THREE.CanvasTexture(sc.texCanvas);
+  sc.mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: sc.tex }));
+  sc.scene.add(sc.mesh);
+  sc.basePos = pos.slice();
+  sc.curPos = pos.slice();
+
+  // Draw the cells
+  for(let j=0; j<H; j++) {
+    for(let i=0; i<W; i++) {
+      drawCloseCell(ctx, i*CELL_STEP + 17, j*CELL_STEP + 17, 100, 150, 200);
+    }
+  }
+  sc.tex.needsUpdate = true;
 }
 
-// 2. Build the Hybrid Mesh (Wire Skeleton + Chuck Close Skin)
-async function buildHybrid(sc, lm) {
-  if (!lm) return;
-  const overlay = document.getElementById('localBuildOv');
+async function startSnap() {
+  buildRunning = true;
   const bar = document.getElementById('localBuildBar');
-  overlay.style.display = 'flex';
-
-  // Cleanup
-  if (sc.closeMesh) sc.group.remove(sc.closeMesh);
-  if (sc.wireMesh) sc.group.remove(sc.wireMesh);
-
-  // Subdivided Grid Geometry for Chuck Close
-  const W = 32, H = 40;
-  const geo = new THREE.PlaneGeometry(1.8, 2.2, W, H);
-  const basePos = geo.attributes.position.array.slice();
-
-  // Layer 1: The Wire Mesh Overlay
-  const wireMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true, transparent: true, opacity: 0.15 });
-  sc.wireMesh = new THREE.Mesh(geo, wireMat);
-  sc.group.add(sc.wireMesh);
-
-  // Layer 2: The Chuck Close Skin
-  const tex = generateCloseTexture();
-  const closeMat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
-  sc.closeMesh = new THREE.Mesh(geo.clone(), closeMat);
-  sc.closeMesh.position.z = 0.005; // Offset to sit on top of wire
-  sc.group.add(sc.closeMesh);
-
-  // Progress Bar Simulation (from index 9.html)
-  for (let i = 0; i <= 100; i += 5) {
-    bar.style.width = i + '%';
-    await new Promise(r => setTimeout(r, 20));
+  const lbl = document.getElementById('localBuildLbl');
+  
+  const p = [{t:'GLYPH', p:30}, {t:'PUPPET', p:60}, {t:'AVATAR3D', p:100}];
+  for(const pass of p) {
+    lbl.textContent = `Building ${pass.t}...`;
+    bar.style.width = pass.p + '%';
+    await buildMesh(localS, lastLM, pass.t);
+    await new Promise(r => setTimeout(r, 600));
   }
-
-  overlay.style.display = 'none';
-  sc.basePositions = basePos;
-  document.getElementById('vertsLbl').textContent = (W+1)*(H+1);
+  
+  lbl.textContent = "Portrait Ready";
   document.getElementById('liveBtn').disabled = false;
-  setStatus("Mesh Unified. Ready for Stream.");
+  buildRunning = false;
 }
 
-// 3. Update Logic: Puppet the Chuck Close skin via Wireframe
-function updatePuppet(sc, lm) {
-  if (!sc.closeMesh) return;
-  const pos = sc.closeMesh.geometry.attributes.position.array;
-  const wPos = sc.wireMesh.geometry.attributes.position.array;
-  
-  // Tie deformation to face landmarks
-  const jaw = (lm[152].y - 0.5) * 2.5;
-  const brow = (lm[10].y - 0.5) * 2.0;
+// --- THE PUPPETING ENGINE (RBF) ---
+function puppet(sc, liveLM) {
+  if(!sc.mesh || !sc.snapLM) return;
+  const pos = sc.mesh.geometry.attributes.position.array;
+  const W = (sc.texCanvas.width/CELL_STEP);
+  const H = (sc.texCanvas.height/CELL_STEP);
 
-  for (let i = 0; i < pos.length / 3; i++) {
-    const yVal = sc.basePositions[i * 3 + 1];
-    const strength = Math.max(0, 1.0 - Math.abs(yVal));
-    const offset = jaw * strength;
-    
-    pos[i * 3 + 1] = sc.basePositions[i * 3 + 1] - offset;
-    wPos[i * 3 + 1] = sc.basePositions[i * 3 + 1] - offset;
+  for(let j=0; j<=H; j++) {
+    for(let i=0; i<=W; i++) {
+      const vi = j*(W+1)+i;
+      const u = i/W, v = j/H;
+
+      let du=0, dv=0, tw=0;
+      for(const a of sc.snapAnchors) {
+        const d2 = (a.u-u)**2 + (a.v-v)**2;
+        const w = Math.exp(-d2/0.005);
+        const liveUV = { u: (1-liveLM[a.idx].x-sc.snapBBox.x0)/sc.snapBBox.w, v: (liveLM[a.idx].y-sc.snapBBox.y0)/sc.snapBBox.h };
+        du += (liveUV.u - a.u) * w;
+        dv += (liveUV.v - a.v) * w;
+        tw += w;
+      }
+      
+      if(tw > 0) {
+        pos[vi*3] = sc.basePos[vi*3] + (du/tw)*2;
+        pos[vi*3+1] = sc.basePos[vi*3+1] - (dv/tw)*2.4;
+      }
+    }
   }
-  
-  sc.closeMesh.geometry.attributes.position.needsUpdate = true;
-  sc.wireMesh.geometry.attributes.position.needsUpdate = true;
+  sc.mesh.geometry.attributes.position.needsUpdate = true;
 }
 
-// 4. Interface & System Controls
 async function startCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width:480, height:640 } });
-    document.getElementById('pipLocal').srcObject = stream;
-    const feed = document.getElementById('camFeed'); feed.srcObject = stream;
-    
-    const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-    faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.6 });
-    faceMesh.onResults(res => {
-      if (!res.multiFaceLandmarks?.[0]) return;
-      lastLM = res.multiFaceLandmarks[0];
-      if (puppetActive) updatePuppet(localS, lastLM);
-    });
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  document.getElementById('pipLocal').srcObject = stream;
+  const feed = document.getElementById('camFeed');
+  feed.srcObject = stream;
+  
+  const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+  faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
+  faceMesh.onResults(res => {
+    if(!res.multiFaceLandmarks?.[0]) return;
+    lastLM = res.multiFaceLandmarks[0];
+    if(puppetActive) puppet(localS, lastLM);
+  });
 
-    const camera = new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); }, width: 480, height: 640 });
-    camera.start();
-    cameraOn = true;
-    document.getElementById('camBtn').classList.add('active');
-    document.getElementById('snapBtn').disabled = false;
-    setStatus("Optics Live. Capture Biometrics.");
-  } catch(e) { setStatus("Camera Error: " + e.message); }
+  const cam = new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); } });
+  cam.start();
+  document.getElementById('snapBtn').disabled = false;
+  document.getElementById('status').textContent = "Camera Active. Face Detected.";
 }
 
-function startSnap() { buildHybrid(localS, lastLM); }
-function toggleLive() { puppetActive = !puppetActive; document.getElementById('liveBtn').textContent = puppetActive ? "⏹ STOP STREAM" : "⚡ STREAM MESH"; }
-function setStatus(msg) { document.getElementById('statusbar').textContent = msg; }
-function processRequest() { alert("Establishing Peer Connection via WebRTC Offer..."); }
+function toggleLive() {
+  puppetActive = !puppetActive;
+  document.getElementById('liveBtn').textContent = puppetActive ? "Stop Puppet" : "Live Puppet";
+}
 
 window.onload = () => {
   localS = makeScene('localFrame');
-  remoteS = makeScene('remoteFrame');
   (function render() {
     requestAnimationFrame(render);
     localS.renderer.render(localS.scene, localS.camera);
-    remoteS.renderer.render(remoteS.scene, remoteS.camera);
   })();
 };
 </script>
