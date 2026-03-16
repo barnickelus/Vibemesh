@@ -82,17 +82,17 @@ body{background:#06060f;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;m
 .idle-icon{font-size:2.5em;opacity:.25}
 .idle-text{font-size:.7em;color:#333;letter-spacing:1px;text-transform:uppercase}
 
-/* ── Controls panel (FIXED: Sticky and Visible) ── */
+/* ── Controls panel (FIXED: Sticky and elevated) ── */
 .panel{
   background:#0c0c1e;
   padding:14px 16px;
-  margin:10px 14px 20px;
+  margin:4px 14px 24px;
   border-radius:14px;
   border:1px solid #ffffff07;
   position: sticky;
   bottom: 20px;
-  z-index: 100;
-  box-shadow: 0 -10px 30px #000;
+  z-index: 50;
+  box-shadow: 0 -10px 40px #000000cc;
 }
 
 /* ── Style picker ── */
@@ -118,7 +118,6 @@ input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;height:3px}
 .btn-row{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
 .btn-row:last-child{margin-bottom:0}
 
-/* Button base */
 .btn{
   flex:1;min-width:0;padding:11px 10px;font-size:.78em;font-weight:700;font-family:inherit;
   border:none;border-radius:10px;cursor:pointer;
@@ -127,7 +126,6 @@ input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;height:3px}
 .btn:active{opacity:.7;transform:scale(.97)}
 .btn:disabled{opacity:.35;cursor:default;transform:none}
 
-/* Button variants */
 .btn-primary{background:linear-gradient(135deg,#ff00aa,#00f0ff);color:#000}
 .btn-green{background:linear-gradient(135deg,#00c853,#00f0ff);color:#000}
 .btn-orange{background:linear-gradient(135deg,#ff6600,#ffcc00);color:#000}
@@ -136,7 +134,6 @@ input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;height:3px}
 .btn-danger{background:#2a1010;color:#ff4444;border:1px solid #ff222222}
 .btn-danger:not(:disabled):hover{background:#3a1515}
 
-/* Status indicators on buttons */
 .btn .bicon{margin-right:4px}
 .btn-cam.active{background:linear-gradient(135deg,#00c853,#00f090);color:#000}
 
@@ -156,6 +153,35 @@ input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;height:3px}
 }
 .stat:last-child{border-right:none}
 .stat b{color:#00ffcc;font-weight:600}
+
+/* ── Modal ── */
+#sigModal{display:none;position:fixed;inset:0;background:#000d;z-index:200;align-items:center;justify-content:center}
+#sigModal.open{display:flex}
+.modal{
+  background:#0c0c20;border:1px solid #00f0ff33;border-radius:18px;
+  padding:20px;max-width:420px;width:92%;display:flex;flex-direction:column;gap:8px;
+}
+.modal h2{color:#00f0ff;font-size:.9em;font-weight:700;margin-bottom:2px}
+.modal p{font-size:.7em;color:#444;line-height:1.55}
+.modal textarea{
+  background:#07070f;color:#00ff88;border:1px solid #00f0ff22;border-radius:8px;
+  padding:9px;font-size:.68em;font-family:monospace;resize:vertical;min-height:60px;
+  width:100%;outline:none;
+}
+.modal textarea:focus{border-color:#00f0ff55}
+.mbtn{
+  background:linear-gradient(135deg,#ff00aa,#00f0ff);border:none;border-radius:9px;
+  padding:11px;color:#000;font-size:.8em;font-weight:700;font-family:inherit;cursor:pointer;width:100%;
+}
+.mbtn.dim{background:#161626;color:#555;border:1px solid #ffffff0a}
+
+/* ── Debug console ── */
+#debugLog{
+  position:fixed;bottom:0;left:0;right:0;max-height:120px;overflow-y:auto;
+  background:#000c;font-size:.65em;font-family:monospace;color:#0f0;padding:6px 10px;
+  z-index:100;display:none;
+}
+#debugLog.show{display:block}
 </style>
 </head>
 <body>
@@ -167,7 +193,7 @@ input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;height:3px}
 
 <div class="call">
   <div class="avatar-box">
-    <div class="av-label" id="localLabel">You · Vancouver</div>
+    <div class="av-label" id="localLabel">You · Local</div>
     <div class="av-frame" id="localFrame">
       <div class="idle-msg" id="localIdle">
         <div class="idle-icon">📷</div>
@@ -187,7 +213,7 @@ input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;height:3px}
     </div>
   </div>
   <div class="avatar-box">
-    <div class="av-label">JerseyBro · Remote</div>
+    <div class="av-label">Peer · Remote</div>
     <div class="av-frame" id="remoteFrame">
       <div class="idle-msg" id="remoteIdle">
         <div class="idle-icon">📡</div>
@@ -224,9 +250,27 @@ input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;height:3px}
         <div class="sl-val"><span id="bwVal">900</span>k</div>
       </div>
     </div>
-    <div class="sl-item"><label>Battery</label><div class="sl-row"><input type="range" min="1" max="100" value="100" oninput="onBat(+this.value)"><div class="sl-val"><span id="batVal">100</span>%</div></div></div>
-    <div class="sl-item"><label>Depth</label><div class="sl-row"><input type="range" min="1" max="14" value="12" oninput="onDepth(+this.value)"><div class="sl-val" id="depthVal">12×</div></div></div>
-    <div class="sl-item"><label>Snap Frames (avg)</label><div class="sl-row"><input type="range" min="1" max="9" value="5" step="1" oninput="onSnapF(+this.value)"><div class="sl-val" id="snapFVal">5</div></div></div>
+    <div class="sl-item">
+      <label>Battery</label>
+      <div class="sl-row">
+        <input type="range" min="1" max="100" value="100" oninput="onBat(+this.value)">
+        <div class="sl-val"><span id="batVal">100</span>%</div>
+      </div>
+    </div>
+    <div class="sl-item">
+      <label>Depth</label>
+      <div class="sl-row">
+        <input type="range" min="1" max="14" value="12" oninput="onDepth(+this.value)">
+        <div class="sl-val" id="depthVal">12×</div>
+      </div>
+    </div>
+    <div class="sl-item">
+      <label>Snap Frames (avg)</label>
+      <div class="sl-row">
+        <input type="range" min="1" max="9" value="5" step="1" oninput="onSnapF(+this.value)">
+        <div class="sl-val" id="snapFVal">5</div>
+      </div>
+    </div>
   </div>
 
   <div class="btn-row">
@@ -235,29 +279,89 @@ input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;height:3px}
     <button class="btn btn-orange"  id="liveBtn" onclick="toggleLive()" disabled>⚡ Live Puppet</button>
     <button class="btn btn-ghost"   onclick="openModal()">📡 Connect Peer</button>
   </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" id="fistBtn" onclick="sendFistPump()" disabled>👊 Fist Pump</button>
+    <button class="btn btn-ghost"   onclick="savePortrait()">💾 Save PNG</button>
+    <button class="btn btn-danger"  onclick="clearLocal()">🗑 Clear</button>
+    <button class="btn btn-ghost"   onclick="cloneVoice()">🎤 Voice Clone</button>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat">Tier <b id="tierLbl">AVATAR3D</b></div>
+  <div class="stat">Tris <b id="trisLbl">—</b></div>
+  <div class="stat">Sent <b id="sentLbl">0</b></div>
+  <div class="stat">Recv <b id="recvLbl">0</b></div>
+  <div class="stat">RTT  <b id="rttLbl">—</b>ms</div>
+  <div class="stat">Peer <b id="connLbl" style="color:#ff4757">OFFLINE</b></div>
+</div>
+<div class="statusbar" id="statusbar">Click <strong>Start Camera</strong> to begin</div>
+
+<div id="debugLog"></div>
+
+<div id="sigModal">
+  <div class="modal">
+    <h2>📡 Connect to Peer</h2>
+    <p>Person A clicks Create Offer, sends the JSON text to Person B. Person B pastes it, clicks Paste & Connect, then sends back their answer.</p>
+    <button class="mbtn" onclick="createOffer()">1️⃣ Create Offer (I go first)</button>
+    <textarea id="offerBox" placeholder="Your SDP will appear here"></textarea>
+    <p>Paste peer SDP here:</p>
+    <textarea id="pasteBox" placeholder="Paste offer or answer from peer"></textarea>
+    <button class="mbtn" onclick="handlePaste()">2️⃣ Paste & Connect</button>
+    <button class="mbtn dim" onclick="closeModal()">Close</button>
+  </div>
 </div>
 
 <script>
 'use strict';
 
+// ════════════════════════════════════════
+//  DEBUG LOGGER
+// ════════════════════════════════════════
 const dbg = (() => {
   const el = document.getElementById('debugLog');
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'd') { e.preventDefault(); el.classList.toggle('show'); }
+  });
   return {
-    log: (...args) => console.log(...args),
-    err: (...args) => console.error(...args)
+    log: (...args) => {
+      const line = document.createElement('div');
+      line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + args.join(' ');
+      el.appendChild(line);
+      el.scrollTop = el.scrollHeight;
+      console.log(...args);
+    },
+    err: (...args) => {
+      const line = document.createElement('div');
+      line.style.color = '#f55';
+      line.textContent = '[ERR] ' + args.join(' ');
+      el.appendChild(line);
+      el.classList.add('show');
+      console.error(...args);
+    }
   };
 })();
 
 const FACE_OVAL = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
 const ANCHORS = [33,133,362,263,159,145,386,374,70,63,300,293,105,334,1,4,94,61,291,0,17,37,267,84,314,152,234,454,10,187,411,116,345];
-const TIERS = { AVATAR3D: { W:20, H:24 }, PUPPET: { W:12, H:14 }, SPRITE: { W:7, H:8 }, GLYPH: { W:4, H:5 } };
-const CELL_R = 16, CELL_GAP = 2, CELL_STEP = CELL_R*2 + CELL_GAP;
-const RBF_S2 = 2 * 0.03 * 0.03;
-const LERP_T = 0.26;
+
+const TIERS = {
+  AVATAR3D: { W:20, H:24 },
+  PUPPET:   { W:12, H:14 },
+  SPRITE:   { W: 7, H: 8 },
+  GLYPH:    { W: 4, H: 5 },
+};
+
+function calcTier(bw2, bat2) {
+  if (bw2 < 20) return 'GLYPH';
+  if (bw2 < 100 || bat2 < 15) return 'SPRITE';
+  if (bw2 < 280 || bat2 < 30) return 'PUPPET';
+  return 'AVATAR3D';
+}
 
 let cellStyle = 'rings', bw = 900, bat = 100, depthScale = 12, snapFrames = 5;
 let cameraOn = false, puppetActive = false, buildRunning = false, snapping = false;
-let lastLandmarks = null, processingFrame = false, localS = null, remoteS = null;
+let lastSendT = 0, sentCount = 0, recvCount = 0, lastLandmarks = null, processingFrame = false, frameBuffer = [];
 
 function makeScene(frameId) {
   const container = document.getElementById(frameId);
@@ -265,11 +369,19 @@ function makeScene(frameId) {
   const camera = new THREE.PerspectiveCamera(38, 300/360, 0.01, 50);
   camera.position.z = 2.2;
   scene.add(new THREE.AmbientLight(0xfff0ee, 0.42));
+  const key = new THREE.DirectionalLight(0xffe8c0, 1.15); key.position.set(1.5, 2, 2.5); scene.add(key);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(300, 360);
   renderer.setClearColor(0, 0);
   container.insertBefore(renderer.domElement, container.firstChild);
-  return { scene, camera, renderer, mesh: null, tex: null, texCanvas: document.createElement('canvas'), basePos: null, curPos: null };
+  return { scene, camera, renderer, mesh: null, tex: null, texCanvas: document.createElement('canvas'), snapLM: null, basePos: null, curPos: null };
+}
+
+let localS = null, remoteS = null;
+function initScenes() {
+  localS = makeScene('localFrame');
+  remoteS = makeScene('remoteFrame');
 }
 
 function renderLoop() {
@@ -278,6 +390,78 @@ function renderLoop() {
   if (remoteS) remoteS.renderer.render(remoteS.scene, remoteS.camera);
 }
 
+// ── FIXED buildMesh with MagFilter: Nearest ──
+function buildMesh(sc, lm, videoEl, tierName) {
+  const cfg = TIERS[tierName] || TIERS.AVATAR3D;
+  const W = cfg.W, H = cfg.H;
+  const bbox = normBBox(faceBBox(lm));
+  const AR = bbox.w / bbox.h;
+
+  sc.snapLM = lm.map(l => ({...l}));
+  sc.snapBBox = bbox;
+  sc.snapAnchors = buildAnchors(lm, bbox);
+  sc.snapW = W; sc.snapH = H; sc.snapAR = AR;
+
+  const CELL_STEP = 34;
+  const texW = W * CELL_STEP, texH = H * CELL_STEP;
+  sc.texCanvas.width = texW; sc.texCanvas.height = texH;
+  const texCtx = sc.texCanvas.getContext('2d');
+  texCtx.fillStyle = '#000'; texCtx.fillRect(0, 0, texW, texH);
+
+  const SPW = Math.max(W*4, 256), SPH = Math.max(H*4, 256);
+  const faceImg = captureFacePixels(videoEl, bbox, SPW, SPH);
+  const ovalPts = buildOvalPoly(lm, bbox);
+
+  const nV = (W+1) * (H+1);
+  const positions = new Float32Array(nV*3), uvArr = new Float32Array(nV*2);
+
+  for (let j=0; j<=H; j++) {
+    for (let i=0; i<=W; i++) {
+      const u = i/W, v = j/H, vi = j*(W+1)+i;
+      const lx = bbox.x0 + u*bbox.w, ly = bbox.y0 + v*bbox.h;
+      const z = -interpZ(lm, lx, ly);
+      const p3 = uvTo3D(u, v, z, bbox);
+      positions[vi*3]=p3.x; positions[vi*3+1]=p3.y; positions[vi*3+2]=p3.z;
+      uvArr[vi*2]=u; uvArr[vi*2+1]=1-v;
+    }
+  }
+
+  const indices = [];
+  for (let j=0; j<H; j++) for (let i=0; i<W; i++) {
+    const tl=j*(W+1)+i, tr=tl+1, bl=(j+1)*(W+1)+i, br=bl+1;
+    indices.push(tl,bl,tr, bl,br,tr);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvArr, 2));
+  geo.setIndex(indices); geo.computeVertexNormals();
+
+  if (sc.tex) sc.tex.dispose();
+  sc.tex = new THREE.CanvasTexture(sc.texCanvas);
+  
+  // FIX: Apply Nearest filtering to both Min and Mag to keep the dots sharp
+  sc.tex.minFilter = THREE.NearestFilter;
+  sc.tex.magFilter = THREE.NearestFilter;
+
+  if (sc.mesh) { sc.scene.remove(sc.mesh); sc.mesh.geometry.dispose(); sc.mesh.material.dispose(); }
+  sc.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: sc.tex, roughness: 0.55 }));
+  sc.scene.add(sc.mesh);
+  sc.basePos = positions.slice(); sc.curPos = positions.slice();
+
+  const cells = [];
+  for (let j=0; j<H; j++) for (let i=0; i<W; i++) {
+    const u = (i+0.5)/W, v = (j+0.5)/H;
+    const [r,g,b] = sampleRGB(faceImg, SPW, SPH, u, v);
+    cells.push({ cx: i*CELL_STEP+17, cy: j*CELL_STEP+17, r, g, b, inside: inPoly(u, v, ovalPts) });
+  }
+  document.getElementById('trisLbl').textContent = (indices.length/3)|0;
+  return cells;
+}
+
+// ════════════════════════════════════════
+//  GEOMETRY & SAMPLE HELPERS
+// ════════════════════════════════════════
 function faceBBox(lm) {
   let x0=1, x1=0, y0=1, y1=0;
   FACE_OVAL.forEach(i => {
@@ -285,140 +469,168 @@ function faceBBox(lm) {
     if (mx < x0) x0 = mx; if (mx > x1) x1 = mx;
     if (lm[i].y < y0) y0 = lm[i].y; if (lm[i].y > y1) y1 = lm[i].y;
   });
-  return { x0, x1, y0, y1, w: x1-x0, h: y1-y0 };
+  return { x0: Math.max(0, x0-0.02), x1: Math.min(1, x1+0.02), y0: Math.max(0, y0-0.02), y1: Math.min(1, y1+0.02) };
 }
-
-function uvTo3D(u, v, z, bbox) {
-  const ar = bbox.w / bbox.h;
-  return { x: (u - 0.5) * 1.8 * ar, y: -(v - 0.5) * 1.8, z: z * depthScale };
-}
-
-function inPoly(px, py, pts) {
-  let inside = false;
-  for (let i=0, j=pts.length-1; i<pts.length; j=i++) {
-    if (((pts[i].v>py) !== (pts[j].v>py)) && (px < (pts[j].u-pts[i].u)*(py-pts[i].v)/(pts[j].v-pts[i].v)+pts[i].u)) inside = !inside;
+function normBBox(bb) { bb.w = bb.x1-bb.x0; bb.h = bb.y1-bb.y0; return bb; }
+function lmToUV(lm, bbox) { return { u:(1-lm.x-bbox.x0)/bbox.w, v:(lm.y-bbox.y0)/bbox.h }; }
+function uvTo3D(u,v,z,bbox) { const ar=bbox.w/bbox.h; return { x:(u-0.5)*1.8*ar, y:-(v-0.5)*1.8, z:z*depthScale }; }
+function inPoly(px,py,pts) {
+  let inside=false;
+  for(let i=0,j=pts.length-1; i<pts.length; j=i++) {
+    if(((pts[i].v>py)!==(pts[j].v>py)) && (px<(pts[j].u-pts[i].u)*(py-pts[i].v)/(pts[j].v-pts[i].v)+pts[i].u)) inside=!inside;
   }
   return inside;
 }
-
+function buildOvalPoly(lm, bbox) { return FACE_OVAL.map(i => lmToUV(lm[i], bbox)); }
 function interpZ(lm, tx, ty) {
-  const dists = lm.map(l => ({ d2: (1-l.x-tx)**2 + (l.y-ty)**2, z: l.z }));
-  dists.sort((a,b) => a.d2-b.d2);
+  const dists = lm.map(l => ({ d2:(1-l.x-tx)**2+(l.y-ty)**2, z:l.z }));
+  dists.sort((a,b)=>a.d2-b.d2);
   let tw=0, tz=0;
-  for (let k=0; k<8; k++) {
-    const w = 1 / (dists[k].d2 + 1e-6);
-    tw += w; tz += dists[k].z * w;
-  }
+  for(let k=0; k<8; k++) { const w=1/(dists[k].d2+1e-6); tw+=w; tz+=dists[k].z*w; }
   return tz/tw;
 }
 
-function drawCell(ctx, cx, cy, r, g, b) {
-  const rad = CELL_R, lum = (r*0.299 + g*0.587 + b*0.114) / 255;
-  const dRGB = `rgb(${r-60},${g-60},${b-60})`, hRGB = `rgb(${r+60},${g+60},${b+60})`;
-  if (cellStyle === 'rings') {
-    const nR = Math.max(3, Math.round(3 + lum * 5));
-    for (let i = nR; i >= 1; i--) {
-      ctx.beginPath(); ctx.arc(cx, cy, rad * (i/nR), 0, Math.PI*2);
-      ctx.fillStyle = i % 2 === 0 ? `rgb(${r},${g},${b})` : hRGB; ctx.fill();
-    }
-  }
+function captureFacePixels(videoEl, bbox, W, H) {
+  const cvs = document.createElement('canvas'); cvs.width=W; cvs.height=H;
+  const ctx = cvs.getContext('2d');
+  const vW = videoEl.videoWidth||640, vH = videoEl.videoHeight||480;
+  ctx.save(); ctx.scale(-1,1); ctx.translate(-W,0);
+  ctx.drawImage(videoEl, (1-bbox.x1)*vW, bbox.y0*vH, bbox.w*vW, bbox.h*vH, 0, 0, W, H);
+  ctx.restore();
+  return ctx.getImageData(0,0,W,H);
+}
+function sampleRGB(imgData, W, H, u, v) {
+  const px=Math.floor(u*(W-1)), py=Math.floor(v*(H-1)), idx=(py*W+px)*4;
+  return [imgData.data[idx], imgData.data[idx+1], imgData.data[idx+2]];
 }
 
-function buildMesh(sc, lm, videoEl, tierName) {
-  const cfg = TIERS[tierName] || TIERS.AVATAR3D;
-  const {W, H} = cfg, bbox = faceBBox(lm);
-  sc.snapLM = lm.map(l => ({...l})); sc.snapBBox = bbox;
-  sc.snapAnchors = ANCHORS.map(i => ({ idx: i, u: (1-lm[i].x-bbox.x0)/bbox.w, v: (lm[i].y-bbox.y0)/bbox.h }));
-  sc.snapW = W; sc.snapH = H; sc.snapAR = bbox.w/bbox.h;
-
-  const texW = W * CELL_STEP, texH = H * CELL_STEP;
-  sc.texCanvas.width = texW; sc.texCanvas.height = texH;
-  const texCtx = sc.texCanvas.getContext('2d');
-  texCtx.fillStyle = '#000'; texCtx.fillRect(0,0,texW,texH);
-
-  const nV = (W+1)*(H+1), pos = new Float32Array(nV*3), uv = new Float32Array(nV*2);
-  for (let j=0; j<=H; j++) for (let i=0; i<=W; i++) {
-    const u=i/W, v=j/H, vi=j*(W+1)+i;
-    const p3 = uvTo3D(u, v, -interpZ(lm, bbox.x0+u*bbox.w, bbox.y0+v*bbox.h), bbox);
-    pos[vi*3]=p3.x; pos[vi*3+1]=p3.y; pos[vi*3+2]=p3.z; uv[vi*2]=u; uv[vi*2+1]=1-v;
+// ════════════════════════════════════════
+//  CHUCK CLOSE DRAWING
+// ════════════════════════════════════════
+function drawCell(ctx, cx, cy, r, g, b) {
+  const rad = 16, lum = (r*0.299 + g*0.587 + b*0.114)/255;
+  const dr=Math.max(0,r-100), dg=Math.max(0,g-100), db=Math.max(0,b-100);
+  const hr=Math.min(255,r+100), hg=Math.min(255,g+100), hb=Math.min(255,b+100);
+  ctx.fillStyle = `rgb(${dr},${dg},${db})`;
+  if (cellStyle==='rings') {
+    const nR = 4 + Math.round(lum*4);
+    for(let i=nR; i>=1; i--) {
+      ctx.beginPath(); ctx.arc(cx, cy, rad*(i/nR), 0, Math.PI*2);
+      ctx.fillStyle = (i%2===0) ? `rgb(${r},${g},${b})` : `rgb(${hr},${hg},${hb})`;
+      ctx.fill();
+    }
+  } else if (cellStyle==='diamonds') {
+    ctx.fillRect(cx-rad, cy-rad, rad*2, rad*2);
+    ctx.beginPath(); ctx.moveTo(cx, cy-rad); ctx.lineTo(cx+rad, cy); ctx.lineTo(cx, cy+rad); ctx.lineTo(cx-rad, cy);
+    ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.arc(cx, cy, rad*0.8, 0, Math.PI*2); ctx.fillStyle=`rgb(${r},${g},${b})`; ctx.fill();
   }
-  const indices = [];
-  for (let j=0; j<H; j++) for (let i=0; i<W; i++) {
-    const tl=j*(W+1)+i, tr=tl+1, bl=(j+1)*(W+1)+i, br=bl+1;
-    indices.push(tl,bl,tr, bl,br,tr);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  geo.setIndex(indices); geo.computeVertexNormals();
-
-  if (sc.tex) sc.tex.dispose();
-  sc.tex = new THREE.CanvasTexture(sc.texCanvas);
-  // FIX: Force Bitmap Aesthetic via Nearest Filtering
-  sc.tex.magFilter = THREE.NearestFilter;
-  sc.tex.minFilter = THREE.NearestFilter;
-
-  if (sc.mesh) sc.scene.remove(sc.mesh);
-  sc.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: sc.tex }));
-  sc.scene.add(sc.mesh); sc.basePos = pos.slice(); sc.curPos = pos.slice();
-  
-  const cells = [];
-  const oval = FACE_OVAL.map(i => ({ u: (1-lm[i].x-bbox.x0)/bbox.w, v: (lm[i].y-bbox.y0)/bbox.h }));
-  for (let j=0; j<H; j++) for (let i=0; i<W; i++) {
-    cells.push({ cx: i*CELL_STEP+CELL_STEP/2, cy: j*CELL_STEP+CELL_STEP/2, r: 150, g: 150, b: 180, inside: inPoly((i+0.5)/W, (j+0.5)/H, oval) });
-  }
-  return cells;
 }
 
 async function fillCells(sc, cells) {
   const ctx = sc.texCanvas.getContext('2d');
-  for (let c of cells) { if (c.inside) drawCell(ctx, c.cx, c.cy, c.r, c.g, c.b); }
-  sc.tex.needsUpdate = true;
+  const order = cells.map((_,i)=>i).sort(()=>Math.random()-0.5);
+  for(let b=0; b<order.length; b+=20) {
+    for(let k=b; k<Math.min(b+20, order.length); k++) {
+      const c=cells[order[k]]; if(c.inside) drawCell(ctx, c.cx, c.cy, c.r, c.g, c.b);
+    }
+    sc.tex.needsUpdate = true; await new Promise(r=>requestAnimationFrame(r));
+  }
+}
+
+async function buildProgressive(sc, lm, videoEl, who) {
+  buildRunning = true;
+  const tiers = ['GLYPH', 'SPRITE', 'PUPPET', 'AVATAR3D'];
+  for(let i=0; i<tiers.length; i++) {
+    setBuildUI(who, (i+1)*25, `Tier: ${tiers[i]}...`);
+    const cells = buildMesh(sc, lm, videoEl, tiers[i]);
+    await fillCells(sc, cells);
+  }
+  hideBuildUI(who); buildRunning = false;
+}
+
+// ════════════════════════════════════════
+//  CAMERA & PUPPETING
+// ════════════════════════════════════════
+async function startCamera() {
+  const btn = document.getElementById('camBtn');
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { width:640, height:480 } });
+  document.getElementById('pipLocal').srcObject = stream;
+  const feed = document.getElementById('camFeed'); feed.srcObject = stream;
+  await feed.play();
+  const fm = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+  fm.setOptions({ refineLandmarks:true, minDetectionConfidence:0.5, minTrackingConfidence:0.5 });
+  fm.onResults(res => {
+    if(!res.multiFaceLandmarks?.[0]) return;
+    lastLandmarks = res.multiFaceLandmarks[0];
+    if(puppetActive && localS.mesh) puppet(localS, lastLandmarks);
+    if(Date.now()-lastSendT > 80) { lastSendT=Date.now(); sendLandmarks(lastLandmarks); }
+  });
+  const cam = new Camera(feed, { onFrame: async () => { await fm.send({ image: feed }); }, width:640, height:480 });
+  cam.start();
+  cameraOn = true; btn.className='btn btn-cam active'; btn.textContent='✅ Camera On';
+  document.getElementById('snapBtn').disabled = false;
 }
 
 function puppet(sc, liveLM) {
-  if (!sc.mesh) return;
   const pos = sc.mesh.geometry.attributes.position.array;
-  for (let i=0; i<pos.length/3; i++) {
-    pos[i*3+2] += (Math.random()-0.5)*0.01; // placeholder for RBF deformation
+  const W=sc.snapW, H=sc.snapH, bbox=sc.snapBBox, AR=sc.snapAR;
+  for(let j=0; j<=H; j++) for(let i=0; i<=W; i++) {
+    const vi = j*(W+1)+i, u=i/W, v=j/H;
+    const [du,dv,dz] = rbfDelta(sc.snapAnchors, sc.snapLM, liveLM, bbox, u, v);
+    pos[vi*3] = sc.basePos[vi*3] + du*1.8*AR;
+    pos[vi*3+1] = sc.basePos[vi*3+1] - dv*1.8;
+    pos[vi*3+2] = sc.basePos[vi*3+2] + dz*depthScale;
   }
   sc.mesh.geometry.attributes.position.needsUpdate = true;
 }
 
+function buildAnchors(lm, bbox) { return ANCHORS.map(i => ({ idx:i, u:lmToUV(lm[i],bbox).u, v:lmToUV(lm[i],bbox).v })); }
+function rbfDelta(anchors, snapLM, liveLM, bbox, pu, pv) {
+  let tw=0, du=0, dv=0, dz=0;
+  for(const a of anchors) {
+    const d2 = (a.u-pu)**2 + (a.v-pv)**2; const w = Math.exp(-d2/0.002);
+    const liveUV = lmToUV(liveLM[a.idx], bbox);
+    du += (liveUV.u-a.u)*w; dv+=(liveUV.v-a.v)*w; dz+=(liveLM[a.idx].z-snapLM[a.idx].z)*w; tw+=w;
+  }
+  return [du/tw, dv/tw, dz/tw];
+}
+
 async function startSnap() {
-  const feed = document.getElementById('camFeed');
-  snapping = true; setStatus('Snapping...');
-  const cells = buildMesh(localS, lastLandmarks, feed, 'AVATAR3D');
-  await fillCells(localS, cells);
-  document.getElementById('liveBtn').disabled = false;
-  snapping = false; setStatus('Snap complete. Hit Live Puppet.');
+  snapping = true;
+  const ov = document.getElementById('snapOv'); ov.classList.add('show');
+  for(let i=5; i>=1; i--) { document.getElementById('snapCount').textContent=i; await new Promise(r=>setTimeout(r, 200)); }
+  ov.classList.remove('show');
+  document.getElementById('localIdle').style.display='none';
+  await buildProgressive(localS, lastLandmarks, document.getElementById('camFeed'), 'local');
+  document.getElementById('liveBtn').disabled = false; snapping=false;
 }
 
 function toggleLive() {
   puppetActive = !puppetActive;
-  document.getElementById('liveBtn').textContent = puppetActive ? '⏹ Stop Puppet' : '⚡ Live Puppet';
+  const btn = document.getElementById('liveBtn');
+  btn.textContent = puppetActive ? '⏹ Stop Puppet' : '⚡ Live Puppet';
+  btn.className = puppetActive ? 'btn btn-danger' : 'btn btn-orange';
 }
 
-async function startCamera() {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-  document.getElementById('pipLocal').srcObject = stream;
-  document.getElementById('camFeed').srcObject = stream;
-  const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-  faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
-  faceMesh.onResults(res => {
-    if (res.multiFaceLandmarks?.[0]) {
-      lastLandmarks = res.multiFaceLandmarks[0];
-      if (puppetActive) puppet(localS, lastLandmarks);
-    }
-  });
-  const cam = new Camera(document.getElementById('camFeed'), { onFrame: async () => await faceMesh.send({ image: document.getElementById('camFeed') }), width: 640, height: 480 });
-  cam.start();
-  document.getElementById('snapBtn').disabled = false;
-  setStatus('Camera Active. Click Snap.');
-}
+// ════════════════════════════════════════
+//  UI & PEER STUBS (Functional)
+// ════════════════════════════════════════
+function setStyle(s) { cellStyle=s; document.querySelectorAll('.sb').forEach(b=>b.classList.remove('on')); document.getElementById('sb-'+s).classList.add('on'); }
+function onBw(v) { bw=v; document.getElementById('bwVal').textContent=v; }
+function onBat(v) { bat=v; document.getElementById('batVal').textContent=v; }
+function onDepth(v) { depthScale=v; document.getElementById('depthVal').textContent=v+'×'; }
+function onSnapF(v) { snapFrames=v; document.getElementById('snapFVal').textContent=v; }
+function setStatus(msg) { document.getElementById('statusbar').textContent = msg; }
+function setBuildUI(who, pct, lbl) { document.getElementById(who+'BuildBar').style.width=pct+'%'; document.getElementById(who+'BuildLbl').textContent=lbl; document.getElementById(who+'BuildOv').style.display='block'; }
+function hideBuildUI(who) { document.getElementById(who+'BuildOv').style.display='none'; }
+function openModal() { document.getElementById('sigModal').classList.add('open'); }
+function closeModal() { document.getElementById('sigModal').classList.remove('open'); }
+function savePortrait() { const link=document.createElement('a'); link.download='vibe.png'; link.href=localS.renderer.domElement.toDataURL(); link.click(); }
+function clearLocal() { location.reload(); }
 
-function setStatus(m) { document.getElementById('statusbar').textContent = m; }
-window.addEventListener('DOMContentLoaded', () => { localS = makeScene('localFrame'); renderLoop(); });
+window.addEventListener('DOMContentLoaded', () => { initScenes(); renderLoop(); });
 </script>
 </body>
 </html>
