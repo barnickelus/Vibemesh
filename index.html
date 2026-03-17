@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh | LoBi-Net Simulation</title>
+<title>VibeMesh | LoBi-Net Simulation v10.5.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -13,7 +13,7 @@ body{background:var(--bg);color:#fff;font-family:'Courier New', monospace;margin
 
 .app-container { display: flex; flex-direction: column; height: 100vh; }
 .stage{display:flex;justify-content:center;gap:15px;padding:20px;flex-grow: 1;}
-.viewport{position:relative;width:45%;max-width:500px;background:#000;border:1px solid #1a1a2a;border-radius:12px;overflow:hidden;}
+.viewport{position:relative;width:450px;height:500px;background:#000;border:1px solid #1a1a2a;border-radius:12px;overflow:hidden;}
 .tag{position:absolute;top:15px;left:15px;font-size:0.6em;color:var(--neon);letter-spacing:2px;z-index:10;text-transform:uppercase; background:rgba(0,0,0,0.8); padding:4px 8px;}
 
 /* Network Monitor UI */
@@ -79,11 +79,9 @@ let captureCanvas, captureCtx;
 
 // Network Simulation State
 let maxBytesPerSecond = 200 * 1024; 
-const PACKET_SIZE_BYTES = 5616; // 468 points * 3 coords * 4 bytes (Float32)
+const PACKET_SIZE_BYTES = 5616; // 468 points * 3 coords * 4 bytes
 let currentSecond = Math.floor(Date.now() / 1000);
 let bytesUsedThisSecond = 0;
-
-// Metrics Logging
 let txFrames = 0, rxFrames = 0, droppedFrames = 0;
 
 function updateSlider() {
@@ -92,18 +90,14 @@ function updateSlider() {
     maxBytesPerSecond = val * 1024;
 }
 
-// Reset metric counters every second
 setInterval(() => {
     document.getElementById('mon-tx').textContent = txFrames + " FPS";
     document.getElementById('mon-rx').textContent = rxFrames + " FPS";
-    
     const dropRate = txFrames > 0 ? Math.round((droppedFrames / txFrames) * 100) : 0;
     document.getElementById('mon-drop').textContent = dropRate + "%";
-    
     txFrames = 0; rxFrames = 0; droppedFrames = 0;
 }, 1000);
 
-// Procedural texture for the receiver
 function createRingTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 64; canvas.height = 64;
@@ -115,11 +109,12 @@ function createRingTexture() {
 
 function buildNodeEnv(containerId, isReceiver) {
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 500/500, 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(45, 450/500, 0.1, 100);
     camera.position.set(0, 0, 4);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(renderer.domElement.parentElement.clientWidth, renderer.domElement.parentElement.clientHeight);
+    // Hardcoded dimensions to prevent race conditions during boot
+    renderer.setSize(450, 500); 
     document.getElementById(containerId).appendChild(renderer.domElement);
 
     const grid = new THREE.GridHelper(10, 20, isReceiver ? 0xb266ff : 0x00f0ff, 0x111122);
@@ -142,72 +137,71 @@ function buildNodeEnv(containerId, isReceiver) {
     const mesh = new THREE.Points(geo, mat);
     scene.add(mesh);
 
-    window.addEventListener('resize', () => {
-        const parent = renderer.domElement.parentElement;
-        camera.aspect = parent.clientWidth / parent.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(parent.clientWidth, parent.clientHeight);
-    });
-
     return { scene, camera, renderer, mesh, pos, col };
 }
 
 async function initSystem() {
-    document.getElementById('btn-init').textContent = "Booting...";
-    localScene = buildNodeEnv('v-sender', false);
-    remoteScene = buildNodeEnv('v-receiver', true);
+    const initBtn = document.getElementById('btn-init');
+    initBtn.textContent = "Booting...";
 
-    const video = document.getElementById('webcam');
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-    video.srcObject = stream; video.play();
+    try {
+        localScene = buildNodeEnv('v-sender', false);
+        remoteScene = buildNodeEnv('v-receiver', true);
 
-    captureCanvas = document.createElement('canvas');
-    captureCanvas.width = 640; captureCanvas.height = 480;
-    captureCtx = captureCanvas.getContext('2d');
+        const video = document.getElementById('webcam');
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+        video.srcObject = stream; 
+        video.play();
 
-    const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-    faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
-    
-    faceMesh.onResults(res => {
-        if (!res.multiFaceLandmarks?.[0]) return;
-        latestLandmarks = res.multiFaceLandmarks[0];
+        captureCanvas = document.createElement('canvas');
+        captureCanvas.width = 640; captureCanvas.height = 480;
+        captureCtx = captureCanvas.getContext('2d');
+
+        const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
         
-        // 1. SENDER: Always updates instantly (Zero Latency locally)
-        updateGeometry(localScene, latestLandmarks);
+        faceMesh.onResults(res => {
+            if (!res.multiFaceLandmarks?.[0]) return;
+            latestLandmarks = res.multiFaceLandmarks[0];
+            
+            updateGeometry(localScene, latestLandmarks);
+            
+            if (isTransmitting) {
+                txFrames++;
+                const now = Math.floor(Date.now() / 1000);
+                if (now !== currentSecond) { currentSecond = now; bytesUsedThisSecond = 0; }
+
+                if (bytesUsedThisSecond + PACKET_SIZE_BYTES <= maxBytesPerSecond) {
+                    bytesUsedThisSecond += PACKET_SIZE_BYTES;
+                    rxFrames++;
+                    updateGeometry(remoteScene, latestLandmarks);
+                } else {
+                    droppedFrames++;
+                }
+            }
+        });
+
+        const cameraUtils = new Camera(video, { onFrame: async () => { await faceMesh.send({image: video}); } });
+        cameraUtils.start();
+
+        requestAnimationFrame(function animate() {
+            localScene.renderer.render(localScene.scene, localScene.camera);
+            remoteScene.renderer.render(remoteScene.scene, remoteScene.camera);
+            requestAnimationFrame(animate);
+        });
+
+        initBtn.classList.remove('active');
+        initBtn.textContent = "Optics Live";
         
-        // 2. NETWORK BRIDGE
-        if (isTransmitting) {
-            txFrames++;
-            const now = Math.floor(Date.now() / 1000);
-            if (now !== currentSecond) {
-                currentSecond = now;
-                bytesUsedThisSecond = 0;
-            }
+        const snapBtn = document.getElementById('btn-snap');
+        snapBtn.disabled = false; 
+        snapBtn.classList.add('active');
 
-            if (bytesUsedThisSecond + PACKET_SIZE_BYTES <= maxBytesPerSecond) {
-                // Packet Success -> Send to Receiver
-                bytesUsedThisSecond += PACKET_SIZE_BYTES;
-                rxFrames++;
-                updateGeometry(remoteScene, latestLandmarks);
-            } else {
-                // Packet Dropped -> Receiver misses this frame
-                droppedFrames++;
-            }
-        }
-    });
-
-    const cameraUtils = new Camera(video, { onFrame: async () => { await faceMesh.send({image: video}); } });
-    cameraUtils.start();
-
-    requestAnimationFrame(function animate() {
-        localScene.renderer.render(localScene.scene, localScene.camera);
-        remoteScene.renderer.render(remoteScene.scene, remoteScene.camera);
-        requestAnimationFrame(animate);
-    });
-
-    document.getElementById('btn-init').classList.remove('active');
-    const snapBtn = document.getElementById('btn-snap');
-    snapBtn.disabled = false; snapBtn.classList.add('active');
+    } catch (err) {
+        console.error("Boot sequence failed:", err);
+        initBtn.textContent = "Error: Check Console/Permissions";
+        initBtn.style.background = "var(--alert)";
+    }
 }
 
 function triggerDataDump() {
