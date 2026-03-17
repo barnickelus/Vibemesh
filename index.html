@@ -3,218 +3,161 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh v10.2 | Full Manifold Topology</title>
+<title>VibeMesh v10.3 | Spatial Grid-Lock</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-:root { --neon: #00f0ff; --bg: #010103; }
-body{background:var(--bg);color:#fff;font-family:'Inter', sans-serif;margin:0;overflow:hidden}
-.app-hdr{padding:12px;display:flex;justify-content:space-between;align-items:center;background:#05050a;border-bottom:1px solid #ffffff0a}
-.app-hdr h1{font-size:0.75em;letter-spacing:5px;color:var(--neon);text-transform:uppercase;margin:0}
+:root { --neon: #00f0ff; --grid: rgba(0, 240, 255, 0.15); }
+body{background:#010105;color:#fff;font-family:'Monaco', monospace;margin:0;overflow:hidden}
 
-.stage{display:flex;justify-content:center;gap:15px;padding:15px;height:52vh}
-.av-box{position:relative;width:380px;height:460px;border-radius:20px;background:#000;border:1px solid #ffffff0a;overflow:hidden;box-shadow: 0 30px 60px rgba(0,0,0,0.8)}
-.tag{position:absolute;top:15px;left:15px;font-size:0.5em;color:var(--neon);opacity:0.6;letter-spacing:2px;z-index:10;background:rgba(0,0,0,0.7);padding:4px 8px;border-radius:4px}
+.stage{display:flex;justify-content:center;gap:10px;padding:10px;height:60vh}
+.viewport{position:relative;width:450px;height:550px;background:#000;border:1px solid #1a1a2a;overflow:hidden}
+.ui-overlay{position:absolute;top:10px;left:10px;font-size:0.5em;color:var(--neon);z-index:10;pointer-events:none}
 
-.ctrl-panel{max-width:1000px;margin:0 auto;background:#080812;padding:25px;border-radius:30px 30px 0 0;border:1px solid #ffffff0a;position:fixed;bottom:0;left:0;right:0}
-.metrics-row{display:grid;grid-template-columns:repeat(5, 1fr);gap:12px;margin-bottom:20px}
-.m-card{background:rgba(255,255,255,0.02);padding:12px;border-radius:10px;text-align:center;border:1px solid #ffffff05}
-.m-card label{display:block;font-size:0.45em;color:#555;text-transform:uppercase;margin-bottom:4px}
-.m-card span{font-family:'Courier New', monospace;font-size:0.85em;color:var(--neon)}
+.control-deck{position:fixed;bottom:0;left:0;right:0;background:#050510;padding:25px;border-top:1px solid #1a1a2a;display:grid;grid-template-columns:1fr 300px;gap:20px}
+.metrics{display:grid;grid-template-columns:repeat(3, 1fr);gap:10px}
+.m-tile{background:#0a0a1a;padding:10px;border:1px solid #1a1a2a;text-align:center}
+.m-tile label{display:block;font-size:0.5em;color:#444;margin-bottom:5px}
+.m-tile span{color:var(--neon);font-size:0.8em}
 
-.btn-row{display:flex;gap:12px}
-.btn{flex:1;padding:18px;border-radius:14px;border:none;font-weight:900;text-transform:uppercase;font-size:0.65em;cursor:pointer;transition:0.2s}
-.btn-prime{background:var(--neon);color:#000}
-.btn-dark{background:#121220;color:#555}
-.btn-wire{background:#0a0a0f;color:#888;border:1px solid #ffffff10}
-.btn-wire.active{border-color:var(--neon);color:var(--neon);box-shadow:0 0 15px rgba(0,240,255,0.2)}
-
-#load-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.9);display:none;z-index:100;align-items:center;justify-content:center;flex-direction:column}
-.loader-bar{width:240px;height:2px;background:#222;margin-top:20px;position:relative;overflow:hidden}
-.loader-fill{position:absolute;height:100%;background:var(--neon);width:0%}
+.btn{padding:15px;background:var(--neon);color:#000;border:none;font-weight:900;cursor:pointer;text-transform:uppercase;font-size:0.7em}
+.btn-off{background:#111;color:#444}
 </style>
 </head>
 <body>
 
-<div id="load-overlay">
-  <div style="font-size:0.7em; letter-spacing:4px; color:var(--neon)" id="load-txt">DUMPING TOPOLOGY</div>
-  <div class="loader-bar"><div class="loader-fill" id="load-fill"></div></div>
-</div>
-
-<div class="app-hdr">
-  <h1>VibeMesh v10.2</h1>
-  <div style="font-size:0.5em; color:#333">TOPOLOGY_LOCKED // AES_END_TO_END</div>
-</div>
-
 <div class="stage">
-  <div class="av-box" id="localView"><div class="tag">SOURCE_NODE</div></div>
-  <div class="av-box" id="remoteView"><div class="tag">RECIPIENT_NODE</div></div>
-</div>
-
-<div class="ctrl-panel">
-  <div class="metrics-row">
-    <div class="m-card"><label>Vertices</label><span>468</span></div>
-    <div class="m-card"><label>Triangles</label><span>892</span></div>
-    <div class="m-card"><label>Bitrate</label><span id="valBitrate">0.0</span></div>
-    <div class="m-card"><label>Light K</label><span id="valK">--</span></div>
-    <div class="m-card"><label>Texture</label><span>1024px</span></div>
+  <div class="viewport" id="v1">
+    <div class="ui-overlay">NODE_01 // SOURCE_CAPTURE</div>
   </div>
-  
-  <div class="btn-row">
-    <button class="btn btn-dark" onclick="initCam()">1. Boot Optics</button>
-    <button class="btn btn-prime" id="scanBtn" onclick="runFullScan()" disabled>2. High-Fidelity Scan</button>
-    <button class="btn btn-wire" id="wireBtn" onclick="toggleWire()">Wireframe Mask</button>
-    <button class="btn btn-dark" id="syncBtn" onclick="isSyncing = !isSyncing" disabled>3. Live Sync</button>
+  <div class="viewport" id="v2">
+    <div class="ui-overlay">NODE_02 // SPATIAL_RECONSTRUCTION</div>
   </div>
 </div>
 
-<video id="webcam" autoplay muted playsinline style="display:none"></video>
+<div class="control-deck">
+  <div class="metrics">
+    <div class="m-tile"><label>Grid Gravity</label><span id="valGrav">Active</span></div>
+    <div class="m-tile"><label>Point Volume</label><span>468 Units</span></div>
+    <div class="m-tile"><label>Sync Delta</label><span id="valDelta">0.00ms</span></div>
+  </div>
+  <div style="display:flex; flex-direction:column; gap:10px">
+    <button class="btn" onclick="initCore()">Initialize Spatial Grid</button>
+    <button class="btn btn-off" id="syncBtn" onclick="isSyncing = !isSyncing" disabled>Engage Grid Sync</button>
+  </div>
+</div>
+
+<video id="webcam" style="display:none"></video>
 
 <script>
-'use strict';
+let scene1, scene2, isSyncing = false;
 
-let local, remote, isSyncing = false, showWire = false;
-let currentLM = null;
+function setupGridWorld(containerId) {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 450/550, 0.1, 1000);
+    camera.position.set(1, 1, 4);
+    camera.lookAt(0,0,0);
 
-// FULL TOPOLOGY INDEX MAP (892 Triangles for MediaPipe FaceMesh)
-// In a production environment, this is usually fetched as a JSON or typed array.
-// Here is a significant sample illustrating the nose, eyes, and lip connections.
-const TOPOLOGY_INDICES = [
-  127,34,139, 139,34,227, 227,34,21, 21,34,54, 54,34,103, // Left Face
-  356,264,368, 368,264,447, 447,264,251, 251,264,284, 284,264,332, // Right Face
-  168,6,197, 197,6,195, 195,6,5, 5,6,4, 4,6,122, // Nose Bridge
-  61,185,40, 40,185,39, 39,185,37, 37,185,0, 0,185,267, // Upper Lip
-  17,314,317, 317,314,402, 402,314,318, 318,314,324, // Chin
-  33,7,163, 163,7,144, 144,7,145, 145,7,153, 153,7,154, // Left Eye
-  263,249,390, 390,249,373, 373,249,374, 374,249,380, 380,249,381 // Right Eye
-  // Note: For brevity in this code block, I'm using the core structural triangles.
-  // In a full implementation, this array contains 2676 integers (892*3).
-];
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(450, 550);
+    document.getElementById(containerId).appendChild(renderer.domElement);
 
-function createStage(id) {
-  const sc = new THREE.Scene();
-  const cam = new THREE.PerspectiveCamera(35, 380/460, 0.1, 100);
-  cam.position.z = 2.4;
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setSize(380, 460);
-  document.getElementById(id).appendChild(renderer.domElement);
-  
-  sc.add(new THREE.AmbientLight(0xffffff, 0.5));
-  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
-  dir.position.set(0, 1, 2);
-  sc.add(dir);
+    // ── THE SPATIAL GRID (Environment Gravity) ──
+    const gridHelper = new THREE.GridHelper(10, 20, 0x00f0ff, 0x111122);
+    gridHelper.position.y = -1.5;
+    scene.add(gridHelper);
 
-  return { sc, cam, renderer, mesh: null, mat: null, basePos: null, restingLM: null };
-}
+    // Bounding Room Points
+    const roomGeo = new THREE.BoxGeometry(4, 4, 4);
+    const roomMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true, transparent: true, opacity: 0.05 });
+    const room = new THREE.Mesh(roomGeo, roomMat);
+    scene.add(room);
 
-async function runFullScan() {
-  const overlay = document.getElementById('load-overlay');
-  const bar = document.getElementById('load-fill');
-  overlay.style.display = 'flex';
-
-  // 1. Capture High-Res Texture
-  const video = document.getElementById('webcam');
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024; canvas.height = 1024;
-  const ctx = canvas.getContext('2d');
-  
-  for(let i=0; i<=100; i+=10) {
-    bar.style.width = i + "%";
-    await new Promise(r => setTimeout(r, 50));
-  }
-  
-  ctx.drawImage(video, 0, 0, 1024, 1024);
-  
-  // 2. Build High-Fidelity Geometry
-  buildAvatar(local, currentLM, canvas);
-  buildAvatar(remote, currentLM, canvas);
-
-  overlay.style.display = 'none';
-  document.getElementById('syncBtn').disabled = false;
-  document.getElementById('syncBtn').classList.replace('btn-dark', 'btn-prime');
-}
-
-function buildAvatar(stg, lm, texCanvas) {
-  if(stg.mesh) stg.sc.remove(stg.mesh);
-  
-  const geo = new THREE.BufferGeometry();
-  const verts = new Float32Array(468 * 3);
-  const uvs = new Float32Array(468 * 2);
-  
-  let xMin=1, xMax=0, yMin=1, yMax=0;
-  lm.forEach(p => { xMin=Math.min(xMin, 1-p.x); xMax=Math.max(xMax, 1-p.x); yMin=Math.min(yMin, p.y); yMax=Math.max(yMax, p.y); });
-
-  lm.forEach((p, i) => {
-    verts[i*3] = ( (1-p.x) - (xMin + (xMax-xMin)/2) ) * 4;
-    verts[i*3+1] = ( (yMin + (yMax-yMin)/2) - p.y ) * 4;
-    verts[i*3+2] = -p.z * 3;
+    // ── AVATAR MESH ──
+    const faceGeo = new THREE.BufferGeometry();
+    const faceMat = new THREE.PointsMaterial({ 
+        size: 0.025, 
+        vertexColors: true 
+    });
     
-    uvs[i*2] = ((1-p.x) - xMin) / (xMax - xMin);
-    uvs[i*2+1] = 1 - (p.y - yMin) / (yMax - yMin);
-  });
+    const positions = new Float32Array(468 * 3);
+    const colors = new Float32Array(468 * 3);
+    faceGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    faceGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    
+    const facePoints = new THREE.Points(faceGeo, faceMat);
+    scene.add(facePoints);
 
-  geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-  geo.setIndex(TOPOLOGY_INDICES); // The Triangle Data Point Layer
-  geo.computeVertexNormals();
-
-  stg.mat = new THREE.MeshStandardMaterial({ 
-    map: new THREE.CanvasTexture(texCanvas),
-    wireframe: showWire,
-    roughness: 0.4,
-    metalness: 0.1
-  });
-  
-  stg.mesh = new THREE.Mesh(geo, stg.mat);
-  stg.sc.add(stg.mesh);
-  stg.basePos = verts.slice();
-  stg.restingLM = JSON.parse(JSON.stringify(lm));
+    return { scene, camera, renderer, facePoints, positions, colors };
 }
 
-function puppet(stg, liveLM) {
-  if(!stg.mesh) return;
-  const pos = stg.mesh.geometry.attributes.position.array;
-  liveLM.forEach((p, i) => {
-    const dx = (1-p.x) - (1-stg.restingLM[i].x);
-    const dy = stg.restingLM[i].y - p.y;
-    const dz = stg.restingLM[i].z - p.z;
+async function initCore() {
+    const video = document.getElementById('webcam');
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+    video.play();
 
-    pos[i*3] = stg.basePos[i*3] + dx * 4.2;
-    pos[i*3+1] = stg.basePos[i*3+1] + dy * 4.2;
-    pos[i*3+2] = stg.basePos[i*3+2] + dz * 4.2;
-  });
-  stg.mesh.geometry.attributes.position.needsUpdate = true;
-  document.getElementById('valBitrate').textContent = (Math.random() * 2 + 12).toFixed(1) + " KB/s";
+    const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
+    faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
+    
+    faceMesh.onResults(results => {
+        if (!results.multiFaceLandmarks?.[0]) return;
+        const landmarks = results.multiFaceLandmarks[0];
+        
+        // Update Local Grid
+        updateGridNode(scene1, landmarks, video);
+        
+        if (isSyncing) {
+            updateGridNode(scene2, landmarks, video);
+        }
+    });
+
+    const camera = new Camera(video, { onFrame: async () => { await faceMesh.send({image: video}); } });
+    camera.start();
+    
+    document.getElementById('syncBtn').disabled = false;
+    document.getElementById('syncBtn').classList.remove('btn-off');
 }
 
-function toggleWire() {
-  showWire = !showWire;
-  document.getElementById('wireBtn').classList.toggle('active');
-  [local, remote].forEach(s => { if(s.mat) s.mat.wireframe = showWire; });
-}
+function updateGridNode(node, lm, video) {
+    const pos = node.facePoints.geometry.attributes.position.array;
+    const col = node.facePoints.geometry.attributes.color.array;
+    
+    // Create a hidden canvas to sample colors at the grid points
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
 
-async function initCam() {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-  document.getElementById('webcam').srcObject = stream;
-  const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-  faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
-  faceMesh.onResults(res => {
-    if (!res.multiFaceLandmarks?.[0]) return;
-    currentLM = res.multiFaceLandmarks[0];
-    if (isSyncing) puppet(remote, currentLM);
-  });
-  new Camera(document.getElementById('webcam'), { onFrame: async () => await faceMesh.send({ image: document.getElementById('webcam') }) }).start();
-  document.getElementById('scanBtn').disabled = false;
+    lm.forEach((point, i) => {
+        // Map to XYZ Grid Space (-2 to 2)
+        pos[i * 3]     = (point.x - 0.5) * -4; 
+        pos[i * 3 + 1] = (point.y - 0.5) * -4;
+        pos[i * 3 + 2] = point.z * -4;
+
+        // Sample Color Data Point at this specific Grid Intersection
+        const pixel = ctx.getImageData(point.x * video.videoWidth, point.y * video.videoHeight, 1, 1).data;
+        col[i * 3]     = pixel[0] / 255;
+        col[i * 3 + 1] = pixel[1] / 255;
+        col[i * 3 + 2] = pixel[2] / 255;
+    });
+
+    node.facePoints.geometry.attributes.position.needsUpdate = true;
+    node.facePoints.geometry.attributes.color.needsUpdate = true;
 }
 
 window.onload = () => {
-  local = createStage('localView'); remote = createStage('remoteView');
-  (function render() {
-    requestAnimationFrame(render);
-    local.renderer.render(local.sc, local.cam);
-    remote.renderer.render(remote.sc, remote.cam);
-  })();
+    scene1 = setupGridWorld('v1');
+    scene2 = setupGridWorld('v2');
+    
+    function animate() {
+        requestAnimationFrame(animate);
+        scene1.renderer.render(scene1.scene, scene1.camera);
+        scene2.renderer.render(scene2.scene, scene2.camera);
+    }
+    animate();
 };
 </script>
 </body>
