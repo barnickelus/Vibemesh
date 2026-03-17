@@ -3,117 +3,107 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh v9.7 | Environment & Bandwidth</title>
+<title>VibeMesh v9.8 | Telemetry & Environment</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-:root { --cyan: #00f0ff; --magenta: #ff00aa; --panel: #0c0c1e; }
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#05050a;color:#eee;font-family:'Inter', sans-serif;overflow-x:hidden}
-.hdr{text-align:center;padding:15px;border-bottom:1px solid #ffffff05}
-.hdr h1{font-size:1.4em;font-weight:900;letter-spacing:3px;background:linear-gradient(90deg,var(--cyan),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+:root { --accent: #00f0ff; --panel: #0a0a1a; }
+body{background:#04040a;color:#fff;font-family:'Inter',sans-serif;margin:0;overflow:hidden}
+.hdr{padding:20px;text-align:center;border-bottom:1px solid #ffffff0a}
+.hdr h1{font-size:1.2em;letter-spacing:4px;color:var(--accent);text-transform:uppercase}
 
-.stage{display:flex;justify-content:center;gap:20px;padding:15px;flex-wrap:wrap}
-.av-frame{position:relative;width:340px;height:420px;border-radius:24px;background:#08081a;border:1px solid #ffffff08;overflow:hidden;box-shadow:0 30px 60px rgba(0,0,0,0.8)}
-.av-frame canvas{position:absolute;top:0;left:0;width:100%;height:100%}
-.pip{position:absolute;bottom:15px;right:15px;width:80px;height:60px;border-radius:12px;border:2px solid #00f0ff33;overflow:hidden;z-index:30}
-.pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.viewport{display:flex;justify-content:center;gap:30px;padding:20px;height:60vh}
+.av-container{position:relative;width:360px;height:450px;border-radius:30px;background:#000;border:1px solid #ffffff10;box-shadow:0 40px 100px #000}
+.label-tag{position:absolute;top:20px;left:20px;font-size:0.6em;color:rgba(255,255,255,0.3);letter-spacing:2px;z-index:10}
 
-.panel{max-width:720px;margin:10px auto;background:var(--panel);padding:25px;border-radius:28px;border:1px solid #ffffff05}
-.sliders-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
-.sl-item label{display:flex;justify-content:space-between;font-size:.6em;color:#555;text-transform:uppercase;margin-bottom:8px;letter-spacing:1px}
-.sl-item span{color:var(--cyan)}
-input[type=range]{width:100%;accent-color:var(--cyan);height:4px;background:#1a1a35}
+.ui-panel{max-width:800px;margin:0 auto;background:var(--panel);padding:30px;border-radius:30px 30px 0 0;border:1px solid #ffffff0a;position:fixed;bottom:0;left:0;right:0}
+.data-stream{display:grid;grid-template-columns:repeat(4, 1fr);gap:15px;margin-bottom:25px}
+.data-box{background:#111125;padding:12px;border-radius:12px;text-align:center}
+.data-box label{display:block;font-size:0.5em;color:#444;margin-bottom:5px;text-transform:uppercase}
+.data-box span{font-family:'Courier New';font-size:0.8em;color:var(--accent)}
 
-.btn-row{display:flex;gap:12px}
-.btn{flex:1;padding:16px;font-weight:800;border:none;border-radius:15px;cursor:pointer;text-transform:uppercase;font-size:.7em;transition:0.2s}
-.btn-primary{background:linear-gradient(135deg,var(--magenta),var(--cyan));color:#000}
-.btn-ghost{background:#1a1a35;color:#888;border:1px solid #ffffff05}
-.stat-bar{display:flex;justify-content:space-between;padding:15px;font-size:.6em;color:#333;text-transform:uppercase}
+.btn-group{display:flex;gap:15px}
+.btn{flex:1;padding:18px;border-radius:15px;border:none;font-weight:900;text-transform:uppercase;font-size:0.7em;cursor:pointer;transition:0.3s}
+.btn-on{background:var(--accent);color:#000}
+.btn-off{background:#1a1a35;color:#666}
 </style>
 </head>
 <body>
 
-<div class="hdr"><h1>VIBEMESH V9.7</h1></div>
+<div class="hdr"><h1>VibeMesh : Telemetry Protocol v9.8</h1></div>
 
-<div class="stage">
-  <div class="av-frame" id="localFrame">
-    <div class="pip"><video id="pipLocal" autoplay muted playsinline></video></div>
+<div class="viewport">
+  <div class="av-container" id="senderView">
+    <div class="label-tag">LOCAL.OPTIC (SENDER)</div>
   </div>
-  <div class="av-frame" id="remoteFrame"></div>
-</div>
-
-<div class="panel">
-  <div class="sliders-grid">
-    <div class="sl-item">
-      <label>Bandwidth Tier <span id="bwVal">LoBi (12pt)</span></label>
-      <input type="range" id="bwSlider" min="0" max="3" value="0">
-    </div>
-    <div class="sl-item">
-      <label>3D Protrusion <span id="depthVal">20</span></label>
-      <input type="range" id="depthSlider" min="1" max="50" value="20">
-    </div>
-    <div class="sl-item">
-      <label>Light Temp <span id="kelvinVal">6500K</span></label>
-      <input type="range" id="kelvinSlider" min="2000" max="10000" value="6500" step="100">
-    </div>
-    <div class="sl-item">
-      <label>Light Azimuth <span id="lightVal">0°</span></label>
-      <input type="range" id="lightSlider" min="-180" max="180" value="0">
-    </div>
-  </div>
-
-  <div class="btn-row">
-    <button class="btn btn-ghost" onclick="startCamera()">Initialize Optics</button>
-    <button class="btn btn-primary" id="snapBtn" onclick="startSnap()" disabled>Biometric Scan</button>
-    <button class="btn btn-primary" id="liveBtn" onclick="toggleLive()" disabled style="background:#ff6600">Sync Stream</button>
+  <div class="av-container" id="recipientView">
+    <div class="label-tag">REMOTE.MESH (RECIPIENT)</div>
   </div>
 </div>
 
-<div class="stat-bar">
-  <span>Network: <span id="netStat" style="color:#555">Idle</span></span>
-  <span>Packet Size: <span id="pktStat" style="color:#555">0 B</span></span>
-  <span>Vertices: <span id="vertStat" style="color:#555">0</span></span>
+<div class="ui-panel">
+  <div class="data-stream">
+    <div class="data-box"><label>Estimated Kelvin</label><span id="valKelvin">--</span></div>
+    <div class="data-box"><label>Light Azimuth</label><span id="valAzi">--</span></div>
+    <div class="data-box"><label>Driver Points</label><span id="valPoints">0</span></div>
+    <div class="data-box"><label>Packet Size</label><span id="valBytes">0 B</span></div>
+  </div>
+  
+  <div class="btn-group">
+    <button class="btn btn-off" id="camBtn" onclick="initSystem()">Initialize Optics</button>
+    <button class="btn btn-off" id="syncBtn" onclick="toggleSync()" disabled>Establish Peer Sync</button>
+  </div>
 </div>
 
-<video id="camFeed" autoplay muted playsinline style="display:none"></video>
+<video id="webcam" autoplay muted playsinline style="display:none"></video>
 
 <script>
 'use strict';
 
-// ── DATA TIERS ──
-const DRIVER_SETS = [
-  [33,133,362,263,1,4,61,291,152,10,187,411], // 12pt: Core Puppet
-  [33,133,362,263,1,4,61,291,152,10,187,411,13,14,78,308,103,332], // 18pt: Expression
-  Array.from({length: 60}, (_, i) => i * 7), // ~60pt: Contour
-  Array.from({length: 468}, (_, i) => i) // 468pt: Full Avatar
-];
+const ANCHORS = [33,133,362,263,1,4,61,291,152,10,187,411,13,14,78,308];
+let sender, recipient, isSyncing = false;
 
-const TIERS = { AVATAR3D:{W:32, H:40}, PUPPET:{W:18, H:22} };
-const CELL_STEP = 34;
-
-let localS, lastLM, puppetActive = false, currentDriverSet = DRIVER_SETS[0];
-
-function makeScene(id) {
-  const sc = new THREE.Scene();
-  const cam = new THREE.PerspectiveCamera(38, 340/420, 0.1, 100);
-  cam.position.z = 2.5;
+function createStage(containerId) {
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(35, 360/450, 0.1, 100);
+  camera.position.z = 2.8;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setSize(340, 420);
-  document.getElementById(id).appendChild(renderer.domElement);
-  
-  const amb = new THREE.AmbientLight(0xffffff, 0.5); sc.add(amb);
-  const dir = new THREE.DirectionalLight(0xffffff, 1.0); 
-  dir.position.set(0, 1, 2); 
-  sc.add(dir);
+  renderer.setSize(360, 450);
+  document.getElementById(containerId).appendChild(renderer.domElement);
 
-  return { scene:sc, camera:cam, renderer, mesh:null, dirLight:dir, ambLight:amb, texCanvas:document.createElement('canvas'), basePos:null, snapLM:null };
+  const amb = new THREE.AmbientLight(0xffffff, 0.2);
+  const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+  dir.position.set(0, 1, 2);
+  scene.add(amb, dir);
+
+  return { scene, camera, renderer, dir, amb, mesh: null, basePos: null, tex: null };
 }
 
-// ── KELVIN TO RGB ──
-function kelvinToRGB(kelvin) {
-  let temp = kelvin / 100, r, g, b;
+// ── TELEMETRY SENSOR: ESTIMATE LIGHT FROM FEED ──
+function analyzeEnvironment(video) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 64; canvas.height = 48;
+  ctx.drawImage(video, 0, 0, 64, 48);
+  const data = ctx.getImageData(0,0,64,48).data;
+  
+  let r=0, g=0, b=0, maxB = 0, maxPos = 0;
+  for(let i=0; i<data.length; i+=4) {
+    r += data[i]; g += data[i+1]; b += data[i+2];
+    let bright = data[i] + data[i+1] + data[i+2];
+    if(bright > maxB) { maxB = bright; maxPos = i/4; }
+  }
+  
+  const avgR = r/(data.length/4), avgB = b/(data.length/4);
+  const kelvin = Math.floor(6500 + (avgR - avgB) * 20); // Rough K-estimation
+  const azi = ((maxPos % 64) / 64 - 0.5) * 180; // Rough Light Direction
+  
+  return { kelvin, azi };
+}
+
+function kelvinToColor(k) {
+  let temp = k / 100, r, g, b;
   if (temp <= 66) {
     r = 255;
     g = 99.47 * Math.log(temp) - 161.11;
@@ -126,139 +116,124 @@ function kelvinToRGB(kelvin) {
   return new THREE.Color(r/255, g/255, b/255);
 }
 
-// ── RENDERING ──
-function drawCell(ctx, cx, cy, r, g, b) {
-  const rad = 17, lum = (r*0.299 + g*0.587 + b*0.114) / 255;
-  ctx.fillStyle = `rgb(${r*0.2},${g*0.2},${b*0.2})`;
-  ctx.fillRect(cx-rad, cy-rad, rad*2, rad*2);
-  const nR = Math.max(3, Math.round(2 + lum * 6));
-  for(let i=nR; i>=1; i--) {
-    ctx.beginPath();
-    ctx.arc(cx + (Math.random()-0.5)*2, cy + (Math.random()-0.5)*2, rad*(i/nR)*0.9, 0, Math.PI*2);
-    ctx.fillStyle = i%2===0 ? `rgb(${r},${g},${b})` : `rgb(${Math.min(255,r*1.4)},${Math.min(255,g*1.4)},${Math.min(255,b*1.4)})`;
-    ctx.fill();
-  }
-}
+// ── MESH CONSTRUCTION ──
+async function buildMesh(stg, lm, video) {
+  const W = 32, H = 40, CELL = 34;
+  const texCanvas = document.createElement('canvas');
+  texCanvas.width = W*CELL; texCanvas.height = H*CELL;
+  const ctx = texCanvas.getContext('2d');
 
-async function buildMesh(sc, lm) {
-  const {W, H} = TIERS.AVATAR3D;
-  const feed = document.getElementById('camFeed');
-  const sCanv = document.createElement('canvas');
-  sCanv.width = feed.videoWidth; sCanv.height = feed.videoHeight;
-  const sCtx = sCanv.getContext('2d'); sCtx.drawImage(feed, 0, 0);
-
+  // Sampling coordinates
   let x0=1, x1=0, y0=1, y1=0;
   lm.forEach(p => { const mx=1-p.x; if(mx<x0) x0=mx; if(mx>x1) x1=mx; if(p.y<y0) y0=p.y; if(p.y>y1) y1=p.y; });
-  sc.snapBBox = { x0, x1, y0, y1, w:x1-x0, h:y1-y0 };
-  sc.snapLM = lm.map(p => ({...p}));
+  stg.bbox = { x0, x1, y0, y1, w:x1-x0, h:y1-y0 };
+  stg.snapLM = lm.map(p => ({...p}));
 
-  sc.texCanvas.width = W * CELL_STEP; sc.texCanvas.height = H * CELL_STEP;
-  const ctx = sc.texCanvas.getContext('2d');
-  
-  const nV = (W+1)*(H+1), pos = new Float32Array(nV*3), uv = new Float32Array(nV*2), indices = [];
-  for(let j=0; j<=H; j++) {
-    for(let i=0; i<=W; i++) {
-      const u=i/W, v=j/H, vi=j*(W+1)+i;
-      pos[vi*3]=(u-0.5)*2.2; pos[vi*3+1]=(0.5-v)*2.8; pos[vi*3+2]=-lm[0].z;
-      uv[vi*2]=u; uv[vi*2+1]=1-v;
-      if(i<W && j<H) {
-        const tl=j*(W+1)+i, tr=tl+1, bl=(j+1)*(W+1)+i, br=bl+1;
-        indices.push(tl,bl,tr, bl,br,tr);
-      }
-      const vx = Math.floor((x0 + u*(x1-x0)) * sCanv.width);
-      const vy = Math.floor((y0 + v*(y1-y0)) * sCanv.height);
-      const pix = sCtx.getImageData(vx, vy, 1, 1).data;
-      if(i<W && j<H) drawCell(ctx, i*CELL_STEP+17, j*CELL_STEP+17, pix[0], pix[1], pix[2]);
+  // Render "Chuck Close" Texture
+  const sC = document.createElement('canvas'); sC.width = video.videoWidth; sC.height = video.videoHeight;
+  const sX = sC.getContext('2d'); sX.drawImage(video, 0, 0);
+
+  for(let j=0; j<H; j++) {
+    for(let i=0; i<W; i++) {
+      const vx = Math.floor((x0 + (i/W)*(x1-x0)) * sC.width);
+      const vy = Math.floor((y0 + (j/H)*(y1-y0)) * sC.height);
+      const p = sX.getImageData(vx, vy, 1, 1).data;
+      
+      ctx.fillStyle = `rgb(${p[0]*0.2},${p[1]*0.2},${p[2]*0.2})`;
+      ctx.fillRect(i*CELL, j*CELL, CELL, CELL);
+      ctx.beginPath();
+      ctx.arc(i*CELL+17, j*CELL+17, 14, 0, Math.PI*2);
+      ctx.fillStyle = `rgb(${p[0]},${p[1]},${p[2]})`;
+      ctx.fill();
     }
   }
 
-  if(sc.mesh) { sc.mesh.geometry.dispose(); sc.mesh.material.dispose(); sc.scene.remove(sc.mesh); }
-  sc.tex = new THREE.CanvasTexture(sc.texCanvas);
-  sc.mesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ map:sc.tex, flatShading:true }));
-  sc.mesh.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  sc.mesh.geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  sc.mesh.geometry.setIndex(indices);
-  sc.scene.add(sc.mesh);
-  sc.basePos = pos.slice();
-  document.getElementById('vertStat').textContent = nV;
+  const geo = new THREE.PlaneGeometry(2.2, 2.8, W, H);
+  stg.tex = new THREE.CanvasTexture(texCanvas);
+  stg.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: stg.tex, flatShading: true }));
+  stg.scene.add(stg.mesh);
+  stg.basePos = geo.attributes.position.array.slice();
 }
 
-function puppet(sc, liveLM) {
-  if(!sc.mesh) return;
-  const pos = sc.mesh.geometry.attributes.position.array;
-  const {W, H} = TIERS.AVATAR3D;
-  const bb = sc.snapBBox, d = parseFloat(document.getElementById('depthSlider').value);
-  const sigma = 0.04;
-
-  // Simulate Packet Transmission
-  const packetSize = currentDriverSet.length * 12; // ~12 bytes per (x,y,z)
-  document.getElementById('pktStat').textContent = packetSize + " B";
-
+// ── THE RECIPIENT PUPPETING ──
+function updateRemote(packet) {
+  if(!recipient.mesh) return;
+  const { lm, kelvin, azi } = packet;
+  
+  // 1. Apply Environmental Telemetry
+  const col = kelvinToColor(kelvin);
+  recipient.dir.color = col;
+  recipient.dir.position.set(Math.sin(azi * Math.PI/180)*3, 1, 2);
+  
+  // 2. Structural Mesh Deformation (Puppeting)
+  const pos = recipient.mesh.geometry.attributes.position.array;
+  const bb = recipient.bbox, W=32, H=40;
+  
   for(let j=0; j<=H; j++) {
     for(let i=0; i<=W; i++) {
       const vi = j*(W+1)+i, u = i/W, v = j/H;
-      let du=0, dv=0, dz=0, tw=0;
-      for(const idx of currentDriverSet) {
-        const su = (1-sc.snapLM[idx].x-bb.x0)/bb.w, sv = (sc.snapLM[idx].y-bb.y0)/bb.h;
-        const w = Math.exp(-((su-u)**2 + (sv-v)**2)/(2 * sigma * sigma));
-        const lu = (1-liveLM[idx].x-bb.x0)/bb.w, lv = (liveLM[idx].y-bb.y0)/bb.h;
-        du += (lu-su)*w; dv += (lv-sv)*w; dz += (liveLM[idx].z - sc.snapLM[idx].z)*w;
+      let du=0, dv=0, tw=0;
+      ANCHORS.forEach(idx => {
+        const su = (1-recipient.snapLM[idx].x-bb.x0)/bb.w, sv = (recipient.snapLM[idx].y-bb.y0)/bb.h;
+        const w = Math.exp(-((su-u)**2 + (sv-v)**2)/0.004);
+        du += ((1-lm[idx].x-bb.x0)/bb.w - su)*w;
+        dv += ((lm[idx].y-bb.y0)/bb.h - sv)*w;
         tw += w;
-      }
+      });
       if(tw > 0) {
-        pos[vi*3] = sc.basePos[vi*3] + (du/tw)*2.2;
-        pos[vi*3+1] = sc.basePos[vi*3+1] - (dv/tw)*2.8;
-        pos[vi*3+2] = sc.basePos[vi*3+2] - (dz/tw * d * 0.2);
+        pos[vi*3] = recipient.basePos[vi*3] + (du/tw)*2.2;
+        pos[vi*3+1] = recipient.basePos[vi*3+1] - (dv/tw)*2.8;
       }
     }
   }
-  sc.mesh.geometry.attributes.position.needsUpdate = true;
-  sc.mesh.geometry.computeVertexNormals();
+  recipient.mesh.geometry.attributes.position.needsUpdate = true;
 }
 
-// ── ENVIRONMENT CONTROL ──
-function updateEnv() {
-  const k = parseInt(document.getElementById('kelvinSlider').value);
-  const az = parseInt(document.getElementById('lightSlider').value) * (Math.PI/180);
-  const color = kelvinToRGB(k);
-  localS.dirLight.color = color;
-  localS.dirLight.position.set(Math.sin(az)*2, 1, Math.cos(az)*2);
-  document.getElementById('kelvinVal').textContent = k + "K";
-  document.getElementById('lightVal').textContent = document.getElementById('lightSlider').value + "°";
-}
-
-async function startCamera() {
+async function initSystem() {
   const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-  document.getElementById('pipLocal').srcObject = stream;
-  const feed = document.getElementById('camFeed'); feed.srcObject = stream;
-  const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-  faceMesh.setOptions({ maxNumFaces:1, refineLandmarks:true });
+  const video = document.getElementById('webcam');
+  video.srcObject = stream;
+  
+  const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+  faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
   faceMesh.onResults(res => {
-    if(!res.multiFaceLandmarks?.[0]) return;
-    lastLM = res.multiFaceLandmarks[0];
-    if(puppetActive) puppet(localS, lastLM);
+    if (!res.multiFaceLandmarks?.[0]) return;
+    const lm = res.multiFaceLandmarks[0];
+    
+    // SENDER ACTIONS
+    if (isSyncing) {
+      const env = analyzeEnvironment(video);
+      const packet = { lm, kelvin: env.kelvin, azi: env.azi };
+      
+      // UI Metrics
+      document.getElementById('valKelvin').textContent = env.kelvin + "K";
+      document.getElementById('valAzi').textContent = Math.round(env.azi) + "°";
+      document.getElementById('valPoints').textContent = ANCHORS.length;
+      document.getElementById('valBytes').textContent = (JSON.stringify(packet).length / 1024).toFixed(2) + " KB";
+      
+      // RECIPIENT ACTIONS (The "Puppet")
+      updateRemote(packet);
+    }
+    
+    if(!sender.mesh) buildMesh(sender, lm, video);
+    if(!recipient.mesh) buildMesh(recipient, lm, video);
   });
-  new Camera(feed, { onFrame: async () => { await faceMesh.send({ image: feed }); } }).start();
-  document.getElementById('snapBtn').disabled = false;
+  
+  new Camera(video, { onFrame: async () => await faceMesh.send({ image: video }) }).start();
+  document.getElementById('syncBtn').disabled = false;
+  document.getElementById('syncBtn').classList.replace('btn-off', 'btn-on');
 }
 
-function startSnap() { buildMesh(localS, lastLM); document.getElementById('liveBtn').disabled = false; }
-function toggleLive() { puppetActive = !puppetActive; document.getElementById('liveBtn').textContent = puppetActive ? "Halt Sync" : "Sync Stream"; document.getElementById('netStat').textContent = puppetActive ? "Active" : "Idle"; }
-
-document.getElementById('bwSlider').oninput = (e) => {
-  const v = parseInt(e.target.value);
-  const labels = ["LoBi (12pt)", "Mid (18pt)", "High (60pt)", "Max (468pt)"];
-  document.getElementById('bwVal').textContent = labels[v];
-  currentDriverSet = DRIVER_SETS[v];
-};
-
-document.getElementById('depthSlider').oninput = (e) => document.getElementById('depthVal').textContent = e.target.value;
-document.querySelectorAll('#kelvinSlider, #lightSlider').forEach(s => s.oninput = updateEnv);
+function toggleSync() { isSyncing = !isSyncing; }
 
 window.onload = () => {
-  localS = makeScene('localFrame');
-  updateEnv();
-  (function render() { requestAnimationFrame(render); localS.renderer.render(localS.scene, localS.camera); })();
+  sender = createStage('senderView');
+  recipient = createStage('recipientView');
+  (function render() {
+    requestAnimationFrame(render);
+    sender.renderer.render(sender.scene, sender.camera);
+    recipient.renderer.render(recipient.scene, recipient.camera);
+  })();
 };
 </script>
 </body>
