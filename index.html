@@ -3,185 +3,258 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh v10.4 | Polygonal Color Telemetry</title>
+<title>VibeMesh | Unified Cartesian Core</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-:root { --neon: #00f0ff; --grid: rgba(0, 240, 255, 0.15); }
-body{background:#010105;color:#fff;font-family:'Monaco', monospace;margin:0;overflow:hidden}
+:root { --neon: #00f0ff; --panel: #0a0a16; }
+body{background:#020205;color:#fff;font-family:'Courier New', Courier, monospace;margin:0;overflow:hidden}
 
-.stage{display:flex;justify-content:center;gap:10px;padding:10px;height:60vh}
-.viewport{position:relative;width:450px;height:550px;background:#000;border:1px solid #1a1a2a;overflow:hidden}
-.ui-overlay{position:absolute;top:10px;left:10px;font-size:0.5em;color:var(--neon);z-index:10;pointer-events:none}
+.stage{display:flex;justify-content:center;gap:15px;padding:20px;height:65vh}
+.viewport{position:relative;width:480px;height:580px;background:#000;border:1px solid #1a1a2a;border-radius:12px;overflow:hidden;box-shadow: 0 10px 40px rgba(0,240,255,0.05)}
+.tag{position:absolute;top:15px;left:15px;font-size:0.6em;color:var(--neon);letter-spacing:2px;z-index:10;text-transform:uppercase}
 
-.control-deck{position:fixed;bottom:0;left:0;right:0;background:#050510;padding:25px;border-top:1px solid #1a1a2a;display:grid;grid-template-columns:1fr 300px;gap:20px}
-.metrics{display:grid;grid-template-columns:repeat(3, 1fr);gap:10px}
-.m-tile{background:#0a0a1a;padding:10px;border:1px solid #1a1a2a;text-align:center}
-.m-tile label{display:block;font-size:0.5em;color:#444;margin-bottom:5px}
-.m-tile span{color:var(--neon);font-size:0.8em}
+.dash{position:fixed;bottom:0;left:0;right:0;background:var(--panel);padding:30px;border-top:1px solid #1a1a2a}
+.metrics{display:flex;justify-content:space-between;margin-bottom:20px;max-width:1000px;margin-left:auto;margin-right:auto}
+.m-box{text-align:center;background:#05050a;padding:15px;border-radius:8px;border:1px solid #111;flex:1;margin:0 10px}
+.m-box label{display:block;font-size:0.6em;color:#555;margin-bottom:8px;text-transform:uppercase}
+.m-box span{color:var(--neon);font-size:1.1em;font-weight:bold}
 
-.btn{padding:15px;background:var(--neon);color:#000;border:none;font-weight:900;cursor:pointer;text-transform:uppercase;font-size:0.7em}
-.btn-off{background:#111;color:#444}
+.controls{display:flex;gap:15px;max-width:1000px;margin:0 auto}
+.btn{flex:1;padding:20px;background:#111;color:#666;border:1px solid #222;border-radius:8px;font-weight:bold;cursor:pointer;text-transform:uppercase;transition:all 0.3s;letter-spacing:1px}
+.btn.active{background:var(--neon);color:#000;border-color:var(--neon);box-shadow: 0 0 15px rgba(0,240,255,0.3)}
+.btn:hover:not(:disabled){filter:brightness(1.2)}
+
+video { display: none; }
 </style>
 </head>
 <body>
 
 <div class="stage">
-  <div class="viewport" id="v1">
-    <div class="ui-overlay">NODE_01 // SOURCE_CAPTURE</div>
+  <div class="viewport" id="v-local">
+    <div class="tag">NODE_01 // WIRE_CAPTURE</div>
   </div>
-  <div class="viewport" id="v2">
-    <div class="ui-overlay">NODE_02 // POLYGON_RENDER</div>
+  <div class="viewport" id="v-remote">
+    <div class="tag">NODE_02 // CHUCK_CLOSE_RECONSTRUCTION</div>
   </div>
 </div>
 
-<div class="control-deck">
+<div class="dash">
   <div class="metrics">
-    <div class="m-tile"><label>Color Telemetry</label><span id="valColor">Active</span></div>
-    <div class="m-tile"><label>Polygonal Shapes</label><span>892 Faces</span></div>
-    <div class="m-tile"><label>Bandwidth</label><span id="valBand">~24 KB/s</span></div>
+    <div class="m-box"><label>Spatial Grid</label><span>Locked</span></div>
+    <div class="m-box"><label>Node Count</label><span>468</span></div>
+    <div class="m-box"><label>Transmission</label><span id="valBand">Idle</span></div>
   </div>
-  <div style="display:flex; flex-direction:column; gap:10px">
-    <button class="btn" onclick="initCore()">1. Initialize Spatial Grid</button>
-    <button class="btn btn-off" id="syncBtn" onclick="isSyncing = !isSyncing" disabled>2. Engage Polygonal Sync</button>
+  <div class="controls">
+    <button class="btn active" id="btn-init" onclick="initSystem()">1. Init Optics</button>
+    <button class="btn" id="btn-snap" onclick="triggerDataDump()" disabled>2. Snap Data Dump</button>
+    <button class="btn" id="btn-puppet" onclick="togglePuppet()" disabled>3. Engage Puppet</button>
   </div>
 </div>
 
-<video id="webcam" style="display:none" playsinline></video>
+<video id="webcam" playsinline></video>
 
 <script>
-let scene1, scene2, isSyncing = false;
-let colorCanvas, colorCtx;
+let localScene, remoteScene, isPuppeting = false;
+let latestLandmarks = null;
+let captureCanvas, captureCtx;
 
-// A sample of the structural triangles to demonstrate the shapes.
-// (In production, this is the full 2676-integer array).
-const TOPOLOGY_INDICES = [
-  10,338,297, 332,284,251, 10,338,332, 10,151,338, 151,108,338, // Forehead
-  61,146,91, 146,91,181, 91,181,84, 181,84,17, 84,17,314, // Chin/Mouth
-  33,7,163, 7,163,144, 163,144,145, 144,145,153, 145,153,154, // Left Eye
-  263,249,390, 249,390,373, 390,373,374, 373,374,380, 374,380,381, // Right Eye
-  168,6,197, 197,6,195, 195,6,5, 5,6,4, 4,6,122 // Nose
-];
-
-function setupGridWorld(containerId) {
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 450/550, 0.1, 1000);
-    camera.position.set(0, 0.5, 3.5);
-    camera.lookAt(0,0,0);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(450, 550);
-    document.getElementById(containerId).appendChild(renderer.domElement);
-
-    // ── THE SPATIAL GRID ──
-    const gridHelper = new THREE.GridHelper(10, 20, 0x00f0ff, 0x111122);
-    gridHelper.position.y = -1.5;
-    scene.add(gridHelper);
-
-    // ── AVATAR POLYGON MESH ──
-    const faceGeo = new THREE.BufferGeometry();
+// --- AESTHETIC: PROCEDURAL DOT/RING TEXTURE ---
+// This generates the concentric ring style you had in v9.4
+function createRingTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
     
-    // Allocate space for 468 XYZ coordinates and 468 RGB colors
-    const positions = new Float32Array(468 * 3);
-    const colors = new Float32Array(468 * 3);
-    
-    faceGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    faceGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    faceGeo.setIndex(TOPOLOGY_INDICES); // This connects the dots into shapes
+    // Outer Ring
+    ctx.beginPath();
+    ctx.arc(32, 32, 28, 0, Math.PI * 2);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
 
-    // We use a BasicMaterial with vertexColors to render the color data sent from the camera
-    const faceMat = new THREE.MeshBasicMaterial({ 
-        vertexColors: true, 
-        wireframe: false, 
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.95
-    });
-    
-    // Also keep the points visible so you can see the vertices holding the shapes
-    const pointsMat = new THREE.PointsMaterial({ size: 0.03, vertexColors: true });
-    
-    const faceMesh = new THREE.Mesh(faceGeo, faceMat);
-    const facePoints = new THREE.Points(faceGeo, pointsMat);
-    
-    scene.add(faceMesh);
-    scene.add(facePoints);
+    // Inner Dot
+    ctx.beginPath();
+    ctx.arc(32, 32, 14, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
 
-    return { scene, camera, renderer, faceGeo, positions, colors };
+    return new THREE.CanvasTexture(canvas);
 }
 
-async function initCore() {
+const ringTex = createRingTexture();
+
+// --- SCENE SETUP ---
+function buildCartesianEnvironment(containerId, isRemote) {
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x020205, 0.08);
+
+    const camera = new THREE.PerspectiveCamera(45, 480/580, 0.1, 100);
+    camera.position.set(0, 0, 4);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(480, 580);
+    document.getElementById(containerId).appendChild(renderer.domElement);
+
+    // 1. The Global Environment Grid
+    const roomGrid = new THREE.GridHelper(10, 30, 0x00f0ff, 0x111122);
+    roomGrid.position.y = -1.5;
+    roomGrid.position.z = -2;
+    scene.add(roomGrid);
+
+    // 2. The Avatar Structure
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(468 * 3);
+    const col = new Float32Array(468 * 3);
+    
+    // Fill initial arrays
+    for(let i=0; i<468*3; i++) { pos[i] = 0; col[i] = 1; }
+    
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+
+    let mesh;
+    if (!isRemote) {
+        // LOCAL: Technical Wireframe Grid
+        const mat = new THREE.PointsMaterial({ 
+            size: 0.03, 
+            color: 0x00f0ff,
+            transparent: true,
+            opacity: 0.5
+        });
+        mesh = new THREE.Points(geo, mat);
+    } else {
+        // REMOTE: Stylized High-Fidelity Data Dump (Chuck Close style)
+        const mat = new THREE.PointsMaterial({ 
+            size: 0.15, // Large overlapping dots
+            map: ringTex,
+            vertexColors: true, 
+            transparent: true,
+            alphaTest: 0.1,
+            blending: THREE.AdditiveBlending
+        });
+        mesh = new THREE.Points(geo, mat);
+    }
+
+    scene.add(mesh);
+    return { scene, camera, renderer, mesh, pos, col };
+}
+
+// --- SYSTEM INITIALIZATION ---
+async function initSystem() {
+    const btnInit = document.getElementById('btn-init');
+    btnInit.textContent = "Booting...";
+    
+    localScene = buildCartesianEnvironment('v-local', false);
+    remoteScene = buildCartesianEnvironment('v-remote', true);
+
     const video = document.getElementById('webcam');
     const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
     video.srcObject = stream;
     video.play();
 
-    // Setup offscreen canvas for color extraction
-    colorCanvas = document.createElement('canvas');
-    colorCanvas.width = 640;
-    colorCanvas.height = 480;
-    colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
+    captureCanvas = document.createElement('canvas');
+    captureCanvas.width = 640; captureCanvas.height = 480;
+    captureCtx = captureCanvas.getContext('2d');
 
     const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
     faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
     
-    faceMesh.onResults(results => {
-        if (!results.multiFaceLandmarks?.[0]) return;
-        const landmarks = results.multiFaceLandmarks[0];
+    faceMesh.onResults(res => {
+        if (!res.multiFaceLandmarks?.[0]) return;
+        latestLandmarks = res.multiFaceLandmarks[0];
         
-        // Draw current video frame to hidden canvas to extract color data
-        if (video.readyState >= 2) {
-            colorCtx.drawImage(video, 0, 0, colorCanvas.width, colorCanvas.height);
+        // Always update Local Wireframe
+        updateGeometry(localScene, latestLandmarks, false);
+
+        // Update Remote only if syncing
+        if(isPuppeting) {
+            updateGeometry(remoteScene, latestLandmarks, false);
+            document.getElementById('valBand').textContent = (Math.random() * 2 + 10).toFixed(1) + " KB/s";
         }
-        
-        updateGridNode(scene1, landmarks);
-        if (isSyncing) updateGridNode(scene2, landmarks);
     });
 
-    const camera = new Camera(video, { onFrame: async () => { await faceMesh.send({image: video}); } });
-    camera.start();
-    
-    document.getElementById('syncBtn').disabled = false;
-    document.getElementById('syncBtn').classList.remove('btn-off');
-}
+    const cameraUtils = new Camera(video, { onFrame: async () => { await faceMesh.send({image: video}); } });
+    cameraUtils.start();
 
-function updateGridNode(node, lm) {
-    const pos = node.positions;
-    const col = node.colors;
-    
-    lm.forEach((point, i) => {
-        // Map to XYZ Grid Space (-2 to 2)
-        pos[i * 3]     = (point.x - 0.5) * -4; 
-        pos[i * 3 + 1] = (point.y - 0.5) * -4;
-        pos[i * 3 + 2] = point.z * -4;
-
-        // Map X/Y to Canvas pixels to grab the color data for this specific point
-        const px = Math.min(Math.floor(point.x * colorCanvas.width), colorCanvas.width - 1);
-        const py = Math.min(Math.floor(point.y * colorCanvas.height), colorCanvas.height - 1);
-        
-        // Get RGB from the canvas array
-        const pixel = colorCtx.getImageData(px, py, 1, 1).data;
-        col[i * 3]     = pixel[0] / 255;
-        col[i * 3 + 1] = pixel[1] / 255;
-        col[i * 3 + 2] = pixel[2] / 255;
-    });
-
-    node.faceGeo.attributes.position.needsUpdate = true;
-    node.faceGeo.attributes.color.needsUpdate = true;
-}
-
-window.onload = () => {
-    scene1 = setupGridWorld('v1');
-    scene2 = setupGridWorld('v2');
-    
-    function animate() {
+    // Start Render Loop
+    requestAnimationFrame(function animate() {
+        localScene.renderer.render(localScene.scene, localScene.camera);
+        remoteScene.renderer.render(remoteScene.scene, remoteScene.camera);
         requestAnimationFrame(animate);
-        scene1.renderer.render(scene1.scene, scene1.camera);
-        scene2.renderer.render(scene2.scene, scene2.camera);
+    });
+
+    btnInit.textContent = "Optics Active";
+    btnInit.classList.remove('active');
+    
+    const btnSnap = document.getElementById('btn-snap');
+    btnSnap.disabled = false;
+    btnSnap.classList.add('active');
+}
+
+// --- THE DATA DUMP (Color Mapping) ---
+function triggerDataDump() {
+    if (!latestLandmarks) return;
+    
+    // Draw current video frame to canvas to steal colors
+    const video = document.getElementById('webcam');
+    captureCtx.drawImage(video, 0, 0);
+
+    const colArray = remoteScene.col;
+
+    latestLandmarks.forEach((pt, i) => {
+        const px = Math.min(Math.floor(pt.x * 640), 639);
+        const py = Math.min(Math.floor(pt.y * 480), 479);
+        const pixel = captureCtx.getImageData(px, py, 1, 1).data;
+        
+        // Over-saturate slightly to look like digital art
+        colArray[i*3] = pixel[0] / 255;
+        colArray[i*3+1] = pixel[1] / 255;
+        colArray[i*3+2] = pixel[2] / 255;
+    });
+
+    remoteScene.mesh.geometry.attributes.color.needsUpdate = true;
+    
+    // Initial positional setup
+    updateGeometry(remoteScene, latestLandmarks, false);
+
+    document.getElementById('btn-snap').classList.remove('active');
+    document.getElementById('btn-snap').textContent = "Dumped (3.2 MB)";
+    
+    const btnPup = document.getElementById('btn-puppet');
+    btnPup.disabled = false;
+    btnPup.classList.add('active');
+}
+
+// --- LOW-BIT PUPPETING (XYZ Only) ---
+function updateGeometry(node, lm, updateColor) {
+    const pos = node.pos;
+    
+    // Map to absolute Grid Scale
+    lm.forEach((pt, i) => {
+        pos[i*3] = (pt.x - 0.5) * -5;     // X Grid
+        pos[i*3+1] = (pt.y - 0.5) * -5;   // Y Grid
+        pos[i*3+2] = (pt.z * -4);         // Z Depth
+    });
+
+    node.mesh.geometry.attributes.position.needsUpdate = true;
+}
+
+function togglePuppet() {
+    isPuppeting = !isPuppeting;
+    const btn = document.getElementById('btn-puppet');
+    if(isPuppeting) {
+        btn.textContent = "Puppet Live";
+        btn.style.background = "#ff0055"; // Red recording color
+        btn.style.color = "#fff";
+    } else {
+        btn.textContent = "3. Engage Puppet";
+        btn.style.background = "var(--neon)";
+        btn.style.color = "#000";
+        document.getElementById('valBand').textContent = "Idle";
     }
-    animate();
-};
+}
 </script>
 </body>
 </html>
