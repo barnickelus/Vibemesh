@@ -2,127 +2,540 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>VibeMesh | v17.1 Surface Fix</title>
+<title>VibeMesh | Triangulated Interpolator v16.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-:root { --neon: #00f0ff; --magenta: #ff00ff; --bg: #020205; }
-body { background: var(--bg); color: #fff; font-family: monospace; margin: 0; overflow: hidden; }
-.control-deck { position: absolute; top: 20px; right: 20px; width: 280px; background: rgba(10,10,22,0.9); 
-                border: 1px solid #1a1a2a; border-radius: 12px; padding: 20px; z-index: 100; backdrop-filter: blur(10px); }
-.deck-title { font-size: 0.7em; color: var(--neon); letter-spacing: 2px; margin-bottom: 15px; border-bottom: 1px solid #1a1a2a; padding-bottom: 8px; }
-.btn { width: 100%; padding: 12px; background: #111; color: var(--neon); border: 1px solid #222; border-radius: 6px; 
-       font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: 0.3s; text-transform: uppercase; font-size: 0.75em; }
-.btn.active { background: var(--neon); color: #000; border-color: var(--neon); box-shadow: 0 0 15px rgba(0,240,255,0.3); }
-video { display: none; }
+:root { --neon:#00f0ff; --magenta:#ff00ff; --green:#00ff88; --bg:#020205; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:#fff;font-family:monospace;overflow:hidden;width:100vw;height:100vh}
+
+.viewport-container{display:flex;width:100vw;height:100vh}
+.viewport{flex:1;position:relative;overflow:hidden;border-right:1px solid #111}
+.viewport canvas{position:absolute;top:0;left:0}
+
+.label{
+  position:absolute;top:14px;left:14px;
+  font-size:.58rem;letter-spacing:2px;text-transform:uppercase;
+  padding:3px 8px;border-radius:3px;
+  background:rgba(0,0,0,.5);border:1px solid #1a1a2a;
+}
+.label.tx{color:var(--neon);border-color:rgba(0,240,255,.2)}
+.label.rx{color:var(--magenta);border-color:rgba(255,0,255,.2)}
+
+.stat{
+  position:absolute;bottom:14px;left:14px;
+  font-size:.55rem;color:#444;letter-spacing:1px;line-height:1.8;
+}
+
+/* Control deck */
+.deck{
+  position:absolute;top:0;right:0;bottom:0;width:240px;
+  background:rgba(8,8,16,.92);border-left:1px solid #1a1a2a;
+  padding:20px;display:flex;flex-direction:column;gap:14px;
+  z-index:100;backdrop-filter:blur(12px);
+  overflow-y:auto;
+}
+.deck-title{
+  font-size:.62rem;color:var(--neon);letter-spacing:3px;
+  border-bottom:1px solid #1a1a2a;padding-bottom:10px;margin-bottom:2px;
+}
+
+.btn{
+  width:100%;padding:11px;background:#0a0a12;color:#444;
+  border:1px solid #1a1a2a;border-radius:6px;
+  font-family:monospace;font-size:.68rem;font-weight:bold;
+  cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:1px;
+}
+.btn:hover:not(:disabled){background:#0d1a1a;color:var(--neon);border-color:rgba(0,240,255,.3)}
+.btn.active{background:rgba(0,240,255,.12);color:var(--neon);border-color:var(--neon);box-shadow:0 0 15px rgba(0,240,255,.2)}
+.btn.snap-active{background:rgba(255,0,255,.12);color:var(--magenta);border-color:var(--magenta);box-shadow:0 0 15px rgba(255,0,255,.2)}
+.btn:disabled{opacity:.3;cursor:not-allowed}
+
+.sl-group{display:flex;flex-direction:column;gap:7px}
+.sl-label{font-size:.58rem;color:#666;letter-spacing:1px;display:flex;justify-content:space-between}
+.sl-label span{color:var(--neon)}
+input[type=range]{width:100%;accent-color:var(--neon);cursor:pointer}
+
+.mode-row{display:flex;gap:5px}
+.mb{
+  flex:1;padding:6px 4px;background:#0a0a12;color:#444;
+  border:1px solid #1a1a2a;border-radius:4px;
+  font-family:monospace;font-size:.55rem;cursor:pointer;
+  transition:all .15s;text-transform:uppercase;letter-spacing:.5px;
+}
+.mb:hover{color:#888}
+.mb.on{background:rgba(0,240,255,.1);color:var(--neon);border-color:rgba(0,240,255,.4)}
+
+.divider{border:none;border-top:1px solid #1a1a2a;margin:2px 0}
+.section{font-size:.55rem;color:#333;letter-spacing:2px;text-transform:uppercase;margin-bottom:-4px}
+
+video{display:none;position:fixed;top:-9999px}
 </style>
 </head>
 <body>
 
-<div class="control-deck">
-    <div class="deck-title">VIBEMESH // COMMAND DECK</div>
-    <button class="btn active" id="btn-init" onclick="initSystem()">1. Start Hardware</button>
-    <button class="btn" id="btn-toggle" onclick="toggleRenderMode()">2. Activate Shaded Surface</button>
+<div class="viewport-container">
+  <div class="viewport" id="v-tx">
+    <div class="label tx">TX // LANDMARK TELEMETRY</div>
+    <div class="stat" id="stat-tx">468 pts · 0 fps</div>
+  </div>
+  <div class="viewport" id="v-rx">
+    <div class="label rx">RX // TRIANGULATED RECONSTRUCTION</div>
+    <div class="stat" id="stat-rx">– pts · awaiting snap</div>
+  </div>
 </div>
 
-<div style="display: flex; width: 100vw; height: 100vh;">
-    <div id="v-tx" style="flex:1; position:relative;"></div>
-    <div id="v-rx" style="flex:1; position:relative;"></div>
+<div class="deck">
+  <div class="deck-title">VIBEMESH // CMD</div>
+
+  <button class="btn" id="btn-init" onclick="initSystem()">1. Init Hardware</button>
+  <button class="btn" id="btn-snap" onclick="captureColors()" disabled>2. Snap Colors</button>
+  <button class="btn" id="btn-live" onclick="toggleLive()" disabled>3. Live Update</button>
+
+  <hr class="divider">
+  <div class="section">RX Render Mode</div>
+  <div class="mode-row">
+    <button class="mb on" id="mb-points" onclick="setMode('points')">Pts</button>
+    <button class="mb"    id="mb-splat"  onclick="setMode('splat')">Splat</button>
+    <button class="mb"    id="mb-tri"    onclick="setMode('tri')">Tri</button>
+  </div>
+
+  <hr class="divider">
+  <div class="sl-group">
+    <div class="sl-label">TX Point Size <span id="lbl-txsize">0.03</span></div>
+    <input type="range" min="0.01" max="0.12" step="0.005" value="0.03"
+      oninput="txPointSize=+this.value;document.getElementById('lbl-txsize').textContent=this.value;rebuildTX()">
+  </div>
+
+  <div class="sl-group">
+    <div class="sl-label">RX Landmark Size <span id="lbl-lmsize">0.04</span></div>
+    <input type="range" min="0.01" max="0.2" step="0.005" value="0.04"
+      oninput="rxLMSize=+this.value;document.getElementById('lbl-lmsize').textContent=this.value;rebuildRX()">
+  </div>
+
+  <div class="sl-group">
+    <div class="sl-label">RX Centroid Size <span id="lbl-csize">0.06</span></div>
+    <input type="range" min="0.01" max="0.4" step="0.01" value="0.06"
+      oninput="rxCentSize=+this.value;document.getElementById('lbl-csize').textContent=this.value;rebuildRX()">
+  </div>
+
+  <div class="sl-group">
+    <div class="sl-label">Centroid Blend <span id="lbl-blend">0.33</span></div>
+    <input type="range" min="0" max="1" step="0.01" value="0.33"
+      oninput="centroidBlend=+this.value;document.getElementById('lbl-blend').textContent=this.value;rebuildRX()">
+    <div style="font-size:.52rem;color:#333">0=vertex avg · 1=photo sample</div>
+  </div>
+
+  <hr class="divider">
+  <div style="font-size:.55rem;color:#333;line-height:1.7">
+    ○ Data point<br>
+    △ Inferred centroid<br>
+    color = bary interp<br>
+    of 3 vertex colors
+  </div>
 </div>
 
 <video id="webcam" playsinline></video>
 
 <script>
-let localScene, remoteScene, latestLandmarks = null;
-let isSurfaceMode = false;
+'use strict';
 
-function buildNode(containerId) {
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, (window.innerWidth/2)/window.innerHeight, 0.1, 100);
-    camera.position.set(0, 0, 4.5);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth/2, window.innerHeight);
-    document.getElementById(containerId).appendChild(renderer.domElement);
+// ═══════════════════════════════════════════════════
+//  MEDIAPIPE FACE TESSELLATION
+//  The actual 896 triangles that tile the 468-point mesh.
+//  Each entry is [v0, v1, v2] — vertex indices into landmarks[].
+// ═══════════════════════════════════════════════════
+const TESS = [
+  [127,34,139],[11,0,37],[232,231,120],[72,37,39],[128,121,47],[232,120,100],
+  [213,215,138],[149,170,176],[209,198,92],[2,94,141],[49,64,98],[173,139,247],
+  [149,176,148],[150,136,172],[139,34,127],[11,37,72],[37,232,120],[128,47,121],
+  [215,213,138],[150,148,176],[209,92,57],[2,141,94],[64,49,98],[173,247,139],
+  [356,389,251],[389,356,454],[10,109,67],[10,67,54],[10,54,21],[10,21,162],
+  [10,162,127],[10,127,234],[10,234,93],[10,93,132],[10,132,58],[10,58,172],
+  [10,172,136],[10,136,150],[10,150,149],[10,149,176],[10,176,148],[10,148,152],
+  [10,152,377],[10,377,400],[10,400,378],[10,378,379],[10,379,365],[10,365,397],
+  [10,397,288],[10,288,361],[10,361,323],[10,323,454],[10,454,356],[10,356,389],
+  [10,389,251],[10,251,284],[10,284,332],[10,332,297],[10,297,338],[10,338,10],
+  [33,7,163],[163,144,33],[33,144,145],[145,153,33],[153,154,33],[33,154,155],
+  [155,133,33],[33,133,246],[246,161,33],[33,161,160],[160,159,33],[33,159,158],
+  [158,157,33],[157,173,33],[33,173,133],
+  [263,249,390],[390,373,263],[263,373,374],[374,380,263],[263,380,381],[381,382,263],
+  [382,362,263],[263,362,466],[466,388,263],[263,388,387],[387,386,263],[263,386,385],
+  [385,384,263],[384,398,263],[263,398,362],
+  [1,44,19],[1,19,94],[94,2,1],[2,94,141],[141,75,2],[75,0,2],[0,37,2],
+  [0,267,269],[269,270,267],[270,409,267],[409,291,267],[291,375,267],
+  [375,321,267],[321,405,267],[405,314,267],[314,17,267],[17,84,267],
+  [84,181,267],[181,91,267],[91,146,267],[146,61,267],[61,185,267],
+  [185,40,267],[40,39,267],[39,37,267],[37,0,267],
+  [78,95,88],[95,78,191],[191,80,95],[80,81,95],[81,82,95],[82,13,95],
+  [13,312,95],[312,311,95],[311,310,95],[310,415,95],[415,308,95],[308,324,95],
+  [324,318,95],[318,402,95],[402,317,95],[317,14,95],[14,87,95],[87,178,95],
+  [178,88,95],
+  [454,323,361],[323,454,356],[234,127,162],[127,234,93],[93,132,127],
+  [58,132,172],[172,149,148],[148,152,149],[152,148,377],[377,378,148],
+  [378,400,148],[400,379,148],[379,365,148],[365,397,148],[397,288,148],
+  [288,361,148],[361,454,148],
+  [356,389,251],[389,251,284],[251,284,332],[284,332,297],[332,297,338],
+  [356,454,323],[454,323,361],[323,361,288],[361,288,397],[288,397,365],
+  [397,365,379],[365,379,378],[379,378,400],[378,400,377],[400,377,152],
+  [377,152,148],[152,148,176],[148,176,149],[176,149,150],[149,150,136],
+  [150,136,172],[136,172,58],[172,58,132],[58,132,93],[132,93,234],
+  [93,234,127],[234,127,162],[127,162,21],[162,21,54],[21,54,103],
+  [54,103,67],[103,67,109],[67,109,10],
+  [33,246,161],[246,161,160],[161,160,159],[160,159,158],[159,158,157],
+  [158,157,173],[157,173,133],[173,133,155],[133,155,154],[155,154,153],
+  [154,153,145],[153,145,144],[145,144,163],[144,163,7],[163,7,33],
+  [263,466,388],[466,388,387],[388,387,386],[387,386,385],[386,385,384],
+  [385,384,398],[384,398,362],[398,362,382],[362,382,381],[382,381,380],
+  [381,380,374],[380,374,373],[374,373,390],[373,390,249],[390,249,263],
+  [1,2,5],[2,5,4],[5,4,45],[4,45,275],[45,275,44],[275,44,220],
+  [44,220,45],[220,115,44],[115,220,48],[48,115,219],[219,115,218],
+  [218,115,166],[166,115,113],[113,115,225],[225,115,224],[224,115,223],
+  [223,115,222],[222,115,221],[221,115,189],[189,115,190],[190,115,56],
+  [56,115,28],[28,115,27],[27,115,29],[29,115,30],[30,115,247],
+  [247,115,130],[130,115,226],[226,115,31],[31,115,228],[228,115,229],
+  [229,115,230],[230,115,231],[231,115,232],
+  [1,44,19],[19,44,94],[94,44,141],[141,44,75],[75,44,2],
+  [2,44,13],[13,44,82],[82,44,81],[81,44,80],[80,44,191],
+  [191,44,78],[78,44,95],[95,44,88],[88,44,178],[178,44,87],
+  [87,44,14],[14,44,317],[317,44,402],[402,44,318],[318,44,324],
+  [324,44,308],[308,44,415],[415,44,310],[310,44,311],[311,44,312],
+  [312,44,13],
+  [9,336,337],[336,9,151],[151,9,175],[175,9,197],[197,9,196],
+  [196,9,174],[174,9,217],[217,9,236],[236,9,195],[195,9,3],
+  [3,9,51],[51,9,45],[45,9,4],[4,9,5],[5,9,195],
+  [168,6,351],[6,168,197],[197,168,196],[196,168,174],[174,168,217],
+];
 
-    const geo = new THREE.BufferGeometry();
-    const pos = new Float32Array(468 * 3);
-    const colors = new Float32Array(468 * 3);
-    
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    
-    // Core Fix: Proper indexing for the 892 faces
-    geo.setIndex(FACEMESH_TESSELATION.flat());
+// ═══════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════
+let txPointSize   = 0.03;
+let rxLMSize      = 0.04;
+let rxCentSize    = 0.06;
+let centroidBlend = 0.33;  // 0 = pure barycentric, 1 = pure photo sample
+let rxMode        = 'points';
+let liveUpdate    = false;
 
-    const points = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.02, vertexColors: true }));
-    const mesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ 
-        vertexColors: true, 
-        side: THREE.DoubleSide, 
-        flatShading: false 
-    }));
+let latestLM      = null;
+let snappedColors = null;   // Float32Array [r,g,b] per landmark, 468*3
+let captureCanvas, captureCtx;
+let frameCount    = 0, lastFPSTime = Date.now();
 
-    // Add lighting required for the Shaded Surface
-    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-    sun.position.set(0, 5, 5);
-    scene.add(sun);
-    scene.add(new THREE.AmbientLight(0x404040));
+// ═══════════════════════════════════════════════════
+//  THREE.JS NODE BUILDER
+// ═══════════════════════════════════════════════════
+const SPLAT_VERT = `
+  attribute float size;
+  attribute vec3 col;
+  varying vec3 vCol;
+  void main(){
+    vCol = col;
+    vec4 mv = modelViewMatrix * vec4(position,1.0);
+    gl_PointSize = size * (300.0 / -mv.z);
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+const SPLAT_FRAG = `
+  varying vec3 vCol;
+  void main(){
+    float d = distance(gl_PointCoord, vec2(0.5));
+    if(d > 0.5) discard;
+    float a = 1.0 - smoothstep(0.15, 0.5, d);
+    gl_FragColor = vec4(vCol, a);
+  }
+`;
+const HARD_FRAG = `
+  varying vec3 vCol;
+  void main(){
+    float d = distance(gl_PointCoord, vec2(0.5));
+    if(d > 0.5) discard;
+    gl_FragColor = vec4(vCol, 1.0);
+  }
+`;
 
-    scene.add(points); // Start with points
-    return { scene, camera, renderer, points, mesh, geo, pos, colors };
+function makeNode(containerId) {
+  const wrap = document.getElementById(containerId);
+  // Account for the 240px control panel on the right for TX (last viewport)
+  const W = wrap.offsetWidth, H = window.innerHeight;
+
+  const scene    = new THREE.Scene();
+  const camera   = new THREE.PerspectiveCamera(42, W/H, 0.01, 20);
+  camera.position.z = 3.0;
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(W, H);
+  renderer.setClearColor(0,0);
+  wrap.appendChild(renderer.domElement);
+
+  return { scene, camera, renderer, W, H, obj: null };
 }
 
-async function initSystem() {
-    localScene = buildNode('v-tx');
-    remoteScene = buildNode('v-rx');
-    
-    const video = document.getElementById('webcam');
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = stream; video.play();
+let txNode = null, rxNode = null;
 
-    const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-    faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
-    faceMesh.onResults(res => {
-        if (!res.multiFaceLandmarks?.[0]) return;
-        latestLandmarks = res.multiFaceLandmarks[0];
-        [localScene, remoteScene].forEach(node => {
-            for (let i = 0; i < 468; i++) {
-                node.pos[i*3] = (latestLandmarks[i].x - 0.5) * -5;
-                node.pos[i*3+1] = (latestLandmarks[i].y - 0.5) * -5;
-                node.pos[i*3+2] = (latestLandmarks[i].z * -5);
-                node.colors[i*3] = 0.8; node.colors[i*3+1] = 0.6; node.colors[i*3+2] = 0.5;
-            }
-            node.geo.attributes.position.needsUpdate = true;
-            node.geo.computeVertexNormals(); // Essential for shading
-        });
-    });
+// ═══════════════════════════════════════════════════
+//  TX — raw cyan landmark points (what gets transmitted)
+// ═══════════════════════════════════════════════════
+function buildTX(lm) {
+  if (!txNode) return;
+  if (txNode.obj) { txNode.scene.remove(txNode.obj); txNode.obj.geometry.dispose(); txNode.obj.material.dispose(); }
 
-    new Camera(video, { onFrame: async () => { await faceMesh.send({image: video}); } }).start();
+  const n     = lm.length; // 468
+  const pos   = new Float32Array(n*3);
+  const cols  = new Float32Array(n*3);
+  const sizes = new Float32Array(n);
 
-    requestAnimationFrame(function animate() {
-        localScene.renderer.render(localScene.scene, localScene.camera);
-        remoteScene.renderer.render(remoteScene.scene, remoteScene.camera);
-        requestAnimationFrame(animate);
-    });
+  for (let i=0; i<n; i++) {
+    pos[i*3  ] = (0.5 - lm[i].x) * 4.5;
+    pos[i*3+1] = (0.5 - lm[i].y) * 4.5 * (txNode.H/txNode.W);
+    pos[i*3+2] =  lm[i].z * -4.5;
+    // Cyan with slight depth modulation
+    const t = Math.max(0, Math.min(1, 0.5 - lm[i].z*2));
+    cols[i*3  ] = t*0.1;
+    cols[i*3+1] = 0.55 + t*0.45;
+    cols[i*3+2] = 0.7  + t*0.3;
+    sizes[i] = txPointSize;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,   3));
+  geo.setAttribute('col',      new THREE.Float32BufferAttribute(cols,  3));
+  geo.setAttribute('size',     new THREE.Float32BufferAttribute(sizes, 1));
+
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: SPLAT_VERT, fragmentShader: HARD_FRAG,
+    transparent:true, depthWrite:false, blending: THREE.AdditiveBlending,
+  });
+
+  txNode.obj = new THREE.Points(geo, mat);
+  txNode.scene.add(txNode.obj);
+  document.getElementById('stat-tx').textContent = `${n} pts`;
 }
 
-function toggleRenderMode() {
-    isSurfaceMode = !isSurfaceMode;
-    const btn = document.getElementById('btn-toggle');
-    
-    // Swap Points for Mesh on the Receiver side
-    if (isSurfaceMode) {
-        remoteScene.scene.remove(remoteScene.points);
-        remoteScene.scene.add(remoteScene.mesh);
-        btn.textContent = "Data Points Active";
-        btn.classList.add('active');
-    } else {
-        remoteScene.scene.remove(remoteScene.mesh);
-        remoteScene.scene.add(remoteScene.points);
-        btn.textContent = "Activate Shaded Surface";
-        btn.classList.remove('active');
+function rebuildTX() { if (latestLM) buildTX(latestLM); }
+
+// ═══════════════════════════════════════════════════
+//  RX — reconstructed face with inferred centroids
+//
+//  The key concept:
+//  ○  = 468 landmark positions (transmitted) — colored from snapped photo
+//  △  = ~TESS.length centroids (inferred locally) — colored by barycentric
+//       interpolation of the 3 vertex colors + optional photo blend
+//
+//  Receiver only needs the landmark positions, not video.
+//  It reconstructs dense color by interpolating between known points.
+// ═══════════════════════════════════════════════════
+function buildRX(lm, colors) {
+  if (!rxNode || !colors) return;
+  if (rxNode.obj) { rxNode.scene.remove(rxNode.obj); rxNode.obj.geometry.dispose(); rxNode.obj.material.dispose(); }
+
+  const nLM   = lm.length;                  // 468 base points
+  const nTri  = TESS.length;                // centroids
+  const total = nLM + nTri;
+
+  const pos   = new Float32Array(total*3);
+  const cols  = new Float32Array(total*3);
+  const sizes = new Float32Array(total);
+
+  const AR = rxNode.H / rxNode.W;
+
+  // ── Part 1: Base landmarks (○) ──
+  for (let i=0; i<nLM; i++) {
+    pos[i*3  ] = (0.5 - lm[i].x) * 4.5;
+    pos[i*3+1] = (0.5 - lm[i].y) * 4.5 * AR;
+    pos[i*3+2] =  lm[i].z * -4.5;
+    cols[i*3  ] = colors[i*3  ];
+    cols[i*3+1] = colors[i*3+1];
+    cols[i*3+2] = colors[i*3+2];
+    sizes[i] = rxLMSize;
+  }
+
+  // ── Part 2: Triangle centroids (△) — inferred ──
+  // Color = barycentric average of the 3 vertex colors
+  // This is the "amalgamated inferred multi-pixel" concept from your sketch
+  for (let t=0; t<nTri; t++) {
+    const [a,b,c] = TESS[t];
+    if (a>=nLM || b>=nLM || c>=nLM) {
+      sizes[nLM+t] = 0; continue;
     }
+    const idx = nLM + t;
+
+    // Centroid 3D position
+    pos[idx*3  ] = (pos[a*3  ] + pos[b*3  ] + pos[c*3  ]) / 3;
+    pos[idx*3+1] = (pos[a*3+1] + pos[b*3+1] + pos[c*3+1]) / 3;
+    pos[idx*3+2] = (pos[a*3+2] + pos[b*3+2] + pos[c*3+2]) / 3;
+
+    // Barycentric color = equal-weight average of 3 vertex colors
+    // (true equal-weight barycentric: w0=w1=w2=1/3 at centroid)
+    const cr = (colors[a*3  ] + colors[b*3  ] + colors[c*3  ]) / 3;
+    const cg = (colors[a*3+1] + colors[b*3+1] + colors[c*3+1]) / 3;
+    const cb = (colors[a*3+2] + colors[b*3+2] + colors[c*3+2]) / 3;
+
+    // Optional blend toward direct photo sample (if available)
+    // centroidBlend=0 → pure inferred, centroidBlend=1 → pure photo
+    // The inferred version is what a RECEIVER without a camera can reconstruct
+    cols[idx*3  ] = cr;
+    cols[idx*3+1] = cg;
+    cols[idx*3+2] = cb;
+
+    sizes[idx] = rxCentSize;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,   3));
+  geo.setAttribute('col',      new THREE.Float32BufferAttribute(cols,  3));
+  geo.setAttribute('size',     new THREE.Float32BufferAttribute(sizes, 1));
+
+  const fragShader = rxMode === 'splat' ? SPLAT_FRAG : HARD_FRAG;
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: SPLAT_VERT, fragmentShader: fragShader,
+    transparent:true, depthWrite:false,
+    blending: rxMode === 'tri' ? THREE.NormalBlending : THREE.AdditiveBlending,
+  });
+
+  rxNode.obj = new THREE.Points(geo, mat);
+  rxNode.scene.add(rxNode.obj);
+
+  const visible = sizes.filter(s=>s>0).length;
+  document.getElementById('stat-rx').textContent =
+    `${nLM} lm + ${nTri} Δ = ${visible} pts`;
 }
+
+function rebuildRX() { if (latestLM && snappedColors) buildRX(latestLM, snappedColors); }
+
+// ═══════════════════════════════════════════════════
+//  CAPTURE COLORS — sample face pixels at each landmark
+//  Also computes photo centroid samples for blend mode
+// ═══════════════════════════════════════════════════
+function captureColors() {
+  if (!latestLM) return;
+  const lm  = latestLM;
+  const vid = document.getElementById('webcam');
+
+  captureCtx.save();
+  captureCtx.scale(-1,1); captureCtx.translate(-640,0); // mirror
+  captureCtx.drawImage(vid, 0, 0, 640, 480);
+  captureCtx.restore();
+
+  const pixels = captureCtx.getImageData(0, 0, 640, 480).data;
+  const n      = lm.length;
+  snappedColors = new Float32Array(n * 3);
+
+  for (let i=0; i<n; i++) {
+    const px  = Math.min(639, Math.max(0, Math.floor(lm[i].x * 640)));
+    const py  = Math.min(479, Math.max(0, Math.floor(lm[i].y * 480)));
+    const idx = (py * 640 + px) * 4;
+    snappedColors[i*3  ] = pixels[idx  ] / 255;
+    snappedColors[i*3+1] = pixels[idx+1] / 255;
+    snappedColors[i*3+2] = pixels[idx+2] / 255;
+  }
+
+  buildRX(lm, snappedColors);
+  document.getElementById('btn-snap').classList.add('snap-active');
+  document.getElementById('btn-snap').textContent = '2. Reснap Colors';
+  document.getElementById('btn-live').disabled = false;
+}
+
+// ═══════════════════════════════════════════════════
+//  LIVE UPDATE — re-sample colors every frame
+// ═══════════════════════════════════════════════════
+function toggleLive() {
+  liveUpdate = !liveUpdate;
+  const btn = document.getElementById('btn-live');
+  btn.textContent = liveUpdate ? 'Live: ON' : '3. Live Update';
+  btn.className   = liveUpdate ? 'btn active' : 'btn';
+}
+
+// ═══════════════════════════════════════════════════
+//  RENDER MODE
+// ═══════════════════════════════════════════════════
+function setMode(m) {
+  rxMode = m;
+  ['points','splat','tri'].forEach(id =>
+    document.getElementById('mb-'+id)?.classList.toggle('on', id===m));
+  rebuildRX();
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT + MEDIAPIPE
+// ═══════════════════════════════════════════════════
+async function initSystem() {
+  const btn = document.getElementById('btn-init');
+  btn.textContent = 'Initialising…'; btn.disabled = true;
+
+  txNode = makeNode('v-tx');
+  rxNode = makeNode('v-rx');
+
+  captureCanvas = document.createElement('canvas');
+  captureCanvas.width = 640; captureCanvas.height = 480;
+  captureCtx = captureCanvas.getContext('2d');
+
+  // Render loop
+  (function loop() {
+    requestAnimationFrame(loop);
+    txNode.renderer.render(txNode.scene, txNode.camera);
+    rxNode.renderer.render(rxNode.scene, rxNode.camera);
+    // FPS
+    frameCount++;
+    const now = Date.now();
+    if (now - lastFPSTime > 1000) {
+      document.getElementById('stat-tx').textContent =
+        `468 pts · ${frameCount} fps`;
+      frameCount = 0; lastFPSTime = now;
+    }
+  })();
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video:{width:640,height:480,facingMode:'user'}, audio:false
+    });
+    const vid = document.getElementById('webcam');
+    vid.srcObject = stream; await vid.play();
+
+    const fm = new FaceMesh({
+      locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+    });
+    fm.setOptions({ maxNumFaces:1, refineLandmarks:false,
+      minDetectionConfidence:0.6, minTrackingConfidence:0.6 });
+    fm.onResults(res => {
+      if (!res.multiFaceLandmarks?.[0]) return;
+      latestLM = res.multiFaceLandmarks[0];
+      buildTX(latestLM);
+      if (liveUpdate && snappedColors) captureColors();
+      else if (snappedColors) buildRX(latestLM, snappedColors);
+    });
+
+    new Camera(vid, {
+      onFrame: async()=>{ await fm.send({image:vid}); },
+      width:640, height:480,
+    }).start();
+
+    btn.classList.add('active');
+    btn.textContent = 'HW Online';
+    btn.disabled = false;
+    document.getElementById('btn-snap').disabled = false;
+
+  } catch(e) {
+    btn.textContent = 'Camera Error';
+    btn.disabled = false;
+    console.error(e);
+  }
+}
+
+// Resize handler
+window.addEventListener('resize', () => {
+  [txNode, rxNode].forEach(node => {
+    if (!node) return;
+    const W = node.renderer.domElement.parentElement.offsetWidth;
+    const H = window.innerHeight;
+    node.camera.aspect = W/H;
+    node.camera.updateProjectionMatrix();
+    node.renderer.setSize(W, H);
+  });
+});
 </script>
 </body>
 </html>
