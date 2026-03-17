@@ -2,14 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>VibeMesh | Topology Wrap v13.0</title>
+<title>VibeMesh | Full Spectrum v14.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-:root { --neon: #00f0ff; --magenta: #ff00ff; --bg: #020205; }
+:root { --neon: #00f0ff; --magenta: #ff00ff; --gold: #ffd700; --bg: #020205; }
 body{background:var(--bg);color:#fff;font-family:monospace;margin:0;overflow:hidden}
 .app-container { display: flex; flex-direction: column; height: 100vh; }
+.market-ticker { background: #000; border-bottom: 1px solid #1a1a2a; padding: 10px; font-size: 0.85em; display: flex; justify-content: space-around; color: var(--gold); letter-spacing: 1px; }
 .stage{display:flex;justify-content:center;gap:15px;padding:20px;flex-grow: 1;}
 .viewport{position:relative;width:480px;height:550px;background:#000;border:1px solid #1a1a2a;border-radius:12px;overflow:hidden;}
 .tag{position:absolute;top:15px;left:15px;font-size:0.7em;color:var(--neon);letter-spacing:2px;z-index:10;background:rgba(0,0,0,0.8);padding:4px 8px;}
@@ -21,14 +22,19 @@ video { display: none; }
 </head>
 <body>
 <div class="app-container">
+  <div class="market-ticker">
+    <span>AG/USD: $124.52 <span style="color:#00ff00">▲ 2.4%</span></span>
+    <span>DXY: 101.18 <span style="color:#ff0000">▼ 0.15%</span></span>
+    <span>GSR: 80.24 <span style="color:var(--neon)">PIVOT REACHED</span></span>
+  </div>
   <div class="stage">
-    <div class="viewport" id="v-sender"><div class="tag">TX: LANDMARK TELEMETRY</div></div>
-    <div class="viewport" id="v-receiver"><div class="tag" style="color:var(--magenta)">RX: POLYGON RECONSTRUCTION</div></div>
+    <div class="viewport" id="v-sender"><div class="tag">TX: DATA CAPTURE</div></div>
+    <div class="viewport" id="v-receiver"><div class="tag" style="color:var(--magenta)">RX: FULL SPECTRUM WRAP</div></div>
   </div>
   <div class="network-deck">
-    <button class="btn active" id="btn-init" onclick="initSystem()">1. Initialize</button>
-    <button class="btn" id="btn-snap" onclick="triggerSnapshotWrap()" disabled>2. Wrap Surface</button>
-    <button class="btn" id="btn-puppet" onclick="toggleNetwork()" disabled>3. Live Telemetry</button>
+    <button class="btn active" id="btn-init" onclick="initSystem()">1. Initialize HW</button>
+    <button class="btn" id="btn-snap" onclick="triggerFullWrap()" disabled>2. Project Surface</button>
+    <button class="btn" id="btn-puppet" onclick="toggleNetwork()" disabled>3. Sync Telemetry</button>
   </div>
 </div>
 <video id="webcam" playsinline></video>
@@ -37,14 +43,13 @@ video { display: none; }
 let localScene, remoteScene, isTransmitting = false, latestLandmarks = null;
 let captureCanvas, captureCtx;
 
-// Verified indices for a stable 3D face mask (Forehead, Eyes, Nose, Mouth)
-const FACEMASK_INDICES = [
-    10,338,297, 332,284,251, 10,151,338, 67,109,10, 21,54,103, 103,67,10,
-    33,7,163, 163,7,144, 144,7,145, 145,7,153, 153,7,154, 154,7,155, 155,7,133,
-    263,249,390, 390,249,373, 373,249,374, 374,249,380, 380,249,381, 381,249,382, 382,249,362,
-    168,6,197, 197,6,195, 195,6,5, 5,6,4, 1,2,164, 164,2,5, 5,2,4,
-    61,146,91, 91,181,84, 84,17,314, 314,405,321, 321,375,291, 
-    78,95,88, 88,178,87, 87,14,317, 317,402,318, 318,324,308
+// EXPANDED INDEX MAP: Covers Forehead, Cheeks, Jaw, and Feature Core
+const FULL_WRAP_INDICES = [
+    10,338,297, 332,284,251, 10,151,338, 67,109,10, 21,54,103, 103,67,10, 
+    127,162,21, 21,162,54, 132,93,127, 127,93,234, 58,132,93, 
+    33,7,163, 144,7,145, 153,7,154, 155,7,133, 263,249,390, 373,249,374, 
+    1,2,164, 164,2,5, 5,2,4, 61,146,91, 181,84,17, 314,405,321, 
+    152,377,400, 377,152,148, 148,152,176, 176,152,149, 149,152,150, 150,152,136
 ];
 
 function buildNodeEnv(containerId, isReceiver) {
@@ -60,15 +65,14 @@ function buildNodeEnv(containerId, isReceiver) {
     const uvs = new Float32Array(468 * 2); 
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    geo.setIndex(FACEMASK_INDICES);
+    geo.setIndex(FULL_WRAP_INDICES);
 
     let mesh;
     if (isReceiver) {
-        // High-fidelity mesh material for the "wrapped" look
-        const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0.98 });
+        const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
         mesh = new THREE.Mesh(geo, mat);
     } else {
-        const mat = new THREE.PointsMaterial({ size: 0.02, color: 0x00f0ff });
+        const mat = new THREE.PointsMaterial({ size: 0.015, color: 0x00f0ff });
         mesh = new THREE.Points(geo, mat);
     }
     scene.add(mesh);
@@ -76,7 +80,6 @@ function buildNodeEnv(containerId, isReceiver) {
 }
 
 async function initSystem() {
-    const btn = document.getElementById('btn-init');
     try {
         localScene = buildNodeEnv('v-sender', false);
         remoteScene = buildNodeEnv('v-receiver', true);
@@ -105,13 +108,13 @@ async function initSystem() {
             requestAnimationFrame(animate);
         });
 
-        btn.textContent = "Hardware Live";
+        document.getElementById('btn-init').textContent = "Link Established";
         document.getElementById('btn-snap').disabled = false;
         document.getElementById('btn-snap').classList.add('active');
-    } catch (e) { btn.textContent = "HW Error"; }
+    } catch (e) { console.error(e); }
 }
 
-function triggerSnapshotWrap() {
+function triggerFullWrap() {
     if (!latestLandmarks) return;
     const video = document.getElementById('webcam');
     captureCtx.drawImage(video, 0, 0, 640, 480);
@@ -120,7 +123,6 @@ function triggerSnapshotWrap() {
     remoteScene.mesh.material.map = texture;
     remoteScene.mesh.material.needsUpdate = true;
 
-    // UV mapping: Correctly projecting the snapshot across the mesh
     for (let i = 0; i < 468; i++) {
         const pt = latestLandmarks[i];
         remoteScene.uvs[i*2] = pt.x;
@@ -129,8 +131,7 @@ function triggerSnapshotWrap() {
     remoteScene.geo.attributes.uv.needsUpdate = true;
     updateGeometry(remoteScene, latestLandmarks);
     
-    document.getElementById('btn-snap').textContent = "Surface Wrapped";
-    document.getElementById('btn-snap').classList.remove('active');
+    document.getElementById('btn-snap').textContent = "Surface Mapped";
     document.getElementById('btn-puppet').disabled = false;
     document.getElementById('btn-puppet').classList.add('active');
 }
@@ -146,10 +147,8 @@ function updateGeometry(node, lm) {
 
 function toggleNetwork() {
     isTransmitting = !isTransmitting;
-    document.getElementById('btn-puppet').textContent = isTransmitting ? "Telemetry Synced" : "Engage Sync";
-    document.getElementById('btn-puppet').classList.toggle('active', isTransmitting);
+    document.getElementById('btn-puppet').textContent = isTransmitting ? "Telemetry Live" : "Resume Sync";
 }
 </script>
 </body>
 </html>
--
