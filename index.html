@@ -2,36 +2,33 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>VibeMesh | Texture Projection v11.0</title>
+<title>VibeMesh | Surgical Surface v11.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-:root { --neon: #00f0ff; --alert: #ff0055; --bg: #020205; }
+:root { --neon: #00f0ff; --magenta: #ff00ff; --bg: #020205; }
 body{background:var(--bg);color:#fff;font-family:monospace;margin:0;overflow:hidden}
 .app-container { display: flex; flex-direction: column; height: 100vh; }
 .stage{display:flex;justify-content:center;gap:15px;padding:20px;flex-grow: 1;}
-.viewport{position:relative;width:450px;height:500px;background:#000;border:1px solid #1a1a2a;border-radius:12px;overflow:hidden;}
+.viewport{position:relative;width:480px;height:550px;background:#000;border:1px solid #1a1a2a;border-radius:8px;overflow:hidden;}
 .tag{position:absolute;top:15px;left:15px;font-size:0.7em;color:var(--neon);letter-spacing:2px;z-index:10;background:rgba(0,0,0,0.8);padding:4px 8px;}
-.network-deck{background:#0a0a16;padding:20px 30px;border-top:1px solid #1a1a2a;}
-.controls { display: flex; gap: 10px; margin-top: 10px; }
-.btn { flex: 1; padding: 15px; background: #111; color: #888; border: 1px solid #222; border-radius: 6px; font-weight: bold; cursor: pointer; text-transform: uppercase;}
-.btn.active { background: var(--neon); color: #000; }
+.network-deck{background:#0a0a16;padding:25px;border-top:1px solid #1a1a2a; display: flex; justify-content: center; gap: 15px;}
+.btn { width: 220px; padding: 15px; background: #111; color: #555; border: 1px solid #222; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.3s;}
+.btn.active { background: var(--neon); color: #000; border-color: var(--neon); box-shadow: 0 0 15px rgba(0, 240, 255, 0.3); }
 video { display: none; }
 </style>
 </head>
 <body>
 <div class="app-container">
   <div class="stage">
-    <div class="viewport" id="v-sender"><div class="tag">TX: RAW TELEMETRY</div></div>
-    <div class="viewport" id="v-receiver"><div class="tag" style="color:#ff00ff">RX: TEXTURE PROJECTION</div></div>
+    <div class="viewport" id="v-sender"><div class="tag">TX: DATA CAPTURE</div></div>
+    <div class="viewport" id="v-receiver"><div class="tag" style="color:var(--magenta)">RX: SPATIAL RECONSTRUCTION</div></div>
   </div>
   <div class="network-deck">
-    <div class="controls">
-      <button class="btn active" id="btn-init" onclick="initSystem()">1. Init Optics</button>
-      <button class="btn" id="btn-snap" onclick="triggerSnapshotWrap()" disabled>2. Wrap Snapshot</button>
-      <button class="btn" id="btn-puppet" onclick="toggleNetwork()" disabled>3. Live Telemetry</button>
-    </div>
+    <button class="btn active" id="btn-init" onclick="initSystem()">1. BOOT OPTICS</button>
+    <button class="btn" id="btn-snap" onclick="triggerSnapshotWrap()" disabled>2. WRAP SURFACE</button>
+    <button class="btn" id="btn-puppet" onclick="toggleNetwork()" disabled>3. SYNC TELEMETRY</button>
   </div>
 </div>
 <video id="webcam" playsinline></video>
@@ -40,31 +37,55 @@ video { display: none; }
 let localScene, remoteScene, isTransmitting = false, latestLandmarks = null;
 let captureCanvas, captureCtx;
 
-// Standard FaceMesh Triangulation (Reduced for transmission, expandable to 2k indices)
-const FULL_TRIANGLES = [127,34,139,11,0,37,232,231,120,72,37,11,128,121,114,79,78,191,80,81,82,13,312,311,310,415,308,324,318,402,317,14,17,314,405,321,375,291,308,324,10,151,338,338,151,10,297,332,10,10,332,10,21,54,103,67,109,10,10,109,67,10,338,297,332,284,251,33,7,163,163,7,144,144,7,145,145,7,153,153,7,154,154,7,155,155,7,133,263,249,390,390,249,373,373,249,374,374,249,380,380,249,381,381,249,382,382,249,362,61,146,91,91,146,181,181,146,84,84,146,17,17,146,314,314,146,405,405,146,321,321,146,291,103,67,109,10,338,297,332,284,251,10,151,9,8,168,6,5,4,1,19,94,2,164,0,267,269,270,409,291,306,291,375,321,405,314,17,84,181,91,146,61,185,40,39,37,0,267,269,270,409,415,310,311,312,13,82,81,80,191,78,62,76,61,146,91,181,84,17,314,405,321,375,291,308,324,318,402,317,14,87,178,88,95,18,324,308,415,310,311,312,13,82,81,80,191,78,62,76,61,185,40,39,37,267,269,270,409,291,375,321,405,314,17,84,181,91,146,61,76,62,78,191,80,81,82,13,312,311,310,415,308,324,318,402,317,14,87,178,88,95,18,324,308,291,375,321,405,314,17,84,181,91,146,61,185,40,39,37,0,267,269,270,409,291,308,324,318,402,317,14,87,178,88,95,18,324,308,415,310,311,312,13,82,81,80,191,78,62,76,61,185,40,39,37,267,269,270,409,291,375,321,405,314,17,84,181,91,146,61,76,62,78,191,80,81,82,13,312,311,310,415,308,324,318,402,317,14,87,178,88,95,18,324,308,291,375,321,405,314,17,84,181,91,146,61,185,40,39,37,0,267,269,270,409,291,308,324,318,402,317,14,87,178,88,95,18,324,308,415,310,311,312,13,82,81,80,191,78,62,76,61,185,40,39,37,267,269,270,409,291,375,321,405,314,17,84,181,91,146,61,76,62,78,191,80,81,82,13,312,311,310,415,308,324,318,402,317,14,87,178,88,95,18,324,308];
+// A significantly expanded "High-Density" core map (Indices for a solid mask)
+const MESH_INDICES = [
+    // Forehead
+    10,338,297, 332,284,251, 10,151,338, 67,109,10, 10,338,297,
+    // Eyes (Outer to Inner)
+    33,7,163, 163,7,144, 144,7,145, 145,7,153, 153,7,154, 154,7,155, 155,7,133,
+    263,249,390, 390,249,373, 373,249,374, 374,249,380, 380,249,381, 381,249,382, 382,249,362,
+    // Nose Bridge & Tip
+    168,6,197, 197,6,195, 195,6,5, 5,6,4, 1,2,164, 164,2,5, 5,2,4,
+    // Mouth & Cheeks
+    61,146,91, 91,181,84, 84,17,314, 314,405,321, 321,375,291, 61,185,40, 40,39,37, 37,0,267, 267,269,270, 270,409,291,
+    // Expansion for Solid Fill
+    127,34,139, 139,34,227, 227,34,21, 21,54,103, 103,67,10, 251,284,332, 332,297,338,
+    21,71,68, 68,71,104, 104,71,69, 69,71,108, 108,71,151, 151,108,337, 337,108,299, 299,108,333, 333,108,298, 298,108,332
+];
 
 function buildNodeEnv(containerId, isReceiver) {
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 450/500, 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(45, 480/550, 0.1, 100);
     camera.position.set(0, 0, 4.5);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(450, 500);
+    renderer.setSize(480, 550);
     document.getElementById(containerId).appendChild(renderer.domElement);
+
+    // Light for high-fidelity skin rendering
+    const light = new THREE.DirectionalLight(0xffffff, 1.2);
+    light.position.set(0, 2, 5);
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0x404040, 0.8));
 
     const geo = new THREE.BufferGeometry();
     const pos = new Float32Array(468 * 3);
-    const uvs = new Float32Array(468 * 2); // UNIQUE UV PER POINT
+    const uvs = new Float32Array(468 * 2); 
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    geo.setIndex(FULL_TRIANGLES);
+    geo.setIndex(MESH_INDICES);
 
     let mesh;
     if (isReceiver) {
-        // RECEIVER: The Projection Mesh
-        const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+        // High-End Render Material
+        const mat = new THREE.MeshPhongMaterial({ 
+            side: THREE.DoubleSide, 
+            transparent: true, 
+            opacity: 0.95,
+            shininess: 30,
+            specular: 0x111111
+        });
         mesh = new THREE.Mesh(geo, mat);
     } else {
-        // SENDER: The Data Points
         const mat = new THREE.PointsMaterial({ size: 0.02, color: 0x00f0ff });
         mesh = new THREE.Points(geo, mat);
     }
@@ -73,12 +94,12 @@ function buildNodeEnv(containerId, isReceiver) {
 }
 
 async function initSystem() {
-    const initBtn = document.getElementById('btn-init');
+    const btn = document.getElementById('btn-init');
     try {
         localScene = buildNodeEnv('v-sender', false);
         remoteScene = buildNodeEnv('v-receiver', true);
         const video = document.getElementById('webcam');
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
         video.srcObject = stream; video.play();
 
         captureCanvas = document.createElement('canvas');
@@ -102,10 +123,10 @@ async function initSystem() {
             requestAnimationFrame(animate);
         });
 
-        initBtn.textContent = "System Ready";
+        btn.textContent = "OPTICS LIVE";
         document.getElementById('btn-snap').disabled = false;
         document.getElementById('btn-snap').classList.add('active');
-    } catch (e) { initBtn.textContent = "Cam Error"; }
+    } catch (e) { btn.textContent = "HW ERROR"; }
 }
 
 function triggerSnapshotWrap() {
@@ -113,21 +134,21 @@ function triggerSnapshotWrap() {
     const video = document.getElementById('webcam');
     captureCtx.drawImage(video, 0, 0, 640, 480);
     
-    // 1. Create Texture from the current frame
+    // Create the Texture and apply to Mesh
     const texture = new THREE.CanvasTexture(captureCanvas);
     remoteScene.mesh.material.map = texture;
     remoteScene.mesh.material.needsUpdate = true;
 
-    // 2. Project Unique UVs for every point
+    // UV projection logic: Every vertex gets a unique color from the photo
     for (let i = 0; i < 468; i++) {
         const pt = latestLandmarks[i];
         remoteScene.uvs[i*2] = pt.x;
-        remoteScene.uvs[i*2+1] = 1 - pt.y; // Flip Y for Three.js
+        remoteScene.uvs[i*2+1] = 1 - pt.y; // Invert Y for GL context
     }
     remoteScene.geo.attributes.uv.needsUpdate = true;
     updateGeometry(remoteScene, latestLandmarks);
     
-    document.getElementById('btn-snap').textContent = "Mesh Wrapped";
+    document.getElementById('btn-snap').textContent = "SURFACE CONSTRUCTED";
     document.getElementById('btn-snap').classList.remove('active');
     document.getElementById('btn-puppet').disabled = false;
     document.getElementById('btn-puppet').classList.add('active');
@@ -144,7 +165,8 @@ function updateGeometry(node, lm) {
 
 function toggleNetwork() {
     isTransmitting = !isTransmitting;
-    document.getElementById('btn-puppet').textContent = isTransmitting ? "Syncing Mesh" : "Engage Sync";
+    document.getElementById('btn-puppet').textContent = isTransmitting ? "TELEMETRY SYNCED" : "RE-SYNC GRID";
+    document.getElementById('btn-puppet').classList.toggle('active', isTransmitting);
 }
 </script>
 </body>
