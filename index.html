@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh | LoBi-Net Simulation v10.5.1</title>
+<title>VibeMesh | Topographical Extrapolation v10.6</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://unpkg.com/delaunator@5.0.0/delaunator.min.js"></script>
 <style>
 :root { --neon: #00f0ff; --alert: #ff0055; --bg: #020205; --panel: #0a0a16; }
 body{background:var(--bg);color:#fff;font-family:'Courier New', monospace;margin:0;overflow:hidden}
@@ -16,18 +17,11 @@ body{background:var(--bg);color:#fff;font-family:'Courier New', monospace;margin
 .viewport{position:relative;width:450px;height:500px;background:#000;border:1px solid #1a1a2a;border-radius:12px;overflow:hidden;}
 .tag{position:absolute;top:15px;left:15px;font-size:0.6em;color:var(--neon);letter-spacing:2px;z-index:10;text-transform:uppercase; background:rgba(0,0,0,0.8); padding:4px 8px;}
 
-/* Network Monitor UI */
 .network-deck{background:var(--panel);padding:20px 30px;border-top:1px solid #1a1a2a; display: flex; flex-direction: column; gap: 15px;}
 .throttle-row { display: flex; align-items: center; gap: 20px; }
 .throttle-row label { font-size: 0.7em; color: #888; text-transform: uppercase; letter-spacing: 1px; width: 150px;}
 input[type=range] { flex-grow: 1; accent-color: var(--neon); cursor: pointer; }
 .readout { font-size: 1.2em; font-weight: bold; color: var(--neon); width: 120px; text-align: right; }
-
-.monitor-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.m-card { background: #05050a; padding: 12px; border: 1px solid #111; border-radius: 6px; text-align: center; }
-.m-card span { display: block; font-size: 0.6em; color: #555; text-transform: uppercase; margin-bottom: 5px; }
-.m-card strong { font-size: 1.1em; color: #fff; }
-.alert-text { color: var(--alert) !important; }
 
 .controls { display: flex; gap: 10px; margin-top: 10px; }
 .btn { flex: 1; padding: 15px; background: #111; color: #888; border: 1px solid #222; border-radius: 6px; font-weight: bold; cursor: pointer; text-transform: uppercase; transition: 0.2s;}
@@ -41,10 +35,10 @@ video { display: none; }
 <div class="app-container">
   <div class="stage">
     <div class="viewport" id="v-sender">
-      <div class="tag">NODE_1: SENDER (TX)</div>
+      <div class="tag">NODE_1: RAW CAPTURE (TX)</div>
     </div>
     <div class="viewport" id="v-receiver">
-      <div class="tag" style="color:#b266ff">NODE_2: RENDERER (RX)</div>
+      <div class="tag" style="color:#b266ff">NODE_2: SURFACE EXTRAPOLATION (RX)</div>
     </div>
   </div>
 
@@ -55,16 +49,9 @@ video { display: none; }
       <div class="readout" id="bw-display">200 KB/s</div>
     </div>
 
-    <div class="monitor-grid">
-      <div class="m-card"><span>Payload Size</span><strong>5.6 KB</strong></div>
-      <div class="m-card"><span>TX Rate (Sender)</span><strong id="mon-tx">0 FPS</strong></div>
-      <div class="m-card"><span>RX Rate (Receiver)</span><strong id="mon-rx">0 FPS</strong></div>
-      <div class="m-card"><span>UDP Packet Loss</span><strong id="mon-drop" class="alert-text">0%</strong></div>
-    </div>
-
     <div class="controls">
       <button class="btn active" id="btn-init" onclick="initSystem()">1. Initialize Optics</button>
-      <button class="btn" id="btn-snap" onclick="triggerDataDump()" disabled>2. Transmit Color Matrix</button>
+      <button class="btn" id="btn-snap" onclick="triggerDataDump()" disabled>2. Extrapolate Surface Data</button>
       <button class="btn" id="btn-puppet" onclick="toggleNetwork()" disabled>3. Open XYZ Telemetry</button>
     </div>
   </div>
@@ -77,12 +64,10 @@ let localScene, remoteScene, isTransmitting = false;
 let latestLandmarks = null;
 let captureCanvas, captureCtx;
 
-// Network Simulation State
 let maxBytesPerSecond = 200 * 1024; 
-const PACKET_SIZE_BYTES = 5616; // 468 points * 3 coords * 4 bytes
+const PACKET_SIZE_BYTES = 5616; 
 let currentSecond = Math.floor(Date.now() / 1000);
 let bytesUsedThisSecond = 0;
-let txFrames = 0, rxFrames = 0, droppedFrames = 0;
 
 function updateSlider() {
     const val = document.getElementById('bw-slider').value;
@@ -90,30 +75,12 @@ function updateSlider() {
     maxBytesPerSecond = val * 1024;
 }
 
-setInterval(() => {
-    document.getElementById('mon-tx').textContent = txFrames + " FPS";
-    document.getElementById('mon-rx').textContent = rxFrames + " FPS";
-    const dropRate = txFrames > 0 ? Math.round((droppedFrames / txFrames) * 100) : 0;
-    document.getElementById('mon-drop').textContent = dropRate + "%";
-    txFrames = 0; rxFrames = 0; droppedFrames = 0;
-}, 1000);
-
-function createRingTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 64; canvas.height = 64;
-    const ctx = canvas.getContext('2d');
-    ctx.beginPath(); ctx.arc(32, 32, 28, 0, Math.PI * 2); ctx.lineWidth = 6; ctx.strokeStyle = '#fff'; ctx.stroke();
-    ctx.beginPath(); ctx.arc(32, 32, 12, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill();
-    return new THREE.CanvasTexture(canvas);
-}
-
 function buildNodeEnv(containerId, isReceiver) {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, 450/500, 0.1, 100);
-    camera.position.set(0, 0, 4);
+    camera.position.set(0, 0, 4.5);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    // Hardcoded dimensions to prevent race conditions during boot
     renderer.setSize(450, 500); 
     document.getElementById(containerId).appendChild(renderer.domElement);
 
@@ -127,17 +94,25 @@ function buildNodeEnv(containerId, isReceiver) {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
 
-    let mat;
+    let mesh;
     if (isReceiver) {
-        mat = new THREE.PointsMaterial({ size: 0.12, map: createRingTexture(), vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+        // EXTRAPOLATION RENDERER: Solid Mesh with Vertex Colors
+        const mat = new THREE.MeshBasicMaterial({ 
+            vertexColors: true, 
+            side: THREE.DoubleSide,
+            wireframe: false, // Set to true if you want to see the generated triangles
+            transparent: true,
+            opacity: 0.95
+        });
+        mesh = new THREE.Mesh(geo, mat);
     } else {
-        mat = new THREE.PointsMaterial({ size: 0.03, color: 0x00f0ff, transparent: true, opacity: 0.6 });
+        // LOCAL SENDER: Just the raw data points
+        const mat = new THREE.PointsMaterial({ size: 0.03, color: 0x00f0ff, transparent: true, opacity: 0.6 });
+        mesh = new THREE.Points(geo, mat);
     }
 
-    const mesh = new THREE.Points(geo, mat);
     scene.add(mesh);
-
-    return { scene, camera, renderer, mesh, pos, col };
+    return { scene, camera, renderer, mesh, geo, pos, col };
 }
 
 async function initSystem() {
@@ -155,7 +130,7 @@ async function initSystem() {
 
         captureCanvas = document.createElement('canvas');
         captureCanvas.width = 640; captureCanvas.height = 480;
-        captureCtx = captureCanvas.getContext('2d');
+        captureCtx = captureCanvas.getContext('2d', { willReadFrequently: true });
 
         const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
         faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
@@ -167,16 +142,12 @@ async function initSystem() {
             updateGeometry(localScene, latestLandmarks);
             
             if (isTransmitting) {
-                txFrames++;
                 const now = Math.floor(Date.now() / 1000);
                 if (now !== currentSecond) { currentSecond = now; bytesUsedThisSecond = 0; }
 
                 if (bytesUsedThisSecond + PACKET_SIZE_BYTES <= maxBytesPerSecond) {
                     bytesUsedThisSecond += PACKET_SIZE_BYTES;
-                    rxFrames++;
                     updateGeometry(remoteScene, latestLandmarks);
-                } else {
-                    droppedFrames++;
                 }
             }
         });
@@ -194,11 +165,9 @@ async function initSystem() {
         initBtn.textContent = "Optics Live";
         
         const snapBtn = document.getElementById('btn-snap');
-        snapBtn.disabled = false; 
-        snapBtn.classList.add('active');
+        snapBtn.disabled = false; snapBtn.classList.add('active');
 
     } catch (err) {
-        console.error("Boot sequence failed:", err);
         initBtn.textContent = "Error: Check Console/Permissions";
         initBtn.style.background = "var(--alert)";
     }
@@ -206,22 +175,42 @@ async function initSystem() {
 
 function triggerDataDump() {
     if (!latestLandmarks) return;
+    
+    // 1. ROBUST COLOR EXTRACTION
     const video = document.getElementById('webcam');
-    captureCtx.drawImage(video, 0, 0);
-
+    captureCtx.drawImage(video, 0, 0, 640, 480);
+    
+    // Grab the entire pixel array once (massively faster/more reliable)
+    const imgData = captureCtx.getImageData(0, 0, 640, 480).data;
     const colArray = remoteScene.col;
+
+    // 2. DELAUNAY EXTRAPOLATION
+    // We pass the 2D coordinates to the algorithm to generate the 3D surface
+    const coords2D = [];
+
     latestLandmarks.forEach((pt, i) => {
+        // Collect points for Triangulation
+        coords2D.push(pt.x, pt.y);
+
+        // Map colors mathematically based on image data index
         const px = Math.min(Math.floor(pt.x * 640), 639);
         const py = Math.min(Math.floor(pt.y * 480), 479);
-        const pixel = captureCtx.getImageData(px, py, 1, 1).data;
-        colArray[i*3] = pixel[0]/255; colArray[i*3+1] = pixel[1]/255; colArray[i*3+2] = pixel[2]/255;
+        const index = (py * 640 + px) * 4;
+        
+        colArray[i*3]     = imgData[index] / 255;
+        colArray[i*3+1] = imgData[index+1] / 255;
+        colArray[i*3+2] = imgData[index+2] / 255;
     });
 
-    remoteScene.mesh.geometry.attributes.color.needsUpdate = true;
+    // Generate the Surface Triangles
+    const delaunay = new Delaunator(coords2D);
+    remoteScene.geo.setIndex(new THREE.BufferAttribute(new Uint16Array(delaunay.triangles), 1));
+
+    remoteScene.geo.attributes.color.needsUpdate = true;
     updateGeometry(remoteScene, latestLandmarks);
 
     document.getElementById('btn-snap').classList.remove('active');
-    document.getElementById('btn-snap').textContent = "Color Locked";
+    document.getElementById('btn-snap').textContent = "Surface Rendered";
     
     const pupBtn = document.getElementById('btn-puppet');
     pupBtn.disabled = false; pupBtn.classList.add('active');
@@ -230,11 +219,11 @@ function triggerDataDump() {
 function updateGeometry(node, lm) {
     const pos = node.pos;
     lm.forEach((pt, i) => {
-        pos[i*3] = (pt.x - 0.5) * -4.5;
-        pos[i*3+1] = (pt.y - 0.5) * -4.5;
+        pos[i*3] = (pt.x - 0.5) * -5;
+        pos[i*3+1] = (pt.y - 0.5) * -5;
         pos[i*3+2] = (pt.z * -4);
     });
-    node.mesh.geometry.attributes.position.needsUpdate = true;
+    node.geo.attributes.position.needsUpdate = true;
 }
 
 function toggleNetwork() {
