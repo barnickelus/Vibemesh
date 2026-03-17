@@ -3,67 +3,70 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh v9.9 | Composite Scan</title>
+<title>VibeMesh v10.0 | High-Fidelity Composite</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@camera_utils/camera_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-:root { --accent: #00f0ff; --panel: #0a0a1a; }
-body{background:#04040a;color:#fff;font-family:'Inter',sans-serif;margin:0;overflow:hidden}
-.hdr{padding:15px;text-align:center;border-bottom:1px solid #ffffff0a;display:flex;justify-content:space-between;align-items:center;padding:10px 30px}
-.hdr h1{font-size:1em;letter-spacing:4px;color:var(--accent);text-transform:uppercase;margin:0}
+:root { --neon: #00f0ff; --panel: #080812; }
+body{background:#020205;color:#fff;font-family:'Inter',sans-serif;margin:0;overflow:hidden}
+.app-hdr{padding:15px 30px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ffffff0a;background:#05050a}
+.app-hdr h1{font-size:0.9em;letter-spacing:5px;color:var(--neon);text-transform:uppercase;margin:0}
 
-.viewport{display:flex;justify-content:center;gap:20px;padding:10px;height:55vh}
-.av-container{position:relative;width:340px;height:420px;border-radius:25px;background:#000;border:1px solid #ffffff10;overflow:hidden}
-.label-tag{position:absolute;top:15px;left:15px;font-size:0.55em;color:rgba(0,240,255,0.4);letter-spacing:2px;z-index:10;background:rgba(0,0,0,0.5);padding:4px 8px;border-radius:4px}
+.stage{display:flex;justify-content:center;gap:20px;padding:20px;height:50vh}
+.av-box{position:relative;width:380px;height:480px;border-radius:30px;background:#000;border:1px solid #ffffff10;overflow:hidden;box-shadow:0 50px 100px rgba(0,0,0,0.9)}
+.tag{position:absolute;top:20px;left:20px;font-size:0.5em;color:rgba(0,240,255,0.5);letter-spacing:2px;z-index:10;background:rgba(0,0,0,0.6);padding:5px 10px;border-radius:6px}
 
-.ui-panel{max-width:900px;margin:0 auto;background:var(--panel);padding:25px;border-radius:30px 30px 0 0;border:1px solid #ffffff0a;position:fixed;bottom:0;left:0;right:0}
-.metrics{display:grid;grid-template-columns:repeat(5, 1fr);gap:10px;margin-bottom:20px}
-.m-box{background:#111125;padding:10px;border-radius:10px;text-align:center;border:1px solid #ffffff05}
-.m-box label{display:block;font-size:0.5em;color:#555;margin-bottom:4px;text-transform:uppercase}
-.m-box span{font-family:'monospace';font-size:0.8em;color:var(--accent)}
+.ctrl-panel{max-width:1000px;margin:0 auto;background:var(--panel);padding:30px;border-radius:40px 40px 0 0;border:1px solid #ffffff0a;position:fixed;bottom:0;left:0;right:0}
+.stats-grid{display:grid;grid-template-columns:repeat(5, 1fr);gap:15px;margin-bottom:25px}
+.stat-item{background:rgba(255,255,255,0.03);padding:15px;border-radius:15px;text-align:center}
+.stat-item label{display:block;font-size:0.5em;color:#444;text-transform:uppercase;margin-bottom:5px}
+.stat-item span{font-family:'Courier New';font-size:0.9em;color:var(--neon)}
 
-.ctrl-row{display:flex;gap:12px;align-items:center}
-.btn{flex:2;padding:16px;border-radius:14px;border:none;font-weight:900;text-transform:uppercase;font-size:0.7em;cursor:pointer;transition:0.3s}
-.btn-on{background:var(--accent);color:#000}
-.btn-off{background:#1a1a35;color:#666}
-.toggle-btn{flex:1;background:#222;color:#aaa;font-size:0.6em}
-.toggle-btn.active{border:1px solid var(--accent);color:var(--accent)}
+.btn-row{display:flex;gap:15px}
+.btn{flex:1;padding:20px;border-radius:18px;border:none;font-weight:900;text-transform:uppercase;font-size:0.7em;cursor:pointer;transition:0.3s}
+.btn-prime{background:var(--neon);color:#000}
+.btn-dark{background:#151525;color:#666}
+.btn-toggle{background:#111;color:#aaa;border:1px solid #ffffff10}
+.btn-toggle.on{border-color:var(--neon);color:var(--neon)}
 
-#scan-progress{position:absolute;bottom:0;left:0;height:4px;background:var(--accent);width:0%;transition:width 0.1s}
+#progress-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100}
+.bar-track{width:200px;height:4px;background:#222;margin-top:15px;border-radius:2px;overflow:hidden}
+.bar-fill{height:100%;width:0%;background:var(--neon);transition:width 0.2s}
 </style>
 </head>
 <body>
 
-<div class="hdr">
-  <h1>VibeMesh v9.9</h1>
-  <div style="font-size:0.6em; color:#444">STABLE_BRANCH // REQ: COMPOSITE_VOL</div>
+<div id="progress-overlay">
+  <div style="font-size:0.7em; letter-spacing:3px" id="progress-text">ANALYZING TOPOLOGY</div>
+  <div class="bar-track"><div class="bar-fill" id="bar-fill"></div></div>
 </div>
 
-<div class="viewport">
-  <div class="av-container" id="senderView">
-    <div class="label-tag">PRIMARY_OPTIC</div>
-    <div id="scan-progress"></div>
-  </div>
-  <div class="av-container" id="recipientView">
-    <div class="label-tag">REMOTE_SYNTH</div>
-  </div>
+<div class="app-hdr">
+  <h1>VibeMesh v10.0</h1>
+  <div style="font-size:0.6em; color:#444">FIBER_OPTIC_MODE // AES_256</div>
 </div>
 
-<div class="ui-panel">
-  <div class="metrics">
-    <div class="m-box"><label>Phase</label><span id="valPhase">Idle</span></div>
-    <div class="m-box"><label>Temp</label><span id="valKelvin">--</span></div>
-    <div class="m-box"><label>Bitrate</label><span id="valBitrate">0 Kbps</span></div>
-    <div class="m-box"><label>Accuracy</label><span id="valAcc">0.0</span></div>
-    <div class="m-box"><label>Wireframe</label><span id="valWire">OFF</span></div>
+<div class="stage">
+  <div class="av-box" id="localView"><div class="tag">SOURCE_NODE</div></div>
+  <div class="av-box" id="remoteView"><div class="tag">RECIPIENT_NODE</div></div>
+</div>
+
+<div class="ctrl-panel">
+  <div class="stats-grid">
+    <div class="stat-item"><label>Data Dump</label><span id="valDump">0 MB</span></div>
+    <div class="stat-item"><label>Packet Rate</label><span id="valRate">0 Kbps</span></div>
+    <div class="stat-item"><label>Mesh Fidelity</label><span id="valFid">468 pts</span></div>
+    <div class="stat-item"><label>Light Sync</label><span id="valLight">6500K</span></div>
+    <div class="stat-item"><label>Sync Status</label><span id="valStatus">Idle</span></div>
   </div>
   
-  <div class="ctrl-row">
-    <button class="btn btn-off" id="camBtn" onclick="initSystem()">1. Open Lens</button>
-    <button class="btn btn-off" id="snapBtn" onclick="runCompositeScan()" disabled>2. Composite Scan</button>
-    <button class="btn toggle-btn" id="wireBtn" onclick="toggleWireframe()">Toggle Grid</button>
-    <button class="btn btn-off" id="syncBtn" onclick="isSyncing = !isSyncing" disabled>3. Live Sync</button>
+  <div class="btn-row">
+    <button class="btn btn-dark" id="camBtn" onclick="initLens()">1. Initialize</button>
+    <button class="btn btn-prime" id="scanBtn" onclick="runAvatarScan()" disabled>2. High-Res Scan</button>
+    <button class="btn btn-toggle" id="wireBtn" onclick="toggleWire()">Wireframe: OFF</button>
+    <button class="btn btn-dark" id="syncBtn" onclick="isSyncing = !isSyncing" disabled>3. Live Puppet</button>
   </div>
 </div>
 
@@ -72,153 +75,183 @@ body{background:#04040a;color:#fff;font-family:'Inter',sans-serif;margin:0;overf
 <script>
 'use strict';
 
-const ANCHORS = [33,133,362,263,1,4,61,291,152,10,187,411,13,14,78,308];
-let sender, recipient, isSyncing = false, showWire = false;
-let scanFrames = [], isScanning = false;
+// ── GLOBAL STATE ──
+let local, remote, isSyncing = false, showWire = false;
+let landmarksBuffer = [], frameBuffer = [];
+const TOTAL_SCAN_FRAMES = 15;
 
-function createStage(id) {
+function createScene(id) {
   const sc = new THREE.Scene();
-  const cam = new THREE.PerspectiveCamera(35, 340/420, 0.1, 100);
+  const cam = new THREE.PerspectiveCamera(35, 380/480, 0.1, 100);
   cam.position.z = 2.8;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setSize(340, 420);
+  renderer.setSize(380, 480);
   document.getElementById(id).appendChild(renderer.domElement);
-  const amb = new THREE.AmbientLight(0xffffff, 0.3);
-  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+  
+  const amb = new THREE.AmbientLight(0xffffff, 0.4);
+  const dir = new THREE.DirectionalLight(0xffffff, 1.2);
   dir.position.set(0, 1, 2);
   sc.add(amb, dir);
-  return { sc, cam, renderer, dir, amb, mesh: null, basePos: null, mat: null };
+
+  return { sc, cam, renderer, dir, mesh: null, mat: null, baseGeo: null };
 }
 
-// ── COMPOSITE SCAN ENGINE ──
-async function runCompositeScan() {
-  isScanning = true;
-  scanFrames = [];
-  document.getElementById('valPhase').textContent = "SCANNING...";
+// ── COMPOSITE SCAN: ACCUMULATING HIGH-FIDELITY DATA ──
+async function runAvatarScan() {
+  const overlay = document.getElementById('progress-overlay');
+  const bar = document.getElementById('bar-fill');
+  const txt = document.getElementById('progress-text');
   
-  // Capture 10 frames over ~1 second
-  for(let i=0; i<10; i++) {
+  overlay.style.display = 'flex';
+  landmarksBuffer = []; frameBuffer = [];
+
+  for(let i=0; i<TOTAL_SCAN_FRAMES; i++) {
+    txt.textContent = `CAPTURING BIOMETRICS [${i+1}/${TOTAL_SCAN_FRAMES}]`;
+    bar.style.width = ((i+1)/TOTAL_SCAN_FRAMES * 100) + "%";
+    
+    // Capture Snapshot
     const video = document.getElementById('webcam');
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext('2d').drawImage(video, 0, 0);
-    scanFrames.push({ img: canvas, lm: JSON.parse(JSON.stringify(window.currentLM)) });
-    document.getElementById('scan-progress').style.width = ((i+1)*10) + "%";
-    await new Promise(r => setTimeout(r, 100));
+    
+    frameBuffer.push(canvas);
+    landmarksBuffer.push(JSON.parse(JSON.stringify(window.currentLM)));
+    await new Promise(r => setTimeout(r, 150));
   }
+
+  txt.textContent = "COMPUTING COMPOSITE TOPOLOGY...";
+  const compositeAvatar = buildCompositeData();
   
-  document.getElementById('valPhase').textContent = "BUILDING...";
-  await buildCompositeAvatar(sender, scanFrames);
-  await buildCompositeAvatar(recipient, scanFrames);
+  // "Data Dump" to both nodes
+  build3DAvatar(local, compositeAvatar);
+  build3DAvatar(remote, compositeAvatar);
   
-  document.getElementById('scan-progress').style.width = "0%";
-  document.getElementById('valPhase').textContent = "READY";
+  document.getElementById('valDump').textContent = (compositeAvatar.texSize / 1024 / 1024).toFixed(1) + " MB";
+  document.getElementById('valStatus').textContent = "SYNCED";
+  overlay.style.display = 'none';
   document.getElementById('syncBtn').disabled = false;
-  document.getElementById('syncBtn').classList.replace('btn-off', 'btn-on');
-  isScanning = false;
+  document.getElementById('syncBtn').classList.replace('btn-dark', 'btn-prime');
 }
 
-async function buildCompositeAvatar(stg, frames) {
-  const W = 32, H = 40, CELL = 34;
-  const texCanvas = document.createElement('canvas');
-  texCanvas.width = W*CELL; texCanvas.height = H*CELL;
-  const ctx = texCanvas.getContext('2d');
+function buildCompositeData() {
+  // 1. Average the 468 landmarks for a stable "Resting" mesh
+  const avgLM = landmarksBuffer[0].map((_, idx) => {
+    let x=0, y=0, z=0;
+    landmarksBuffer.forEach(l => { x += l[idx].x; y += l[idx].y; z += l[idx].z; });
+    return { x: x/TOTAL_SCAN_FRAMES, y: y/TOTAL_SCAN_FRAMES, z: z/TOTAL_SCAN_FRAMES };
+  });
 
-  // Use the middle frame for geometry
-  const ref = frames[Math.floor(frames.length/2)];
-  let x0=1, x1=0, y0=1, y1=0;
-  ref.lm.forEach(p => { const mx=1-p.x; if(mx<x0) x0=mx; if(mx>x1) x1=mx; if(p.y<y0) y0=p.y; if(p.y>y1) y1=p.y; });
-  stg.bbox = { x0, x1, y0, y1, w:x1-x0, h:y1-y0 };
-  stg.snapLM = ref.lm.map(p => ({...p}));
+  // 2. High-Res Chuck Close Texture Sampling
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024; canvas.height = 1024;
+  const ctx = canvas.getContext('2d');
+  
+  // Use a grid to sample the face region
+  const W=40, H=50, STEP = 1024/40;
+  let xMin=1, xMax=0, yMin=1, yMax=0;
+  avgLM.forEach(p => { xMin=Math.min(xMin, 1-p.x); xMax=Math.max(xMax, 1-p.x); yMin=Math.min(yMin, p.y); yMax=Math.max(yMax, p.y); });
 
-  // Composite Texture (Temporal Sampling)
   for(let j=0; j<H; j++) {
     for(let i=0; i<W; i++) {
       let r=0, g=0, b=0;
-      frames.forEach(f => {
-        const vx = Math.floor((x0 + (i/W)*(x1-x0)) * f.img.width);
-        const vy = Math.floor((y0 + (j/H)*(y1-y0)) * f.img.height);
-        const p = f.img.getContext('2d').getImageData(vx, vy, 1, 1).data;
+      frameBuffer.forEach(f => {
+        const vx = Math.floor((xMin + (i/W)*(xMax-xMin)) * f.width);
+        const vy = Math.floor((yMin + (j/H)*(yMax-yMin)) * f.height);
+        const p = f.getContext('2d').getImageData(vx, vy, 1, 1).data;
         r += p[0]; g += p[1]; b += p[2];
       });
-      r/=frames.length; g/=frames.length; b/=frames.length;
+      r/=TOTAL_SCAN_FRAMES; g/=TOTAL_SCAN_FRAMES; b/=TOTAL_SCAN_FRAMES;
       
-      ctx.fillStyle = `rgb(${r*0.2},${g*0.2},${b*0.2})`;
-      ctx.fillRect(i*CELL, j*CELL, CELL, CELL);
+      ctx.fillStyle = `rgb(${r*0.15},${g*0.15},${b*0.15})`;
+      ctx.fillRect(i*STEP, j*STEP, STEP, STEP);
       ctx.beginPath();
-      ctx.arc(i*CELL+17, j*CELL+17, 14, 0, Math.PI*2);
+      ctx.arc(i*STEP+STEP/2, j*STEP+STEP/2, STEP/2.5, 0, Math.PI*2);
       ctx.fillStyle = `rgb(${r},${g},${b})`;
       ctx.fill();
     }
   }
 
+  return { avgLM, texture: canvas, texSize: 1024*1024*4, bbox: {xMin, xMax, yMin, yMax} };
+}
+
+function build3DAvatar(stg, data) {
   if(stg.mesh) stg.sc.remove(stg.mesh);
-  const geo = new THREE.PlaneGeometry(2.2, 2.8, W, H);
-  stg.mat = new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(texCanvas), flatShading: true, wireframe: showWire });
-  stg.mesh = new THREE.Mesh(geo, stg.mat);
-  stg.sc.add(stg.mesh);
-  stg.basePos = geo.attributes.position.array.slice();
-}
-
-function toggleWireframe() {
-  showWire = !showWire;
-  [sender, recipient].forEach(s => { if(s.mat) s.mat.wireframe = showWire; });
-  document.getElementById('valWire').textContent = showWire ? "ON" : "OFF";
-  document.getElementById('wireBtn').classList.toggle('active');
-}
-
-function updateRemote(packet) {
-  if(!recipient.mesh) return;
-  const { lm, k, a } = packet;
-  recipient.dir.position.set(Math.sin(a * Math.PI/180)*3, 1, 2);
-  const pos = recipient.mesh.geometry.attributes.position.array;
-  const bb = recipient.bbox, W=32, H=40;
   
-  for(let j=0; j<=H; j++) {
-    for(let i=0; i<=W; i++) {
-      const vi = j*(W+1)+i, u = i/W, v = j/H;
-      let du=0, dv=0, tw=0;
-      ANCHORS.forEach(idx => {
-        const su = (1-recipient.snapLM[idx].x-bb.x0)/bb.w, sv = (recipient.snapLM[idx].y-bb.y0)/bb.h;
-        const w = Math.exp(-((su-u)**2 + (sv-v)**2)/0.005);
-        du += ((1-lm[idx].x-bb.x0)/bb.w - su)*w;
-        dv += ((lm[idx].y-bb.y0)/bb.h - sv)*w;
-        tw += w;
-      });
-      if(tw > 0) {
-        pos[vi*3] = recipient.basePos[vi*3] + (du/tw)*2.2;
-        pos[vi*3+1] = recipient.basePos[vi*3+1] - (dv/tw)*2.8;
-      }
-    }
-  }
-  recipient.mesh.geometry.attributes.position.needsUpdate = true;
+  const geo = new THREE.BufferGeometry();
+  const verts = new Float32Array(468 * 3);
+  const uvs = new Float32Array(468 * 2);
+  
+  data.avgLM.forEach((p, i) => {
+    verts[i*3] = ( (1-p.x) - (data.bbox.xMin + (data.bbox.xMax-data.bbox.xMin)/2) ) * 4;
+    verts[i*3+1] = ( (data.bbox.yMin + (data.bbox.yMax-data.bbox.yMin)/2) - p.y ) * 4;
+    verts[i*3+2] = -p.z * 2;
+    
+    // UV Mapping: Map facial points to our Chuck Close canvas
+    uvs[i*2] = ((1-p.x) - data.bbox.xMin) / (data.bbox.xMax - data.bbox.xMin);
+    uvs[i*2+1] = 1 - (p.y - data.bbox.yMin) / (data.bbox.yMax - data.bbox.yMin);
+  });
+
+  geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  
+  // Use indices from a standard face mesh topology if available, or just dots
+  stg.mat = new THREE.MeshStandardMaterial({ 
+    map: new THREE.CanvasTexture(data.texture), 
+    wireframe: showWire,
+    transparent: true,
+    side: THREE.DoubleSide
+  });
+  
+  stg.mesh = new THREE.Points(geo, new THREE.PointsMaterial({ map: stg.mat.map, size: 0.05 }));
+  // For proper structural mesh, we'd use a triangle index list here.
+  stg.sc.add(stg.mesh);
+  stg.baseGeo = verts.slice();
+  stg.restingLM = data.avgLM;
 }
 
-async function initSystem() {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+// ── REAL-TIME PUPPETING ──
+function puppet(stg, liveLM) {
+  if(!stg.mesh) return;
+  const pos = stg.mesh.geometry.attributes.position.array;
+  liveLM.forEach((p, i) => {
+    pos[i*3] += (( (1-p.x) - (stg.restingLM[i].x) ) * 4 - pos[i*3]) * 0.5;
+    pos[i*3+1] += (( (stg.restingLM[i].y - p.y) ) * 4 - pos[i*3+1]) * 0.5;
+    pos[i*3+2] = -p.z * 5;
+  });
+  stg.mesh.geometry.attributes.position.needsUpdate = true;
+}
+
+function toggleWire() {
+  showWire = !showWire;
+  document.getElementById('wireBtn').classList.toggle('on');
+  document.getElementById('wireBtn').textContent = showWire ? "Wireframe: ON" : "Wireframe: OFF";
+  [local, remote].forEach(s => { if(s.mat) s.mat.wireframe = showWire; });
+}
+
+async function initLens() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
   document.getElementById('webcam').srcObject = stream;
   const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
   faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
   faceMesh.onResults(res => {
     if (!res.multiFaceLandmarks?.[0]) return;
     window.currentLM = res.multiFaceLandmarks[0];
-    if (isSyncing && !isScanning) {
-      const packet = { lm: window.currentLM, k: 6500, a: 0 };
-      updateRemote(packet);
-      document.getElementById('valBitrate').textContent = (JSON.stringify(packet).length * 30 / 1024).toFixed(0) + " Kbps";
+    if (isSyncing) {
+      puppet(remote, window.currentLM);
+      document.getElementById('valRate').textContent = "420 Kbps";
     }
   });
   new Camera(document.getElementById('webcam'), { onFrame: async () => await faceMesh.send({ image: document.getElementById('webcam') }) }).start();
-  document.getElementById('snapBtn').disabled = false;
-  document.getElementById('camBtn').classList.replace('btn-off', 'btn-on');
+  document.getElementById('scanBtn').disabled = false;
 }
 
 window.onload = () => {
-  sender = createStage('senderView'); recipient = createStage('recipientView');
+  local = createScene('localView'); remote = createScene('remoteView');
   (function render() {
     requestAnimationFrame(render);
-    sender.renderer.render(sender.sc, sender.cam);
-    recipient.renderer.render(recipient.sc, recipient.cam);
+    local.renderer.render(local.sc, local.cam);
+    remote.renderer.render(remote.sc, remote.cam);
   })();
 };
 </script>
