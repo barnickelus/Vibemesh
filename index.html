@@ -2,153 +2,192 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>VibeMesh | Full Spectrum v14.0</title>
+<title>VibeMesh | Inferred Splat v15.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-:root { --neon: #00f0ff; --magenta: #ff00ff; --gold: #ffd700; --bg: #020205; }
+:root { --neon: #00f0ff; --magenta: #ff00ff; --bg: #020205; }
 body{background:var(--bg);color:#fff;font-family:monospace;margin:0;overflow:hidden}
-.app-container { display: flex; flex-direction: column; height: 100vh; }
-.market-ticker { background: #000; border-bottom: 1px solid #1a1a2a; padding: 10px; font-size: 0.85em; display: flex; justify-content: space-around; color: var(--gold); letter-spacing: 1px; }
-.stage{display:flex;justify-content:center;gap:15px;padding:20px;flex-grow: 1;}
-.viewport{position:relative;width:480px;height:550px;background:#000;border:1px solid #1a1a2a;border-radius:12px;overflow:hidden;}
-.tag{position:absolute;top:15px;left:15px;font-size:0.7em;color:var(--neon);letter-spacing:2px;z-index:10;background:rgba(0,0,0,0.8);padding:4px 8px;}
-.network-deck{background:#0a0a16;padding:25px;border-top:1px solid #1a1a2a; display: flex; justify-content: center; gap: 15px;}
-.btn { width: 220px; padding: 15px; background: #111; color: #555; border: 1px solid #222; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.3s; text-transform: uppercase;}
-.btn.active { background: var(--neon); color: #000; border-color: var(--neon); box-shadow: 0 0 20px rgba(0, 240, 255, 0.4); }
+/* Accessible Floating UI */
+.control-deck { position: absolute; top: 20px; right: 20px; width: 260px; background: rgba(10,10,22,0.9); 
+                border: 1px solid #1a1a2a; border-radius: 12px; padding: 20px; z-index: 100; backdrop-filter: blur(10px); }
+.deck-title { font-size: 0.7em; color: var(--neon); letter-spacing: 2px; margin-bottom: 15px; border-bottom: 1px solid #1a1a2a; padding-bottom: 8px; }
+.viewport-container { display: flex; width: 100vw; height: 100vh; }
+.viewport { flex: 1; position: relative; border-right: 1px solid #1a1a2a; }
+.tag { position: absolute; top: 15px; left: 15px; font-size: 0.6em; color: #555; }
+.btn { width: 100%; padding: 12px; background: #111; color: #444; border: 1px solid #222; border-radius: 6px; 
+       font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: 0.3s; text-transform: uppercase; font-size: 0.75em; }
+.btn.active { background: var(--neon); color: #000; border-color: var(--neon); box-shadow: 0 0 15px rgba(0,240,255,0.3); }
+.slider-box { margin-top: 15px; }
+.slider-box label { display: block; font-size: 0.65em; color: #888; margin-bottom: 8px; }
+input[type=range] { width: 100%; cursor: pointer; accent-color: var(--neon); }
 video { display: none; }
 </style>
 </head>
 <body>
-<div class="app-container">
-  <div class="market-ticker">
-    <span>AG/USD: $124.52 <span style="color:#00ff00">▲ 2.4%</span></span>
-    <span>DXY: 101.18 <span style="color:#ff0000">▼ 0.15%</span></span>
-    <span>GSR: 80.24 <span style="color:var(--neon)">PIVOT REACHED</span></span>
-  </div>
-  <div class="stage">
-    <div class="viewport" id="v-sender"><div class="tag">TX: DATA CAPTURE</div></div>
-    <div class="viewport" id="v-receiver"><div class="tag" style="color:var(--magenta)">RX: FULL SPECTRUM WRAP</div></div>
-  </div>
-  <div class="network-deck">
+
+<div class="control-deck">
+    <div class="deck-title">VIBEMESH // COMMAND DECK</div>
     <button class="btn active" id="btn-init" onclick="initSystem()">1. Initialize HW</button>
-    <button class="btn" id="btn-snap" onclick="triggerFullWrap()" disabled>2. Project Surface</button>
-    <button class="btn" id="btn-puppet" onclick="toggleNetwork()" disabled>3. Sync Telemetry</button>
-  </div>
+    <button class="btn" id="btn-snap" onclick="captureInferredSurface()" disabled>2. Snap Surface</button>
+    
+    <div class="slider-box">
+        <label id="label-inf">INFERENCE VOLUME: 0.25</label>
+        <input type="range" id="inf-slider" min="0.05" max="0.8" step="0.01" value="0.25" oninput="updateInference(this.value)">
+    </div>
+    
+    <div style="margin-top:20px; font-size:0.6em; color:#444;">BANDWIDTH: ~24 KB/s</div>
 </div>
+
+<div class="viewport-container">
+    <div class="viewport" id="v-tx"><div class="tag">TX: OPTICS LIVE</div></div>
+    <div class="viewport" id="v-rx"><div class="tag" style="color:var(--magenta)">RX: AMALGAMATED RECONSTRUCTION</div></div>
+</div>
+
 <video id="webcam" playsinline></video>
 
 <script>
-let localScene, remoteScene, isTransmitting = false, latestLandmarks = null;
+let localScene, remoteScene, latestLandmarks = null;
 let captureCanvas, captureCtx;
 
-// EXPANDED INDEX MAP: Covers Forehead, Cheeks, Jaw, and Feature Core
-const FULL_WRAP_INDICES = [
-    10,338,297, 332,284,251, 10,151,338, 67,109,10, 21,54,103, 103,67,10, 
-    127,162,21, 21,162,54, 132,93,127, 127,93,234, 58,132,93, 
-    33,7,163, 144,7,145, 153,7,154, 155,7,133, 263,249,390, 373,249,374, 
-    1,2,164, 164,2,5, 5,2,4, 61,146,91, 181,84,17, 314,405,321, 
-    152,377,400, 377,152,148, 148,152,176, 176,152,149, 149,152,150, 150,152,136
-];
+// Custom Shader for "Amalgamated" Splats
+const splatVertexShader = `
+    attribute vec3 color;
+    attribute float size;
+    varying vec3 vColor;
+    void main() {
+        vColor = color;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = size * (300.0 / -mvPosition.z);
+        gl_Position = projectionMatrix * mvPosition;
+    }
+`;
 
-function buildNodeEnv(containerId, isReceiver) {
+const splatFragmentShader = `
+    varying vec3 vColor;
+    void main() {
+        float r = distance(gl_PointCoord, vec2(0.5));
+        if (r > 0.5) discard;
+        float alpha = 1.0 - smoothstep(0.3, 0.5, r);
+        gl_FragColor = vec4(vColor, alpha);
+    }
+`;
+
+function buildNode(containerId, isReceiver) {
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 480/550, 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(45, (window.innerWidth/2)/window.innerHeight, 0.1, 100);
     camera.position.set(0, 0, 4.5);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(480, 550);
+    renderer.setSize(window.innerWidth/2, window.innerHeight);
     document.getElementById(containerId).appendChild(renderer.domElement);
 
     const geo = new THREE.BufferGeometry();
     const pos = new Float32Array(468 * 3);
-    const uvs = new Float32Array(468 * 2); 
+    const colors = new Float32Array(468 * 3);
+    const sizes = new Float32Array(468);
+    
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    geo.setIndex(FULL_WRAP_INDICES);
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
-    let mesh;
-    if (isReceiver) {
-        const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
-        mesh = new THREE.Mesh(geo, mat);
-    } else {
-        const mat = new THREE.PointsMaterial({ size: 0.015, color: 0x00f0ff });
-        mesh = new THREE.Points(geo, mat);
-    }
-    scene.add(mesh);
-    return { scene, camera, renderer, mesh, geo, pos, uvs };
+    const mat = new THREE.ShaderMaterial({
+        uniforms: {},
+        vertexShader: splatVertexShader,
+        fragmentShader: splatFragmentShader,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+    });
+
+    const points = new THREE.Points(geo, mat);
+    scene.add(points);
+    return { scene, camera, renderer, points, geo, pos, colors, sizes };
 }
 
 async function initSystem() {
-    try {
-        localScene = buildNodeEnv('v-sender', false);
-        remoteScene = buildNodeEnv('v-receiver', true);
-        const video = document.getElementById('webcam');
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-        video.srcObject = stream; video.play();
-
-        captureCanvas = document.createElement('canvas');
-        captureCanvas.width = 640; captureCanvas.height = 480;
-        captureCtx = captureCanvas.getContext('2d');
-
-        const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
-        faceMesh.onResults(res => {
-            if (!res.multiFaceLandmarks?.[0]) return;
-            latestLandmarks = res.multiFaceLandmarks[0];
-            updateGeometry(localScene, latestLandmarks);
-            if (isTransmitting) updateGeometry(remoteScene, latestLandmarks);
-        });
-
-        new Camera(video, { onFrame: async () => { await faceMesh.send({image: video}); } }).start();
-
-        requestAnimationFrame(function animate() {
-            localScene.renderer.render(localScene.scene, localScene.camera);
-            remoteScene.renderer.render(remoteScene.scene, remoteScene.camera);
-            requestAnimationFrame(animate);
-        });
-
-        document.getElementById('btn-init').textContent = "Link Established";
-        document.getElementById('btn-snap').disabled = false;
-        document.getElementById('btn-snap').classList.add('active');
-    } catch (e) { console.error(e); }
-}
-
-function triggerFullWrap() {
-    if (!latestLandmarks) return;
+    localScene = buildNode('v-tx', false);
+    remoteScene = buildNode('v-rx', true);
+    
     const video = document.getElementById('webcam');
-    captureCtx.drawImage(video, 0, 0, 640, 480);
-    
-    const texture = new THREE.CanvasTexture(captureCanvas);
-    remoteScene.mesh.material.map = texture;
-    remoteScene.mesh.material.needsUpdate = true;
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+    video.srcObject = stream; video.play();
 
-    for (let i = 0; i < 468; i++) {
-        const pt = latestLandmarks[i];
-        remoteScene.uvs[i*2] = pt.x;
-        remoteScene.uvs[i*2+1] = 1 - pt.y; 
-    }
-    remoteScene.geo.attributes.uv.needsUpdate = true;
-    updateGeometry(remoteScene, latestLandmarks);
-    
-    document.getElementById('btn-snap').textContent = "Surface Mapped";
-    document.getElementById('btn-puppet').disabled = false;
-    document.getElementById('btn-puppet').classList.add('active');
+    captureCanvas = document.createElement('canvas');
+    captureCanvas.width = 640; captureCanvas.height = 480;
+    captureCtx = captureCanvas.getContext('2d');
+
+    const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+    faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
+    faceMesh.onResults(res => {
+        if (!res.multiFaceLandmarks?.[0]) return;
+        latestLandmarks = res.multiFaceLandmarks[0];
+        updateFrame(localScene, latestLandmarks, false);
+        updateFrame(remoteScene, latestLandmarks, true);
+    });
+
+    new Camera(video, { onFrame: async () => { await faceMesh.send({image: video}); } }).start();
+
+    requestAnimationFrame(function animate() {
+        localScene.renderer.render(localScene.scene, localScene.camera);
+        remoteScene.renderer.render(remoteScene.scene, remoteScene.camera);
+        requestAnimationFrame(animate);
+    });
+
+    document.getElementById('btn-init').classList.remove('active');
+    document.getElementById('btn-snap').disabled = false;
+    document.getElementById('btn-snap').classList.add('active');
 }
 
-function updateGeometry(node, lm) {
+function updateFrame(node, lm, isRX) {
+    const infValue = parseFloat(document.getElementById('inf-slider').value);
     for (let i = 0; i < 468; i++) {
         node.pos[i*3] = (lm[i].x - 0.5) * -5;
         node.pos[i*3+1] = (lm[i].y - 0.5) * -5;
         node.pos[i*3+2] = (lm[i].z * -5);
+        
+        // Dynamic size based on inference volume
+        node.sizes[i] = isRX ? infValue : 0.05;
+
+        // Default TX color (Cyan) vs RX (Inferred)
+        if (!isRX) {
+            node.colors[i*3] = 0.0; node.colors[i*3+1] = 0.94; node.colors[i*3+2] = 1.0;
+        }
     }
     node.geo.attributes.position.needsUpdate = true;
+    node.geo.attributes.size.needsUpdate = true;
+    node.geo.attributes.color.needsUpdate = true;
 }
 
-function toggleNetwork() {
-    isTransmitting = !isTransmitting;
-    document.getElementById('btn-puppet').textContent = isTransmitting ? "Telemetry Live" : "Resume Sync";
+function captureInferredSurface() {
+    if (!latestLandmarks) return;
+    const video = document.getElementById('webcam');
+    captureCtx.drawImage(video, 0, 0, 640, 480);
+    const pixelData = captureCtx.getImageData(0, 0, 640, 480).data;
+
+    for (let i = 0; i < 468; i++) {
+        const px = Math.floor(latestLandmarks[i].x * 640);
+        const py = Math.floor(latestLandmarks[i].y * 480);
+        const idx = (py * 640 + px) * 4;
+        
+        remoteScene.colors[i*3] = pixelData[idx] / 255;
+        remoteScene.colors[i*3+1] = pixelData[idx+1] / 255;
+        remoteScene.colors[i*3+2] = pixelData[idx+2] / 255;
+    }
+    document.getElementById('btn-snap').textContent = "Surface Inferred";
 }
+
+function updateInference(val) {
+    document.getElementById('label-inf').textContent = `INFERENCE VOLUME: ${val}`;
+}
+
+window.addEventListener('resize', () => {
+    [localScene, remoteScene].forEach(node => {
+        node.renderer.setSize(window.innerWidth/2, window.innerHeight);
+        node.camera.aspect = (window.innerWidth/2)/window.innerHeight;
+        node.camera.updateProjectionMatrix();
+    });
+});
 </script>
 </body>
 </html>
