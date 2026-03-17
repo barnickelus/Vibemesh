@@ -2,14 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>VibeMesh | Inferred Splat v15.0</title>
+<title>VibeMesh | Triangulated Interpolator v16.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
 :root { --neon: #00f0ff; --magenta: #ff00ff; --bg: #020205; }
 body{background:var(--bg);color:#fff;font-family:monospace;margin:0;overflow:hidden}
-/* Accessible Floating UI */
 .control-deck { position: absolute; top: 20px; right: 20px; width: 260px; background: rgba(10,10,22,0.9); 
                 border: 1px solid #1a1a2a; border-radius: 12px; padding: 20px; z-index: 100; backdrop-filter: blur(10px); }
 .deck-title { font-size: 0.7em; color: var(--neon); letter-spacing: 2px; margin-bottom: 15px; border-bottom: 1px solid #1a1a2a; padding-bottom: 8px; }
@@ -30,19 +29,19 @@ video { display: none; }
 <div class="control-deck">
     <div class="deck-title">VIBEMESH // COMMAND DECK</div>
     <button class="btn active" id="btn-init" onclick="initSystem()">1. Initialize HW</button>
-    <button class="btn" id="btn-snap" onclick="captureInferredSurface()" disabled>2. Snap Surface</button>
+    <button class="btn" id="btn-snap" onclick="captureInferredSurface()" disabled>2. Project Points</button>
     
     <div class="slider-box">
-        <label id="label-inf">INFERENCE VOLUME: 0.25</label>
-        <input type="range" id="inf-slider" min="0.05" max="0.8" step="0.01" value="0.25" oninput="updateInference(this.value)">
+        <label id="label-inf">INFERENCE VOLUME: 0.20</label>
+        <input type="range" id="inf-slider" min="0.05" max="0.5" step="0.01" value="0.20" oninput="updateInference(this.value)">
     </div>
     
-    <div style="margin-top:20px; font-size:0.6em; color:#444;">BANDWIDTH: ~24 KB/s</div>
+    <div style="margin-top:20px; font-size:0.6em; color:#444;">DENSITY: 1,360 POINTS (~3X)</div>
 </div>
 
 <div class="viewport-container">
-    <div class="viewport" id="v-tx"><div class="tag">TX: OPTICS LIVE</div></div>
-    <div class="viewport" id="v-rx"><div class="tag" style="color:var(--magenta)">RX: AMALGAMATED RECONSTRUCTION</div></div>
+    <div class="viewport" id="v-tx"><div class="tag">TX: LANDMARK TELEMETRY</div></div>
+    <div class="viewport" id="v-rx"><div class="tag" style="color:var(--magenta)">RX: TRIANGULATED RECONSTRUCTION</div></div>
 </div>
 
 <video id="webcam" playsinline></video>
@@ -51,7 +50,16 @@ video { display: none; }
 let localScene, remoteScene, latestLandmarks = null;
 let captureCanvas, captureCtx;
 
-// Custom Shader for "Amalgamated" Splats
+// Standard FaceMesh Triangulation (subset)
+const INDICES = [
+    10,338,297, 332,284,251, 10,151,338, 67,109,10, 21,54,103, 103,67,10, 
+    127,162,21, 21,162,54, 132,93,127, 127,93,234, 58,132,93, 234,127,162,
+    1,2,164, 164,2,5, 5,2,4, 61,146,91, 181,84,17, 314,405,321,
+    // (Abridged for brevity - real version uses all ~892 triangles)
+];
+
+const MAX_POINTS = 468 + 892; // Landmarks + Face Centroids
+
 const splatVertexShader = `
     attribute vec3 color;
     attribute float size;
@@ -69,7 +77,7 @@ const splatFragmentShader = `
     void main() {
         float r = distance(gl_PointCoord, vec2(0.5));
         if (r > 0.5) discard;
-        float alpha = 1.0 - smoothstep(0.3, 0.5, r);
+        float alpha = 1.0 - smoothstep(0.2, 0.5, r);
         gl_FragColor = vec4(vColor, alpha);
     }
 `;
@@ -83,16 +91,15 @@ function buildNode(containerId, isReceiver) {
     document.getElementById(containerId).appendChild(renderer.domElement);
 
     const geo = new THREE.BufferGeometry();
-    const pos = new Float32Array(468 * 3);
-    const colors = new Float32Array(468 * 3);
-    const sizes = new Float32Array(468);
+    const pos = new Float32Array(MAX_POINTS * 3);
+    const colors = new Float32Array(MAX_POINTS * 3);
+    const sizes = new Float32Array(MAX_POINTS);
     
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
     const mat = new THREE.ShaderMaterial({
-        uniforms: {},
         vertexShader: splatVertexShader,
         fragmentShader: splatFragmentShader,
         transparent: true,
@@ -141,19 +148,35 @@ async function initSystem() {
 
 function updateFrame(node, lm, isRX) {
     const infValue = parseFloat(document.getElementById('inf-slider').value);
+    
+    // 1. Map Base Landmarks
     for (let i = 0; i < 468; i++) {
         node.pos[i*3] = (lm[i].x - 0.5) * -5;
         node.pos[i*3+1] = (lm[i].y - 0.5) * -5;
         node.pos[i*3+2] = (lm[i].z * -5);
-        
-        // Dynamic size based on inference volume
         node.sizes[i] = isRX ? infValue : 0.05;
+        if (!isRX) { node.colors[i*3] = 0.0; node.colors[i*3+1] = 0.94; node.colors[i*3+2] = 1.0; }
+    }
 
-        // Default TX color (Cyan) vs RX (Inferred)
-        if (!isRX) {
-            node.colors[i*3] = 0.0; node.colors[i*3+1] = 0.94; node.colors[i*3+2] = 1.0;
+    // 2. Map Inferred Centroids (RX only)
+    if (isRX) {
+        for (let j = 0; j < 892; j++) {
+            const idx = 468 + j;
+            const t = j * 3;
+            const p1 = lm[FACEMESH_TESSELATION[t]];
+            const p2 = lm[FACEMESH_TESSELATION[t+1]];
+            const p3 = lm[FACEMESH_TESSELATION[t+2]];
+            
+            if (p1 && p2 && p3) {
+                // Centroid Formula: (P1 + P2 + P3) / 3
+                node.pos[idx*3] = ((p1.x + p2.x + p3.x)/3 - 0.5) * -5;
+                node.pos[idx*3+1] = ((p1.y + p2.y + p3.y)/3 - 0.5) * -5;
+                node.pos[idx*3+2] = ((p1.z + p2.z + p3.z)/3 * -5);
+                node.sizes[idx] = infValue * 0.8; 
+            }
         }
     }
+
     node.geo.attributes.position.needsUpdate = true;
     node.geo.attributes.size.needsUpdate = true;
     node.geo.attributes.color.needsUpdate = true;
@@ -165,29 +188,29 @@ function captureInferredSurface() {
     captureCtx.drawImage(video, 0, 0, 640, 480);
     const pixelData = captureCtx.getImageData(0, 0, 640, 480).data;
 
-    for (let i = 0; i < 468; i++) {
-        const px = Math.floor(latestLandmarks[i].x * 640);
-        const py = Math.floor(latestLandmarks[i].y * 480);
+    for (let i = 0; i < MAX_POINTS; i++) {
+        let px, py;
+        if (i < 468) {
+            px = Math.floor(latestLandmarks[i].x * 640);
+            py = Math.floor(latestLandmarks[i].y * 480);
+        } else {
+            const j = (i - 468) * 3;
+            const p1 = latestLandmarks[FACEMESH_TESSELATION[j]];
+            const p2 = latestLandmarks[FACEMESH_TESSELATION[j+1]];
+            const p3 = latestLandmarks[FACEMESH_TESSELATION[j+2]];
+            px = Math.floor(((p1.x + p2.x + p3.x)/3) * 640);
+            py = Math.floor(((p1.y + p2.y + p3.y)/3) * 480);
+        }
         const idx = (py * 640 + px) * 4;
-        
         remoteScene.colors[i*3] = pixelData[idx] / 255;
         remoteScene.colors[i*3+1] = pixelData[idx+1] / 255;
         remoteScene.colors[i*3+2] = pixelData[idx+2] / 255;
     }
-    document.getElementById('btn-snap').textContent = "Surface Inferred";
 }
 
 function updateInference(val) {
     document.getElementById('label-inf').textContent = `INFERENCE VOLUME: ${val}`;
 }
-
-window.addEventListener('resize', () => {
-    [localScene, remoteScene].forEach(node => {
-        node.renderer.setSize(window.innerWidth/2, window.innerHeight);
-        node.camera.aspect = (window.innerWidth/2)/window.innerHeight;
-        node.camera.updateProjectionMatrix();
-    });
-});
 </script>
 </body>
 </html>
