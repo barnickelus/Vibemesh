@@ -3,56 +3,67 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VibeMesh v9.8 | Telemetry & Environment</title>
+<title>VibeMesh v9.9 | Composite Scan</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
 :root { --accent: #00f0ff; --panel: #0a0a1a; }
 body{background:#04040a;color:#fff;font-family:'Inter',sans-serif;margin:0;overflow:hidden}
-.hdr{padding:20px;text-align:center;border-bottom:1px solid #ffffff0a}
-.hdr h1{font-size:1.2em;letter-spacing:4px;color:var(--accent);text-transform:uppercase}
+.hdr{padding:15px;text-align:center;border-bottom:1px solid #ffffff0a;display:flex;justify-content:space-between;align-items:center;padding:10px 30px}
+.hdr h1{font-size:1em;letter-spacing:4px;color:var(--accent);text-transform:uppercase;margin:0}
 
-.viewport{display:flex;justify-content:center;gap:30px;padding:20px;height:60vh}
-.av-container{position:relative;width:360px;height:450px;border-radius:30px;background:#000;border:1px solid #ffffff10;box-shadow:0 40px 100px #000}
-.label-tag{position:absolute;top:20px;left:20px;font-size:0.6em;color:rgba(255,255,255,0.3);letter-spacing:2px;z-index:10}
+.viewport{display:flex;justify-content:center;gap:20px;padding:10px;height:55vh}
+.av-container{position:relative;width:340px;height:420px;border-radius:25px;background:#000;border:1px solid #ffffff10;overflow:hidden}
+.label-tag{position:absolute;top:15px;left:15px;font-size:0.55em;color:rgba(0,240,255,0.4);letter-spacing:2px;z-index:10;background:rgba(0,0,0,0.5);padding:4px 8px;border-radius:4px}
 
-.ui-panel{max-width:800px;margin:0 auto;background:var(--panel);padding:30px;border-radius:30px 30px 0 0;border:1px solid #ffffff0a;position:fixed;bottom:0;left:0;right:0}
-.data-stream{display:grid;grid-template-columns:repeat(4, 1fr);gap:15px;margin-bottom:25px}
-.data-box{background:#111125;padding:12px;border-radius:12px;text-align:center}
-.data-box label{display:block;font-size:0.5em;color:#444;margin-bottom:5px;text-transform:uppercase}
-.data-box span{font-family:'Courier New';font-size:0.8em;color:var(--accent)}
+.ui-panel{max-width:900px;margin:0 auto;background:var(--panel);padding:25px;border-radius:30px 30px 0 0;border:1px solid #ffffff0a;position:fixed;bottom:0;left:0;right:0}
+.metrics{display:grid;grid-template-columns:repeat(5, 1fr);gap:10px;margin-bottom:20px}
+.m-box{background:#111125;padding:10px;border-radius:10px;text-align:center;border:1px solid #ffffff05}
+.m-box label{display:block;font-size:0.5em;color:#555;margin-bottom:4px;text-transform:uppercase}
+.m-box span{font-family:'monospace';font-size:0.8em;color:var(--accent)}
 
-.btn-group{display:flex;gap:15px}
-.btn{flex:1;padding:18px;border-radius:15px;border:none;font-weight:900;text-transform:uppercase;font-size:0.7em;cursor:pointer;transition:0.3s}
+.ctrl-row{display:flex;gap:12px;align-items:center}
+.btn{flex:2;padding:16px;border-radius:14px;border:none;font-weight:900;text-transform:uppercase;font-size:0.7em;cursor:pointer;transition:0.3s}
 .btn-on{background:var(--accent);color:#000}
 .btn-off{background:#1a1a35;color:#666}
+.toggle-btn{flex:1;background:#222;color:#aaa;font-size:0.6em}
+.toggle-btn.active{border:1px solid var(--accent);color:var(--accent)}
+
+#scan-progress{position:absolute;bottom:0;left:0;height:4px;background:var(--accent);width:0%;transition:width 0.1s}
 </style>
 </head>
 <body>
 
-<div class="hdr"><h1>VibeMesh : Telemetry Protocol v9.8</h1></div>
+<div class="hdr">
+  <h1>VibeMesh v9.9</h1>
+  <div style="font-size:0.6em; color:#444">STABLE_BRANCH // REQ: COMPOSITE_VOL</div>
+</div>
 
 <div class="viewport">
   <div class="av-container" id="senderView">
-    <div class="label-tag">LOCAL.OPTIC (SENDER)</div>
+    <div class="label-tag">PRIMARY_OPTIC</div>
+    <div id="scan-progress"></div>
   </div>
   <div class="av-container" id="recipientView">
-    <div class="label-tag">REMOTE.MESH (RECIPIENT)</div>
+    <div class="label-tag">REMOTE_SYNTH</div>
   </div>
 </div>
 
 <div class="ui-panel">
-  <div class="data-stream">
-    <div class="data-box"><label>Estimated Kelvin</label><span id="valKelvin">--</span></div>
-    <div class="data-box"><label>Light Azimuth</label><span id="valAzi">--</span></div>
-    <div class="data-box"><label>Driver Points</label><span id="valPoints">0</span></div>
-    <div class="data-box"><label>Packet Size</label><span id="valBytes">0 B</span></div>
+  <div class="metrics">
+    <div class="m-box"><label>Phase</label><span id="valPhase">Idle</span></div>
+    <div class="m-box"><label>Temp</label><span id="valKelvin">--</span></div>
+    <div class="m-box"><label>Bitrate</label><span id="valBitrate">0 Kbps</span></div>
+    <div class="m-box"><label>Accuracy</label><span id="valAcc">0.0</span></div>
+    <div class="m-box"><label>Wireframe</label><span id="valWire">OFF</span></div>
   </div>
   
-  <div class="btn-group">
-    <button class="btn btn-off" id="camBtn" onclick="initSystem()">Initialize Optics</button>
-    <button class="btn btn-off" id="syncBtn" onclick="toggleSync()" disabled>Establish Peer Sync</button>
+  <div class="ctrl-row">
+    <button class="btn btn-off" id="camBtn" onclick="initSystem()">1. Open Lens</button>
+    <button class="btn btn-off" id="snapBtn" onclick="runCompositeScan()" disabled>2. Composite Scan</button>
+    <button class="btn toggle-btn" id="wireBtn" onclick="toggleWireframe()">Toggle Grid</button>
+    <button class="btn btn-off" id="syncBtn" onclick="isSyncing = !isSyncing" disabled>3. Live Sync</button>
   </div>
 </div>
 
@@ -62,110 +73,104 @@ body{background:#04040a;color:#fff;font-family:'Inter',sans-serif;margin:0;overf
 'use strict';
 
 const ANCHORS = [33,133,362,263,1,4,61,291,152,10,187,411,13,14,78,308];
-let sender, recipient, isSyncing = false;
+let sender, recipient, isSyncing = false, showWire = false;
+let scanFrames = [], isScanning = false;
 
-function createStage(containerId) {
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(35, 360/450, 0.1, 100);
-  camera.position.z = 2.8;
+function createStage(id) {
+  const sc = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(35, 340/420, 0.1, 100);
+  cam.position.z = 2.8;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setSize(360, 450);
-  document.getElementById(containerId).appendChild(renderer.domElement);
-
-  const amb = new THREE.AmbientLight(0xffffff, 0.2);
-  const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+  renderer.setSize(340, 420);
+  document.getElementById(id).appendChild(renderer.domElement);
+  const amb = new THREE.AmbientLight(0xffffff, 0.3);
+  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
   dir.position.set(0, 1, 2);
-  scene.add(amb, dir);
-
-  return { scene, camera, renderer, dir, amb, mesh: null, basePos: null, tex: null };
+  sc.add(amb, dir);
+  return { sc, cam, renderer, dir, amb, mesh: null, basePos: null, mat: null };
 }
 
-// ── TELEMETRY SENSOR: ESTIMATE LIGHT FROM FEED ──
-function analyzeEnvironment(video) {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  canvas.width = 64; canvas.height = 48;
-  ctx.drawImage(video, 0, 0, 64, 48);
-  const data = ctx.getImageData(0,0,64,48).data;
+// ── COMPOSITE SCAN ENGINE ──
+async function runCompositeScan() {
+  isScanning = true;
+  scanFrames = [];
+  document.getElementById('valPhase').textContent = "SCANNING...";
   
-  let r=0, g=0, b=0, maxB = 0, maxPos = 0;
-  for(let i=0; i<data.length; i+=4) {
-    r += data[i]; g += data[i+1]; b += data[i+2];
-    let bright = data[i] + data[i+1] + data[i+2];
-    if(bright > maxB) { maxB = bright; maxPos = i/4; }
+  // Capture 10 frames over ~1 second
+  for(let i=0; i<10; i++) {
+    const video = document.getElementById('webcam');
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    scanFrames.push({ img: canvas, lm: JSON.parse(JSON.stringify(window.currentLM)) });
+    document.getElementById('scan-progress').style.width = ((i+1)*10) + "%";
+    await new Promise(r => setTimeout(r, 100));
   }
   
-  const avgR = r/(data.length/4), avgB = b/(data.length/4);
-  const kelvin = Math.floor(6500 + (avgR - avgB) * 20); // Rough K-estimation
-  const azi = ((maxPos % 64) / 64 - 0.5) * 180; // Rough Light Direction
+  document.getElementById('valPhase').textContent = "BUILDING...";
+  await buildCompositeAvatar(sender, scanFrames);
+  await buildCompositeAvatar(recipient, scanFrames);
   
-  return { kelvin, azi };
+  document.getElementById('scan-progress').style.width = "0%";
+  document.getElementById('valPhase').textContent = "READY";
+  document.getElementById('syncBtn').disabled = false;
+  document.getElementById('syncBtn').classList.replace('btn-off', 'btn-on');
+  isScanning = false;
 }
 
-function kelvinToColor(k) {
-  let temp = k / 100, r, g, b;
-  if (temp <= 66) {
-    r = 255;
-    g = 99.47 * Math.log(temp) - 161.11;
-    b = temp <= 19 ? 0 : 138.51 * Math.log(temp - 10) - 305.04;
-  } else {
-    r = 329.69 * Math.pow(temp - 60, -0.133);
-    g = 288.12 * Math.pow(temp - 60, -0.075);
-    b = 255;
-  }
-  return new THREE.Color(r/255, g/255, b/255);
-}
-
-// ── MESH CONSTRUCTION ──
-async function buildMesh(stg, lm, video) {
+async function buildCompositeAvatar(stg, frames) {
   const W = 32, H = 40, CELL = 34;
   const texCanvas = document.createElement('canvas');
   texCanvas.width = W*CELL; texCanvas.height = H*CELL;
   const ctx = texCanvas.getContext('2d');
 
-  // Sampling coordinates
+  // Use the middle frame for geometry
+  const ref = frames[Math.floor(frames.length/2)];
   let x0=1, x1=0, y0=1, y1=0;
-  lm.forEach(p => { const mx=1-p.x; if(mx<x0) x0=mx; if(mx>x1) x1=mx; if(p.y<y0) y0=p.y; if(p.y>y1) y1=p.y; });
+  ref.lm.forEach(p => { const mx=1-p.x; if(mx<x0) x0=mx; if(mx>x1) x1=mx; if(p.y<y0) y0=p.y; if(p.y>y1) y1=p.y; });
   stg.bbox = { x0, x1, y0, y1, w:x1-x0, h:y1-y0 };
-  stg.snapLM = lm.map(p => ({...p}));
+  stg.snapLM = ref.lm.map(p => ({...p}));
 
-  // Render "Chuck Close" Texture
-  const sC = document.createElement('canvas'); sC.width = video.videoWidth; sC.height = video.videoHeight;
-  const sX = sC.getContext('2d'); sX.drawImage(video, 0, 0);
-
+  // Composite Texture (Temporal Sampling)
   for(let j=0; j<H; j++) {
     for(let i=0; i<W; i++) {
-      const vx = Math.floor((x0 + (i/W)*(x1-x0)) * sC.width);
-      const vy = Math.floor((y0 + (j/H)*(y1-y0)) * sC.height);
-      const p = sX.getImageData(vx, vy, 1, 1).data;
+      let r=0, g=0, b=0;
+      frames.forEach(f => {
+        const vx = Math.floor((x0 + (i/W)*(x1-x0)) * f.img.width);
+        const vy = Math.floor((y0 + (j/H)*(y1-y0)) * f.img.height);
+        const p = f.img.getContext('2d').getImageData(vx, vy, 1, 1).data;
+        r += p[0]; g += p[1]; b += p[2];
+      });
+      r/=frames.length; g/=frames.length; b/=frames.length;
       
-      ctx.fillStyle = `rgb(${p[0]*0.2},${p[1]*0.2},${p[2]*0.2})`;
+      ctx.fillStyle = `rgb(${r*0.2},${g*0.2},${b*0.2})`;
       ctx.fillRect(i*CELL, j*CELL, CELL, CELL);
       ctx.beginPath();
       ctx.arc(i*CELL+17, j*CELL+17, 14, 0, Math.PI*2);
-      ctx.fillStyle = `rgb(${p[0]},${p[1]},${p[2]})`;
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
       ctx.fill();
     }
   }
 
+  if(stg.mesh) stg.sc.remove(stg.mesh);
   const geo = new THREE.PlaneGeometry(2.2, 2.8, W, H);
-  stg.tex = new THREE.CanvasTexture(texCanvas);
-  stg.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: stg.tex, flatShading: true }));
-  stg.scene.add(stg.mesh);
+  stg.mat = new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(texCanvas), flatShading: true, wireframe: showWire });
+  stg.mesh = new THREE.Mesh(geo, stg.mat);
+  stg.sc.add(stg.mesh);
   stg.basePos = geo.attributes.position.array.slice();
 }
 
-// ── THE RECIPIENT PUPPETING ──
+function toggleWireframe() {
+  showWire = !showWire;
+  [sender, recipient].forEach(s => { if(s.mat) s.mat.wireframe = showWire; });
+  document.getElementById('valWire').textContent = showWire ? "ON" : "OFF";
+  document.getElementById('wireBtn').classList.toggle('active');
+}
+
 function updateRemote(packet) {
   if(!recipient.mesh) return;
-  const { lm, kelvin, azi } = packet;
-  
-  // 1. Apply Environmental Telemetry
-  const col = kelvinToColor(kelvin);
-  recipient.dir.color = col;
-  recipient.dir.position.set(Math.sin(azi * Math.PI/180)*3, 1, 2);
-  
-  // 2. Structural Mesh Deformation (Puppeting)
+  const { lm, k, a } = packet;
+  recipient.dir.position.set(Math.sin(a * Math.PI/180)*3, 1, 2);
   const pos = recipient.mesh.geometry.attributes.position.array;
   const bb = recipient.bbox, W=32, H=40;
   
@@ -175,7 +180,7 @@ function updateRemote(packet) {
       let du=0, dv=0, tw=0;
       ANCHORS.forEach(idx => {
         const su = (1-recipient.snapLM[idx].x-bb.x0)/bb.w, sv = (recipient.snapLM[idx].y-bb.y0)/bb.h;
-        const w = Math.exp(-((su-u)**2 + (sv-v)**2)/0.004);
+        const w = Math.exp(-((su-u)**2 + (sv-v)**2)/0.005);
         du += ((1-lm[idx].x-bb.x0)/bb.w - su)*w;
         dv += ((lm[idx].y-bb.y0)/bb.h - sv)*w;
         tw += w;
@@ -190,49 +195,30 @@ function updateRemote(packet) {
 }
 
 async function initSystem() {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-  const video = document.getElementById('webcam');
-  video.srcObject = stream;
-  
-  const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+  document.getElementById('webcam').srcObject = stream;
+  const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
   faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
   faceMesh.onResults(res => {
     if (!res.multiFaceLandmarks?.[0]) return;
-    const lm = res.multiFaceLandmarks[0];
-    
-    // SENDER ACTIONS
-    if (isSyncing) {
-      const env = analyzeEnvironment(video);
-      const packet = { lm, kelvin: env.kelvin, azi: env.azi };
-      
-      // UI Metrics
-      document.getElementById('valKelvin').textContent = env.kelvin + "K";
-      document.getElementById('valAzi').textContent = Math.round(env.azi) + "°";
-      document.getElementById('valPoints').textContent = ANCHORS.length;
-      document.getElementById('valBytes').textContent = (JSON.stringify(packet).length / 1024).toFixed(2) + " KB";
-      
-      // RECIPIENT ACTIONS (The "Puppet")
+    window.currentLM = res.multiFaceLandmarks[0];
+    if (isSyncing && !isScanning) {
+      const packet = { lm: window.currentLM, k: 6500, a: 0 };
       updateRemote(packet);
+      document.getElementById('valBitrate').textContent = (JSON.stringify(packet).length * 30 / 1024).toFixed(0) + " Kbps";
     }
-    
-    if(!sender.mesh) buildMesh(sender, lm, video);
-    if(!recipient.mesh) buildMesh(recipient, lm, video);
   });
-  
-  new Camera(video, { onFrame: async () => await faceMesh.send({ image: video }) }).start();
-  document.getElementById('syncBtn').disabled = false;
-  document.getElementById('syncBtn').classList.replace('btn-off', 'btn-on');
+  new Camera(document.getElementById('webcam'), { onFrame: async () => await faceMesh.send({ image: document.getElementById('webcam') }) }).start();
+  document.getElementById('snapBtn').disabled = false;
+  document.getElementById('camBtn').classList.replace('btn-off', 'btn-on');
 }
 
-function toggleSync() { isSyncing = !isSyncing; }
-
 window.onload = () => {
-  sender = createStage('senderView');
-  recipient = createStage('recipientView');
+  sender = createStage('senderView'); recipient = createStage('recipientView');
   (function render() {
     requestAnimationFrame(render);
-    sender.renderer.render(sender.scene, sender.camera);
-    recipient.renderer.render(recipient.scene, recipient.camera);
+    sender.renderer.render(sender.sc, sender.cam);
+    recipient.renderer.render(recipient.sc, recipient.cam);
   })();
 };
 </script>
