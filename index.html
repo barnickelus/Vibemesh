@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>VibeMesh | Surface Splatting v12.0</title>
+<title>VibeMesh | Topology Wrap v13.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -23,11 +23,11 @@ video { display: none; }
 <div class="app-container">
   <div class="stage">
     <div class="viewport" id="v-sender"><div class="tag">TX: LANDMARK TELEMETRY</div></div>
-    <div class="viewport" id="v-receiver"><div class="tag" style="color:var(--magenta)">RX: SURFACE SPLATTING</div></div>
+    <div class="viewport" id="v-receiver"><div class="tag" style="color:var(--magenta)">RX: POLYGON RECONSTRUCTION</div></div>
   </div>
   <div class="network-deck">
     <button class="btn active" id="btn-init" onclick="initSystem()">1. Initialize</button>
-    <button class="btn" id="btn-snap" onclick="triggerSnapshotSplat()" disabled>2. Wrap Surface</button>
+    <button class="btn" id="btn-snap" onclick="triggerSnapshotWrap()" disabled>2. Wrap Surface</button>
     <button class="btn" id="btn-puppet" onclick="toggleNetwork()" disabled>3. Live Telemetry</button>
   </div>
 </div>
@@ -35,7 +35,17 @@ video { display: none; }
 
 <script>
 let localScene, remoteScene, isTransmitting = false, latestLandmarks = null;
-let captureCanvas, captureCtx, texture;
+let captureCanvas, captureCtx;
+
+// Verified indices for a stable 3D face mask (Forehead, Eyes, Nose, Mouth)
+const FACEMASK_INDICES = [
+    10,338,297, 332,284,251, 10,151,338, 67,109,10, 21,54,103, 103,67,10,
+    33,7,163, 163,7,144, 144,7,145, 145,7,153, 153,7,154, 154,7,155, 155,7,133,
+    263,249,390, 390,249,373, 373,249,374, 374,249,380, 380,249,381, 381,249,382, 382,249,362,
+    168,6,197, 197,6,195, 195,6,5, 5,6,4, 1,2,164, 164,2,5, 5,2,4,
+    61,146,91, 91,181,84, 84,17,314, 314,405,321, 321,375,291, 
+    78,95,88, 88,178,87, 87,14,317, 317,402,318, 318,324,308
+];
 
 function buildNodeEnv(containerId, isReceiver) {
     const scene = new THREE.Scene();
@@ -50,19 +60,13 @@ function buildNodeEnv(containerId, isReceiver) {
     const uvs = new Float32Array(468 * 2); 
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geo.setIndex(FACEMASK_INDICES);
 
     let mesh;
     if (isReceiver) {
-        // CREATIVE SOLUTION: Textured Point Splatting
-        // Each point is a large 'cell' that samples the snapshot texture
-        const mat = new THREE.PointsMaterial({ 
-            size: 0.2, // LARGE overlapping splats to form a surface
-            transparent: true,
-            opacity: 1.0,
-            vertexColors: false,
-            depthWrite: false
-        });
-        mesh = new THREE.Points(geo, mat);
+        // High-fidelity mesh material for the "wrapped" look
+        const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0.98 });
+        mesh = new THREE.Mesh(geo, mat);
     } else {
         const mat = new THREE.PointsMaterial({ size: 0.02, color: 0x00f0ff });
         mesh = new THREE.Points(geo, mat);
@@ -107,17 +111,16 @@ async function initSystem() {
     } catch (e) { btn.textContent = "HW Error"; }
 }
 
-function triggerSnapshotSplat() {
+function triggerSnapshotWrap() {
     if (!latestLandmarks) return;
     const video = document.getElementById('webcam');
     captureCtx.drawImage(video, 0, 0, 640, 480);
     
-    // Create the persistent snapshot texture
-    texture = new THREE.CanvasTexture(captureCanvas);
+    const texture = new THREE.CanvasTexture(captureCanvas);
     remoteScene.mesh.material.map = texture;
     remoteScene.mesh.material.needsUpdate = true;
 
-    // Direct mapping: UV coordinates sample the pixel location of each landmark
+    // UV mapping: Correctly projecting the snapshot across the mesh
     for (let i = 0; i < 468; i++) {
         const pt = latestLandmarks[i];
         remoteScene.uvs[i*2] = pt.x;
