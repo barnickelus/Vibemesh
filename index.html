@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>VibeMesh | v17.0 Polygon Reconstruction</title>
+<title>VibeMesh | v17.1 Surface Fix</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -12,13 +12,9 @@ body { background: var(--bg); color: #fff; font-family: monospace; margin: 0; ov
 .control-deck { position: absolute; top: 20px; right: 20px; width: 280px; background: rgba(10,10,22,0.9); 
                 border: 1px solid #1a1a2a; border-radius: 12px; padding: 20px; z-index: 100; backdrop-filter: blur(10px); }
 .deck-title { font-size: 0.7em; color: var(--neon); letter-spacing: 2px; margin-bottom: 15px; border-bottom: 1px solid #1a1a2a; padding-bottom: 8px; }
-.viewport-container { display: flex; width: 100vw; height: 100vh; }
-.viewport { flex: 1; position: relative; border-right: 1px solid #1a1a2a; }
-.tag { position: absolute; top: 15px; left: 15px; font-size: 0.6em; color: #555; }
 .btn { width: 100%; padding: 12px; background: #111; color: var(--neon); border: 1px solid #222; border-radius: 6px; 
        font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: 0.3s; text-transform: uppercase; font-size: 0.75em; }
 .btn.active { background: var(--neon); color: #000; border-color: var(--neon); box-shadow: 0 0 15px rgba(0,240,255,0.3); }
-.metrics { margin-top: 15px; font-size: 0.6em; color: #444; border-top: 1px solid #1a1a2a; padding-top: 10px; }
 video { display: none; }
 </style>
 </head>
@@ -26,19 +22,13 @@ video { display: none; }
 
 <div class="control-deck">
     <div class="deck-title">VIBEMESH // COMMAND DECK</div>
-    <button class="btn active" id="btn-init" onclick="initSystem()">Initialize Hardware</button>
-    <button class="btn" id="btn-snap" onclick="toggleRenderMode()">Switch to Shaded Surface</button>
-    
-    <div class="metrics">
-        BANDWIDTH: ~24 KB/s<br>
-        POLYGON COUNT: 892 FACES<br>
-        DENSITY: ~3X INFERRED
-    </div>
+    <button class="btn active" id="btn-init" onclick="initSystem()">1. Start Hardware</button>
+    <button class="btn" id="btn-toggle" onclick="toggleRenderMode()">2. Activate Shaded Surface</button>
 </div>
 
-<div class="viewport-container">
-    <div class="viewport" id="v-tx"><div class="tag">TX: LANDMARK TELEMETRY</div></div>
-    <div class="viewport" id="v-rx"><div class="tag" style="color:var(--magenta)">RX: POLYGON RECONSTRUCTION</div></div>
+<div style="display: flex; width: 100vw; height: 100vh;">
+    <div id="v-tx" style="flex:1; position:relative;"></div>
+    <div id="v-rx" style="flex:1; position:relative;"></div>
 </div>
 
 <video id="webcam" playsinline></video>
@@ -46,9 +36,6 @@ video { display: none; }
 <script>
 let localScene, remoteScene, latestLandmarks = null;
 let isSurfaceMode = false;
-
-// MediaPipe Tesselation Indices for the 892 Polygon Faces
-const FACE_INDICES = FACEMESH_TESSELATION.flat(); 
 
 function buildNode(containerId) {
     const scene = new THREE.Scene();
@@ -58,33 +45,30 @@ function buildNode(containerId) {
     renderer.setSize(window.innerWidth/2, window.innerHeight);
     document.getElementById(containerId).appendChild(renderer.domElement);
 
-    // Geometry setup for Barycentric Surface Rendering
     const geo = new THREE.BufferGeometry();
     const pos = new Float32Array(468 * 3);
     const colors = new Float32Array(468 * 3);
     
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geo.setIndex(FACE_INDICES);
+    
+    // Core Fix: Proper indexing for the 892 faces
+    geo.setIndex(FACEMESH_TESSELATION.flat());
 
-    // Standard material for points, Shaded for surface
-    const pointMat = new THREE.PointsMaterial({ size: 0.02, vertexColors: true });
-    const meshMat = new THREE.MeshPhongMaterial({ 
+    const points = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.02, vertexColors: true }));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ 
         vertexColors: true, 
         side: THREE.DoubleSide, 
-        flatShading: false,
-        shininess: 30
-    });
+        flatShading: false 
+    }));
 
-    const points = new THREE.Points(geo, pointMat);
-    const mesh = new THREE.Mesh(geo, meshMat);
-    scene.add(points);
-    
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(0, 1, 5);
-    scene.add(light);
+    // Add lighting required for the Shaded Surface
+    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+    sun.position.set(0, 5, 5);
+    scene.add(sun);
     scene.add(new THREE.AmbientLight(0x404040));
 
+    scene.add(points); // Start with points
     return { scene, camera, renderer, points, mesh, geo, pos, colors };
 }
 
@@ -93,7 +77,7 @@ async function initSystem() {
     remoteScene = buildNode('v-rx');
     
     const video = document.getElementById('webcam');
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     video.srcObject = stream; video.play();
 
     const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
@@ -101,8 +85,16 @@ async function initSystem() {
     faceMesh.onResults(res => {
         if (!res.multiFaceLandmarks?.[0]) return;
         latestLandmarks = res.multiFaceLandmarks[0];
-        updateFrame(localScene, latestLandmarks);
-        updateFrame(remoteScene, latestLandmarks);
+        [localScene, remoteScene].forEach(node => {
+            for (let i = 0; i < 468; i++) {
+                node.pos[i*3] = (latestLandmarks[i].x - 0.5) * -5;
+                node.pos[i*3+1] = (latestLandmarks[i].y - 0.5) * -5;
+                node.pos[i*3+2] = (latestLandmarks[i].z * -5);
+                node.colors[i*3] = 0.8; node.colors[i*3+1] = 0.6; node.colors[i*3+2] = 0.5;
+            }
+            node.geo.attributes.position.needsUpdate = true;
+            node.geo.computeVertexNormals(); // Essential for shading
+        });
     });
 
     new Camera(video, { onFrame: async () => { await faceMesh.send({image: video}); } }).start();
@@ -112,37 +104,23 @@ async function initSystem() {
         remoteScene.renderer.render(remoteScene.scene, remoteScene.camera);
         requestAnimationFrame(animate);
     });
-
-    document.getElementById('btn-init').style.display = 'none';
-}
-
-function updateFrame(node, lm) {
-    for (let i = 0; i < 468; i++) {
-        node.pos[i*3] = (lm[i].x - 0.5) * -5;
-        node.pos[i*3+1] = (lm[i].y - 0.5) * -5;
-        node.pos[i*3+2] = (lm[i].z * -5);
-        
-        // Dynamic Optical Blending color mapping
-        node.colors[i*3] = 0.8; // Base Skin Tone Reconstruction
-        node.colors[i*3+1] = 0.5 + (lm[i].z * 2); 
-        node.colors[i*3+2] = 0.4;
-    }
-    node.geo.attributes.position.needsUpdate = true;
-    node.geo.attributes.color.needsUpdate = true;
 }
 
 function toggleRenderMode() {
     isSurfaceMode = !isSurfaceMode;
-    const btn = document.getElementById('btn-snap');
+    const btn = document.getElementById('btn-toggle');
     
+    // Swap Points for Mesh on the Receiver side
     if (isSurfaceMode) {
         remoteScene.scene.remove(remoteScene.points);
         remoteScene.scene.add(remoteScene.mesh);
-        btn.textContent = "Switch to Data Points";
+        btn.textContent = "Data Points Active";
+        btn.classList.add('active');
     } else {
         remoteScene.scene.remove(remoteScene.mesh);
         remoteScene.scene.add(remoteScene.points);
-        btn.textContent = "Switch to Shaded Surface";
+        btn.textContent = "Activate Shaded Surface";
+        btn.classList.remove('active');
     }
 }
 </script>
