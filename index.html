@@ -169,15 +169,12 @@ const TESS = [
 
 // ════════════════════════════════════════════════
 //  KNOT VERTEX SHADER
-//  Each point is a temporal knot.
-//  Compression (depth) drives size and pulse amplitude.
-//  The ring pattern in fragment shader = orbital structure.
 // ════════════════════════════════════════════════
 const KNOT_VERT = `
-  attribute vec3  aCol;       // face RGB color
-  attribute float aComp;      // compression: 0=recessed 1=forward
-  attribute float aPhase;     // per-knot phase offset for async pulsing
-  attribute float aIsCent;    // 1=centroid(inferred) 0=landmark
+  attribute vec3  aCol;
+  attribute float aComp;
+  attribute float aPhase;
+  attribute float aIsCent;
 
   varying vec3  vCol;
   varying float vComp;
@@ -186,7 +183,6 @@ const KNOT_VERT = `
 
   uniform float uTime;
   uniform float uPulse;
-  uniform float uOpacity;
 
   void main(){
     vCol    = aCol;
@@ -194,21 +190,40 @@ const KNOT_VERT = `
     vIsCent = aIsCent;
     vPhase  = aPhase;
 
-    // Position pulse — knot breathes slightly in Z
     vec3 pos = position;
     pos.z += sin(uTime * uPulse + aPhase) * 0.012 * aComp;
 
     vec4 mv = modelViewMatrix * vec4(pos, 1.0);
 
-    // Size: compressed knots are tighter/smaller when recessed,
-    //       larger when forward (they've stabilised more strongly)
-    float baseSize = aIsCent > 0.5 ? 180.0 : 280.0;
-    float pulse    = 1.0 + sin(uTime * uPulse * 1.3 + aPhase * 2.1) * 0.25 * aComp;
-    gl_PointSize   = (baseSize * aComp * pulse + 40.0) / -mv.z;
+    // Size driven by compression — forward knots are larger/more stable
+    float baseSize = aIsCent > 0.5 ? 200.0 : 320.0;
+    float pulse    = 1.0 + sin(uTime * uPulse * 1.3 + aPhase * 2.1) * 0.2 * aComp;
+    gl_PointSize   = (baseSize * (0.3 + aComp * 0.7) * pulse + 50.0) / -mv.z;
     gl_Position    = projectionMatrix * mv;
   }
 `;
 
+// ════════════════════════════════════════════════
+//  KNOT FRAGMENT SHADER — RGB AS WAVE FREQUENCY
+//
+//  The face color of each knot encodes wave properties:
+//
+//  R channel → long wavelength (~700nm) → wide, slow rings
+//              low freq: 4–6 rings, slow pulse
+//  G channel → mid wavelength (~530nm)  → medium rings
+//              mid freq: 7–10 rings, medium pulse  
+//  B channel → short wavelength (~450nm)→ tight, fast rings
+//              high freq: 12–18 rings, fast pulse
+//
+//  Each channel produces its own ring system at its own frequency.
+//  They superimpose as interference — bright where waves reinforce,
+//  dark where they cancel. The result is a unique interference pattern
+//  per face color that encodes the actual RGB as physical wave physics.
+//
+//  A pure-red knot: wide slow red rings, minimal other channels
+//  A pure-blue knot: dense fast blue rings
+//  Skin tone: complex interference of all three at different spacings
+// ════════════════════════════════════════════════
 const KNOT_FRAG = `
   varying vec3  vCol;
   varying float vComp;
@@ -219,52 +234,78 @@ const KNOT_FRAG = `
   uniform float uPulse;
   uniform float uOpacity;
 
+  // Compute a single channel's ring contribution at radius r
+  // freq:  ring spatial frequency (how many rings fit in 0..1)
+  // speed: animation speed multiplier for this wavelength
+  // amp:   channel amplitude (0..1) = how much this color is present
+  // Returns a brightness value 0..1
+  float channelRings(float r, float freq, float speed, float amp, float phase, float t) {
+    if(amp < 0.02) return 0.0;
+    // Outward-propagating wave: sin(freq*r - speed*t + phase)
+    // At radius r, the ring is bright when this is near 1
+    float wave = sin(r * freq * 3.14159 - t * speed * uPulse + phase);
+    // Square the wave so rings are sharp bright bands on dark background
+    float ring = max(0.0, wave);
+    ring = pow(ring, 2.0 + vComp * 2.0);  // sharper when more compressed
+    return ring * amp;
+  }
+
   void main(){
-    vec2  uv = gl_PointCoord - 0.5;  // [-0.5, 0.5]
+    vec2  uv = gl_PointCoord - 0.5;
     float d  = length(uv);
     if(d > 0.5) discard;
 
-    // ── KNOT PATTERN ──
-    // Each point renders as concentric orbital rings —
-    // the "stable structure" of compressed time.
-    // Ring count driven by compression (forward = more rings = more stable)
+    float r = d * 2.0;  // 0 at centre, 1 at edge
 
-    float rings = 3.0 + vComp * 4.0;  // 3–7 rings based on compression
-    float r     = d * 2.0;            // 0 at center, 1 at edge
+    // Extract face color channels
+    float rAmp = vCol.r;
+    float gAmp = vCol.g;
+    float bAmp = vCol.b;
 
-    // Ring pattern: bright bands at periodic radii
-    float ring  = abs(sin(r * rings * 3.14159));
-    ring        = pow(ring, 2.5 + vComp * 2.0);  // sharper rings when more compressed
+    // ── Ring frequencies mapped to EM wavelengths ──
+    // Red:   low freq  (long λ) → fewer, wider rings, slow outward pulse
+    // Green: mid freq          → medium rings, medium speed
+    // Blue:  high freq (short λ)→ many tight rings, fast pulse
+    float rRings = channelRings(r, 4.0  + vComp*2.0,  0.7, rAmp, vPhase,        uTime);
+    float gRings = channelRings(r, 8.0  + vComp*3.0,  1.2, gAmp, vPhase+2.09,   uTime);
+    float bRings = channelRings(r, 14.0 + vComp*5.0,  2.0, bAmp, vPhase+4.19,   uTime);
 
-    // Pulse — rings breathe
-    float pulse = 1.0 + sin(uTime * uPulse + vPhase) * 0.15;
+    // ── Interference: superimpose all three wave systems ──
+    // Each channel contributes its own color-tinted ring brightness
+    vec3 col = vec3(0.0);
+    col += vec3(rRings * 1.2, rRings * 0.15, rRings * 0.05);  // red rings are red
+    col += vec3(gRings * 0.1, gRings * 1.1,  gRings * 0.15);  // green rings are green
+    col += vec3(bRings * 0.05,bRings * 0.2,  bRings * 1.3 );  // blue rings are blue
 
-    // Core glow — compressed knots have a bright hot centre
-    float core  = exp(-d * d * 80.0) * vComp;
+    // Where channels overlap, waves reinforce — additive interference
+    // This naturally shows brightest where the face color is richest
 
-    // Color:
-    // Landmark (○): actual face color, brightened by compression
-    // Centroid (△): interpolated color, slightly shifted toward field freq
-    vec3 col = vCol;
+    // ── Hot core — the knot's stable centre ──
+    // Always shows the true face color, compression-driven intensity
+    float core     = exp(-d * d * 90.0) * vComp;
+    vec3  coreCol  = vCol * (0.8 + vComp * 0.4);
+    col += coreCol * core;
+
+    // ── Depth energy ──
+    col *= (0.35 + vComp * 0.65);
+
+    // ── Centroids slightly cooler and dimmer — emergent, not source ──
     if(vIsCent > 0.5){
-      // Centroids are slightly cooler, more transparent — they're emergent
-      col = mix(col, col * 0.7 + vec3(0.0, 0.15, 0.2), 0.3);
+      col = mix(col, col * vec3(0.7, 0.85, 1.0), 0.25);
+      col *= 0.75;
     }
 
-    // Depth→brightness: forward knots are more energetic
-    col *= (0.4 + vComp * 0.6);
+    // ── Outer falloff ──
+    float alpha = dot(col, vec3(0.333)) * uOpacity;
+    alpha *= smoothstep(0.5, 0.28, d);
 
-    // Final: ring structure + core
-    float alpha = (ring * (0.4 + vComp*0.5) + core) * uOpacity * pulse;
-    alpha      *= smoothstep(0.5, 0.35, d); // soft edge falloff
-
-    if(alpha < 0.01) discard;
+    if(alpha < 0.008) discard;
     gl_FragColor = vec4(col, alpha);
   }
 `;
 
 // ════════════════════════════════════════════════
-//  FIELD SHADER (secondary mode — shows connections)
+//  FIELD SHADER — density field with color-frequency blobs
 // ════════════════════════════════════════════════
 const FIELD_FRAG = `
   varying vec3  vCol;
@@ -281,20 +322,31 @@ const FIELD_FRAG = `
     float d  = length(uv);
     if(d > 0.5) discard;
 
-    // Field mode: each knot shows as a soft gaussian blob
-    // revealing the underlying density field
-    float blob = exp(-d*d * (12.0 + vComp * 20.0));
-    blob *= 1.0 + sin(uTime*uPulse + vPhase)*0.2;
+    // Each channel gets its own gaussian width — red spreads wide, blue tight
+    float rBlob = exp(-d*d * (8.0  + vComp*10.0)) * vCol.r;
+    float gBlob = exp(-d*d * (14.0 + vComp*16.0)) * vCol.g;
+    float bBlob = exp(-d*d * (22.0 + vComp*24.0)) * vCol.b;
 
-    vec3 col = vCol * (0.3 + vComp * 0.7);
-    float alpha = blob * uOpacity;
+    // Pulse each channel at its own rate
+    rBlob *= 1.0 + sin(uTime * uPulse * 0.7 + vPhase       ) * 0.25;
+    gBlob *= 1.0 + sin(uTime * uPulse * 1.2 + vPhase + 2.09) * 0.25;
+    bBlob *= 1.0 + sin(uTime * uPulse * 2.0 + vPhase + 4.19) * 0.25;
+
+    vec3 col = vec3(
+      rBlob * 1.1 + gBlob * 0.05,
+      gBlob * 1.1 + rBlob * 0.05 + bBlob * 0.1,
+      bBlob * 1.2 + gBlob * 0.1
+    );
+    col *= (0.4 + vComp * 0.6);
+
+    float alpha = length(col) * uOpacity * smoothstep(0.5, 0.0, d);
     if(alpha < 0.005) discard;
     gl_FragColor = vec4(col, alpha);
   }
 `;
 
 // ════════════════════════════════════════════════
-//  FABRIC SHADER (third mode — fabric of spacetime)
+//  FABRIC SHADER — woven interference grid
 // ════════════════════════════════════════════════
 const FABRIC_FRAG = `
   varying vec3  vCol;
@@ -311,19 +363,30 @@ const FABRIC_FRAG = `
     float d  = length(uv);
     if(d > 0.5) discard;
 
-    // Fabric mode: rectangular cell-like structure
-    // simulates the woven geometry of compressed time
-    float cell = max(abs(uv.x), abs(uv.y)) * 2.0;
-    float edge = abs(sin(cell * 3.14159 * (2.0 + vComp*3.0)));
-    edge = pow(edge, 1.5);
+    // Each channel weaves at its own grid frequency
+    // Red = coarse weave, blue = fine weave
+    float rFreq = 4.0  + vComp * 2.0;
+    float gFreq = 7.0  + vComp * 3.5;
+    float bFreq = 12.0 + vComp * 6.0;
 
-    float core = exp(-d*d*60.0)*vComp;
-    float alpha = (edge*0.6 + core) * uOpacity;
-    alpha *= smoothstep(0.5, 0.3, d);
+    float rWeave = pow(abs(sin(uv.x * rFreq * 3.14159 - uTime*uPulse*0.7+vPhase)),2.5)
+                 * pow(abs(sin(uv.y * rFreq * 3.14159 - uTime*uPulse*0.7+vPhase)),2.5);
+    float gWeave = pow(abs(sin(uv.x * gFreq * 3.14159 - uTime*uPulse*1.2+vPhase)),2.5)
+                 * pow(abs(sin(uv.y * gFreq * 3.14159 - uTime*uPulse*1.2+vPhase)),2.5);
+    float bWeave = pow(abs(sin(uv.x * bFreq * 3.14159 - uTime*uPulse*2.0+vPhase)),2.5)
+                 * pow(abs(sin(uv.y * bFreq * 3.14159 - uTime*uPulse*2.0+vPhase)),2.5);
 
-    vec3 col = mix(vCol, vec3(0.0,0.4,0.5), 0.2*(1.0-vComp));
-    col *= 0.35 + vComp*0.65;
+    vec3 col = vec3(
+      rWeave * vCol.r * 1.3,
+      gWeave * vCol.g * 1.2,
+      bWeave * vCol.b * 1.4
+    );
+    col *= (0.4 + vComp * 0.6);
 
+    float core = exp(-d*d*70.0) * vComp;
+    col += vCol * core;
+
+    float alpha = dot(col, vec3(0.333)) * uOpacity * smoothstep(0.5, 0.25, d);
     if(alpha < 0.01) discard;
     gl_FragColor = vec4(col, alpha);
   }
