@@ -2,151 +2,127 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>VibeMesh | Triangulated Interpolator v16.1</title>
+<title>VibeMesh | Geometry in Time</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <style>
-:root { --neon:#00f0ff; --magenta:#ff00ff; --green:#00ff88; --bg:#020205; }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:#fff;font-family:monospace;overflow:hidden;width:100vw;height:100vh}
+body{background:#000;color:#fff;font-family:monospace;overflow:hidden;width:100vw;height:100vh}
 
-.viewport-container{display:flex;width:100vw;height:100vh}
-.viewport{flex:1;position:relative;overflow:hidden;border-right:1px solid #111}
-.viewport canvas{position:absolute;top:0;left:0}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%}
 
-.label{
-  position:absolute;top:14px;left:14px;
-  font-size:.58rem;letter-spacing:2px;text-transform:uppercase;
-  padding:3px 8px;border-radius:3px;
-  background:rgba(0,0,0,.5);border:1px solid #1a1a2a;
+/* ── HUD ── */
+.hud{
+  position:fixed;bottom:0;left:0;right:0;
+  display:flex;justify-content:space-between;align-items:flex-end;
+  padding:20px 24px;pointer-events:none;z-index:50;
 }
-.label.tx{color:var(--neon);border-color:rgba(0,240,255,.2)}
-.label.rx{color:var(--magenta);border-color:rgba(255,0,255,.2)}
-
-.stat{
-  position:absolute;bottom:14px;left:14px;
-  font-size:.55rem;color:#444;letter-spacing:1px;line-height:1.8;
-}
-
-/* Control deck */
-.deck{
-  position:absolute;top:0;right:0;bottom:0;width:240px;
-  background:rgba(8,8,16,.92);border-left:1px solid #1a1a2a;
-  padding:20px;display:flex;flex-direction:column;gap:14px;
-  z-index:100;backdrop-filter:blur(12px);
-  overflow-y:auto;
-}
-.deck-title{
-  font-size:.62rem;color:var(--neon);letter-spacing:3px;
-  border-bottom:1px solid #1a1a2a;padding-bottom:10px;margin-bottom:2px;
-}
+.hud-left{display:flex;flex-direction:column;gap:8px;pointer-events:all}
+.hud-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:all}
 
 .btn{
-  width:100%;padding:11px;background:#0a0a12;color:#444;
-  border:1px solid #1a1a2a;border-radius:6px;
-  font-family:monospace;font-size:.68rem;font-weight:bold;
-  cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:1px;
+  padding:9px 16px;background:rgba(0,0,0,.7);color:#333;
+  border:1px solid #111;border-radius:5px;
+  font-family:monospace;font-size:.65rem;letter-spacing:2px;
+  cursor:pointer;transition:all .25s;text-transform:uppercase;
+  backdrop-filter:blur(8px);
 }
-.btn:hover:not(:disabled){background:#0d1a1a;color:var(--neon);border-color:rgba(0,240,255,.3)}
-.btn.active{background:rgba(0,240,255,.12);color:var(--neon);border-color:var(--neon);box-shadow:0 0 15px rgba(0,240,255,.2)}
-.btn.snap-active{background:rgba(255,0,255,.12);color:var(--magenta);border-color:var(--magenta);box-shadow:0 0 15px rgba(255,0,255,.2)}
-.btn:disabled{opacity:.3;cursor:not-allowed}
+.btn:hover:not(:disabled){color:#00f0ff;border-color:rgba(0,240,255,.3);background:rgba(0,240,255,.04)}
+.btn.on{color:#00f0ff;border-color:rgba(0,240,255,.5);background:rgba(0,240,255,.06);box-shadow:0 0 20px rgba(0,240,255,.1)}
+.btn.snap-on{color:#ff00ff;border-color:rgba(255,0,255,.5);background:rgba(255,0,255,.06);box-shadow:0 0 20px rgba(255,0,255,.1)}
+.btn:disabled{opacity:.25;cursor:not-allowed}
 
-.sl-group{display:flex;flex-direction:column;gap:7px}
-.sl-label{font-size:.58rem;color:#666;letter-spacing:1px;display:flex;justify-content:space-between}
-.sl-label span{color:var(--neon)}
-input[type=range]{width:100%;accent-color:var(--neon);cursor:pointer}
+.sl-row{display:flex;align-items:center;gap:10px;pointer-events:all}
+.sl-row label{font-size:.55rem;color:#333;letter-spacing:2px;text-transform:uppercase;min-width:100px}
+.sl-row input{accent-color:#00f0ff;width:100px;cursor:pointer}
+.sl-row span{font-size:.55rem;color:#00f0ff;min-width:32px;text-align:right}
 
-.mode-row{display:flex;gap:5px}
-.mb{
-  flex:1;padding:6px 4px;background:#0a0a12;color:#444;
-  border:1px solid #1a1a2a;border-radius:4px;
-  font-family:monospace;font-size:.55rem;cursor:pointer;
-  transition:all .15s;text-transform:uppercase;letter-spacing:.5px;
+.lore{
+  position:fixed;top:0;left:0;right:0;
+  padding:16px 24px;
+  font-size:.5rem;color:#1a1a1a;letter-spacing:3px;text-transform:uppercase;
+  pointer-events:none;z-index:50;line-height:2;
 }
-.mb:hover{color:#888}
-.mb.on{background:rgba(0,240,255,.1);color:var(--neon);border-color:rgba(0,240,255,.4)}
+.stat{
+  position:fixed;top:12px;right:24px;
+  font-size:.5rem;color:#111;letter-spacing:2px;
+  pointer-events:none;z-index:50;text-align:right;line-height:2;
+}
+.pip{
+  position:fixed;bottom:20px;right:24px;
+  width:60px;height:76px;border-radius:4px;overflow:hidden;
+  border:1px solid #111;opacity:.4;z-index:60;
+  transition:opacity .3s;
+}
+.pip:hover{opacity:.8}
+.pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
 
-.divider{border:none;border-top:1px solid #1a1a2a;margin:2px 0}
-.section{font-size:.55rem;color:#333;letter-spacing:2px;text-transform:uppercase;margin-bottom:-4px}
-
-video{display:none;position:fixed;top:-9999px}
+video{display:none}
 </style>
 </head>
 <body>
 
-<div class="viewport-container">
-  <div class="viewport" id="v-tx">
-    <div class="label tx">TX // LANDMARK TELEMETRY</div>
-    <div class="stat" id="stat-tx">468 pts · 0 fps</div>
+<div class="lore" id="lore">
+  geometry in time · stable knots · compressed · stretched · folded
+</div>
+<div class="stat" id="stat">
+  — knots · — hz
+</div>
+
+<div class="hud">
+  <div class="hud-left">
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="btn-init" onclick="initSystem()">Init Optics</button>
+      <button class="btn" id="btn-snap" onclick="snap()" disabled>Stabilise Field</button>
+      <button class="btn" id="btn-live" onclick="toggleLive()" disabled>Live Knots</button>
+    </div>
+
+    <div class="sl-row">
+      <label>Compression</label>
+      <input type="range" min="0.5" max="8" step="0.1" value="3.5" id="sl-depth"
+        oninput="depthScale=+this.value;document.getElementById('lbl-d').textContent=this.value">
+      <span id="lbl-d">3.5</span>
+    </div>
+    <div class="sl-row">
+      <label>Knot Density</label>
+      <input type="range" min="1" max="4" step="1" value="3" id="sl-dens"
+        oninput="setDensity(+this.value)">
+      <span id="lbl-dens">3</span>
+    </div>
+    <div class="sl-row">
+      <label>Pulse Rate</label>
+      <input type="range" min="0" max="3" step="0.05" value="0.8" id="sl-pulse"
+        oninput="pulseRate=+this.value;document.getElementById('lbl-p').textContent=this.value">
+      <span id="lbl-p">0.8</span>
+    </div>
+    <div class="sl-row">
+      <label>Field Opacity</label>
+      <input type="range" min="0.1" max="1" step="0.05" value="0.85" id="sl-op"
+        oninput="fieldOpacity=+this.value;document.getElementById('lbl-op').textContent=this.value">
+      <span id="lbl-op">0.85</span>
+    </div>
   </div>
-  <div class="viewport" id="v-rx">
-    <div class="label rx">RX // TRIANGULATED RECONSTRUCTION</div>
-    <div class="stat" id="stat-rx">– pts · awaiting snap</div>
+  <div class="hud-right">
+    <!-- mode toggles -->
+    <div style="display:flex;gap:6px">
+      <button class="btn on"  id="mb-knots"  onclick="setView('knots')">Knots</button>
+      <button class="btn"     id="mb-field"  onclick="setView('field')">Field</button>
+      <button class="btn"     id="mb-fabric" onclick="setView('fabric')">Fabric</button>
+    </div>
   </div>
 </div>
 
-<div class="deck">
-  <div class="deck-title">VIBEMESH // CMD</div>
-
-  <button class="btn" id="btn-init" onclick="initSystem()">1. Init Hardware</button>
-  <button class="btn" id="btn-snap" onclick="captureColors()" disabled>2. Snap Colors</button>
-  <button class="btn" id="btn-live" onclick="toggleLive()" disabled>3. Live Update</button>
-
-  <hr class="divider">
-  <div class="section">RX Render Mode</div>
-  <div class="mode-row">
-    <button class="mb on" id="mb-points" onclick="setMode('points')">Pts</button>
-    <button class="mb"    id="mb-splat"  onclick="setMode('splat')">Splat</button>
-    <button class="mb"    id="mb-tri"    onclick="setMode('tri')">Tri</button>
-  </div>
-
-  <hr class="divider">
-  <div class="sl-group">
-    <div class="sl-label">TX Point Size <span id="lbl-txsize">0.03</span></div>
-    <input type="range" min="0.01" max="0.12" step="0.005" value="0.03"
-      oninput="txPointSize=+this.value;document.getElementById('lbl-txsize').textContent=this.value;rebuildTX()">
-  </div>
-
-  <div class="sl-group">
-    <div class="sl-label">RX Landmark Size <span id="lbl-lmsize">0.04</span></div>
-    <input type="range" min="0.01" max="0.2" step="0.005" value="0.04"
-      oninput="rxLMSize=+this.value;document.getElementById('lbl-lmsize').textContent=this.value;rebuildRX()">
-  </div>
-
-  <div class="sl-group">
-    <div class="sl-label">RX Centroid Size <span id="lbl-csize">0.06</span></div>
-    <input type="range" min="0.01" max="0.4" step="0.01" value="0.06"
-      oninput="rxCentSize=+this.value;document.getElementById('lbl-csize').textContent=this.value;rebuildRX()">
-  </div>
-
-  <div class="sl-group">
-    <div class="sl-label">Centroid Blend <span id="lbl-blend">0.33</span></div>
-    <input type="range" min="0" max="1" step="0.01" value="0.33"
-      oninput="centroidBlend=+this.value;document.getElementById('lbl-blend').textContent=this.value;rebuildRX()">
-    <div style="font-size:.52rem;color:#333">0=vertex avg · 1=photo sample</div>
-  </div>
-
-  <hr class="divider">
-  <div style="font-size:.55rem;color:#333;line-height:1.7">
-    ○ Data point<br>
-    △ Inferred centroid<br>
-    color = bary interp<br>
-    of 3 vertex colors
-  </div>
-</div>
-
-<video id="webcam" playsinline></video>
+<div class="pip"><video id="pipVid" autoplay muted playsinline></video></div>
+<video id="camFeed" autoplay muted playsinline></video>
 
 <script>
 'use strict';
 
-// ═══════════════════════════════════════════════════
-//  MEDIAPIPE FACE TESSELLATION
-//  The actual 896 triangles that tile the 468-point mesh.
-//  Each entry is [v0, v1, v2] — vertex indices into landmarks[].
-// ═══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
+//  MEDIAPIPE TESSELLATION
+//  ~460 triangles from the face mesh
+// ════════════════════════════════════════════════
 const TESS = [
   [127,34,139],[11,0,37],[232,231,120],[72,37,39],[128,121,47],[232,120,100],
   [213,215,138],[149,170,176],[209,198,92],[2,94,141],[49,64,98],[173,139,247],
@@ -157,14 +133,13 @@ const TESS = [
   [10,172,136],[10,136,150],[10,150,149],[10,149,176],[10,176,148],[10,148,152],
   [10,152,377],[10,377,400],[10,400,378],[10,378,379],[10,379,365],[10,365,397],
   [10,397,288],[10,288,361],[10,361,323],[10,323,454],[10,454,356],[10,356,389],
-  [10,389,251],[10,251,284],[10,284,332],[10,332,297],[10,297,338],[10,338,10],
+  [10,389,251],[10,251,284],[10,284,332],[10,332,297],[10,297,338],
   [33,7,163],[163,144,33],[33,144,145],[145,153,33],[153,154,33],[33,154,155],
   [155,133,33],[33,133,246],[246,161,33],[33,161,160],[160,159,33],[33,159,158],
   [158,157,33],[157,173,33],[33,173,133],
   [263,249,390],[390,373,263],[263,373,374],[374,380,263],[263,380,381],[381,382,263],
   [382,362,263],[263,362,466],[466,388,263],[263,388,387],[387,386,263],[263,386,385],
   [385,384,263],[384,398,263],[263,398,362],
-  [1,44,19],[1,19,94],[94,2,1],[2,94,141],[141,75,2],[75,0,2],[0,37,2],
   [0,267,269],[269,270,267],[270,409,267],[409,291,267],[291,375,267],
   [375,321,267],[321,405,267],[405,314,267],[314,17,267],[17,84,267],
   [84,181,267],[181,91,267],[91,146,267],[146,61,267],[61,185,267],
@@ -190,352 +165,500 @@ const TESS = [
   [263,466,388],[466,388,387],[388,387,386],[387,386,385],[386,385,384],
   [385,384,398],[384,398,362],[398,362,382],[362,382,381],[382,381,380],
   [381,380,374],[380,374,373],[374,373,390],[373,390,249],[390,249,263],
-  [1,2,5],[2,5,4],[5,4,45],[4,45,275],[45,275,44],[275,44,220],
-  [44,220,45],[220,115,44],[115,220,48],[48,115,219],[219,115,218],
-  [218,115,166],[166,115,113],[113,115,225],[225,115,224],[224,115,223],
-  [223,115,222],[222,115,221],[221,115,189],[189,115,190],[190,115,56],
-  [56,115,28],[28,115,27],[27,115,29],[29,115,30],[30,115,247],
-  [247,115,130],[130,115,226],[226,115,31],[31,115,228],[228,115,229],
-  [229,115,230],[230,115,231],[231,115,232],
-  [1,44,19],[19,44,94],[94,44,141],[141,44,75],[75,44,2],
-  [2,44,13],[13,44,82],[82,44,81],[81,44,80],[80,44,191],
-  [191,44,78],[78,44,95],[95,44,88],[88,44,178],[178,44,87],
-  [87,44,14],[14,44,317],[317,44,402],[402,44,318],[318,44,324],
-  [324,44,308],[308,44,415],[415,44,310],[310,44,311],[311,44,312],
-  [312,44,13],
-  [9,336,337],[336,9,151],[151,9,175],[175,9,197],[197,9,196],
-  [196,9,174],[174,9,217],[217,9,236],[236,9,195],[195,9,3],
-  [3,9,51],[51,9,45],[45,9,4],[4,9,5],[5,9,195],
-  [168,6,351],[6,168,197],[197,168,196],[196,168,174],[174,168,217],
 ];
 
-// ═══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
+//  KNOT VERTEX SHADER
+//  Each point is a temporal knot.
+//  Compression (depth) drives size and pulse amplitude.
+//  The ring pattern in fragment shader = orbital structure.
+// ════════════════════════════════════════════════
+const KNOT_VERT = `
+  attribute vec3  aCol;       // face RGB color
+  attribute float aComp;      // compression: 0=recessed 1=forward
+  attribute float aPhase;     // per-knot phase offset for async pulsing
+  attribute float aIsCent;    // 1=centroid(inferred) 0=landmark
+
+  varying vec3  vCol;
+  varying float vComp;
+  varying float vIsCent;
+  varying float vPhase;
+
+  uniform float uTime;
+  uniform float uPulse;
+  uniform float uOpacity;
+
+  void main(){
+    vCol    = aCol;
+    vComp   = aComp;
+    vIsCent = aIsCent;
+    vPhase  = aPhase;
+
+    // Position pulse — knot breathes slightly in Z
+    vec3 pos = position;
+    pos.z += sin(uTime * uPulse + aPhase) * 0.012 * aComp;
+
+    vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+
+    // Size: compressed knots are tighter/smaller when recessed,
+    //       larger when forward (they've stabilised more strongly)
+    float baseSize = aIsCent > 0.5 ? 180.0 : 280.0;
+    float pulse    = 1.0 + sin(uTime * uPulse * 1.3 + aPhase * 2.1) * 0.25 * aComp;
+    gl_PointSize   = (baseSize * aComp * pulse + 40.0) / -mv.z;
+    gl_Position    = projectionMatrix * mv;
+  }
+`;
+
+const KNOT_FRAG = `
+  varying vec3  vCol;
+  varying float vComp;
+  varying float vIsCent;
+  varying float vPhase;
+
+  uniform float uTime;
+  uniform float uPulse;
+  uniform float uOpacity;
+
+  void main(){
+    vec2  uv = gl_PointCoord - 0.5;  // [-0.5, 0.5]
+    float d  = length(uv);
+    if(d > 0.5) discard;
+
+    // ── KNOT PATTERN ──
+    // Each point renders as concentric orbital rings —
+    // the "stable structure" of compressed time.
+    // Ring count driven by compression (forward = more rings = more stable)
+
+    float rings = 3.0 + vComp * 4.0;  // 3–7 rings based on compression
+    float r     = d * 2.0;            // 0 at center, 1 at edge
+
+    // Ring pattern: bright bands at periodic radii
+    float ring  = abs(sin(r * rings * 3.14159));
+    ring        = pow(ring, 2.5 + vComp * 2.0);  // sharper rings when more compressed
+
+    // Pulse — rings breathe
+    float pulse = 1.0 + sin(uTime * uPulse + vPhase) * 0.15;
+
+    // Core glow — compressed knots have a bright hot centre
+    float core  = exp(-d * d * 80.0) * vComp;
+
+    // Color:
+    // Landmark (○): actual face color, brightened by compression
+    // Centroid (△): interpolated color, slightly shifted toward field freq
+    vec3 col = vCol;
+    if(vIsCent > 0.5){
+      // Centroids are slightly cooler, more transparent — they're emergent
+      col = mix(col, col * 0.7 + vec3(0.0, 0.15, 0.2), 0.3);
+    }
+
+    // Depth→brightness: forward knots are more energetic
+    col *= (0.4 + vComp * 0.6);
+
+    // Final: ring structure + core
+    float alpha = (ring * (0.4 + vComp*0.5) + core) * uOpacity * pulse;
+    alpha      *= smoothstep(0.5, 0.35, d); // soft edge falloff
+
+    if(alpha < 0.01) discard;
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+// ════════════════════════════════════════════════
+//  FIELD SHADER (secondary mode — shows connections)
+// ════════════════════════════════════════════════
+const FIELD_FRAG = `
+  varying vec3  vCol;
+  varying float vComp;
+  varying float vIsCent;
+  varying float vPhase;
+
+  uniform float uTime;
+  uniform float uPulse;
+  uniform float uOpacity;
+
+  void main(){
+    vec2  uv = gl_PointCoord - 0.5;
+    float d  = length(uv);
+    if(d > 0.5) discard;
+
+    // Field mode: each knot shows as a soft gaussian blob
+    // revealing the underlying density field
+    float blob = exp(-d*d * (12.0 + vComp * 20.0));
+    blob *= 1.0 + sin(uTime*uPulse + vPhase)*0.2;
+
+    vec3 col = vCol * (0.3 + vComp * 0.7);
+    float alpha = blob * uOpacity;
+    if(alpha < 0.005) discard;
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+// ════════════════════════════════════════════════
+//  FABRIC SHADER (third mode — fabric of spacetime)
+// ════════════════════════════════════════════════
+const FABRIC_FRAG = `
+  varying vec3  vCol;
+  varying float vComp;
+  varying float vIsCent;
+  varying float vPhase;
+
+  uniform float uTime;
+  uniform float uPulse;
+  uniform float uOpacity;
+
+  void main(){
+    vec2  uv = gl_PointCoord - 0.5;
+    float d  = length(uv);
+    if(d > 0.5) discard;
+
+    // Fabric mode: rectangular cell-like structure
+    // simulates the woven geometry of compressed time
+    float cell = max(abs(uv.x), abs(uv.y)) * 2.0;
+    float edge = abs(sin(cell * 3.14159 * (2.0 + vComp*3.0)));
+    edge = pow(edge, 1.5);
+
+    float core = exp(-d*d*60.0)*vComp;
+    float alpha = (edge*0.6 + core) * uOpacity;
+    alpha *= smoothstep(0.5, 0.3, d);
+
+    vec3 col = mix(vCol, vec3(0.0,0.4,0.5), 0.2*(1.0-vComp));
+    col *= 0.35 + vComp*0.65;
+
+    if(alpha < 0.01) discard;
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+// ════════════════════════════════════════════════
 //  CONFIG
-// ═══════════════════════════════════════════════════
-let txPointSize   = 0.03;
-let rxLMSize      = 0.04;
-let rxCentSize    = 0.06;
-let centroidBlend = 0.33;  // 0 = pure barycentric, 1 = pure photo sample
-let rxMode        = 'points';
-let liveUpdate    = false;
+// ════════════════════════════════════════════════
+let depthScale   = 3.5;
+let pulseRate    = 0.8;
+let fieldOpacity = 0.85;
+let densityStep  = 1;   // 1=all, 2=half, 3=third, 4=quarter triangles
+let viewMode     = 'knots';
+let liveColors   = false;
 
-let latestLM      = null;
-let snappedColors = null;   // Float32Array [r,g,b] per landmark, 468*3
+let latestLM  = null;
+let snapColors = null;  // Float32Array r,g,b per landmark [468*3]
+
 let captureCanvas, captureCtx;
-let frameCount    = 0, lastFPSTime = Date.now();
+let scene, camera, renderer;
+let knotSystem = null;
+let clock = new THREE.Clock();
+let frameCount = 0, lastFPSt = Date.now();
 
-// ═══════════════════════════════════════════════════
-//  THREE.JS NODE BUILDER
-// ═══════════════════════════════════════════════════
-const SPLAT_VERT = `
-  attribute float size;
-  attribute vec3 col;
-  varying vec3 vCol;
-  void main(){
-    vCol = col;
-    vec4 mv = modelViewMatrix * vec4(position,1.0);
-    gl_PointSize = size * (300.0 / -mv.z);
-    gl_Position = projectionMatrix * mv;
-  }
-`;
-const SPLAT_FRAG = `
-  varying vec3 vCol;
-  void main(){
-    float d = distance(gl_PointCoord, vec2(0.5));
-    if(d > 0.5) discard;
-    float a = 1.0 - smoothstep(0.15, 0.5, d);
-    gl_FragColor = vec4(vCol, a);
-  }
-`;
-const HARD_FRAG = `
-  varying vec3 vCol;
-  void main(){
-    float d = distance(gl_PointCoord, vec2(0.5));
-    if(d > 0.5) discard;
-    gl_FragColor = vec4(vCol, 1.0);
-  }
-`;
+// ════════════════════════════════════════════════
+//  SCENE SETUP — full-viewport, dark, no background
+// ════════════════════════════════════════════════
+function initThree() {
+  scene    = new THREE.Scene();
+  camera   = new THREE.PerspectiveCamera(38, window.innerWidth/window.innerHeight, 0.01, 20);
+  camera.position.z = 2.8;
 
-function makeNode(containerId) {
-  const wrap = document.getElementById(containerId);
-  // Account for the 240px control panel on the right for TX (last viewport)
-  const W = wrap.offsetWidth, H = window.innerHeight;
+  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0, 0);
+  document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
-  const scene    = new THREE.Scene();
-  const camera   = new THREE.PerspectiveCamera(42, W/H, 0.01, 20);
-  camera.position.z = 3.0;
-
-  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-  renderer.setSize(W, H);
-  renderer.setClearColor(0,0);
-  wrap.appendChild(renderer.domElement);
-
-  return { scene, camera, renderer, W, H, obj: null };
-}
-
-let txNode = null, rxNode = null;
-
-// ═══════════════════════════════════════════════════
-//  TX — raw cyan landmark points (what gets transmitted)
-// ═══════════════════════════════════════════════════
-function buildTX(lm) {
-  if (!txNode) return;
-  if (txNode.obj) { txNode.scene.remove(txNode.obj); txNode.obj.geometry.dispose(); txNode.obj.material.dispose(); }
-
-  const n     = lm.length; // 468
-  const pos   = new Float32Array(n*3);
-  const cols  = new Float32Array(n*3);
-  const sizes = new Float32Array(n);
-
-  for (let i=0; i<n; i++) {
-    pos[i*3  ] = (0.5 - lm[i].x) * 4.5;
-    pos[i*3+1] = (0.5 - lm[i].y) * 4.5 * (txNode.H/txNode.W);
-    pos[i*3+2] =  lm[i].z * -4.5;
-    // Cyan with slight depth modulation
-    const t = Math.max(0, Math.min(1, 0.5 - lm[i].z*2));
-    cols[i*3  ] = t*0.1;
-    cols[i*3+1] = 0.55 + t*0.45;
-    cols[i*3+2] = 0.7  + t*0.3;
-    sizes[i] = txPointSize;
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,   3));
-  geo.setAttribute('col',      new THREE.Float32BufferAttribute(cols,  3));
-  geo.setAttribute('size',     new THREE.Float32BufferAttribute(sizes, 1));
-
-  const mat = new THREE.ShaderMaterial({
-    vertexShader: SPLAT_VERT, fragmentShader: HARD_FRAG,
-    transparent:true, depthWrite:false, blending: THREE.AdditiveBlending,
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  txNode.obj = new THREE.Points(geo, mat);
-  txNode.scene.add(txNode.obj);
-  document.getElementById('stat-tx').textContent = `${n} pts`;
+  // Render loop
+  (function loop() {
+    requestAnimationFrame(loop);
+    const t = clock.getElapsedTime();
+
+    // Subtle idle drift of the whole field
+    if (knotSystem) {
+      knotSystem.rotation.y = Math.sin(t*0.12) * 0.08;
+      knotSystem.rotation.x = Math.sin(t*0.08) * 0.04;
+      knotSystem.material.uniforms.uTime.value     = t;
+      knotSystem.material.uniforms.uOpacity.value  = fieldOpacity;
+      knotSystem.material.uniforms.uPulse.value    = pulseRate;
+    }
+
+    renderer.render(scene, camera);
+
+    frameCount++;
+    const now = Date.now();
+    if (now - lastFPSt > 1000) {
+      if (latestLM) document.getElementById('stat').textContent =
+        `${latestLM.length + TESS.length} knots · ${frameCount} hz`;
+      frameCount = 0; lastFPSt = now;
+    }
+  })();
 }
 
-function rebuildTX() { if (latestLM) buildTX(latestLM); }
+// ════════════════════════════════════════════════
+//  BUILD KNOT SYSTEM
+//  All points in one BufferGeometry — landmarks + centroids
+// ════════════════════════════════════════════════
+function buildKnotSystem(lm, colors) {
+  if (knotSystem) { scene.remove(knotSystem); knotSystem.geometry.dispose(); knotSystem.material.dispose(); }
 
-// ═══════════════════════════════════════════════════
-//  RX — reconstructed face with inferred centroids
-//
-//  The key concept:
-//  ○  = 468 landmark positions (transmitted) — colored from snapped photo
-//  △  = ~TESS.length centroids (inferred locally) — colored by barycentric
-//       interpolation of the 3 vertex colors + optional photo blend
-//
-//  Receiver only needs the landmark positions, not video.
-//  It reconstructs dense color by interpolating between known points.
-// ═══════════════════════════════════════════════════
-function buildRX(lm, colors) {
-  if (!rxNode || !colors) return;
-  if (rxNode.obj) { rxNode.scene.remove(rxNode.obj); rxNode.obj.geometry.dispose(); rxNode.obj.material.dispose(); }
+  const nLM    = lm.length;
+  const tris   = TESS.filter((_,i) => i % densityStep === 0);
+  const nTri   = tris.length;
+  const total  = nLM + nTri;
 
-  const nLM   = lm.length;                  // 468 base points
-  const nTri  = TESS.length;                // centroids
-  const total = nLM + nTri;
+  const pos    = new Float32Array(total * 3);
+  const col    = new Float32Array(total * 3);
+  const comp   = new Float32Array(total);     // compression 0–1
+  const phase  = new Float32Array(total);     // async pulse phase
+  const isCent = new Float32Array(total);     // 0=landmark 1=centroid
 
-  const pos   = new Float32Array(total*3);
-  const cols  = new Float32Array(total*3);
-  const sizes = new Float32Array(total);
-
-  const AR = rxNode.H / rxNode.W;
-
-  // ── Part 1: Base landmarks (○) ──
+  // Z range for normalisation — deeper = less compressed
+  let zMin=Infinity, zMax=-Infinity;
   for (let i=0; i<nLM; i++) {
-    pos[i*3  ] = (0.5 - lm[i].x) * 4.5;
-    pos[i*3+1] = (0.5 - lm[i].y) * 4.5 * AR;
-    pos[i*3+2] =  lm[i].z * -4.5;
-    cols[i*3  ] = colors[i*3  ];
-    cols[i*3+1] = colors[i*3+1];
-    cols[i*3+2] = colors[i*3+2];
-    sizes[i] = rxLMSize;
+    if (lm[i].z < zMin) zMin = lm[i].z;
+    if (lm[i].z > zMax) zMax = lm[i].z;
+  }
+  const zRange = Math.max(0.001, zMax - zMin);
+
+  const AR = window.innerHeight / window.innerWidth;
+
+  // ── Landmarks ──
+  for (let i=0; i<nLM; i++) {
+    pos[i*3  ] = (0.5 - lm[i].x) * 4.0;
+    pos[i*3+1] = (0.5 - lm[i].y) * 4.0 * AR;
+    pos[i*3+2] = (lm[i].z - zMin) / zRange * depthScale - depthScale*0.5;
+
+    col[i*3  ] = colors ? colors[i*3  ] : 0;
+    col[i*3+1] = colors ? colors[i*3+1] : 0.6 + (1-(lm[i].z-zMin)/zRange)*0.4;
+    col[i*3+2] = colors ? colors[i*3+2] : 0.7 + (1-(lm[i].z-zMin)/zRange)*0.3;
+
+    // Compression: forward (nose) = 1.0, recessed = 0.0
+    comp[i]  = 1.0 - (lm[i].z - zMin) / zRange;
+    phase[i] = (i * 0.618033) % (Math.PI * 2); // golden ratio phase distribution
+    isCent[i] = 0;
   }
 
-  // ── Part 2: Triangle centroids (△) — inferred ──
-  // Color = barycentric average of the 3 vertex colors
-  // This is the "amalgamated inferred multi-pixel" concept from your sketch
+  // ── Centroids (inferred knots) ──
   for (let t=0; t<nTri; t++) {
-    const [a,b,c] = TESS[t];
-    if (a>=nLM || b>=nLM || c>=nLM) {
-      sizes[nLM+t] = 0; continue;
-    }
+    const [a,b,c] = tris[t];
+    if (a >= nLM || b >= nLM || c >= nLM) continue;
     const idx = nLM + t;
 
-    // Centroid 3D position
+    // Position = centroid of 3 parent landmarks
     pos[idx*3  ] = (pos[a*3  ] + pos[b*3  ] + pos[c*3  ]) / 3;
     pos[idx*3+1] = (pos[a*3+1] + pos[b*3+1] + pos[c*3+1]) / 3;
     pos[idx*3+2] = (pos[a*3+2] + pos[b*3+2] + pos[c*3+2]) / 3;
 
-    // Barycentric color = equal-weight average of 3 vertex colors
-    // (true equal-weight barycentric: w0=w1=w2=1/3 at centroid)
-    const cr = (colors[a*3  ] + colors[b*3  ] + colors[c*3  ]) / 3;
-    const cg = (colors[a*3+1] + colors[b*3+1] + colors[c*3+1]) / 3;
-    const cb = (colors[a*3+2] + colors[b*3+2] + colors[c*3+2]) / 3;
+    // Color = barycentric interpolation of 3 parent vertex colors
+    col[idx*3  ] = (col[a*3  ] + col[b*3  ] + col[c*3  ]) / 3;
+    col[idx*3+1] = (col[a*3+1] + col[b*3+1] + col[c*3+1]) / 3;
+    col[idx*3+2] = (col[a*3+2] + col[b*3+2] + col[c*3+2]) / 3;
 
-    // Optional blend toward direct photo sample (if available)
-    // centroidBlend=0 → pure inferred, centroidBlend=1 → pure photo
-    // The inferred version is what a RECEIVER without a camera can reconstruct
-    cols[idx*3  ] = cr;
-    cols[idx*3+1] = cg;
-    cols[idx*3+2] = cb;
-
-    sizes[idx] = rxCentSize;
+    // Centroid compression = average of parents (emergent stability)
+    comp[idx]  = (comp[a] + comp[b] + comp[c]) / 3;
+    // Slightly offset phase so centroids pulse out-of-sync with parents
+    phase[idx] = ((a + b + c) * 0.23) % (Math.PI * 2);
+    isCent[idx] = 1;
   }
 
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,   3));
-  geo.setAttribute('col',      new THREE.Float32BufferAttribute(cols,  3));
-  geo.setAttribute('size',     new THREE.Float32BufferAttribute(sizes, 1));
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,    3));
+  geo.setAttribute('aCol',     new THREE.Float32BufferAttribute(col,    3));
+  geo.setAttribute('aComp',    new THREE.Float32BufferAttribute(comp,   1));
+  geo.setAttribute('aPhase',   new THREE.Float32BufferAttribute(phase,  1));
+  geo.setAttribute('aIsCent',  new THREE.Float32BufferAttribute(isCent, 1));
 
-  const fragShader = rxMode === 'splat' ? SPLAT_FRAG : HARD_FRAG;
+  // Choose fragment shader by view mode
+  const fragShader = viewMode === 'field'  ? FIELD_FRAG
+                   : viewMode === 'fabric' ? FABRIC_FRAG
+                   : KNOT_FRAG;
+
   const mat = new THREE.ShaderMaterial({
-    vertexShader: SPLAT_VERT, fragmentShader: fragShader,
-    transparent:true, depthWrite:false,
-    blending: rxMode === 'tri' ? THREE.NormalBlending : THREE.AdditiveBlending,
+    vertexShader:   KNOT_VERT,
+    fragmentShader: fragShader,
+    transparent:    true,
+    depthWrite:     false,
+    blending:       THREE.AdditiveBlending,
+    uniforms: {
+      uTime:    { value: 0 },
+      uPulse:   { value: pulseRate },
+      uOpacity: { value: fieldOpacity },
+    },
   });
 
-  rxNode.obj = new THREE.Points(geo, mat);
-  rxNode.scene.add(rxNode.obj);
-
-  const visible = sizes.filter(s=>s>0).length;
-  document.getElementById('stat-rx').textContent =
-    `${nLM} lm + ${nTri} Δ = ${visible} pts`;
+  knotSystem = new THREE.Points(geo, mat);
+  scene.add(knotSystem);
 }
 
-function rebuildRX() { if (latestLM && snappedColors) buildRX(latestLM, snappedColors); }
-
-// ═══════════════════════════════════════════════════
-//  CAPTURE COLORS — sample face pixels at each landmark
-//  Also computes photo centroid samples for blend mode
-// ═══════════════════════════════════════════════════
-function captureColors() {
+// ════════════════════════════════════════════════
+//  CAPTURE — sample face colors from video
+// ════════════════════════════════════════════════
+function snap() {
   if (!latestLM) return;
   const lm  = latestLM;
-  const vid = document.getElementById('webcam');
+  const vid = document.getElementById('camFeed');
 
   captureCtx.save();
-  captureCtx.scale(-1,1); captureCtx.translate(-640,0); // mirror
+  captureCtx.translate(640, 0); captureCtx.scale(-1, 1); // mirror
   captureCtx.drawImage(vid, 0, 0, 640, 480);
   captureCtx.restore();
 
-  const pixels = captureCtx.getImageData(0, 0, 640, 480).data;
-  const n      = lm.length;
-  snappedColors = new Float32Array(n * 3);
+  const px = captureCtx.getImageData(0, 0, 640, 480).data;
+  snapColors = new Float32Array(lm.length * 3);
 
-  for (let i=0; i<n; i++) {
-    const px  = Math.min(639, Math.max(0, Math.floor(lm[i].x * 640)));
-    const py  = Math.min(479, Math.max(0, Math.floor(lm[i].y * 480)));
-    const idx = (py * 640 + px) * 4;
-    snappedColors[i*3  ] = pixels[idx  ] / 255;
-    snappedColors[i*3+1] = pixels[idx+1] / 255;
-    snappedColors[i*3+2] = pixels[idx+2] / 255;
+  for (let i=0; i<lm.length; i++) {
+    const x   = Math.min(639, Math.max(0, Math.floor(lm[i].x * 640)));
+    const y   = Math.min(479, Math.max(0, Math.floor(lm[i].y * 480)));
+    const idx = (y * 640 + x) * 4;
+    snapColors[i*3  ] = px[idx  ] / 255;
+    snapColors[i*3+1] = px[idx+1] / 255;
+    snapColors[i*3+2] = px[idx+2] / 255;
   }
 
-  buildRX(lm, snappedColors);
-  document.getElementById('btn-snap').classList.add('snap-active');
-  document.getElementById('btn-snap').textContent = '2. Reснap Colors';
+  buildKnotSystem(latestLM, snapColors);
+  document.getElementById('btn-snap').classList.add('snap-on');
+  document.getElementById('btn-snap').textContent = 'Re-Stabilise';
   document.getElementById('btn-live').disabled = false;
+  document.getElementById('lore').textContent =
+    'structure · where imbalance stabilises · geometry in time';
 }
 
-// ═══════════════════════════════════════════════════
-//  LIVE UPDATE — re-sample colors every frame
-// ═══════════════════════════════════════════════════
 function toggleLive() {
-  liveUpdate = !liveUpdate;
+  liveColors = !liveColors;
   const btn = document.getElementById('btn-live');
-  btn.textContent = liveUpdate ? 'Live: ON' : '3. Live Update';
-  btn.className   = liveUpdate ? 'btn active' : 'btn';
+  btn.textContent = liveColors ? 'Live: On' : 'Live Knots';
+  btn.className   = liveColors ? 'btn on' : 'btn';
 }
 
-// ═══════════════════════════════════════════════════
-//  RENDER MODE
-// ═══════════════════════════════════════════════════
-function setMode(m) {
-  rxMode = m;
-  ['points','splat','tri'].forEach(id =>
-    document.getElementById('mb-'+id)?.classList.toggle('on', id===m));
-  rebuildRX();
+// ════════════════════════════════════════════════
+//  VIEW MODE
+// ════════════════════════════════════════════════
+function setView(v) {
+  viewMode = v;
+  ['knots','field','fabric'].forEach(id =>
+    document.getElementById('mb-'+id)?.classList.toggle('on', id===v));
+  if (latestLM) buildKnotSystem(latestLM, snapColors);
 }
 
-// ═══════════════════════════════════════════════════
-//  INIT + MEDIAPIPE
-// ═══════════════════════════════════════════════════
+function setDensity(v) {
+  densityStep = v;
+  document.getElementById('lbl-dens').textContent = v;
+  if (latestLM) buildKnotSystem(latestLM, snapColors);
+}
+
+// ════════════════════════════════════════════════
+//  MEDIAPIPE
+// ════════════════════════════════════════════════
 async function initSystem() {
   const btn = document.getElementById('btn-init');
-  btn.textContent = 'Initialising…'; btn.disabled = true;
+  btn.textContent = 'Init…'; btn.disabled = true;
 
-  txNode = makeNode('v-tx');
-  rxNode = makeNode('v-rx');
+  initThree();
 
   captureCanvas = document.createElement('canvas');
   captureCanvas.width = 640; captureCanvas.height = 480;
   captureCtx = captureCanvas.getContext('2d');
 
-  // Render loop
-  (function loop() {
-    requestAnimationFrame(loop);
-    txNode.renderer.render(txNode.scene, txNode.camera);
-    rxNode.renderer.render(rxNode.scene, rxNode.camera);
-    // FPS
-    frameCount++;
-    const now = Date.now();
-    if (now - lastFPSTime > 1000) {
-      document.getElementById('stat-tx').textContent =
-        `468 pts · ${frameCount} fps`;
-      frameCount = 0; lastFPSTime = now;
-    }
-  })();
-
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video:{width:640,height:480,facingMode:'user'}, audio:false
     });
-    const vid = document.getElementById('webcam');
-    vid.srcObject = stream; await vid.play();
+
+    document.getElementById('pipVid').srcObject   = stream;
+    document.getElementById('camFeed').srcObject  = stream;
+    await document.getElementById('camFeed').play();
 
     const fm = new FaceMesh({
       locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
     });
-    fm.setOptions({ maxNumFaces:1, refineLandmarks:false,
-      minDetectionConfidence:0.6, minTrackingConfidence:0.6 });
+    fm.setOptions({
+      maxNumFaces:1, refineLandmarks:false,
+      minDetectionConfidence:0.6, minTrackingConfidence:0.6
+    });
     fm.onResults(res => {
       if (!res.multiFaceLandmarks?.[0]) return;
       latestLM = res.multiFaceLandmarks[0];
-      buildTX(latestLM);
-      if (liveUpdate && snappedColors) captureColors();
-      else if (snappedColors) buildRX(latestLM, snappedColors);
+      if (liveColors) {
+        // Full re-snap every frame in live mode
+        snap();
+      } else if (knotSystem && knotSystem.geometry) {
+        // Just update positions — keep snapped colors
+        updatePositions(latestLM);
+      } else {
+        // First frame before snap: show cyan knots (no color)
+        buildKnotSystem(latestLM, null);
+      }
     });
 
-    new Camera(vid, {
-      onFrame: async()=>{ await fm.send({image:vid}); },
+    new Camera(document.getElementById('camFeed'), {
+      onFrame: async()=>{ await fm.send({image:document.getElementById('camFeed')}); },
       width:640, height:480,
     }).start();
 
-    btn.classList.add('active');
-    btn.textContent = 'HW Online';
-    btn.disabled = false;
+    btn.textContent = 'Optics Live'; btn.classList.add('on'); btn.disabled = false;
     document.getElementById('btn-snap').disabled = false;
+    document.getElementById('lore').textContent =
+      'atoms aren't particles · stable knots in time · where imbalance stabilises';
 
   } catch(e) {
-    btn.textContent = 'Camera Error';
-    btn.disabled = false;
     console.error(e);
+    btn.textContent = 'Optic Failure'; btn.disabled = false;
   }
 }
 
-// Resize handler
-window.addEventListener('resize', () => {
-  [txNode, rxNode].forEach(node => {
-    if (!node) return;
-    const W = node.renderer.domElement.parentElement.offsetWidth;
-    const H = window.innerHeight;
-    node.camera.aspect = W/H;
-    node.camera.updateProjectionMatrix();
-    node.renderer.setSize(W, H);
-  });
-});
+// ════════════════════════════════════════════════
+//  LIVE POSITION UPDATE (without rebuilding geometry)
+//  Smoothly lerps landmark positions toward live data
+// ════════════════════════════════════════════════
+const LERP = 0.3;
+function updatePositions(lm) {
+  if (!knotSystem) return;
+  const posAttr = knotSystem.geometry.attributes.position;
+  const arr     = posAttr.array;
+  const AR      = window.innerHeight / window.innerWidth;
+  const nLM     = lm.length;
+  const tris    = TESS.filter((_,i) => i % densityStep === 0);
+
+  // Compute Z range from live landmarks
+  let zMin=Infinity, zMax=-Infinity;
+  for (let i=0; i<nLM; i++) {
+    if (lm[i].z < zMin) zMin=lm[i].z;
+    if (lm[i].z > zMax) zMax=lm[i].z;
+  }
+  const zRange = Math.max(0.001, zMax-zMin);
+
+  // Update landmark positions
+  for (let i=0; i<nLM && i*3+2 < arr.length; i++) {
+    const tx = (0.5 - lm[i].x) * 4.0;
+    const ty = (0.5 - lm[i].y) * 4.0 * AR;
+    const tz = (lm[i].z - zMin) / zRange * depthScale - depthScale*0.5;
+    arr[i*3  ] += (tx - arr[i*3  ]) * LERP;
+    arr[i*3+1] += (ty - arr[i*3+1]) * LERP;
+    arr[i*3+2] += (tz - arr[i*3+2]) * LERP;
+  }
+
+  // Update centroid positions from updated landmark positions
+  for (let t=0; t<tris.length; t++) {
+    const [a,b,c] = tris[t];
+    if (a>=nLM||b>=nLM||c>=nLM) continue;
+    const idx = nLM + t;
+    if (idx*3+2 >= arr.length) continue;
+    arr[idx*3  ] = (arr[a*3  ] + arr[b*3  ] + arr[c*3  ]) / 3;
+    arr[idx*3+1] = (arr[a*3+1] + arr[b*3+1] + arr[c*3+1]) / 3;
+    arr[idx*3+2] = (arr[a*3+2] + arr[b*3+2] + arr[c*3+2]) / 3;
+  }
+
+  posAttr.needsUpdate = true;
+
+  // Update compression values from live Z
+  const compAttr = knotSystem.geometry.attributes.aComp;
+  const compArr  = compAttr.array;
+  for (let i=0; i<nLM && i < compArr.length; i++) {
+    const targetComp = 1.0 - (lm[i].z - zMin) / zRange;
+    compArr[i] += (targetComp - compArr[i]) * LERP;
+  }
+  compAttr.needsUpdate = true;
+}
 </script>
 </body>
 </html>
