@@ -73,7 +73,7 @@ video{display:none}
 <div class="hud">
   <div class="hud-left">
     <div style="display:flex;gap:8px">
-      <button class="btn" id="btn-init" onclick="initSystem()">Init Optics</button>
+      <button class="btn" id="btn-init" onclick="initSystem()" disabled>Loading deps…</button>
       <button class="btn" id="btn-snap" onclick="snap()" disabled>Stabilise Field</button>
       <button class="btn" id="btn-live" onclick="toggleLive()" disabled>Live Knots</button>
     </div>
@@ -551,59 +551,131 @@ function setDensity(v) {
 // ════════════════════════════════════════════════
 async function initSystem() {
   const btn = document.getElementById('btn-init');
-  btn.textContent = 'Init…'; btn.disabled = true;
+  btn.textContent = 'Initialising…';
+  btn.disabled = true;
 
-  initThree();
+  // Safety check — Three.js must be loaded
+  if (typeof THREE === 'undefined') {
+    btn.textContent = 'Three.js missing';
+    btn.disabled = false;
+    return;
+  }
 
+  // Safety check — FaceMesh must be loaded
+  if (typeof FaceMesh === 'undefined') {
+    btn.textContent = 'FaceMesh missing';
+    btn.disabled = false;
+    return;
+  }
+
+  // Init Three.js renderer
+  try {
+    initThree();
+  } catch(e) {
+    console.error('Three init failed:', e);
+    btn.textContent = 'Renderer Error';
+    btn.disabled = false;
+    return;
+  }
+
+  // Capture canvas for photo sampling
   captureCanvas = document.createElement('canvas');
   captureCanvas.width = 640; captureCanvas.height = 480;
   captureCtx = captureCanvas.getContext('2d');
 
+  // Camera access
+  let stream;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video:{width:640,height:480,facingMode:'user'}, audio:false
+    btn.textContent = 'Requesting Camera…';
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { width:640, height:480, facingMode:'user' },
+      audio: false,
     });
+  } catch(e) {
+    console.error('Camera access denied:', e);
+    btn.textContent = 'Camera Denied — Retry';
+    btn.disabled = false;
+    return;
+  }
 
-    document.getElementById('pipVid').srcObject   = stream;
-    document.getElementById('camFeed').srcObject  = stream;
-    await document.getElementById('camFeed').play();
+  // Attach stream to video elements
+  const pipVid  = document.getElementById('pipVid');
+  const camFeed = document.getElementById('camFeed');
+  pipVid.srcObject  = stream;
+  camFeed.srcObject = stream;
 
-    const fm = new FaceMesh({
-      locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+  // Play — don't await, it throws on some browsers; use event instead
+  try { pipVid.play(); } catch(_) {}
+  try { camFeed.play(); } catch(_) {}
+
+  // Wait for video to be ready (max 6s)
+  await new Promise((res, rej) => {
+    if (camFeed.readyState >= 2) { res(); return; }
+    camFeed.onloadeddata = res;
+    setTimeout(() => rej(new Error('Video load timeout')), 6000);
+  }).catch(e => { console.warn('Video ready warning:', e.message); });
+
+  btn.textContent = 'Loading Face Mesh…';
+
+  // MediaPipe FaceMesh
+  let fm;
+  try {
+    fm = new FaceMesh({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
     });
     fm.setOptions({
-      maxNumFaces:1, refineLandmarks:false,
-      minDetectionConfidence:0.6, minTrackingConfidence:0.6
+      maxNumFaces: 1,
+      refineLandmarks: false,
+      minDetectionConfidence: 0.55,
+      minTrackingConfidence:  0.50,
     });
     fm.onResults(res => {
       if (!res.multiFaceLandmarks?.[0]) return;
       latestLM = res.multiFaceLandmarks[0];
       if (liveColors) {
-        // Full re-snap every frame in live mode
         snap();
       } else if (knotSystem && knotSystem.geometry) {
-        // Just update positions — keep snapped colors
         updatePositions(latestLM);
       } else {
-        // First frame before snap: show cyan knots (no color)
+        // Pre-snap: show cyan knots so user knows tracking is working
         buildKnotSystem(latestLM, null);
       }
     });
-
-    new Camera(document.getElementById('camFeed'), {
-      onFrame: async()=>{ await fm.send({image:document.getElementById('camFeed')}); },
-      width:640, height:480,
-    }).start();
-
-    btn.textContent = 'Optics Live'; btn.classList.add('on'); btn.disabled = false;
-    document.getElementById('btn-snap').disabled = false;
-    document.getElementById('lore').textContent =
-      'atoms aren't particles · stable knots in time · where imbalance stabilises';
-
   } catch(e) {
-    console.error(e);
-    btn.textContent = 'Optic Failure'; btn.disabled = false;
+    console.error('FaceMesh init failed:', e);
+    btn.textContent = 'FaceMesh Error';
+    btn.disabled = false;
+    return;
   }
+
+  // Start camera loop
+  try {
+    let processing = false;
+    const mpCam = new Camera(camFeed, {
+      onFrame: async () => {
+        if (processing) return;
+        processing = true;
+        try { await fm.send({ image: camFeed }); }
+        catch(e) { console.warn('Frame send error:', e.message); }
+        finally { processing = false; }
+      },
+      width: 640, height: 480,
+    });
+    await mpCam.start();
+  } catch(e) {
+    console.error('Camera loop failed:', e);
+    btn.textContent = 'Stream Error';
+    btn.disabled = false;
+    return;
+  }
+
+  // All good
+  btn.textContent = 'Optics Live';
+  btn.classList.add('on');
+  btn.disabled = false;
+  document.getElementById('btn-snap').disabled = false;
+  document.getElementById('lore').textContent =
+    'atoms aren\u2019t particles \u00b7 stable knots in time \u00b7 where imbalance stabilises';
 }
 
 // ════════════════════════════════════════════════
@@ -659,6 +731,55 @@ function updatePositions(lm) {
   }
   compAttr.needsUpdate = true;
 }
+
+// ════════════════════════════════════════════════
+//  RESIZE
+// ════════════════════════════════════════════════
+window.addEventListener('resize', () => {
+  if (!renderer) return;
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ════════════════════════════════════════════════
+//  GLOBAL ERROR SURFACE
+//  Unsilences crashes so the button re-enables
+// ════════════════════════════════════════════════
+window.onerror = (msg, src, line) => {
+  console.error('JS Error:', msg, 'line:', line);
+  const btn = document.getElementById('btn-init');
+  if (btn && btn.disabled && btn.textContent !== 'Optics Live') {
+    btn.textContent = 'Error — see console';
+    btn.disabled = false;
+  }
+};
+window.onunhandledrejection = e => {
+  console.error('Promise rejection:', e.reason);
+  const btn = document.getElementById('btn-init');
+  if (btn && btn.disabled && btn.textContent !== 'Optics Live') {
+    btn.textContent = 'Error — see console';
+    btn.disabled = false;
+  }
+};
+
+// Wait for all CDN scripts before allowing init
+window.addEventListener('load', () => {
+  const btn = document.getElementById('btn-init');
+  if (!btn) return;
+  const missing = [
+    typeof THREE    === 'undefined' && 'Three.js',
+    typeof FaceMesh === 'undefined' && 'FaceMesh',
+    typeof Camera   === 'undefined' && 'CameraUtils',
+  ].filter(Boolean);
+  if (missing.length) {
+    btn.textContent = `Missing: ${missing.join(', ')}`;
+    console.error('Missing deps:', missing);
+  } else {
+    btn.textContent = 'Init Optics';
+    btn.disabled = false;
+  }
+});
 </script>
 </body>
 </html>
