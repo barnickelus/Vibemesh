@@ -257,8 +257,8 @@ const SPLAT_FRAG = `
     float d = length(vUV);   // 0=centre, 1.41 at corner
     if(d > 1.0) discard;     // circular cutout
 
-    // ── 3D Gaussian envelope ──
-    float gaussian = exp(-d * d * 2.8);
+    // ── 3D Gaussian envelope — tight, not spread ──
+    float gaussian = exp(-d * d * 7.5);   // was 2.8 — much tighter falloff
 
     // Ring distance: 1 at centre, 0 at edge
     float r = 1.0 - d;
@@ -270,45 +270,44 @@ const SPLAT_FRAG = `
     float gCount = max(1.0, floor(gA * (3.0 + vComp * 3.0)));
     float bCount = max(1.0, floor(bA * (4.0 + vComp * 5.0)));
 
-    // Rings travel outward; red slowest, blue fastest
     float rPos = fract(r * rCount + uTime * uPulse * 0.50 + vPhase * 0.15);
     float gPos = fract(r * gCount + uTime * uPulse * 1.00 + vPhase * 0.12);
     float bPos = fract(r * bCount + uTime * uPulse * 1.80 + vPhase * 0.10);
 
-    // Thick flat-top bands — 58% fill per period
-    float bw    = 0.58 + vComp * 0.08;
-    float rBand = step(rPos, bw) * rA * rA * 1.5;
-    float gBand = step(gPos, bw) * gA * gA * 1.4;
-    float bBand = step(bPos, bw) * bA * bA * 1.3;
+    // Narrower bands = more gap between rings = more contrast
+    float bw    = 0.42 + vComp * 0.06;  // was 0.58 — tighter bands
+    float rBand = step(rPos, bw) * rA * rA * 2.0;  // boosted amplitude
+    float gBand = step(gPos, bw) * gA * gA * 1.8;
+    float bBand = step(bPos, bw) * bA * bA * 1.6;
 
-    // Fully saturated channel colours for optical mixing
+    // Fully saturated channel colours
     vec3 col = vec3(0.0);
-    col += vec3(1.35, 0.04, 0.0 ) * rBand;
-    col += vec3(0.04, 1.20, 0.08) * gBand;
-    col += vec3(0.0,  0.16, 1.40) * bBand;
+    col += vec3(1.5, 0.03, 0.0 ) * rBand;
+    col += vec3(0.03, 1.3, 0.06) * gBand;
+    col += vec3(0.0,  0.12, 1.6) * bBand;
 
-    // ── Hot stable core at true face colour ──
-    float core = exp(-d * d * 50.0) * (0.6 + vComp * 0.4);
-    col += vCol * core * 1.7;
+    // ── Core: tight, bright, true face colour ──
+    float core = exp(-d * d * 120.0) * (0.7 + vComp * 0.3);  // was 50 — much tighter
+    col += vCol * core * 2.2;
 
-    // ── Outer halo ring at face colour ──
-    float halo = exp(-pow(d - 0.78, 2.0) * 28.0) * 0.38;
+    // ── Thin halo ring at face colour — edge definition ──
+    float halo = exp(-pow(d - 0.82, 2.0) * 80.0) * 0.25;  // narrower, dimmer
     col += vCol * halo;
 
-    // ── Depth-driven brightness ──
-    col *= 0.38 + vComp * 0.62;
+    // ── Depth brightness ── 
+    col *= 0.45 + vComp * 0.55;
 
-    // ── Centroids: cooler, dimmer — inferred not transmitted ──
+    // ── Centroids: clearly dimmer so landmarks dominate ──
     if(vCent > 0.5){
-      col  = mix(col, col * vec3(0.72, 0.88, 1.08), 0.3);
-      col *= 0.65;
+      col  = mix(col, col * vec3(0.6, 0.82, 1.05), 0.35);
+      col *= 0.5;   // was 0.65 — more separation
     }
 
-    // ── Final alpha: Gaussian × luminance ──
+    // ── Alpha: tight Gaussian × luminance, no extra multiplier ──
     float lum   = dot(col, vec3(0.299, 0.587, 0.114));
-    float alpha = (lum * 1.4 + 0.04) * gaussian * uOpacity;
+    float alpha = lum * gaussian * uOpacity;  // removed the +0.04 floor that caused wash
 
-    if(alpha < 0.005) discard;
+    if(alpha < 0.008) discard;
     gl_FragColor = vec4(col, alpha);
   }
 `;
@@ -574,7 +573,7 @@ function buildKnotSystem(lm, colors) {
     compArr[i]  = compVal;
     phaseArr[i] = (i * 0.618033) % (Math.PI * 2);
     centArr[i]  = 0;
-    sizeArr[i]  = 0.20;
+    sizeArr[i]  = 0.13;   // was 0.20 — tighter splats, less overlap
   }
 
   // ── Surface normals from mesh triangles ──
@@ -607,7 +606,7 @@ function buildKnotSystem(lm, colors) {
     compArr[idx]  = (compArr[a]+compArr[b]+compArr[c])/3;
     phaseArr[idx] = ((a+b+c)*0.23)%(Math.PI*2);
     centArr[idx]  = 1;
-    sizeArr[idx]  = 0.14;
+    sizeArr[idx]  = 0.09;   // was 0.14
   }
 
   // ── Base quad: 4 verts, aUV -1..1 ──
@@ -641,7 +640,7 @@ function buildKnotSystem(lm, colors) {
     fragmentShader: fragShader,
     transparent:    true,
     depthWrite:     false,
-    blending:       THREE.AdditiveBlending,
+    blending:       THREE.NormalBlending,  // Additive was causing washout
     side:           THREE.DoubleSide,
     uniforms: {
       uTime:    { value: 0 },
