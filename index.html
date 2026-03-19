@@ -168,38 +168,148 @@ const TESS = [
 ];
 
 // ════════════════════════════════════════════════
-//  KNOT VERTEX SHADER
+//  SPLAT VERTEX SHADER — instanced billboard quads
+//
+//  Each landmark/centroid is a quad billboard that:
+//  • faces the camera (billboard)
+//  • is foreshortened along the direction the surface tilts away
+//  • breathes in Z with a per-knot phase offset
+//
+//  Non-instanced attrs: position (quad corner), aUV (-1..1)
+//  Instanced attrs:     iPos, iNorm, iSize, iCol, iComp, iPhase, iCent
 // ════════════════════════════════════════════════
-const KNOT_VERT = `
-  attribute vec3  aCol;
-  attribute float aComp;
-  attribute float aPhase;
-  attribute float aIsCent;
+const SPLAT_VERT = `
+  attribute vec2  aUV;
+  attribute vec3  iPos;
+  attribute vec3  iNorm;
+  attribute float iSize;
+  attribute vec3  iCol;
+  attribute float iComp;
+  attribute float iPhase;
+  attribute float iCent;
 
+  varying vec2  vUV;
   varying vec3  vCol;
   varying float vComp;
-  varying float vIsCent;
   varying float vPhase;
+  varying float vCent;
 
   uniform float uTime;
   uniform float uPulse;
 
   void main(){
-    vCol    = aCol;
-    vComp   = aComp;
-    vIsCent = aIsCent;
-    vPhase  = aPhase;
+    vUV   = aUV;
+    vCol  = iCol;
+    vComp = iComp;
+    vPhase= iPhase;
+    vCent = iCent;
 
-    vec3 pos = position;
-    pos.z += sin(uTime * uPulse + aPhase) * 0.012 * aComp;
+    // Splat centre in view space
+    vec4 cv = modelViewMatrix * vec4(iPos, 1.0);
 
-    vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+    // Surface normal in view space
+    vec3 nv = normalize((modelViewMatrix * vec4(iNorm, 0.0)).xyz);
 
-    // Size driven by compression — forward knots are larger/more stable
-    float baseSize = aIsCent > 0.5 ? 280.0 : 420.0;
-    float pulse    = 1.0 + sin(uTime * uPulse * 1.3 + aPhase * 2.1) * 0.2 * aComp;
-    gl_PointSize   = (baseSize * (0.4 + aComp * 0.6) * pulse + 60.0) / -mv.z;
-    gl_Position    = projectionMatrix * mv;
+    // Foreshortening factor: 1.0 = fully facing camera, 0.12 minimum
+    float fore = clamp(abs(nv.z), 0.12, 1.0);
+
+    // Screen-space compression direction (projection of normal onto screen XY)
+    float nsLen   = length(nv.xy);
+    vec2  compDir = nsLen > 0.01 ? nv.xy / nsLen : vec2(0.0, 1.0);
+    vec2  perpDir = vec2(-compDir.y, compDir.x);
+
+    // Decompose quad UV into parallel / perpendicular components
+    float along = dot(aUV, compDir);
+    float perp  = dot(aUV, perpDir);
+
+    // Compress along the surface-tilt direction, keep perp full-size
+    vec2 scaledUV = compDir * along * fore + perpDir * perp;
+
+    // Breathing pulse
+    float pulse = 1.0 + sin(uTime * uPulse + iPhase) * 0.14 * iComp;
+    float sz    = iSize * (0.45 + iComp * 0.55) * pulse;
+
+    vec3 offset = vec3(scaledUV * sz, 0.0);
+    gl_Position = projectionMatrix * (cv + vec4(offset, 0.0));
+  }
+`;
+
+// ════════════════════════════════════════════════
+//  SPLAT FRAGMENT SHADER — 3D Gaussian + RGB ring bands
+//
+//  Gaussian envelope gives the volumetric feel.
+//  RGB ring bands inside the Gaussian encode face color
+//  as physical wave frequency/amplitude — optical mixing
+//  happens visually between adjacent colored stripes.
+// ════════════════════════════════════════════════
+const SPLAT_FRAG = `
+  varying vec2  vUV;
+  varying vec3  vCol;
+  varying float vComp;
+  varying float vPhase;
+  varying float vCent;
+
+  uniform float uTime;
+  uniform float uPulse;
+  uniform float uOpacity;
+
+  void main(){
+    float d = length(vUV);   // 0=centre, 1.41 at corner
+    if(d > 1.0) discard;     // circular cutout
+
+    // ── 3D Gaussian envelope ──
+    float gaussian = exp(-d * d * 2.8);
+
+    // Ring distance: 1 at centre, 0 at edge
+    float r = 1.0 - d;
+
+    // ── Per-channel ring bands ──
+    float rA = vCol.r, gA = vCol.g, bA = vCol.b;
+
+    float rCount = max(1.0, floor(rA * (2.0 + vComp * 2.0)));
+    float gCount = max(1.0, floor(gA * (3.0 + vComp * 3.0)));
+    float bCount = max(1.0, floor(bA * (4.0 + vComp * 5.0)));
+
+    // Rings travel outward; red slowest, blue fastest
+    float rPos = fract(r * rCount + uTime * uPulse * 0.50 + vPhase * 0.15);
+    float gPos = fract(r * gCount + uTime * uPulse * 1.00 + vPhase * 0.12);
+    float bPos = fract(r * bCount + uTime * uPulse * 1.80 + vPhase * 0.10);
+
+    // Thick flat-top bands — 58% fill per period
+    float bw    = 0.58 + vComp * 0.08;
+    float rBand = step(rPos, bw) * rA * rA * 1.5;
+    float gBand = step(gPos, bw) * gA * gA * 1.4;
+    float bBand = step(bPos, bw) * bA * bA * 1.3;
+
+    // Fully saturated channel colours for optical mixing
+    vec3 col = vec3(0.0);
+    col += vec3(1.35, 0.04, 0.0 ) * rBand;
+    col += vec3(0.04, 1.20, 0.08) * gBand;
+    col += vec3(0.0,  0.16, 1.40) * bBand;
+
+    // ── Hot stable core at true face colour ──
+    float core = exp(-d * d * 50.0) * (0.6 + vComp * 0.4);
+    col += vCol * core * 1.7;
+
+    // ── Outer halo ring at face colour ──
+    float halo = exp(-pow(d - 0.78, 2.0) * 28.0) * 0.38;
+    col += vCol * halo;
+
+    // ── Depth-driven brightness ──
+    col *= 0.38 + vComp * 0.62;
+
+    // ── Centroids: cooler, dimmer — inferred not transmitted ──
+    if(vCent > 0.5){
+      col  = mix(col, col * vec3(0.72, 0.88, 1.08), 0.3);
+      col *= 0.65;
+    }
+
+    // ── Final alpha: Gaussian × luminance ──
+    float lum   = dot(col, vec3(0.299, 0.587, 0.114));
+    float alpha = (lum * 1.4 + 0.04) * gaussian * uOpacity;
+
+    if(alpha < 0.005) discard;
+    gl_FragColor = vec4(col, alpha);
   }
 `;
 
@@ -220,111 +330,22 @@ const KNOT_VERT = `
 //  A cool shadow → blue/teal dense rings
 //  Bright highlight → all channels dense, white interference core
 // ════════════════════════════════════════════════
-const KNOT_FRAG = `
-  varying vec3  vCol;
-  varying float vComp;
-  varying float vIsCent;
-  varying float vPhase;
-
-  uniform float uTime;
-  uniform float uPulse;
-  uniform float uOpacity;
-
-  void main(){
-    vec2  uv = gl_PointCoord - 0.5;
-    float d  = length(uv);
-    if(d > 0.5) discard;
-
-    // r goes 0 (edge) → 1 (centre) so rings read outward to inward
-    float r = 1.0 - d * 2.0;
-
-    // ── Channel amplitudes from face color ──
-    float rA = vCol.r;
-    float gA = vCol.g;
-    float bA = vCol.b;
-
-    // ── Ring counts driven by amplitude and compression ──
-    // More color present + more compressed = more rings in that channel
-    float rCount = max(1.0, floor(rA * (2.0 + vComp * 2.0)));  // 1–4 wide rings
-    float gCount = max(1.0, floor(gA * (3.0 + vComp * 3.0)));  // 1–6 medium rings
-    float bCount = max(1.0, floor(bA * (4.0 + vComp * 5.0)));  // 1–9 tight rings
-
-    // ── Pulse: rings slowly breathe outward at channel speeds ──
-    // Red slow, blue fast (wavelength → frequency → speed)
-    float rPhase = uTime * uPulse * 0.5 + vPhase;
-    float gPhase = uTime * uPulse * 1.0 + vPhase * 1.3;
-    float bPhase = uTime * uPulse * 1.8 + vPhase * 1.7;
-
-    // Add pulse as fractional ring offset (rings slide outward)
-    float rPos = fract(r * rCount + rPhase * 0.15);
-    float gPos = fract(r * gCount + gPhase * 0.12);
-    float bPos = fract(r * bCount + bPhase * 0.10);
-
-    // ── Ring band shape: thick flat-top hat ──
-    // bandWidth controls how much of each ring period is filled
-    // 0.55 = rings are 55% filled — thick, clearly visible
-    float bandWidth = 0.55 + vComp * 0.1;
-
-    float rBand = step(rPos, bandWidth);
-    float gBand = step(gPos, bandWidth);
-    float bBand = step(bPos, bandWidth);
-
-    // ── Weight each band by its channel amplitude ──
-    rBand *= rA * rA * 1.4;  // square for more contrast — dim areas get few rings
-    gBand *= gA * gA * 1.3;
-    bBand *= bA * bA * 1.2;
-
-    // ── Build color output ──
-    // Each channel contributes only its own hue — pure stripes
-    // Optical mixing happens in the eye between adjacent rings
-    vec3 col = vec3(0.0);
-    col += vec3(1.2, 0.05, 0.0 ) * rBand;  // saturated red rings
-    col += vec3(0.05, 1.1, 0.1 ) * gBand;  // saturated green rings
-    col += vec3(0.0,  0.2, 1.3 ) * bBand;  // saturated blue rings
-
-    // ── Hot centre core — always shows true face color ──
-    float core = exp(-d * d * 60.0) * (0.5 + vComp * 0.5);
-    col += vCol * core * 1.5;
-
-    // ── Edge soft-falloff ring at the outermost boundary ──
-    // gives each knot a defined halo at full face color
-    float halo = exp(-pow(d - 0.42, 2.0) * 120.0) * 0.4;
-    col += vCol * halo;
-
-    // ── Depth brightness ──
-    col *= 0.4 + vComp * 0.6;
-
-    // ── Centroids: slightly cooler, dimmer ──
-    if(vIsCent > 0.5){
-      col = mix(col, col * vec3(0.75, 0.9, 1.05), 0.3);
-      col *= 0.7;
-    }
-
-    // ── Final alpha ──
-    float lum   = dot(col, vec3(0.299, 0.587, 0.114));
-    float alpha = (lum * 1.2 + 0.05) * uOpacity;
-    alpha      *= smoothstep(0.5, 0.3, d);
-
-    if(alpha < 0.006) discard;
-    gl_FragColor = vec4(col, alpha);
-  }
-`;
-
 // ════════════════════════════════════════════════
-//  FIELD SHADER — density field with color-frequency blobs
+//  FIELD SHADER — density blobs with channel-frequency widths
 // ════════════════════════════════════════════════
 const FIELD_FRAG = `
+  varying vec2  vUV;
   varying vec3  vCol;
   varying float vComp;
-  varying float vIsCent;
   varying float vPhase;
+  varying float vCent;
 
   uniform float uTime;
   uniform float uPulse;
   uniform float uOpacity;
 
   void main(){
-    vec2  uv = gl_PointCoord - 0.5;
+    vec2  uv = vUV * 0.5;
     float d  = length(uv);
     if(d > 0.5) discard;
 
@@ -355,17 +376,18 @@ const FIELD_FRAG = `
 //  FABRIC SHADER — woven interference grid
 // ════════════════════════════════════════════════
 const FABRIC_FRAG = `
+  varying vec2  vUV;
   varying vec3  vCol;
   varying float vComp;
-  varying float vIsCent;
   varying float vPhase;
+  varying float vCent;
 
   uniform float uTime;
   uniform float uPulse;
   uniform float uOpacity;
 
   void main(){
-    vec2  uv = gl_PointCoord - 0.5;
+    vec2  uv = vUV * 0.5;
     float d  = length(uv);
     if(d > 0.5) discard;
 
@@ -464,100 +486,163 @@ function initThree() {
 }
 
 // ════════════════════════════════════════════════
-//  BUILD KNOT SYSTEM
-//  All points in one BufferGeometry — landmarks + centroids
+//  SURFACE NORMAL COMPUTATION
+//  For each landmark, average the cross products of
+//  all adjacent TESS triangles → smooth vertex normal
+// ════════════════════════════════════════════════
+function computeNormals(posArr, nLM) {
+  const norms  = new Float32Array(nLM * 3);
+  const counts = new Uint32Array(nLM);
+  for (const tri of TESS) {
+    const [a,b,c] = tri;
+    if (a>=nLM||b>=nLM||c>=nLM) continue;
+    const ax=posArr[a*3],ay=posArr[a*3+1],az=posArr[a*3+2];
+    const bx=posArr[b*3],by=posArr[b*3+1],bz=posArr[b*3+2];
+    const cx=posArr[c*3],cy=posArr[c*3+1],cz=posArr[c*3+2];
+    const e1x=bx-ax,e1y=by-ay,e1z=bz-az;
+    const e2x=cx-ax,e2y=cy-ay,e2z=cz-az;
+    const nx=e1y*e2z-e1z*e2y, ny=e1z*e2x-e1x*e2z, nz=e1x*e2y-e1y*e2x;
+    for (const v of [a,b,c]) {
+      norms[v*3]+=nx; norms[v*3+1]+=ny; norms[v*3+2]+=nz; counts[v]++;
+    }
+  }
+  for (let i=0; i<nLM; i++) {
+    if (!counts[i]) { norms[i*3+2]=1; continue; }
+    const len=Math.sqrt(norms[i*3]**2+norms[i*3+1]**2+norms[i*3+2]**2);
+    if (len>1e-6) { norms[i*3]/=len; norms[i*3+1]/=len; norms[i*3+2]/=len; }
+    else norms[i*3+2]=1;
+  }
+  return norms;
+}
+
+// ════════════════════════════════════════════════
+//  BUILD KNOT SYSTEM — instanced billboard splats
+//
+//  Architecture:
+//  • Base geometry: one quad (-1..1 aUV), 2 triangles
+//  • InstancedBufferGeometry: one instance per landmark + centroid
+//  • THREE.Mesh (not Points) — proper triangles, no gl_PointSize
+//  • Each splat is a Gaussian ellipse foreshortened by surface normal
 // ════════════════════════════════════════════════
 function buildKnotSystem(lm, colors) {
-  if (knotSystem) { scene.remove(knotSystem); knotSystem.geometry.dispose(); knotSystem.material.dispose(); }
+  if (knotSystem) {
+    scene.remove(knotSystem);
+    knotSystem.geometry.dispose();
+    knotSystem.material.dispose();
+    knotSystem = null;
+  }
 
   const nLM    = lm.length;
   const tris   = TESS.filter((_,i) => i % densityStep === 0);
   const nTri   = tris.length;
   const total  = nLM + nTri;
 
-  const pos    = new Float32Array(total * 3);
-  const col    = new Float32Array(total * 3);
-  const comp   = new Float32Array(total);     // compression 0–1
-  const phase  = new Float32Array(total);     // async pulse phase
-  const isCent = new Float32Array(total);     // 0=landmark 1=centroid
+  const posArr   = new Float32Array(total * 3);
+  const normArr  = new Float32Array(total * 3);
+  const sizeArr  = new Float32Array(total);
+  const colArr   = new Float32Array(total * 3);
+  const compArr  = new Float32Array(total);
+  const phaseArr = new Float32Array(total);
+  const centArr  = new Float32Array(total);
 
-  // Z range for normalisation — deeper = less compressed
   let zMin=Infinity, zMax=-Infinity;
-  for (let i=0; i<nLM; i++) {
-    if (lm[i].z < zMin) zMin = lm[i].z;
-    if (lm[i].z > zMax) zMax = lm[i].z;
+  for (let i=0;i<nLM;i++) {
+    if (lm[i].z<zMin) zMin=lm[i].z;
+    if (lm[i].z>zMax) zMax=lm[i].z;
   }
-  const zRange = Math.max(0.001, zMax - zMin);
-
+  const zRange = Math.max(0.001, zMax-zMin);
   const AR = window.innerHeight / window.innerWidth;
 
   // ── Landmarks ──
   for (let i=0; i<nLM; i++) {
-    pos[i*3  ] = (0.5 - lm[i].x) * 4.0;
-    pos[i*3+1] = (0.5 - lm[i].y) * 4.0 * AR;
-    pos[i*3+2] = (lm[i].z - zMin) / zRange * depthScale - depthScale*0.5;
+    const compVal = 1.0 - (lm[i].z - zMin) / zRange; // nose=1, ears=0
 
-    // Color: if snapped use real face colors, otherwise warm neutral cyan
-    // so all three ring-wave channels (R,G,B) are active and visible from the start
+    posArr[i*3  ] = (0.5 - lm[i].x) * 4.0;
+    posArr[i*3+1] = (0.5 - lm[i].y) * 4.0 * AR;
+    posArr[i*3+2] = compVal * depthScale - depthScale * 0.5; // nose protrudes +Z
+
     if (colors) {
-      col[i*3  ] = colors[i*3  ];
-      col[i*3+1] = colors[i*3+1];
-      col[i*3+2] = colors[i*3+2];
+      colArr[i*3  ] = colors[i*3  ];
+      colArr[i*3+1] = colors[i*3+1];
+      colArr[i*3+2] = colors[i*3+2];
     } else {
-      // Pre-snap: depth-driven warm cyan — deeper=blue, forward=warm
-      const t = 1.0 - (lm[i].z - zMin) / zRange;
-      col[i*3  ] = 0.15 + t * 0.25;  // some red → red rings active
-      col[i*3+1] = 0.55 + t * 0.35;  // strong green
-      col[i*3+2] = 0.65 + t * 0.35;  // strong blue → tight rings
+      colArr[i*3  ] = 0.15 + compVal * 0.25;
+      colArr[i*3+1] = 0.55 + compVal * 0.35;
+      colArr[i*3+2] = 0.65 + compVal * 0.35;
     }
 
-    // Compression: forward (nose) = 1.0, recessed = 0.0
-    comp[i]  = 1.0 - (lm[i].z - zMin) / zRange;
-    phase[i] = (i * 0.618033) % (Math.PI * 2); // golden ratio phase distribution
-    isCent[i] = 0;
+    compArr[i]  = compVal;
+    phaseArr[i] = (i * 0.618033) % (Math.PI * 2);
+    centArr[i]  = 0;
+    sizeArr[i]  = 0.20;
   }
 
-  // ── Centroids (inferred knots) ──
+  // ── Surface normals from mesh triangles ──
+  const lmNorms = computeNormals(posArr, nLM);
+  normArr.set(lmNorms);
+
+  // ── Centroids ──
   for (let t=0; t<nTri; t++) {
     const [a,b,c] = tris[t];
-    if (a >= nLM || b >= nLM || c >= nLM) continue;
+    if (a>=nLM||b>=nLM||c>=nLM) continue;
     const idx = nLM + t;
 
-    // Position = centroid of 3 parent landmarks
-    pos[idx*3  ] = (pos[a*3  ] + pos[b*3  ] + pos[c*3  ]) / 3;
-    pos[idx*3+1] = (pos[a*3+1] + pos[b*3+1] + pos[c*3+1]) / 3;
-    pos[idx*3+2] = (pos[a*3+2] + pos[b*3+2] + pos[c*3+2]) / 3;
+    posArr[idx*3  ] = (posArr[a*3  ]+posArr[b*3  ]+posArr[c*3  ])/3;
+    posArr[idx*3+1] = (posArr[a*3+1]+posArr[b*3+1]+posArr[c*3+1])/3;
+    posArr[idx*3+2] = (posArr[a*3+2]+posArr[b*3+2]+posArr[c*3+2])/3;
 
-    // Color = barycentric interpolation of 3 parent vertex colors
-    col[idx*3  ] = (col[a*3  ] + col[b*3  ] + col[c*3  ]) / 3;
-    col[idx*3+1] = (col[a*3+1] + col[b*3+1] + col[c*3+1]) / 3;
-    col[idx*3+2] = (col[a*3+2] + col[b*3+2] + col[c*3+2]) / 3;
+    colArr[idx*3  ] = (colArr[a*3  ]+colArr[b*3  ]+colArr[c*3  ])/3;
+    colArr[idx*3+1] = (colArr[a*3+1]+colArr[b*3+1]+colArr[c*3+1])/3;
+    colArr[idx*3+2] = (colArr[a*3+2]+colArr[b*3+2]+colArr[c*3+2])/3;
 
-    // Centroid compression = average of parents (emergent stability)
-    comp[idx]  = (comp[a] + comp[b] + comp[c]) / 3;
-    // Slightly offset phase so centroids pulse out-of-sync with parents
-    phase[idx] = ((a + b + c) * 0.23) % (Math.PI * 2);
-    isCent[idx] = 1;
+    // Normal = average of 3 parents, renormalised
+    const nx=(normArr[a*3]+normArr[b*3]+normArr[c*3])/3;
+    const ny=(normArr[a*3+1]+normArr[b*3+1]+normArr[c*3+1])/3;
+    const nz=(normArr[a*3+2]+normArr[b*3+2]+normArr[c*3+2])/3;
+    const nl=Math.sqrt(nx*nx+ny*ny+nz*nz);
+    normArr[idx*3  ]=nl>1e-6?nx/nl:0;
+    normArr[idx*3+1]=nl>1e-6?ny/nl:0;
+    normArr[idx*3+2]=nl>1e-6?nz/nl:1;
+
+    compArr[idx]  = (compArr[a]+compArr[b]+compArr[c])/3;
+    phaseArr[idx] = ((a+b+c)*0.23)%(Math.PI*2);
+    centArr[idx]  = 1;
+    sizeArr[idx]  = 0.14;
   }
 
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,    3));
-  geo.setAttribute('aCol',     new THREE.Float32BufferAttribute(col,    3));
-  geo.setAttribute('aComp',    new THREE.Float32BufferAttribute(comp,   1));
-  geo.setAttribute('aPhase',   new THREE.Float32BufferAttribute(phase,  1));
-  geo.setAttribute('aIsCent',  new THREE.Float32BufferAttribute(isCent, 1));
+  // ── Base quad: 4 verts, aUV -1..1 ──
+  const baseGeo = new THREE.BufferGeometry();
+  baseGeo.setAttribute('position', new THREE.Float32BufferAttribute(
+    new Float32Array([-1,-1,0, 1,-1,0, 1,1,0, -1,1,0]), 3));
+  baseGeo.setAttribute('aUV', new THREE.Float32BufferAttribute(
+    new Float32Array([-1,-1, 1,-1, 1,1, -1,1]), 2));
+  baseGeo.setIndex(new THREE.BufferAttribute(new Uint16Array([0,1,2,0,2,3]), 1));
 
-  // Choose fragment shader by view mode
-  const fragShader = viewMode === 'field'  ? FIELD_FRAG
-                   : viewMode === 'fabric' ? FABRIC_FRAG
-                   : KNOT_FRAG;
+  // ── Instanced geometry ──
+  const geo = new THREE.InstancedBufferGeometry();
+  geo.instanceCount = total;
+  geo.setAttribute('position', baseGeo.attributes.position);
+  geo.setAttribute('aUV',      baseGeo.attributes.aUV);
+  geo.setIndex(baseGeo.index);
+  geo.setAttribute('iPos',   new THREE.InstancedBufferAttribute(posArr,   3));
+  geo.setAttribute('iNorm',  new THREE.InstancedBufferAttribute(normArr,  3));
+  geo.setAttribute('iSize',  new THREE.InstancedBufferAttribute(sizeArr,  1));
+  geo.setAttribute('iCol',   new THREE.InstancedBufferAttribute(colArr,   3));
+  geo.setAttribute('iComp',  new THREE.InstancedBufferAttribute(compArr,  1));
+  geo.setAttribute('iPhase', new THREE.InstancedBufferAttribute(phaseArr, 1));
+  geo.setAttribute('iCent',  new THREE.InstancedBufferAttribute(centArr,  1));
+
+  const fragShader = viewMode==='field'  ? FIELD_FRAG
+                   : viewMode==='fabric' ? FABRIC_FRAG
+                   : SPLAT_FRAG;
 
   const mat = new THREE.ShaderMaterial({
-    vertexShader:   KNOT_VERT,
+    vertexShader:   SPLAT_VERT,
     fragmentShader: fragShader,
     transparent:    true,
     depthWrite:     false,
     blending:       THREE.AdditiveBlending,
+    side:           THREE.DoubleSide,
     uniforms: {
       uTime:    { value: 0 },
       uPulse:   { value: pulseRate },
@@ -565,7 +650,7 @@ function buildKnotSystem(lm, colors) {
     },
   });
 
-  knotSystem = new THREE.Points(geo, mat);
+  knotSystem = new THREE.Mesh(geo, mat);
   scene.add(knotSystem);
 }
 
@@ -771,51 +856,68 @@ async function initSystem() {
 const LERP = 0.3;
 function updatePositions(lm) {
   if (!knotSystem) return;
-  const posAttr = knotSystem.geometry.attributes.position;
-  const arr     = posAttr.array;
+  const geo      = knotSystem.geometry;
+  const posAttr  = geo.attributes.iPos;
+  const compAttr = geo.attributes.iComp;
+  const normAttr = geo.attributes.iNorm;
+  if (!posAttr || !compAttr) return;
+
+  const posArr  = posAttr.array;
+  const compArr = compAttr.array;
+  const normArr = normAttr ? normAttr.array : null;
   const AR      = window.innerHeight / window.innerWidth;
   const nLM     = lm.length;
   const tris    = TESS.filter((_,i) => i % densityStep === 0);
 
-  // Compute Z range from live landmarks
   let zMin=Infinity, zMax=-Infinity;
-  for (let i=0; i<nLM; i++) {
-    if (lm[i].z < zMin) zMin=lm[i].z;
-    if (lm[i].z > zMax) zMax=lm[i].z;
+  for (let i=0;i<nLM;i++) {
+    if (lm[i].z<zMin) zMin=lm[i].z;
+    if (lm[i].z>zMax) zMax=lm[i].z;
   }
   const zRange = Math.max(0.001, zMax-zMin);
 
-  // Update landmark positions
-  for (let i=0; i<nLM && i*3+2 < arr.length; i++) {
-    const tx = (0.5 - lm[i].x) * 4.0;
-    const ty = (0.5 - lm[i].y) * 4.0 * AR;
-    const tz = (lm[i].z - zMin) / zRange * depthScale - depthScale*0.5;
-    arr[i*3  ] += (tx - arr[i*3  ]) * LERP;
-    arr[i*3+1] += (ty - arr[i*3+1]) * LERP;
-    arr[i*3+2] += (tz - arr[i*3+2]) * LERP;
+  // Lerp landmark positions + compression
+  for (let i=0; i<nLM && i*3+2<posArr.length; i++) {
+    const compVal = 1.0 - (lm[i].z-zMin)/zRange;
+    const tx = (0.5-lm[i].x)*4.0;
+    const ty = (0.5-lm[i].y)*4.0*AR;
+    const tz = compVal*depthScale - depthScale*0.5;
+    posArr[i*3  ] += (tx-posArr[i*3  ])*LERP;
+    posArr[i*3+1] += (ty-posArr[i*3+1])*LERP;
+    posArr[i*3+2] += (tz-posArr[i*3+2])*LERP;
+    compArr[i]    += (compVal-compArr[i])*LERP;
   }
 
-  // Update centroid positions from updated landmark positions
+  // Recompute normals from updated landmark positions, lerp toward them
+  if (normArr) {
+    const fresh = computeNormals(posArr, nLM);
+    for (let i=0;i<nLM*3;i++) normArr[i] += (fresh[i]-normArr[i])*LERP;
+  }
+
+  // Update centroid positions + normals from updated landmarks
   for (let t=0; t<tris.length; t++) {
     const [a,b,c] = tris[t];
     if (a>=nLM||b>=nLM||c>=nLM) continue;
-    const idx = nLM + t;
-    if (idx*3+2 >= arr.length) continue;
-    arr[idx*3  ] = (arr[a*3  ] + arr[b*3  ] + arr[c*3  ]) / 3;
-    arr[idx*3+1] = (arr[a*3+1] + arr[b*3+1] + arr[c*3+1]) / 3;
-    arr[idx*3+2] = (arr[a*3+2] + arr[b*3+2] + arr[c*3+2]) / 3;
+    const idx = nLM+t;
+    if (idx*3+2>=posArr.length) continue;
+    posArr[idx*3  ] = (posArr[a*3  ]+posArr[b*3  ]+posArr[c*3  ])/3;
+    posArr[idx*3+1] = (posArr[a*3+1]+posArr[b*3+1]+posArr[c*3+1])/3;
+    posArr[idx*3+2] = (posArr[a*3+2]+posArr[b*3+2]+posArr[c*3+2])/3;
+    compArr[idx]    = (compArr[a]+compArr[b]+compArr[c])/3;
+    if (normArr) {
+      const nx=(normArr[a*3]+normArr[b*3]+normArr[c*3])/3;
+      const ny=(normArr[a*3+1]+normArr[b*3+1]+normArr[c*3+1])/3;
+      const nz=(normArr[a*3+2]+normArr[b*3+2]+normArr[c*3+2])/3;
+      const nl=Math.sqrt(nx*nx+ny*ny+nz*nz);
+      normArr[idx*3  ]=nl>1e-6?nx/nl:0;
+      normArr[idx*3+1]=nl>1e-6?ny/nl:0;
+      normArr[idx*3+2]=nl>1e-6?nz/nl:1;
+    }
   }
 
-  posAttr.needsUpdate = true;
-
-  // Update compression values from live Z
-  const compAttr = knotSystem.geometry.attributes.aComp;
-  const compArr  = compAttr.array;
-  for (let i=0; i<nLM && i < compArr.length; i++) {
-    const targetComp = 1.0 - (lm[i].z - zMin) / zRange;
-    compArr[i] += (targetComp - compArr[i]) * LERP;
-  }
+  posAttr.needsUpdate  = true;
   compAttr.needsUpdate = true;
+  if (normAttr) normAttr.needsUpdate = true;
 }
 
 // ════════════════════════════════════════════════
