@@ -97,10 +97,10 @@ video{display:none}
       <span id="lbl-grid">14</span>
     </div>
     <div class="sl-row">
-      <label>Knot Size</label>
-      <input type="range" min="0.04" max="0.6" step="0.02" value="0.13"
-        oninput="knotSize=+this.value;document.getElementById('lbl-ks').textContent=this.value;if(latestLM)buildKnotSystem(latestLM,snapColors)">
-      <span id="lbl-ks">0.13</span>
+      <label>Knot Amount</label>
+      <input type="range" min="50" max="468" step="10" value="468"
+        oninput="knotAmount=+this.value;document.getElementById('lbl-ka').textContent=this.value;if(latestLM)buildKnotSystem(latestLM,snapColors)">
+      <span id="lbl-ka">468</span>
     </div>
     <div class="sl-row">
       <label>Pulse Rate</label>
@@ -545,87 +545,93 @@ const SKIN_FRAG = `
   uniform float uGrid;
 
   void main(){
-    // ── Tile into a grid ──
+    // ── Tight cell grid — no gaps ──
     vec2 scaled = fUV * uGrid;
     vec2 cell   = floor(scaled);
-    vec2 p      = scaled - cell - 0.5;   // -0.5..0.5 in cell space
+    vec2 p      = (scaled - cell - 0.5) * 2.0;  // -1..1 in cell space
 
-    // ── Per-cell hash ──
-    float h  = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
+    // ── Per-cell stable hash ──
+    float h1 = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
     float h2 = fract(sin(dot(cell, vec2(269.5, 183.3))) * 17385.3124);
-    float rot = h2 * 3.14159 * 2.0;
 
-    // Rotate p
-    float cr = cos(rot), sr = sin(rot);
-    vec2  rp = vec2(cr*p.x - sr*p.y, sr*p.x + cr*p.y);
+    // ── Boost face color hard — video is dark ──
+    vec3 fc = max(fCol, vec3(0.05, 0.04, 0.03));
+    float lum = dot(fc, vec3(0.299, 0.587, 0.114));
+    fc = mix(vec3(lum), fc, 2.4);
+    fc = pow(clamp(fc, 0.001, 1.0), vec3(0.48));
+    fc = clamp(fc * 1.5, 0.0, 1.0);
 
-    // ── Boost face color — video is often dark ──
-    // Hard multi-stage lift so colors read clearly against black background
-    vec3 baseCol = fCol;
-    // Floor: guarantee minimum signal
-    baseCol = max(baseCol, vec3(0.06, 0.05, 0.04));
-    // Saturation punch — 2× pull away from grey
-    float lum = dot(baseCol, vec3(0.299, 0.587, 0.114));
-    baseCol = mix(vec3(lum), baseCol, 2.2);
-    // Gamma lift — push midtones up hard
-    baseCol = pow(clamp(baseCol, 0.001, 1.0), vec3(0.5));
-    // Scale
-    baseCol = clamp(baseCol * 1.4, 0.0, 1.0);
+    // ── Dark cell background fills the whole square ──
+    // bg is dark version of face color — creates subtle hue in background
+    vec3 bg = fc * 0.12;
 
-    // ── Shape selection — R→circles, G→hexagons, B→squares/triangles ──
-    float r = baseCol.r, g = baseCol.g, b = baseCol.b;
-    float shapeSel = h;
-    // Color bias: warm tones→circles, cool→hard shapes
-    shapeSel = clamp(shapeSel * 0.5 + (b - r) * 0.3 + 0.5, 0.0, 1.0);
+    // ── Outer cell border — bright, full square perimeter ──
+    // |p| close to 1.0 on either axis = we're near the cell edge
+    float borderW = 0.10;
+    float borderX = 1.0 - smoothstep(0.0, borderW, 1.0 - abs(p.x));
+    float borderY = 1.0 - smoothstep(0.0, borderW, 1.0 - abs(p.y));
+    float border  = max(borderX, borderY);
+    // Border color: mix of face R and B channels — neon outline feel
+    vec3 borderCol = vec3(fc.r * 0.6, fc.g * 0.3, fc.b * 1.4);
+    borderCol = clamp(borderCol * 2.0, 0.0, 1.0);
 
-    float innerR = 0.36;
-    float sdf;
-    if(shapeSel < 0.20){
-      sdf = length(rp) - innerR;                          // circle
-    } else if(shapeSel < 0.40){
-      vec2 ap = abs(rp); float k = -0.866025;             // hex
-      ap -= 2.0*min(dot(vec2(k,0.5),ap),0.0)*vec2(k,0.5);
-      ap -= vec2(clamp(ap.x,-0.5*innerR,0.5*innerR), innerR);
-      sdf = length(ap)*sign(ap.y);
-    } else if(shapeSel < 0.60){
-      sdf = (abs(rp.x)+abs(rp.y)) - innerR * 1.1;        // diamond
-    } else if(shapeSel < 0.80){
-      vec2 d = abs(rp) - vec2(innerR*0.82);               // square
-      sdf = length(max(d,0.0))+min(max(d.x,d.y),0.0);
-    } else {
-      vec2 q = abs(rp); float k2 = sqrt(3.0);             // triangle
-      q.x = abs(q.x) - innerR;
-      q.y = q.y + innerR/k2;
-      if(q.x+k2*q.y>0.0) q=vec2(q.x-k2*q.y,-k2*q.x-q.y)/2.0;
-      q.x -= clamp(q.x,-2.0*innerR,0.0);
-      sdf = -length(q)*sign(q.y);
-    }
+    // ── Crosshair arms — thin lines through center ──
+    float armW   = 0.04;
+    float armX   = 1.0 - smoothstep(0.0, armW, abs(p.x));  // vertical arm
+    float armY   = 1.0 - smoothstep(0.0, armW, abs(p.y));  // horizontal arm
+    float arm    = max(armX, armY);
+    // Arms = face green channel dominant
+    vec3 armCol  = vec3(fc.r * 0.4, fc.g * 1.3, fc.b * 0.4);
+    armCol = clamp(armCol, 0.0, 1.0);
 
-    // AA edge
-    float shape = 1.0 - smoothstep(-0.01, 0.025, sdf);
-    if(shape < 0.015) discard;
+    // ── Concentric rings around center ──
+    float d      = length(p);
+    // 3 rings at radii ~0.25, 0.50, 0.75
+    float ringW  = 0.045;
+    float r1 = 1.0 - smoothstep(0.0, ringW, abs(d - 0.26));
+    float r2 = 1.0 - smoothstep(0.0, ringW, abs(d - 0.52));
+    float r3 = 1.0 - smoothstep(0.0, ringW, abs(d - 0.78));
+    // Pulse ring 2 slightly
+    float pulse  = sin(uTime * uPulse * 1.2 + h1 * 6.28) * 0.5 + 0.5;
+    r2 *= 0.7 + pulse * 0.4;
+    // Ring colors: R, G, B channels drive ring 1, 2, 3 respectively
+    vec3 ring1Col = vec3(fc.r * 2.0, fc.g * 0.3, fc.b * 0.2);
+    vec3 ring2Col = vec3(fc.r * 0.2, fc.g * 2.0, fc.b * 0.3);
+    vec3 ring3Col = vec3(fc.r * 0.2, fc.g * 0.3, fc.b * 2.0);
+    ring1Col = clamp(ring1Col, 0.0, 1.0);
+    ring2Col = clamp(ring2Col, 0.0, 1.0);
+    ring3Col = clamp(ring3Col, 0.0, 1.0);
 
-    // ── Shape fill: face color, depth-warmed ──
-    vec3 col = baseCol;
-    col *= mix(vec3(0.85,0.92,1.08), vec3(1.08,0.98,0.88), fComp);
+    // ── Center dot ──
+    float dotR   = 0.10;
+    float cDot   = 1.0 - smoothstep(dotR - 0.02, dotR + 0.02, d);
+    vec3 dotCol  = fc * 1.8;
 
-    // ── Inner ring detail — pulsing concentric band ──
-    float inner  = length(rp) / innerR;
-    float ringPos = fract(inner * 2.5 - uTime * uPulse * 0.35 + h * 6.28);
-    float ring    = step(ringPos, 0.3) * smoothstep(1.0, 0.5, inner);
-    // Complementary ring color
-    vec3 ringCol = vec3(1.0) - col * 0.6;
-    col = mix(col, ringCol * 1.3, ring * 0.5);
+    // ── Quadrant numbers: tiny bright squares at quadrant centers ──
+    // Each quadrant (±0.65, ±0.65) gets a tiny marker
+    vec2 qp = abs(p) - vec2(0.65);
+    float qMark = 1.0 - smoothstep(0.0, 0.06, length(qp) - 0.06);
+    vec3 qCol   = vec3(0.9, 0.9, 0.9) * 0.6;
 
-    // ── Bright edge outline ──
-    float edge = 1.0 - smoothstep(0.0, 0.035, abs(sdf));
-    col = mix(col, col * 2.0 + vec3(0.15), edge * 0.75);
+    // ── Depth tint: forward=warm, recessed=cool ──
+    float depthT = fComp;
+    vec3 warmShift = vec3(0.12, 0.02, -0.06);
+    vec3 coolShift = vec3(-0.06, 0.0,  0.10);
+    vec3 depthTint = mix(coolShift, warmShift, depthT);
 
-    // ── Specular centre ──
-    float spec = exp(-inner*inner*10.0) * fComp * 0.4;
-    col += vec3(spec*1.0, spec*0.85, spec*0.7);
+    // ── Composite all layers ──
+    vec3 col = bg;
+    col = mix(col, ring1Col, r1);
+    col = mix(col, ring2Col, r2);
+    col = mix(col, ring3Col, r3);
+    col = mix(col, armCol,   arm * 0.85);
+    col = mix(col, borderCol,border);
+    col = mix(col, dotCol,   cDot);
+    col = mix(col, qCol,     qMark * 0.7);
+    col += depthTint * 0.15;
+    col  = clamp(col, 0.0, 1.0);
 
-    gl_FragColor = vec4(col, shape * uOpacity);
+    gl_FragColor = vec4(col, uOpacity);
   }
 `;
 
@@ -636,7 +642,7 @@ let depthScale   = 3.5;
 let pulseRate    = 0.8;
 let fieldOpacity = 0.85;
 let gridDensity  = 14;
-let knotSize     = 0.13;   // splat size — bigger = denser-looking coverage
+let knotAmount   = 468;    // how many landmarks to render as knots
 let densityStep  = 1;
 let viewMode     = 'skin';
 let stackMode    = false;   // show both skin + knots simultaneously
@@ -904,14 +910,16 @@ function buildKnotSystem(lm, colors) {
   const SCALE = 3.8;
 
   // Size scales
-  const lmSize   = isRealist ? 0.20 : knotSize;
-  const centSize = isRealist ? 0.13 : knotSize * 0.7;
-  const subSize  = isRealist ? 0.09 : knotSize * 0.5;
+  const lmSize   = isRealist ? 0.20 : 0.13;
+  const centSize = isRealist ? 0.13 : 0.09;
+  const subSize  = isRealist ? 0.09 : 0.06;
+
+  // Subsample landmarks based on knotAmount
+  const lmStep = Math.max(1, Math.floor(nLM / knotAmount));
 
   // ── T0: Landmarks — centred on actual face, uniform XY scale ──
   for (let i=0; i<nLM; i++) {
     const compVal = 1.0 - (lm[i].z - zMin) / zRange;
-    // Mirror X (selfie), centre on face, uniform scale
     posArr[i*3  ] = (cx - lm[i].x) * SCALE;
     posArr[i*3+1] = (cy - lm[i].y) * SCALE;
     posArr[i*3+2] = compVal * depthScale - depthScale * 0.5;
@@ -928,7 +936,8 @@ function buildKnotSystem(lm, colors) {
     compArr[i]  = compVal;
     phaseArr[i] = (i * 0.618033) % (Math.PI * 2);
     centArr[i]  = 0;
-    sizeArr[i]  = lmSize;
+    // Skip this landmark if outside knotAmount — zero size hides it
+    sizeArr[i]  = (i % lmStep === 0) ? lmSize : 0.0;
   }
 
   // Surface normals
