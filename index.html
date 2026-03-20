@@ -3,151 +3,257 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibe Protocol · Avatar Renderer</title>
+<title>Vibe Protocol · Live</title>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0c0b09;
-  --surface:#141210;
-  --border:#282420;
-  --text:#e8e2d8;
-  --muted:#4e4840;
-  --accent:#c9a96e;
-  --accent-dk:#7a5c2e;
+  --bg:#0c0b09; --surface:#141210; --border:#282420;
+  --text:#e8e2d8; --muted:#4e4840; --accent:#c9a96e; --accent-dk:#7a5c2e;
+  --green:#6a9e6a; --amber:#c9a050; --red:#b05040;
 }
 body{
-  background:var(--bg);
-  color:var(--text);
+  background:var(--bg); color:var(--text);
   font-family:'JetBrains Mono',monospace;
-  min-height:100vh;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  padding:44px 24px 72px;
+  min-height:100vh; display:flex; flex-direction:column;
+  align-items:center; padding:36px 24px 60px;
 }
 body::before{
-  content:'';
-  position:fixed;
-  inset:0;
+  content:''; position:fixed; inset:0;
   background-image:radial-gradient(circle,#2a2420 1px,transparent 1px);
-  background-size:26px 26px;
-  opacity:0.35;
-  pointer-events:none;
-  z-index:0;
+  background-size:26px 26px; opacity:0.35; pointer-events:none; z-index:0;
 }
-header{
-  position:relative;z-index:1;
-  text-align:center;
-  margin-bottom:36px;
-}
-.eyebrow{
-  font-size:0.55rem;letter-spacing:.32em;color:var(--muted);
-  text-transform:uppercase;margin-bottom:6px;
-}
-.title{
-  font-family:'Cormorant Garamond',serif;
-  font-size:2.9rem;font-weight:500;letter-spacing:.06em;
-  line-height:1;color:var(--text);
-}
-.title em{font-style:italic;color:var(--accent)}
-.sub{font-size:.54rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-top:9px}
 
-.frame{
+header{position:relative;z-index:1;text-align:center;margin-bottom:28px}
+.eyebrow{font-size:.55rem;letter-spacing:.32em;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+.title{font-family:'Cormorant Garamond',serif;font-size:2.7rem;font-weight:500;letter-spacing:.06em;line-height:1}
+.title em{font-style:italic;color:var(--accent)}
+.sub{font-size:.54rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-top:8px}
+
+.stage{
   position:relative;z-index:1;
-  border:1px solid var(--border);
-  background:var(--surface);
+  display:flex;gap:20px;align-items:flex-start;
 }
-.frame::before,.frame::after{
-  content:'';position:absolute;width:14px;height:14px;
+
+/* ── Avatar side ── */
+.avatar-col{display:flex;flex-direction:column;gap:8px}
+.frame{
+  position:relative;border:1px solid var(--border);background:var(--surface);
 }
+.frame::before,.frame::after{content:'';position:absolute;width:14px;height:14px}
 .frame::before{top:-1px;left:-1px;border-top:2px solid var(--accent-dk);border-left:2px solid var(--accent-dk)}
 .frame::after{bottom:-1px;right:-1px;border-bottom:2px solid var(--accent-dk);border-right:2px solid var(--accent-dk)}
-canvas{display:block}
 
-.status{
-  position:relative;z-index:1;
+#avatarCanvas{display:block}
+
+.status-bar{
   display:flex;justify-content:space-between;
-  width:480px;margin-top:9px;padding:0 2px;
-  font-size:.53rem;color:var(--muted);
-  letter-spacing:.14em;text-transform:uppercase;
+  font-size:.52rem;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;padding:0 2px;
 }
 
+/* ── Right panel ── */
+.right-col{
+  width:196px;display:flex;flex-direction:column;gap:14px;
+  padding-top:4px;
+}
+
+/* Video PiP */
+.pip-frame{
+  position:relative;border:1px solid var(--border);background:#000;overflow:hidden;
+}
+.pip-frame::before,.pip-frame::after{content:'';position:absolute;width:9px;height:9px;z-index:2}
+.pip-frame::before{top:-1px;left:-1px;border-top:1px solid var(--accent-dk);border-left:1px solid var(--accent-dk)}
+.pip-frame::after{bottom:-1px;right:-1px;border-bottom:1px solid var(--accent-dk);border-right:1px solid var(--accent-dk)}
+#videoEl{
+  display:block;width:196px;height:148px;object-fit:cover;
+  transform:scaleX(-1); /* mirror for natural feel */
+}
+.pip-label{
+  position:absolute;bottom:5px;left:7px;
+  font-size:.46rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);z-index:2;
+}
+.pip-badge{
+  position:absolute;top:6px;right:6px;z-index:2;
+  font-size:.44rem;letter-spacing:.14em;text-transform:uppercase;
+  padding:2px 5px;border:1px solid;
+}
+.pip-badge.searching{color:var(--amber);border-color:var(--amber)}
+.pip-badge.calibrating{color:var(--accent);border-color:var(--accent)}
+.pip-badge.live{color:var(--green);border-color:var(--green)}
+
+/* Phase overlay */
+#phaseOverlay{
+  position:absolute;inset:0;background:rgba(12,11,9,.85);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;z-index:10;
+  transition:opacity .5s;
+}
+#phaseOverlay.hidden{opacity:0;pointer-events:none}
+.phase-title{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:500;color:var(--accent)}
+.phase-sub{font-size:.52rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;text-align:center;line-height:1.8}
+.calib-bar-wrap{width:160px;height:2px;background:var(--border);margin-top:4px}
+#calibBar{height:100%;background:var(--accent);width:0%;transition:width .15s}
+
+/* Vibe packet panel */
+.panel{border:1px solid var(--border);padding:12px 11px;background:var(--surface)}
+.panel-hdr{
+  font-size:.47rem;letter-spacing:.26em;text-transform:uppercase;color:var(--accent-dk);
+  margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.panel-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 1.8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.param-row{margin-bottom:7px}
+.param-lbl{font-size:.44rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-bottom:2px;display:flex;justify-content:space-between}
+.param-val{font-size:.44rem;color:var(--accent)}
+.bar-track{height:3px;background:var(--border);position:relative}
+.bar-fill{height:100%;background:var(--accent-dk);transition:width .08s,background .2s;position:absolute;left:0}
+.bar-fill.neg{right:50%;left:auto;background:var(--muted)}
+.bar-center{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--border)}
+
+/* Palette swatches */
+.swatch-row{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.swatch{width:12px;height:12px;border:1px solid var(--border);flex-shrink:0}
+.swatch-lbl{font-size:.43rem;letter-spacing:.13em;color:var(--muted);text-transform:uppercase}
+.swatch-hex{font-size:.43rem;color:var(--text);margin-left:auto}
+
+/* BW row */
+.bw-row{font-size:.44rem;letter-spacing:.12em;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+.bw-val{color:var(--text)}
+
+/* Controls */
 .controls{
   position:relative;z-index:1;
-  margin-top:28px;width:480px;
-  display:flex;flex-direction:column;gap:14px;
+  margin-top:20px;display:flex;gap:10px;align-items:center;
 }
-.row{display:flex;gap:10px;align-items:center}
-.lbl{
-  font-size:.52rem;letter-spacing:.2em;color:var(--muted);
-  text-transform:uppercase;width:52px;flex-shrink:0;
-}
-.btns{display:flex;gap:4px;flex-wrap:wrap}
+.ctrl-lbl{font-size:.52rem;letter-spacing:.2em;color:var(--muted);text-transform:uppercase}
+.btns{display:flex;gap:4px}
 .btn{
-  font-family:'JetBrains Mono',monospace;
-  font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;
-  padding:6px 12px;
-  background:transparent;border:1px solid var(--border);
-  color:var(--muted);cursor:pointer;transition:all .12s;
+  font-family:'JetBrains Mono',monospace;font-size:.56rem;letter-spacing:.1em;
+  text-transform:uppercase;padding:6px 12px;
+  background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .12s;
 }
 .btn:hover{border-color:var(--accent-dk);color:var(--text)}
 .btn.on{background:var(--accent);border-color:var(--accent);color:#0c0b09;font-weight:500}
+.btn-recal{border-color:var(--accent-dk);color:var(--accent-dk)}
+.btn-recal:hover{background:var(--accent-dk);color:var(--text)}
 
 .hint{
-  position:relative;z-index:1;
-  margin-top:20px;
-  font-size:.52rem;letter-spacing:.16em;color:var(--muted);
-  text-transform:uppercase;text-align:center;
+  position:relative;z-index:1;margin-top:14px;
+  font-size:.50rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;text-align:center;
 }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="eyebrow">Vibe Protocol · Render Engine v0.1</div>
-  <h1 class="title">Chuck <em>Close</em></h1>
-  <div class="sub">Abstract optical → realist avatar system</div>
+  <div class="eyebrow">Vibe Protocol · Live Demo v0.2</div>
+  <h1 class="title">Your face. <em>Abstracted.</em></h1>
+  <div class="sub">Presence over pixels — 12 bytes per frame</div>
 </header>
 
-<div class="frame">
-  <canvas id="c" width="480" height="560"></canvas>
-</div>
+<div class="stage">
 
-<div class="status">
-  <span id="sTier">Tier 02 · Mid</span>
-  <span id="sEm">Vibe · Neutral</span>
-  <span id="sCells">— cells</span>
+  <!-- ── Avatar ── -->
+  <div class="avatar-col">
+    <div class="frame" style="position:relative">
+      <canvas id="avatarCanvas" width="480" height="560"></canvas>
+      <!-- Phase overlay lives inside frame -->
+      <div id="phaseOverlay">
+        <div class="phase-title" id="phaseTitle">Requesting Camera</div>
+        <div class="phase-sub" id="phaseSub">Allow camera access to begin</div>
+        <div class="calib-bar-wrap" id="calibBarWrap" style="display:none">
+          <div id="calibBar"></div>
+        </div>
+      </div>
+    </div>
+    <div class="status-bar">
+      <span id="sTier">Tier 02 · Mid</span>
+      <span id="sPhase">Waiting</span>
+      <span id="sCells">— cells</span>
+    </div>
+  </div>
+
+  <!-- ── Right Panel ── -->
+  <div class="right-col">
+
+    <!-- Video PiP -->
+    <div class="pip-frame">
+      <video id="videoEl" playsinline muted></video>
+      <div class="pip-badge searching" id="pipBadge">Searching</div>
+      <div class="pip-label">Source</div>
+    </div>
+
+    <!-- Vibe Packet -->
+    <div class="panel">
+      <div class="panel-hdr">
+        Vibe Packet
+        <div class="panel-dot" id="packetDot" style="background:var(--border)"></div>
+      </div>
+
+      <div class="param-row">
+        <div class="param-lbl">mouth open <span class="param-val" id="v_mo">0.00</span></div>
+        <div class="bar-track"><div class="bar-fill" id="b_mo" style="width:0%"></div></div>
+      </div>
+      <div class="param-row">
+        <div class="param-lbl">mouth curve <span class="param-val" id="v_mc">0.00</span></div>
+        <div class="bar-track">
+          <div class="bar-center"></div>
+          <div class="bar-fill" id="b_mc" style="width:0%;left:50%"></div>
+        </div>
+      </div>
+      <div class="param-row">
+        <div class="param-lbl">brow lift <span class="param-val" id="v_bl">0.00</span></div>
+        <div class="bar-track">
+          <div class="bar-center"></div>
+          <div class="bar-fill" id="b_bl" style="width:0%;left:50%"></div>
+        </div>
+      </div>
+      <div class="param-row">
+        <div class="param-lbl">eye open <span class="param-val" id="v_eo">1.00</span></div>
+        <div class="bar-track"><div class="bar-fill" id="b_eo" style="width:100%"></div></div>
+      </div>
+
+    </div>
+
+    <!-- Palette -->
+    <div class="panel">
+      <div class="panel-hdr">Palette</div>
+      <div class="swatch-row"><div class="swatch" id="sw_skin"></div><div class="swatch-lbl">Skin</div><div class="swatch-hex" id="sh_skin">—</div></div>
+      <div class="swatch-row"><div class="swatch" id="sw_hair"></div><div class="swatch-lbl">Hair</div><div class="swatch-hex" id="sh_hair">—</div></div>
+      <div class="swatch-row"><div class="swatch" id="sw_iris"></div><div class="swatch-lbl">Iris</div><div class="swatch-hex" id="sh_iris">—</div></div>
+      <div class="swatch-row"><div class="swatch" id="sw_lip"></div><div class="swatch-lbl">Lip</div><div class="swatch-hex" id="sh_lip">—</div></div>
+      <div class="bw-row">~<span class="bw-val" id="bwVal">—</span> bytes · <span class="bw-val" id="cellVal">—</span> cells</div>
+    </div>
+
+  </div>
 </div>
 
 <div class="controls">
-  <div class="row">
-    <div class="lbl">Tier</div>
-    <div class="btns" id="tierBtns">
-      <button class="btn" data-tier="0">01 · Low</button>
-      <button class="btn on" data-tier="1">02 · Mid</button>
-      <button class="btn" data-tier="2">03 · High</button>
-    </div>
+  <div class="ctrl-lbl">Tier</div>
+  <div class="btns" id="tierBtns">
+    <button class="btn" data-tier="0">01</button>
+    <button class="btn on" data-tier="1">02</button>
+    <button class="btn" data-tier="2">03</button>
   </div>
-  <div class="row">
-    <div class="lbl">Vibe</div>
-    <div class="btns" id="emBtns">
-      <button class="btn on" data-em="neutral">Neutral</button>
-      <button class="btn" data-em="happy">Happy</button>
-      <button class="btn" data-em="sad">Sad</button>
-      <button class="btn" data-em="surprised">Surprised</button>
-      <button class="btn" data-em="angry">Angry</button>
-    </div>
-  </div>
+  <button class="btn btn-recal" id="recalBtn" style="margin-left:12px">↺ Recalibrate</button>
 </div>
 
-<div class="hint">← · step back from screen to resolve the face · →</div>
+<div class="hint">step back to resolve the face · colors sampled from your camera</div>
+
+<!-- Hidden sampling canvas -->
+<canvas id="sampleCanvas" style="display:none;position:absolute;left:-9999px"></canvas>
 
 <script>
-// ═══════════════════════════════════════════
-//  CONFIG
-// ═══════════════════════════════════════════
-const W = 480, H = 560;
+'use strict';
+// ═══════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════
+const AW = 480, AH = 560;
+const VW = 640, VH = 480;
 
 const TIERS = [
   { cs: 22, gap: 2,   label: 'Tier 01 · Low'  },
@@ -155,356 +261,614 @@ const TIERS = [
   { cs:  6, gap: 0.5, label: 'Tier 03 · High' },
 ];
 
-// ═══════════════════════════════════════════
-//  EMOTION PALETTES
-// ═══════════════════════════════════════════
-const PAL = {
-  neutral: {
-    skin:       [212, 172, 130],
-    shadow:     [148, 108,  82],
-    highlight:  [242, 210, 170],
-    cheek:      [195, 130, 115],
-    cheekAmt:   0.08,
-    lip:        [172,  90,  80],
-    iris:       [ 62, 102, 142],
-    brow:       [ 48,  36,  28],
-    hair:       [ 36,  26,  20],
-    mouthOpen:  0,
-    browLift:   0,
-    mouthCurve: 0,
-  },
-  happy: {
-    skin:       [224, 185, 143],
-    shadow:     [158, 118,  90],
-    highlight:  [255, 222, 180],
-    cheek:      [224, 115, 103],
-    cheekAmt:   0.30,
-    lip:        [198, 102,  88],
-    iris:       [ 72, 118, 154],
-    brow:       [ 50,  38,  30],
-    hair:       [ 38,  28,  22],
-    mouthOpen:  0.007,
-    browLift:   0.017,
-    mouthCurve: 1,
-  },
-  sad: {
-    skin:       [192, 162, 142],
-    shadow:     [136, 104,  90],
-    highlight:  [218, 192, 172],
-    cheek:      [165, 126, 120],
-    cheekAmt:   0.04,
-    lip:        [150,  86,  80],
-    iris:       [ 52,  84, 122],
-    brow:       [ 45,  34,  27],
-    hair:       [ 33,  23,  17],
-    mouthOpen:  0,
-    browLift:  -0.015,
-    mouthCurve: -1,
-  },
-  surprised: {
-    skin:       [216, 177, 136],
-    shadow:     [152, 112,  86],
-    highlight:  [248, 213, 173],
-    cheek:      [198, 134, 115],
-    cheekAmt:   0.14,
-    lip:        [168,  91,  82],
-    iris:       [ 65, 105, 145],
-    brow:       [ 48,  36,  28],
-    hair:       [ 36,  26,  20],
-    mouthOpen:  0.046,
-    browLift:   0.033,
-    mouthCurve: 0,
-  },
-  angry: {
-    skin:       [220, 150, 112],
-    shadow:     [164,  86,  66],
-    highlight:  [244, 184, 146],
-    cheek:      [216,  94,  83],
-    cheekAmt:   0.25,
-    lip:        [164,  70,  63],
-    iris:       [ 94,  57,  50],
-    brow:       [ 42,  30,  22],
-    hair:       [ 32,  22,  16],
-    mouthOpen:  0.005,
-    browLift:  -0.011,
-    mouthCurve: -0.66,
-  },
+// MediaPipe landmark indices
+const LM = {
+  TOP:10, CHIN:152,
+  L_EYE_T:159, L_EYE_B:145, L_EYE_L:33,  L_EYE_R:133,
+  R_EYE_T:386, R_EYE_B:374, R_EYE_L:362, R_EYE_R:263,
+  L_IRIS:468,  R_IRIS:473,
+  L_BROW:105,  R_BROW:334,
+  L_BROW_IN:55, R_BROW_IN:285,
+  MOUTH_T:13,  MOUTH_B:14, MOUTH_L:61, MOUTH_R:291,
+  NOSE:1,
+  FOREHEAD:10, // reused for top
+  L_CHEEK:234, R_CHEEK:454,
+  L_CHEEK2:116,R_CHEEK2:345,
+  LIP_TOP:0,   LIP_BOT:17,
+  L_TEMPLE:127,R_TEMPLE:356,
 };
 
-// ═══════════════════════════════════════════
-//  MATH
-// ═══════════════════════════════════════════
+const CALIB_FRAMES = 50;
+
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+let tierIdx     = 1;
+let phase       = 'waiting'; // waiting | calibrating | live
+let calibCount  = 0;
+
+let basePal = {
+  skin:[212,172,130], shadow:[148,108,82], highlight:[242,210,170],
+  cheek:[195,130,115], lip:[172,90,80], iris:[62,102,142],
+  brow:[48,36,28], hair:[36,26,20],
+};
+
+// Running accumulators for calibration
+let calibAcc = { skin:[[],[],[]], hair:[[],[],[]], iris:[[],[],[]], lip:[[],[],[]], brow:[[],[],[]] };
+
+// Live vibe params (smoothed)
+let vibe = { mouthOpen:0, mouthCurve:0, browLift:0, cheekAmt:0.08, eyeOpen:1.0 };
+let prevVibe = { ...vibe };
+
+// Baselines (set at end of calibration)
+let baselines = { browDist:null, eyeDist:null };
+
+// ═══════════════════════════════════════════════════════
+//  MATH UTILITIES
+// ═══════════════════════════════════════════════════════
 const clamp = (v,lo,hi) => v<lo?lo:v>hi?hi:v;
 const lerp  = (a,b,t)   => a+(b-a)*clamp(t,0,1);
 const lerpC = (c1,c2,t) => [lerp(c1[0],c2[0],t),lerp(c1[1],c2[1],t),lerp(c1[2],c2[2],t)];
-const rand  = s => { let x=Math.sin(s+1)*43758.5453; return x-Math.floor(x); };
+const dist2 = (a,b)     => Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2);
+const rand  = s         => { let x=Math.sin(s+1)*43758.5453; return x-Math.floor(x); };
+const toHex = ([r,g,b]) => '#'+[r,g,b].map(v=>(v|0).toString(16).padStart(2,'0')).join('');
 
-function blendPal(a,b,t) {
-  const out={};
-  for(const k of Object.keys(a)) {
-    out[k] = Array.isArray(a[k]) ? lerpC(a[k],b[k],t) : lerp(a[k],b[k],t);
-  }
-  return out;
+function smoothExp(curr, next, factor=0.18) {
+  return curr + (next - curr) * factor;
 }
 
-// ═══════════════════════════════════════════
-//  FACE COLOR SAMPLER
-//  Returns [r,g,b] or null (background)
-// ═══════════════════════════════════════════
-function sampleFace(px, py, pal) {
-  // Normalize: face center ≈ (0, –0.02) in this space
-  const nx = px/W - 0.5;
-  const ny = py/H - 0.5;
+// ═══════════════════════════════════════════════════════
+//  COLOR SAMPLING
+// ═══════════════════════════════════════════════════════
+const sampleCvs = document.getElementById('sampleCanvas');
+const sampleCtx = sampleCvs.getContext('2d');
+sampleCvs.width  = VW;
+sampleCvs.height = VH;
 
-  // Face oval and skull oval
+function sampleRegion(lm_x, lm_y, radius=5) {
+  const px = Math.round(lm_x * VW);
+  const py = Math.round(lm_y * VH);
+  const x  = clamp(px - radius, 0, VW - 1);
+  const y  = clamp(py - radius, 0, VH - 1);
+  const w  = Math.min(radius*2+1, VW - x);
+  const h  = Math.min(radius*2+1, VH - y);
+  if (w <= 0 || h <= 0) return null;
+  try {
+    const d = sampleCtx.getImageData(x, y, w, h).data;
+    let r=0,g=0,b=0,n=0;
+    for (let i=0; i<d.length; i+=4) { r+=d[i]; g+=d[i+1]; b+=d[i+2]; n++; }
+    return n>0 ? [r/n, g/n, b/n] : null;
+  } catch(e) { return null; }
+}
+
+function sampleAvg(points, radius=5) {
+  const cols = points.map(([x,y]) => sampleRegion(x,y,radius)).filter(Boolean);
+  if (!cols.length) return null;
+  return [
+    cols.reduce((s,c)=>s+c[0],0)/cols.length,
+    cols.reduce((s,c)=>s+c[1],0)/cols.length,
+    cols.reduce((s,c)=>s+c[2],0)/cols.length,
+  ];
+}
+
+function accPush(acc, val) {
+  if (!val) return;
+  acc[0].push(val[0]); acc[1].push(val[1]); acc[2].push(val[2]);
+}
+
+function accMean(acc) {
+  if (!acc[0].length) return null;
+  const mean = ch => ch.reduce((s,v)=>s+v,0)/ch.length;
+  return [mean(acc[0]), mean(acc[1]), mean(acc[2])];
+}
+
+function buildPalFromCalib() {
+  const skin = accMean(calibAcc.skin) || basePal.skin;
+  const hair = accMean(calibAcc.hair) || basePal.hair;
+  const iris = accMean(calibAcc.iris) || basePal.iris;
+  const lip  = accMean(calibAcc.lip)  || basePal.lip;
+  const brow = accMean(calibAcc.brow) || basePal.brow;
+
+  // Derive shadow and highlight from sampled skin
+  const shadow    = skin.map(v => clamp(v * 0.62 - 8, 0, 255));
+  const highlight = skin.map(v => clamp(v * 1.26 + 14, 0, 255));
+  const cheek     = skin.map((v,i) => clamp(v + (i===0?8:i===1?-4:0), 0, 255));
+
+  // Slightly warm/darken lips
+  const lipAdj = [clamp(lip[0]*1.05+4,0,255), clamp(lip[1]*0.78,0,255), clamp(lip[2]*0.75,0,255)];
+
+  return { skin, shadow, highlight, cheek, lip:lipAdj, iris, brow, hair };
+}
+
+// ═══════════════════════════════════════════════════════
+//  EXPRESSION EXTRACTION
+// ═══════════════════════════════════════════════════════
+function extractVibe(lm) {
+  const faceH = dist2(lm[LM.TOP], lm[LM.CHIN]);
+  if (faceH < 0.01) return null;
+
+  // Mouth open: distance between upper/lower inner lip
+  const rawMO = dist2(lm[LM.MOUTH_T], lm[LM.MOUTH_B]) / faceH;
+
+  // Mouth curve: corners vs. lip center vertical position
+  const cornerY  = (lm[LM.MOUTH_L].y + lm[LM.MOUTH_R].y) / 2;
+  const centerY  = (lm[LM.MOUTH_T].y + lm[LM.MOUTH_B].y) / 2;
+  const rawMC    = clamp((centerY - cornerY) / (faceH * 0.055), -1, 1);
+
+  // Brow lift: avg brow Y vs avg eye top Y (normalized)
+  const browY  = (lm[LM.L_BROW].y + lm[LM.R_BROW].y) / 2;
+  const eyeTopY= (lm[LM.L_EYE_T].y + lm[LM.R_EYE_T].y) / 2;
+  const browDist = eyeTopY - browY; // positive = brow above eye top
+
+  let rawBL = 0;
+  if (baselines.browDist !== null) {
+    rawBL = clamp((browDist - baselines.browDist) / (faceH * 0.15) * 0.055, -0.05, 0.07);
+  }
+
+  // Eye open: avg of left/right eye vertical extents
+  const lEyeH = Math.abs(lm[LM.L_EYE_T].y - lm[LM.L_EYE_B].y);
+  const rEyeH = Math.abs(lm[LM.R_EYE_T].y - lm[LM.R_EYE_B].y);
+  const rawEO = clamp((lEyeH + rEyeH) / (faceH * 0.095), 0, 1.3);
+
+  // Cheek raise correlates with smile
+  const rawCA = clamp(rawMC * 0.25 + 0.05, 0.02, 0.35);
+
+  return {
+    mouthOpen:  clamp(rawMO * 1.8 - 0.04, 0, 0.10),
+    mouthCurve: rawMC,
+    browLift:   rawBL,
+    eyeOpen:    rawEO,
+    cheekAmt:   rawCA,
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+//  FACE COLOR SAMPLER  (mathematical model, user-colored)
+// ═══════════════════════════════════════════════════════
+function sampleFace(px, py, pal) {
+  const nx = px/AW - 0.5;
+  const ny = py/AH - 0.5;
+
   const fR = (nx/0.272)**2 + ((ny+0.018)/0.390)**2;
   const sR = (nx/0.296)**2 + ((ny-0.010)/0.454)**2;
+  if (sR > 1.0) return null;
 
-  if (sR > 1.0) return null; // background
-
-  if (fR > 1.0) {            // hair region
+  if (fR > 1.0) {
     const d = clamp((sR-0.84)/0.18, 0, 1);
     return lerpC(pal.hair, [16,10,8], d);
   }
 
-  // ── Skin base ──
   let r=pal.skin[0], g=pal.skin[1], b=pal.skin[2];
 
-  // Edge shadow
   const et = clamp((fR-0.54)/0.46, 0, 1);
   r=lerp(r,pal.shadow[0],et*.70); g=lerp(g,pal.shadow[1],et*.70); b=lerp(b,pal.shadow[2],et*.70);
 
-  // Chin shadow
   if (ny > 0.265) {
-    const ct = clamp((ny-0.265)/0.14, 0, 1);
+    const ct=clamp((ny-0.265)/0.14,0,1);
     r=lerp(r,pal.shadow[0],ct*.58); g=lerp(g,pal.shadow[1],ct*.58); b=lerp(b,pal.shadow[2],ct*.58);
   }
 
-  // Forehead highlight
-  const fhR = (nx/0.19)**2 + ((ny+0.225)/0.155)**2;
-  if (fhR < 1) { const t=(1-fhR)*.40; r=lerp(r,pal.highlight[0],t); g=lerp(g,pal.highlight[1],t); b=lerp(b,pal.highlight[2],t); }
+  const fhR=(nx/0.19)**2+((ny+0.225)/0.155)**2;
+  if(fhR<1){const t=(1-fhR)*.40; r=lerp(r,pal.highlight[0],t); g=lerp(g,pal.highlight[1],t); b=lerp(b,pal.highlight[2],t);}
 
-  // Cheeks
-  const lcR = ((nx+0.158)/0.10)**2 + ((ny-0.058)/0.083)**2;
-  const rcR = ((nx-0.158)/0.10)**2 + ((ny-0.058)/0.083)**2;
-  const ckT = clamp(1-Math.min(lcR,rcR), 0, 1);
-  if (ckT>0) { r=lerp(r,pal.cheek[0],ckT*pal.cheekAmt); g=lerp(g,pal.cheek[1],ckT*pal.cheekAmt); b=lerp(b,pal.cheek[2],ckT*pal.cheekAmt); }
+  const lcR=((nx+0.158)/0.10)**2+((ny-0.058)/0.083)**2;
+  const rcR=((nx-0.158)/0.10)**2+((ny-0.058)/0.083)**2;
+  const ckT=clamp(1-Math.min(lcR,rcR),0,1);
+  if(ckT>0){const a=ckT*(pal.cheekAmt||0.08); r=lerp(r,pal.cheek[0],a); g=lerp(g,pal.cheek[1],a); b=lerp(b,pal.cheek[2],a);}
 
-  // Nose bridge
-  if (Math.abs(nx)<0.028 && ny>-0.075 && ny<0.145) {
-    const t=(1-Math.abs(nx)/0.028)*.22;
-    r=lerp(r,pal.shadow[0],t); g=lerp(g,pal.shadow[1],t); b=lerp(b,pal.shadow[2],t);
-  }
+  if(Math.abs(nx)<0.028&&ny>-0.075&&ny<0.145){const t=(1-Math.abs(nx)/0.028)*.22; r=lerp(r,pal.shadow[0],t); g=lerp(g,pal.shadow[1],t); b=lerp(b,pal.shadow[2],t);}
 
-  // Nose tip
-  const ntR = (nx/0.082)**2 + ((ny-0.130)/0.054)**2;
-  if (ntR<1) { const t=(1-ntR)*.30; r=lerp(r,pal.shadow[0],t); g=lerp(g,pal.shadow[1],t); b=lerp(b,pal.shadow[2],t); }
+  const ntR=(nx/0.082)**2+((ny-0.130)/0.054)**2;
+  if(ntR<1){const t=(1-ntR)*.30; r=lerp(r,pal.shadow[0],t); g=lerp(g,pal.shadow[1],t); b=lerp(b,pal.shadow[2],t);}
 
-  // Nostrils
-  const lnR = ((nx+0.056)/0.025)**2 + ((ny-0.164)/0.023)**2;
-  const rnR = ((nx-0.056)/0.025)**2 + ((ny-0.164)/0.023)**2;
-  const nsT = clamp(1-Math.min(lnR,rnR), 0, 1);
-  if (nsT>0) { r=lerp(r,pal.shadow[0]*.42,nsT*.75); g=lerp(g,pal.shadow[1]*.42,nsT*.75); b=lerp(b,pal.shadow[2]*.42,nsT*.75); }
+  const lnR=((nx+0.056)/0.025)**2+((ny-0.164)/0.023)**2;
+  const rnR=((nx-0.056)/0.025)**2+((ny-0.164)/0.023)**2;
+  const nsT=clamp(1-Math.min(lnR,rnR),0,1);
+  if(nsT>0){r=lerp(r,pal.shadow[0]*.42,nsT*.75); g=lerp(g,pal.shadow[1]*.42,nsT*.75); b=lerp(b,pal.shadow[2]*.42,nsT*.75);}
 
-  // ── Eyebrows ──
-  const bl = pal.browLift || 0;
-  const mad = (pal.mouthCurve||0) < -0.3;
-
-  const browHit = ex => {
-    if (Math.abs(ex) > 0.090) return 0;
-    const arc   = -0.045 * ex * ex * 5;
-    const slant = mad ? ex * 0.30 : 0;
-    const by    = -0.220 + bl + arc - slant;
+  const bl=pal.browLift||0;
+  const mad=(pal.mouthCurve||0)<-0.3;
+  const browHit=ex=>{
+    if(Math.abs(ex)>0.090) return 0;
+    const arc=-0.045*ex*ex*5;
+    const slant=mad?ex*0.30:0;
+    const by=-0.220+bl+arc-slant;
     const dx=ex/0.084, dy=(ny-by)/0.013;
-    return clamp(1-Math.sqrt(dx*dx+dy*dy), 0, 1);
+    return clamp(1-Math.sqrt(dx*dx+dy*dy),0,1);
   };
+  const browT=Math.max(browHit(nx+0.152), browHit(-(nx-0.152)));
+  if(browT>0){r=lerp(r,pal.brow[0],browT*.95); g=lerp(g,pal.brow[1],browT*.95); b=lerp(b,pal.brow[2],browT*.95);}
 
-  const browT = Math.max(browHit(nx+0.152), browHit(-(nx-0.152)));
-  if (browT>0) { r=lerp(r,pal.brow[0],browT*.95); g=lerp(g,pal.brow[1],browT*.95); b=lerp(b,pal.brow[2],browT*.95); }
+  const eyeBaseY=-0.124+bl*.28;
+  const wideEye=(pal.mouthOpen||0)>0.025 || (pal.eyeOpen||1)>1.08;
+  const eyeScaleY=wideEye?1.28:1.0;
 
-  // ── Eyes ──
-  const eyeBaseY  = -0.124 + bl*.28;
-  const wideEye   = (pal.mouthOpen||0) > 0.025;
-  const eyeScaleY = wideEye ? 1.30 : 1.0;
-
-  const eyeAt = (ex, ey) => {
-    const oval = (ex/0.080)**2 + (ey/(0.047*eyeScaleY))**2;
-    if (oval > 1) return null;
-
-    let er=240, eg=234, eb=226;
-    // Top shadow
-    if (ey<0) { const ts=clamp(-ey/.038,0,1)*.48; er=lerp(er,172,ts); eg=lerp(eg,162,ts); eb=lerp(eb,157,ts); }
-
-    const iR = ex*ex + ey*ey;
-    if (iR < 0.00188) {
-      const it = 1-iR/0.00188;
+  const eyeAt=(ex,ey)=>{
+    const oval=(ex/0.080)**2+(ey/(0.047*eyeScaleY))**2;
+    if(oval>1) return null;
+    let er=240,eg=234,eb=226;
+    if(ey<0){const ts=clamp(-ey/.038,0,1)*.48; er=lerp(er,172,ts); eg=lerp(eg,162,ts); eb=lerp(eb,157,ts);}
+    const iR=ex*ex+ey*ey;
+    if(iR<0.00188){
+      const it=1-iR/0.00188;
       er=lerp(er,pal.iris[0],it); eg=lerp(eg,pal.iris[1],it); eb=lerp(eb,pal.iris[2],it);
-      if (iR < 0.00066) { const pt=1-iR/0.00066; er=lerp(er,10,pt); eg=lerp(eg,7,pt); eb=lerp(eb,13,pt); }
+      if(iR<0.00066){const pt=1-iR/0.00066; er=lerp(er,10,pt); eg=lerp(eg,7,pt); eb=lerp(eb,13,pt);}
       const clR=(ex+0.021)**2+(ey+0.019)**2;
-      if (clR<0.000112) { const ct=(1-clR/0.000112)*.74; er=lerp(er,245,ct); eg=lerp(eg,245,ct); eb=lerp(eb,245,ct); }
+      if(clR<0.000112){const ct=(1-clR/0.000112)*.74; er=lerp(er,245,ct); eg=lerp(eg,245,ct); eb=lerp(eb,245,ct);}
     }
     return [er,eg,eb];
   };
 
-  const lEye = eyeAt(nx+0.152, ny-eyeBaseY);
-  if (lEye) { r=lEye[0]; g=lEye[1]; b=lEye[2]; }
-  const rEye = eyeAt(nx-0.152, ny-eyeBaseY);
-  if (rEye) { r=rEye[0]; g=rEye[1]; b=rEye[2]; }
+  const lEye=eyeAt(nx+0.152,ny-eyeBaseY);
+  if(lEye){r=lEye[0];g=lEye[1];b=lEye[2];}
+  const rEye=eyeAt(nx-0.152,ny-eyeBaseY);
+  if(rEye){r=rEye[0];g=rEye[1];b=rEye[2];}
 
-  // Eyelid crease
-  const lidShadow = (ex,ey) => {
+  const lidShadow=(ex,ey)=>{
     const oval=(ex/0.080)**2+(ey/(0.047*eyeScaleY))**2;
-    if (oval<0.68||oval>1.06||ey>0) return 0;
+    if(oval<0.68||oval>1.06||ey>0) return 0;
     return clamp((oval-.68)/.38,0,1)*clamp(-ey/.019,0,1)*.58;
   };
-  const lidT = Math.max(lidShadow(nx+0.152,ny-eyeBaseY), lidShadow(nx-0.152,ny-eyeBaseY));
-  if (lidT>0) { r=lerp(r,pal.shadow[0],lidT); g=lerp(g,pal.shadow[1],lidT); b=lerp(b,pal.shadow[2],lidT); }
+  const lidT=Math.max(lidShadow(nx+0.152,ny-eyeBaseY),lidShadow(nx-0.152,ny-eyeBaseY));
+  if(lidT>0){r=lerp(r,pal.shadow[0],lidT); g=lerp(g,pal.shadow[1],lidT); b=lerp(b,pal.shadow[2],lidT);}
 
-  // ── Mouth ──
-  const mY = 0.220;
-  const mc = pal.mouthCurve||0;
-  const mo = pal.mouthOpen||0;
-  const lw = 0.090;
-
-  const ucOff = mc*(nx/lw)**2*0.023;
-  const uLip  = (nx/lw)**2 + ((ny-(mY-mo/2)+ucOff)/0.020)**2;
-  const lcOff = mc*0.009;
-  const lLip  = (nx/(lw*1.06))**2 + ((ny-(mY+mo/2+0.023)+lcOff)/0.026)**2;
-
-  const lipT = clamp(Math.max(1-uLip, 1-lLip), 0, 1);
-  if (lipT>0) {
+  const mY=0.220, mc=pal.mouthCurve||0, mo=pal.mouthOpen||0, lw=0.090;
+  const ucOff=mc*(nx/lw)**2*0.023;
+  const uLip=(nx/lw)**2+((ny-(mY-mo/2)+ucOff)/0.020)**2;
+  const lcOff=mc*0.009;
+  const lLip=(nx/(lw*1.06))**2+((ny-(mY+mo/2+0.023)+lcOff)/0.026)**2;
+  const lipT=clamp(Math.max(1-uLip,1-lLip),0,1);
+  if(lipT>0){
     r=lerp(r,pal.lip[0],lipT*.80); g=lerp(g,pal.lip[1],lipT*.80); b=lerp(b,pal.lip[2],lipT*.80);
     const lhR=(nx/0.044)**2+((ny-(mY+mo/2+0.015))/0.009)**2;
-    if (lhR<1) { const ht=(1-lhR)*lipT*.32; r=lerp(r,pal.highlight[0],ht); g=lerp(g,pal.highlight[1],ht); b=lerp(b,pal.highlight[2],ht); }
+    if(lhR<1){const ht=(1-lhR)*lipT*.32; r=lerp(r,pal.highlight[0],ht); g=lerp(g,pal.highlight[1],ht); b=lerp(b,pal.highlight[2],ht);}
   }
-
-  if (mo > 0.013) {
-    const mgR = (nx/(lw*.72))**2 + ((ny-mY)/(mo*.68))**2;
-    if (mgR<1) {
+  if(mo>0.013){
+    const mgR=(nx/(lw*.72))**2+((ny-mY)/(mo*.68))**2;
+    if(mgR<1){
       const mt=1-mgR;
       r=lerp(r,26,mt*.93); g=lerp(g,10,mt*.93); b=lerp(b,10,mt*.93);
-      if (ny < mY+mo*.09) {
-        const tt=clamp((mY+mo*.09-ny)/(mo*.20),0,1);
-        r=lerp(r,233,tt*mt); g=lerp(g,227,tt*mt); b=lerp(b,220,tt*mt);
-      }
+      if(ny<mY+mo*.09){const tt=clamp((mY+mo*.09-ny)/(mo*.20),0,1); r=lerp(r,233,tt*mt); g=lerp(g,227,tt*mt); b=lerp(b,220,tt*mt);}
     }
   }
 
   return [r,g,b];
 }
 
-// ═══════════════════════════════════════════
-//  CELL RENDERER  (Chuck Close mark-making)
-// ═══════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  CELL RENDERER
+// ═══════════════════════════════════════════════════════
 function drawCell(ctx, cx, cy, sz, colors, seed) {
-  const valid = colors.filter(c=>c!==null);
-  if (!valid.length) return;
-
+  const valid=colors.filter(c=>c!==null);
+  if(!valid.length) return;
   const c0=valid[0], c1=valid[Math.min(1,valid.length-1)], c2=valid[Math.min(2,valid.length-1)];
   const h=sz/2;
-  const r0=rand(seed), r1=rand(seed+5.13), r2=rand(seed+11.37);
+  const r0=rand(seed),r1=rand(seed+5.13),r2=rand(seed+11.37);
   const pat=Math.floor(r0*4);
   const css=c=>`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
 
-  ctx.save();
-  ctx.translate(cx,cy);
+  ctx.save(); ctx.translate(cx,cy);
   ctx.beginPath(); ctx.rect(-h,-h,sz,sz); ctx.clip();
 
   switch(pat) {
-    case 0: { // ── Concentric circles (most Chuck Close)
-      const jx=(r1-.5)*sz*.30, jy=(r2-.5)*sz*.30;
+    case 0:{
+      const jx=(r1-.5)*sz*.30,jy=(r2-.5)*sz*.30;
       ctx.fillStyle=css(c0); ctx.fillRect(-h,-h,sz,sz);
       ctx.beginPath(); ctx.arc(jx,jy,h*.73,0,Math.PI*2); ctx.fillStyle=css(c1); ctx.fill();
       ctx.beginPath(); ctx.arc(jx*.33,jy*.33,h*.40,0,Math.PI*2); ctx.fillStyle=css(c2); ctx.fill();
       ctx.beginPath(); ctx.arc(0,0,h*.16,0,Math.PI*2); ctx.fillStyle=css(c0); ctx.fill();
-      break;
-    }
-    case 1: { // ── Quadrant split
+      break;}
+    case 1:{
       ctx.rotate((r1-.5)*.45);
       ctx.fillStyle=css(c0); ctx.fillRect(-h,-h,h,h);
       ctx.fillStyle=css(c1); ctx.fillRect(0,-h,h,h);
       ctx.fillStyle=css(c2); ctx.fillRect(-h,0,h,h);
       ctx.fillStyle=css(c1); ctx.fillRect(0,0,h,h);
       ctx.beginPath(); ctx.arc(0,0,h*.50,0,Math.PI*2); ctx.fillStyle=css(c2); ctx.fill();
-      break;
-    }
-    case 2: { // ── Radial fan
+      break;}
+    case 2:{
       ctx.rotate((r1-.5)*.90);
-      for(let i=0;i<4;i++) {
+      for(let i=0;i<4;i++){
         const a=i*Math.PI/2;
         ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,h*1.5,a,a+Math.PI/2); ctx.closePath();
         ctx.fillStyle=css(i%2===0?c0:c1); ctx.fill();
       }
       ctx.beginPath(); ctx.arc(0,0,h*.45,0,Math.PI*2); ctx.fillStyle=css(c2); ctx.fill();
-      break;
-    }
-    case 3: { // ── Diamond
+      break;}
+    case 3:{
       ctx.fillStyle=css(c0); ctx.fillRect(-h,-h,sz,sz);
       ctx.beginPath();
       ctx.moveTo(0,-h*.78); ctx.lineTo(h*.78,0); ctx.lineTo(0,h*.78); ctx.lineTo(-h*.78,0);
       ctx.closePath(); ctx.fillStyle=css(c1); ctx.fill();
       ctx.beginPath(); ctx.arc(0,0,h*.39,0,Math.PI*2); ctx.fillStyle=css(c2); ctx.fill();
-      break;
-    }
+      break;}
   }
   ctx.restore();
 }
 
-// ═══════════════════════════════════════════
-//  MAIN RENDER LOOP
-// ═══════════════════════════════════════════
-const canvas = document.getElementById('c');
-const ctx    = canvas.getContext('2d');
+// ═══════════════════════════════════════════════════════
+//  MAIN RENDER
+// ═══════════════════════════════════════════════════════
+const avatarCanvas = document.getElementById('avatarCanvas');
+const aCtx = avatarCanvas.getContext('2d');
 
-let tierIdx = 1;
-let fromEm  = 'neutral', toEm = 'neutral', emBlend = 1;
-
-function render() {
-  const pal  = emBlend>=1 ? PAL[toEm] : blendPal(PAL[fromEm], PAL[toEm], emBlend);
+function renderAvatar() {
+  const renderPal = { ...basePal, ...vibe };
   const {cs, gap, label} = TIERS[tierIdx];
   const step = cs + gap;
 
-  ctx.fillStyle='#0c0b09';
-  ctx.fillRect(0,0,W,H);
+  aCtx.fillStyle='#0c0b09';
+  aCtx.fillRect(0,0,AW,AH);
 
-  // Sample 4 nearby offsets per cell → gives color variation within each mark
-  const offs = [[0,0],[cs*.32,0],[0,cs*.30],[-cs*.24,cs*.26]];
-
+  const offs=[[0,0],[cs*.32,0],[0,cs*.30],[-cs*.24,cs*.26]];
   let cellCount=0;
-  for(let px=step/2; px<W; px+=step) {
-    for(let py=step/2; py<H; py+=step) {
-      const colors = offs.map(([ox,oy])=>sampleFace(px+ox,py+oy,pal));
+
+  for(let px=step/2; px<AW; px+=step) {
+    for(let py=step/2; py<AH; py+=step) {
+      const colors=offs.map(([ox,oy])=>sampleFace(px+ox,py+oy,renderPal));
       if(colors.every(c=>c===null)) continue;
-      drawCell(ctx, px, py, cs, colors, Math.round(px*997+py*11));
+      drawCell(aCtx,px,py,cs,colors,Math.round(px*997+py*11));
       cellCount++;
     }
   }
 
-  document.getElementById('sTier').textContent  = label;
-  document.getElementById('sEm').textContent    = `Vibe · ${toEm[0].toUpperCase()+toEm.slice(1)}`;
+  // Update status
+  document.getElementById('sTier').textContent = label;
   document.getElementById('sCells').textContent = `${cellCount} cells`;
 
-  if(emBlend<1) { emBlend=Math.min(1,emBlend+.046); requestAnimationFrame(render); }
+  // Update vibe packet UI
+  const fmt = v => (v>=0?'+':'')+v.toFixed(2);
+  const pct = (v,min,max) => clamp((v-min)/(max-min)*100,0,100);
+
+  const mo = vibe.mouthOpen;
+  document.getElementById('v_mo').textContent = mo.toFixed(2);
+  document.getElementById('b_mo').style.width  = pct(mo,0,0.1)+'%';
+
+  const mc = vibe.mouthCurve;
+  document.getElementById('v_mc').textContent = fmt(mc);
+  const b_mc = document.getElementById('b_mc');
+  if(mc>=0){ b_mc.style.left='50%'; b_mc.style.right='auto'; b_mc.style.width=(mc*50)+'%'; }
+  else      { b_mc.style.right='50%'; b_mc.style.left='auto'; b_mc.style.width=(-mc*50)+'%'; }
+
+  const bl = vibe.browLift;
+  document.getElementById('v_bl').textContent = fmt(bl);
+  const b_bl = document.getElementById('b_bl');
+  const blPct = clamp(Math.abs(bl)/0.07*50,0,50);
+  if(bl>=0){ b_bl.style.left='50%'; b_bl.style.right='auto'; b_bl.style.width=blPct+'%'; }
+  else      { b_bl.style.right='50%'; b_bl.style.left='auto'; b_bl.style.width=blPct+'%'; }
+
+  const eo = vibe.eyeOpen;
+  document.getElementById('v_eo').textContent = eo.toFixed(2);
+  document.getElementById('b_eo').style.width = pct(eo,0,1.3)+'%';
+
+  // BW estimate: 4 floats (16 bytes) + palette delta
+  document.getElementById('bwVal').textContent = '~' + Math.round(16 + cellCount * 0.0) + 'B';
+  document.getElementById('cellVal').textContent = cellCount;
 }
 
-// ═══════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  UI STATE MACHINE
+// ═══════════════════════════════════════════════════════
+function setPhase(p) {
+  phase = p;
+  const overlay  = document.getElementById('phaseOverlay');
+  const title    = document.getElementById('phaseTitle');
+  const sub      = document.getElementById('phaseSub');
+  const calWrap  = document.getElementById('calibBarWrap');
+  const badge    = document.getElementById('pipBadge');
+  const dot      = document.getElementById('packetDot');
+  const sPhase   = document.getElementById('sPhase');
+
+  if(p==='waiting') {
+    overlay.classList.remove('hidden');
+    title.textContent='Requesting Camera';
+    sub.textContent='Allow camera access to begin';
+    calWrap.style.display='none';
+    badge.className='pip-badge searching'; badge.textContent='Searching';
+    dot.style.background='var(--border)';
+    sPhase.textContent='Waiting';
+  } else if(p==='searching') {
+    overlay.classList.remove('hidden');
+    title.textContent='No Face Detected';
+    sub.textContent='Position your face\nin the camera view';
+    calWrap.style.display='none';
+    badge.className='pip-badge searching'; badge.textContent='Searching';
+    dot.style.background='var(--border)';
+    sPhase.textContent='Searching';
+  } else if(p==='calibrating') {
+    overlay.classList.remove('hidden');
+    title.textContent='Calibrating';
+    sub.textContent='Sampling your\nskin · hair · eyes · lips\nHold still';
+    calWrap.style.display='block';
+    badge.className='pip-badge calibrating'; badge.textContent='Calibrating';
+    dot.style.background='var(--amber)';
+    sPhase.textContent='Calibrating';
+  } else if(p==='live') {
+    overlay.classList.add('hidden');
+    badge.className='pip-badge live'; badge.textContent='Live';
+    dot.style.background='var(--green)';
+    sPhase.textContent='Live';
+    updateSwatches();
+  }
+}
+
+function updateSwatches() {
+  const pairs = [
+    ['skin','sw_skin','sh_skin'],
+    ['hair','sw_hair','sh_hair'],
+    ['iris','sw_iris','sh_iris'],
+    ['lip', 'sw_lip', 'sh_lip'],
+  ];
+  pairs.forEach(([key,swId,hexId]) => {
+    const col = basePal[key];
+    if(!col) return;
+    const hex = toHex(col);
+    document.getElementById(swId).style.background = hex;
+    document.getElementById(hexId).textContent = hex;
+  });
+}
+
+function startCalibration() {
+  calibCount = 0;
+  calibAcc = { skin:[[],[],[]], hair:[[],[],[]], iris:[[],[],[]], lip:[[],[],[]], brow:[[],[],[]] };
+  baselines.browDist = null;
+  setPhase('calibrating');
+}
+
+function finishCalibration() {
+  basePal = buildPalFromCalib();
+  setPhase('live');
+}
+
+// ═══════════════════════════════════════════════════════
+//  MEDIAPIPE
+// ═══════════════════════════════════════════════════════
+const videoEl = document.getElementById('videoEl');
+let faceMesh, camera;
+let lastLm = null;
+let rafId = null;
+
+function onResults(results) {
+  if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+    if (phase === 'live' || phase === 'calibrating') {
+      // Don't immediately revert; small grace
+    } else if (phase !== 'waiting') {
+      setPhase('searching');
+    }
+    lastLm = null;
+    return;
+  }
+
+  const lm = results.multiFaceLandmarks[0];
+  lastLm = lm;
+
+  // Draw video to sample canvas (un-mirrored, matches landmark coords)
+  sampleCtx.drawImage(videoEl, 0, 0, VW, VH);
+
+  if (phase === 'searching' || phase === 'waiting') {
+    startCalibration();
+  }
+
+  if (phase === 'calibrating') {
+    calibCount++;
+    document.getElementById('calibBar').style.width = (calibCount/CALIB_FRAMES*100)+'%';
+
+    // Sample colors from landmarks
+    // Skin: cheeks
+    accPush(calibAcc.skin, sampleAvg([
+      [lm[LM.L_CHEEK2].x, lm[LM.L_CHEEK2].y],
+      [lm[LM.R_CHEEK2].x, lm[LM.R_CHEEK2].y],
+    ], 6));
+
+    // Hair: extrapolate above top landmark
+    const topY = lm[LM.TOP].y;
+    accPush(calibAcc.hair, sampleAvg([
+      [lm[LM.TOP].x, clamp(topY - 0.08, 0.01, 0.99)],
+      [lm[LM.L_TEMPLE].x, clamp(lm[LM.L_TEMPLE].y - 0.04, 0.01, 0.99)],
+    ], 5));
+
+    // Iris
+    if(lm[LM.L_IRIS]) accPush(calibAcc.iris, sampleRegion(lm[LM.L_IRIS].x, lm[LM.L_IRIS].y, 3));
+    else               accPush(calibAcc.iris, sampleAvg([[lm[LM.L_EYE_L].x*0.5+lm[LM.L_EYE_R].x*0.5, (lm[LM.L_EYE_T].y+lm[LM.L_EYE_B].y)/2]], 3));
+
+    // Lip
+    accPush(calibAcc.lip, sampleAvg([
+      [lm[LM.LIP_BOT].x, lm[LM.LIP_BOT].y],
+    ], 5));
+
+    // Brow (for color)
+    accPush(calibAcc.brow, sampleAvg([
+      [lm[LM.L_BROW].x, lm[LM.L_BROW].y],
+      [lm[LM.R_BROW].x, lm[LM.R_BROW].y],
+    ], 4));
+
+    // Accumulate baseline (brow-eye distance)
+    const browY  = (lm[LM.L_BROW].y + lm[LM.R_BROW].y) / 2;
+    const eyeTopY= (lm[LM.L_EYE_T].y + lm[LM.R_EYE_T].y) / 2;
+    const bd = eyeTopY - browY;
+    baselines.browDist = baselines.browDist===null ? bd : baselines.browDist*0.85+bd*0.15;
+
+    if (calibCount >= CALIB_FRAMES) {
+      finishCalibration();
+    }
+    // Still render during calibration (with default pal)
+    requestRender();
+    return;
+  }
+
+  // Live: extract vibe
+  const newVibe = extractVibe(lm);
+  if (newVibe) {
+    const s = 0.22;
+    vibe.mouthOpen  = smoothExp(vibe.mouthOpen,  newVibe.mouthOpen,  s);
+    vibe.mouthCurve = smoothExp(vibe.mouthCurve, newVibe.mouthCurve, s);
+    vibe.browLift   = smoothExp(vibe.browLift,   newVibe.browLift,   s);
+    vibe.cheekAmt   = smoothExp(vibe.cheekAmt,   newVibe.cheekAmt,   s);
+    vibe.eyeOpen    = smoothExp(vibe.eyeOpen,    newVibe.eyeOpen,    0.18);
+  }
+  requestRender();
+}
+
+let renderQueued = false;
+function requestRender() {
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => { renderQueued=false; renderAvatar(); });
+}
+
+async function initMediaPipe() {
+  setPhase('waiting');
+
+  faceMesh = new FaceMesh({
+    locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+  });
+
+  faceMesh.setOptions({
+    maxNumFaces: 1,
+    refineLandmarks: true,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+
+  faceMesh.onResults(onResults);
+
+  camera = new Camera(videoEl, {
+    onFrame: async () => {
+      if (videoEl.readyState >= 2) {
+        await faceMesh.send({ image: videoEl });
+      }
+    },
+    width: VW, height: VH,
+  });
+
+  try {
+    await camera.start();
+    setPhase('searching');
+  } catch(e) {
+    document.getElementById('phaseTitle').textContent = 'Camera Error';
+    document.getElementById('phaseSub').textContent = 'Could not access camera.\nCheck permissions and reload.';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 //  UI WIRING
-// ═══════════════════════════════════════════
-document.getElementById('tierBtns').addEventListener('click', e=>{
-  const b=e.target.closest('[data-tier]'); if(!b) return;
-  tierIdx=+b.dataset.tier;
-  document.querySelectorAll('[data-tier]').forEach(x=>x.classList.toggle('on',x===b));
-  render();
+// ═══════════════════════════════════════════════════════
+document.getElementById('tierBtns').addEventListener('click', e => {
+  const b = e.target.closest('[data-tier]'); if(!b) return;
+  tierIdx = +b.dataset.tier;
+  document.querySelectorAll('[data-tier]').forEach(x => x.classList.toggle('on', x===b));
+  requestRender();
 });
 
-document.getElementById('emBtns').addEventListener('click', e=>{
-  const b=e.target.closest('[data-em]'); if(!b) return;
-  fromEm=toEm; toEm=b.dataset.em; emBlend=0;
-  document.querySelectorAll('[data-em]').forEach(x=>x.classList.toggle('on',x===b));
-  requestAnimationFrame(render);
+document.getElementById('recalBtn').addEventListener('click', () => {
+  if (phase === 'live') startCalibration();
 });
 
-render();
+// ═══════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════
+renderAvatar(); // draw default state immediately
+initMediaPipe();
 </script>
 </body>
 </html>
