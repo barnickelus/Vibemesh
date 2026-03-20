@@ -91,6 +91,12 @@ video{display:none}
       <span id="lbl-dens">3</span>
     </div>
     <div class="sl-row">
+      <label>Grid Density</label>
+      <input type="range" min="4" max="28" step="1" value="14" id="sl-grid"
+        oninput="gridDensity=+this.value;document.getElementById('lbl-grid').textContent=this.value;rebuildSkin()">
+      <span id="lbl-grid">14</span>
+    </div>
+    <div class="sl-row">
       <label>Pulse Rate</label>
       <input type="range" min="0" max="3" step="0.05" value="0.8" id="sl-pulse"
         oninput="pulseRate=+this.value;document.getElementById('lbl-p').textContent=this.value">
@@ -109,7 +115,8 @@ video{display:none}
       <button class="btn"     id="mb-knots"   onclick="setView('knots')">Knots</button>
       <button class="btn"     id="mb-field"   onclick="setView('field')">Field</button>
       <button class="btn"     id="mb-fabric"  onclick="setView('fabric')">Fabric</button>
-      <button class="btn on"  id="mb-realist" onclick="setView('realist')">Realist</button>
+      <button class="btn"     id="mb-realist" onclick="setView('realist')">Realist</button>
+      <button class="btn on"  id="mb-skin"    onclick="setView('skin')">Skin</button>
     </div>
   </div>
 </div>
@@ -478,14 +485,170 @@ const REALIST_FRAG = `
 `;
 
 // ════════════════════════════════════════════════
+//  SKIN WRAP — vertex + fragment shaders
+//
+//  A continuous triangulated mesh over the 468 face
+//  landmarks. Per-vertex face color. Fragment shader
+//  tiles the mesh UV space with a repeating grid of
+//  geometric shapes — each cell colored by the
+//  interpolated face RGB at that surface point.
+//
+//  Shape mix: R channel → more circles
+//             G channel → more diamonds / hexagons
+//             B channel → more squares / triangles
+//  So the skin's own color determines which shapes appear.
+// ════════════════════════════════════════════════
+const SKIN_VERT = `
+  attribute vec3  vCol;     // per-vertex face color
+  attribute float vComp;    // depth compression 0-1
+
+  varying vec3  fCol;
+  varying float fComp;
+  varying vec3  fPos;       // world position for tiling
+  varying vec2  fUV;        // face-space UV for tiling
+
+  uniform float uTime;
+  uniform float uPulse;
+
+  void main(){
+    fCol  = vCol;
+    fComp = vComp;
+    fPos  = position;
+
+    // Face UV: remap from 3D face space back to 0..1 for tiling
+    // Face spans roughly -1..1 in X and Y
+    fUV = position.xy * 0.5 + 0.5;
+
+    // Subtle breathing in Z
+    vec3 pos = position;
+    pos.z += sin(uTime * uPulse * 0.6 + position.x * 3.0 + position.y * 2.0) * 0.012 * vComp;
+
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+  }
+`;
+
+const SKIN_FRAG = `
+  varying vec3  fCol;
+  varying float fComp;
+  varying vec3  fPos;
+  varying vec2  fUV;
+
+  uniform float uTime;
+  uniform float uPulse;
+  uniform float uOpacity;
+  uniform float uGrid;      // grid density (cells per unit)
+
+  // ── Signed-distance functions ──
+  float sdCircle(vec2 p, float r){
+    return length(p) - r;
+  }
+  float sdBox(vec2 p, vec2 b){
+    vec2 d = abs(p) - b;
+    return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
+  }
+  float sdDiamond(vec2 p, float r){
+    return (abs(p.x) + abs(p.y)) - r;
+  }
+  float sdHex(vec2 p, float r){
+    const vec2 k = vec2(-0.866025, 0.5);
+    p = abs(p);
+    p -= 2.0 * min(dot(k,p),0.0) * k;
+    p -= vec2(clamp(p.x,-k.y*r,k.y*r), r);
+    return length(p) * sign(p.y);
+  }
+  float sdTriangle(vec2 p, float r){
+    const float k = sqrt(3.0);
+    p.x = abs(p.x) - r;
+    p.y = p.y + r / k;
+    if(p.x + k*p.y > 0.0) p = vec2(p.x - k*p.y, -k*p.x - p.y) / 2.0;
+    p.x -= clamp(p.x, -2.0*r, 0.0);
+    return -length(p) * sign(p.y);
+  }
+
+  void main(){
+    // ── Tile into a grid ──
+    vec2 scaled = fUV * uGrid;
+    vec2 cell   = floor(scaled);
+    vec2 p      = scaled - cell - 0.5;   // -0.5..0.5 in cell space
+
+    // ── Per-cell hash: determines shape and rotation ──
+    float h  = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
+    float h2 = fract(sin(dot(cell, vec2(269.5, 183.3))) * 17385.3124);
+    float rot = h2 * 3.14159 * 2.0;
+
+    // Rotate p by per-cell angle
+    float cr = cos(rot), sr = sin(rot);
+    vec2  rp = vec2(cr*p.x - sr*p.y, sr*p.x + cr*p.y);
+
+    // ── Shape selection driven by face color channels ──
+    // R → circles, G → hexagons/diamonds, B → squares/triangles
+    float r = fCol.r, g = fCol.g, b = fCol.b;
+    // Dominant channel determines shape family
+    float shapeSel = h;   // 0..1
+    // Bias by color: R channel favors circles, B favors hard shapes
+    shapeSel = shapeSel * 0.5 + (b - r) * 0.25 + 0.5;
+    shapeSel = clamp(shapeSel, 0.0, 1.0);
+
+    float innerR = 0.32 + fComp * 0.06;  // shape fills ~64-70% of cell
+    float sdf;
+    if(shapeSel < 0.20){
+      sdf = sdCircle(rp, innerR);
+    } else if(shapeSel < 0.40){
+      sdf = sdHex(rp, innerR * 0.9);
+    } else if(shapeSel < 0.60){
+      sdf = sdDiamond(rp, innerR * 1.1);
+    } else if(shapeSel < 0.80){
+      sdf = sdBox(rp, vec2(innerR * 0.85));
+    } else {
+      sdf = sdTriangle(rp, innerR * 0.95);
+    }
+
+    // ── Anti-aliased edge ──
+    float shape = 1.0 - smoothstep(-0.01, 0.03, sdf);
+    if(shape < 0.02) discard;
+
+    // ── Shape interior color = face color + subtle depth tint ──
+    vec3 col = fCol;
+    // Depth warmth
+    col *= mix(vec3(0.88, 0.93, 1.06), vec3(1.06, 0.97, 0.90), fComp);
+
+    // ── Ring detail inside shape ──
+    // Each shape gets 1-2 concentric inner rings in a contrasting tone
+    float lum   = dot(col, vec3(0.299, 0.587, 0.114));
+    float inner = length(rp) / innerR;   // 0=centre, 1=edge of shape
+    // Pulsing inner ring
+    float ringPos  = fract(inner * 2.2 + uTime * uPulse * 0.4 + h * 6.28);
+    float ring     = step(ringPos, 0.35) * smoothstep(0.9, 0.5, inner);
+    // Ring color: complementary to face color
+    vec3 ringCol   = vec3(col.b * 0.8, col.r * 0.7, col.g * 0.9) * 1.2;
+    col = mix(col, ringCol, ring * 0.55);
+
+    // ── Specular peak at shape center ──
+    float spec = exp(-inner * inner * 8.0) * fComp * 0.3;
+    col += vec3(spec * 0.9, spec * 0.85, spec * 0.75);
+
+    // ── Thin bright edge outline on each shape ──
+    float edge   = 1.0 - smoothstep(0.0, 0.04, abs(sdf));
+    vec3  edgeCol = col * 1.6 + vec3(0.08);
+    col = mix(col, edgeCol, edge * 0.7);
+
+    gl_FragColor = vec4(col, shape * uOpacity);
+  }
+`;
+
+// ════════════════════════════════════════════════
 //  CONFIG
 // ════════════════════════════════════════════════
 let depthScale   = 3.5;
 let pulseRate    = 0.8;
 let fieldOpacity = 0.85;
-let densityStep  = 1;   // 1=all, 2=half, 3=third, 4=quarter triangles
-let viewMode     = 'realist';
+let gridDensity  = 14;
+let densityStep  = 1;
+let viewMode     = 'skin';
 let liveColors   = false;
+
+// Skin mesh separate from knot system
+let skinMesh = null;
 
 let latestLM  = null;
 let snapColors = null;  // Float32Array r,g,b per landmark [468*3]
@@ -529,6 +692,12 @@ function initThree() {
       knotSystem.material.uniforms.uOpacity.value  = fieldOpacity;
       knotSystem.material.uniforms.uPulse.value    = pulseRate;
     }
+    if (skinMesh) {
+      skinMesh.material.uniforms.uTime.value     = t;
+      skinMesh.material.uniforms.uOpacity.value  = fieldOpacity;
+      skinMesh.material.uniforms.uPulse.value    = pulseRate;
+      skinMesh.material.uniforms.uGrid.value     = gridDensity;
+    }
 
     renderer.render(scene, camera);
 
@@ -570,6 +739,119 @@ function computeNormals(posArr, nLM) {
     else norms[i*3+2]=1;
   }
   return norms;
+}
+
+// ════════════════════════════════════════════════
+//  BUILD SKIN MESH
+//  A continuous indexed THREE.Mesh from the TESS triangles.
+//  Per-vertex color from snapped face photo.
+//  The SKIN_FRAG shader tiles geometric shapes across it.
+// ════════════════════════════════════════════════
+function buildSkinMesh(lm, colors) {
+  // Remove old skin mesh
+  if (skinMesh) { scene.remove(skinMesh); skinMesh.geometry.dispose(); skinMesh.material.dispose(); skinMesh = null; }
+  if (!lm || !colors) return;
+
+  const nLM = lm.length;
+
+  // Face centre + scale (same as splat system)
+  const OVAL = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,
+    379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+  let fcx=0, fcy=0;
+  OVAL.forEach(i => { fcx += lm[i].x; fcy += lm[i].y; });
+  fcx /= OVAL.length; fcy /= OVAL.length;
+  const SCALE = 3.8;
+
+  let zMin=Infinity, zMax=-Infinity;
+  for (let i=0;i<nLM;i++) { if(lm[i].z<zMin) zMin=lm[i].z; if(lm[i].z>zMax) zMax=lm[i].z; }
+  const zRange = Math.max(0.001, zMax-zMin);
+
+  // Vertex arrays — one entry per landmark
+  const posArr  = new Float32Array(nLM * 3);
+  const colArr  = new Float32Array(nLM * 3);
+  const compArr = new Float32Array(nLM);
+
+  for (let i=0; i<nLM; i++) {
+    const cv = 1.0 - (lm[i].z - zMin) / zRange;
+    posArr[i*3  ] = (fcx - lm[i].x) * SCALE;
+    posArr[i*3+1] = (fcy - lm[i].y) * -SCALE;
+    posArr[i*3+2] = cv * depthScale - depthScale * 0.5;
+    colArr[i*3  ] = colors[i*3  ];
+    colArr[i*3+1] = colors[i*3+1];
+    colArr[i*3+2] = colors[i*3+2];
+    compArr[i]    = cv;
+  }
+
+  // Index array from TESS
+  const idxArr = [];
+  for (const [a,b,c] of TESS) {
+    if (a < nLM && b < nLM && c < nLM) idxArr.push(a, b, c);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(posArr,  3));
+  geo.setAttribute('vCol',     new THREE.Float32BufferAttribute(colArr,  3));
+  geo.setAttribute('vComp',    new THREE.Float32BufferAttribute(compArr, 1));
+  geo.setIndex(idxArr);
+  geo.computeVertexNormals();
+
+  const mat = new THREE.ShaderMaterial({
+    vertexShader:   SKIN_VERT,
+    fragmentShader: SKIN_FRAG,
+    transparent:    true,
+    depthWrite:     true,
+    side:           THREE.FrontSide,
+    uniforms: {
+      uTime:    { value: 0 },
+      uPulse:   { value: pulseRate },
+      uOpacity: { value: fieldOpacity },
+      uGrid:    { value: gridDensity },
+    },
+  });
+
+  skinMesh = new THREE.Mesh(geo, mat);
+  scene.add(skinMesh);
+}
+
+function updateSkinPositions(lm) {
+  if (!skinMesh) return;
+  const pos  = skinMesh.geometry.attributes.position;
+  const comp = skinMesh.geometry.attributes.vComp;
+  const nLM  = lm.length;
+
+  const OVAL = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,
+    379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+  let fcx=0, fcy=0;
+  OVAL.forEach(i => { fcx += lm[i].x; fcy += lm[i].y; });
+  fcx /= OVAL.length; fcy /= OVAL.length;
+  const SCALE = 3.8;
+
+  let zMin=Infinity, zMax=-Infinity;
+  for (let i=0;i<nLM;i++) { if(lm[i].z<zMin) zMin=lm[i].z; if(lm[i].z>zMax) zMax=lm[i].z; }
+  const zRange = Math.max(0.001, zMax-zMin);
+
+  for (let i=0; i<nLM && i < pos.count; i++) {
+    const cv  = 1.0 - (lm[i].z-zMin)/zRange;
+    const tx  = (fcx - lm[i].x) * SCALE;
+    const ty  = (fcy - lm[i].y) * -SCALE;
+    const tz  = cv * depthScale - depthScale * 0.5;
+    pos.array[i*3  ] += (tx - pos.array[i*3  ]) * 0.3;
+    pos.array[i*3+1] += (ty - pos.array[i*3+1]) * 0.3;
+    pos.array[i*3+2] += (tz - pos.array[i*3+2]) * 0.3;
+    comp.array[i]    += (cv - comp.array[i]) * 0.3;
+  }
+  pos.needsUpdate  = true;
+  comp.needsUpdate = true;
+  skinMesh.geometry.computeVertexNormals();
+
+  // Update uniforms
+  skinMesh.material.uniforms.uPulse.value   = pulseRate;
+  skinMesh.material.uniforms.uOpacity.value = fieldOpacity;
+  skinMesh.material.uniforms.uGrid.value    = gridDensity;
+}
+
+function rebuildSkin() {
+  if (viewMode === 'skin' && latestLM && snapColors) buildSkinMesh(latestLM, snapColors);
 }
 
 // ════════════════════════════════════════════════
@@ -784,7 +1066,12 @@ function snap() {
     snapColors[i*3+2] = px[idx+2] / 255;
   }
 
-  buildKnotSystem(latestLM, snapColors);
+  if (viewMode === 'skin') {
+    buildSkinMesh(latestLM, snapColors);
+    if (knotSystem) knotSystem.visible = false;
+  } else {
+    buildKnotSystem(latestLM, snapColors);
+  }
   document.getElementById('btn-snap').classList.add('snap-on');
   document.getElementById('btn-snap').textContent = 'Re-Stabilise';
   document.getElementById('btn-live').disabled = false;
@@ -804,9 +1091,19 @@ function toggleLive() {
 // ════════════════════════════════════════════════
 function setView(v) {
   viewMode = v;
-  ['knots','field','fabric','realist'].forEach(id =>
+  ['knots','field','fabric','realist','skin'].forEach(id =>
     document.getElementById('mb-'+id)?.classList.toggle('on', id===v));
-  if (latestLM) buildKnotSystem(latestLM, snapColors);
+
+  // Show/hide appropriate mesh
+  if (v === 'skin') {
+    if (skinMesh) skinMesh.visible = true;
+    if (knotSystem) knotSystem.visible = false;
+    if (latestLM && snapColors) buildSkinMesh(latestLM, snapColors);
+  } else {
+    if (skinMesh) skinMesh.visible = false;
+    if (knotSystem) knotSystem.visible = true;
+    if (latestLM) buildKnotSystem(latestLM, snapColors);
+  }
 }
 
 function setDensity(v) {
@@ -910,6 +1207,8 @@ async function initSystem() {
 
       if (liveColors) {
         snap();
+      } else if (viewMode === 'skin' && skinMesh) {
+        updateSkinPositions(latestLM);
       } else if (knotSystem && knotSystem.geometry) {
         updatePositions(latestLM);
       } else {
