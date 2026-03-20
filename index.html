@@ -117,6 +117,7 @@ video{display:none}
       <button class="btn"     id="mb-fabric"  onclick="setView('fabric')">Fabric</button>
       <button class="btn"     id="mb-realist" onclick="setView('realist')">Realist</button>
       <button class="btn on"  id="mb-skin"    onclick="setView('skin')">Skin</button>
+      <button class="btn"     id="mb-stack"   onclick="toggleStack()">Stack</button>
     </div>
   </div>
 </div>
@@ -515,9 +516,8 @@ const SKIN_VERT = `
     fComp = vComp;
     fPos  = position;
 
-    // Face UV: remap from 3D face space back to 0..1 for tiling
-    // Face spans roughly -1..1 in X and Y
-    fUV = position.xy * 0.5 + 0.5;
+    // UV for tiling — flip Y so grid reads top-to-bottom correctly
+    fUV = vec2(position.x * 0.5 + 0.5, -position.y * 0.5 + 0.5);
 
     // Subtle breathing in Z
     vec3 pos = position;
@@ -536,34 +536,7 @@ const SKIN_FRAG = `
   uniform float uTime;
   uniform float uPulse;
   uniform float uOpacity;
-  uniform float uGrid;      // grid density (cells per unit)
-
-  // ── Signed-distance functions ──
-  float sdCircle(vec2 p, float r){
-    return length(p) - r;
-  }
-  float sdBox(vec2 p, vec2 b){
-    vec2 d = abs(p) - b;
-    return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
-  }
-  float sdDiamond(vec2 p, float r){
-    return (abs(p.x) + abs(p.y)) - r;
-  }
-  float sdHex(vec2 p, float r){
-    const vec2 k = vec2(-0.866025, 0.5);
-    p = abs(p);
-    p -= 2.0 * min(dot(k,p),0.0) * k;
-    p -= vec2(clamp(p.x,-k.y*r,k.y*r), r);
-    return length(p) * sign(p.y);
-  }
-  float sdTriangle(vec2 p, float r){
-    const float k = sqrt(3.0);
-    p.x = abs(p.x) - r;
-    p.y = p.y + r / k;
-    if(p.x + k*p.y > 0.0) p = vec2(p.x - k*p.y, -k*p.x - p.y) / 2.0;
-    p.x -= clamp(p.x, -2.0*r, 0.0);
-    return -length(p) * sign(p.y);
-  }
+  uniform float uGrid;
 
   void main(){
     // ── Tile into a grid ──
@@ -571,66 +544,80 @@ const SKIN_FRAG = `
     vec2 cell   = floor(scaled);
     vec2 p      = scaled - cell - 0.5;   // -0.5..0.5 in cell space
 
-    // ── Per-cell hash: determines shape and rotation ──
+    // ── Per-cell hash ──
     float h  = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
     float h2 = fract(sin(dot(cell, vec2(269.5, 183.3))) * 17385.3124);
     float rot = h2 * 3.14159 * 2.0;
 
-    // Rotate p by per-cell angle
+    // Rotate p
     float cr = cos(rot), sr = sin(rot);
     vec2  rp = vec2(cr*p.x - sr*p.y, sr*p.x + cr*p.y);
 
-    // ── Shape selection driven by face color channels ──
-    // R → circles, G → hexagons/diamonds, B → squares/triangles
-    float r = fCol.r, g = fCol.g, b = fCol.b;
-    // Dominant channel determines shape family
-    float shapeSel = h;   // 0..1
-    // Bias by color: R channel favors circles, B favors hard shapes
-    shapeSel = shapeSel * 0.5 + (b - r) * 0.25 + 0.5;
-    shapeSel = clamp(shapeSel, 0.0, 1.0);
+    // ── Boost face color — video is often dark ──
+    // Gamma lift + saturation boost so shapes read clearly
+    vec3 baseCol = fCol;
+    float lum = dot(baseCol, vec3(0.299, 0.587, 0.114));
+    // Lift shadows, preserve highlights
+    baseCol = max(baseCol, vec3(0.04));
+    // Boost toward full saturation
+    baseCol = mix(vec3(lum), baseCol, 1.6);
+    // Gamma lift for dark footage
+    baseCol = pow(baseCol, vec3(0.65));
+    // Clamp bright
+    baseCol = clamp(baseCol, 0.0, 1.0);
 
-    float innerR = 0.32 + fComp * 0.06;  // shape fills ~64-70% of cell
+    // ── Shape selection — R→circles, G→hexagons, B→squares/triangles ──
+    float r = baseCol.r, g = baseCol.g, b = baseCol.b;
+    float shapeSel = h;
+    // Color bias: warm tones→circles, cool→hard shapes
+    shapeSel = clamp(shapeSel * 0.5 + (b - r) * 0.3 + 0.5, 0.0, 1.0);
+
+    float innerR = 0.36;
     float sdf;
     if(shapeSel < 0.20){
-      sdf = sdCircle(rp, innerR);
+      sdf = length(rp) - innerR;                          // circle
     } else if(shapeSel < 0.40){
-      sdf = sdHex(rp, innerR * 0.9);
+      vec2 ap = abs(rp); float k = -0.866025;             // hex
+      ap -= 2.0*min(dot(vec2(k,0.5),ap),0.0)*vec2(k,0.5);
+      ap -= vec2(clamp(ap.x,-0.5*innerR,0.5*innerR), innerR);
+      sdf = length(ap)*sign(ap.y);
     } else if(shapeSel < 0.60){
-      sdf = sdDiamond(rp, innerR * 1.1);
+      sdf = (abs(rp.x)+abs(rp.y)) - innerR * 1.1;        // diamond
     } else if(shapeSel < 0.80){
-      sdf = sdBox(rp, vec2(innerR * 0.85));
+      vec2 d = abs(rp) - vec2(innerR*0.82);               // square
+      sdf = length(max(d,0.0))+min(max(d.x,d.y),0.0);
     } else {
-      sdf = sdTriangle(rp, innerR * 0.95);
+      vec2 q = abs(rp); float k2 = sqrt(3.0);             // triangle
+      q.x = abs(q.x) - innerR;
+      q.y = q.y + innerR/k2;
+      if(q.x+k2*q.y>0.0) q=vec2(q.x-k2*q.y,-k2*q.x-q.y)/2.0;
+      q.x -= clamp(q.x,-2.0*innerR,0.0);
+      sdf = -length(q)*sign(q.y);
     }
 
-    // ── Anti-aliased edge ──
-    float shape = 1.0 - smoothstep(-0.01, 0.03, sdf);
-    if(shape < 0.02) discard;
+    // AA edge
+    float shape = 1.0 - smoothstep(-0.01, 0.025, sdf);
+    if(shape < 0.015) discard;
 
-    // ── Shape interior color = face color + subtle depth tint ──
-    vec3 col = fCol;
-    // Depth warmth
-    col *= mix(vec3(0.88, 0.93, 1.06), vec3(1.06, 0.97, 0.90), fComp);
+    // ── Shape fill: face color, depth-warmed ──
+    vec3 col = baseCol;
+    col *= mix(vec3(0.85,0.92,1.08), vec3(1.08,0.98,0.88), fComp);
 
-    // ── Ring detail inside shape ──
-    // Each shape gets 1-2 concentric inner rings in a contrasting tone
-    float lum   = dot(col, vec3(0.299, 0.587, 0.114));
-    float inner = length(rp) / innerR;   // 0=centre, 1=edge of shape
-    // Pulsing inner ring
-    float ringPos  = fract(inner * 2.2 + uTime * uPulse * 0.4 + h * 6.28);
-    float ring     = step(ringPos, 0.35) * smoothstep(0.9, 0.5, inner);
-    // Ring color: complementary to face color
-    vec3 ringCol   = vec3(col.b * 0.8, col.r * 0.7, col.g * 0.9) * 1.2;
-    col = mix(col, ringCol, ring * 0.55);
+    // ── Inner ring detail — pulsing concentric band ──
+    float inner  = length(rp) / innerR;
+    float ringPos = fract(inner * 2.5 - uTime * uPulse * 0.35 + h * 6.28);
+    float ring    = step(ringPos, 0.3) * smoothstep(1.0, 0.5, inner);
+    // Complementary ring color
+    vec3 ringCol = vec3(1.0) - col * 0.6;
+    col = mix(col, ringCol * 1.3, ring * 0.5);
 
-    // ── Specular peak at shape center ──
-    float spec = exp(-inner * inner * 8.0) * fComp * 0.3;
-    col += vec3(spec * 0.9, spec * 0.85, spec * 0.75);
+    // ── Bright edge outline ──
+    float edge = 1.0 - smoothstep(0.0, 0.035, abs(sdf));
+    col = mix(col, col * 2.0 + vec3(0.15), edge * 0.75);
 
-    // ── Thin bright edge outline on each shape ──
-    float edge   = 1.0 - smoothstep(0.0, 0.04, abs(sdf));
-    vec3  edgeCol = col * 1.6 + vec3(0.08);
-    col = mix(col, edgeCol, edge * 0.7);
+    // ── Specular centre ──
+    float spec = exp(-inner*inner*10.0) * fComp * 0.4;
+    col += vec3(spec*1.0, spec*0.85, spec*0.7);
 
     gl_FragColor = vec4(col, shape * uOpacity);
   }
@@ -645,6 +632,7 @@ let fieldOpacity = 0.85;
 let gridDensity  = 14;
 let densityStep  = 1;
 let viewMode     = 'skin';
+let stackMode    = false;   // show both skin + knots simultaneously
 let liveColors   = false;
 
 // Skin mesh separate from knot system
@@ -1068,10 +1056,11 @@ function snap() {
 
   if (viewMode === 'skin') {
     buildSkinMesh(latestLM, snapColors);
-    if (knotSystem) knotSystem.visible = false;
+    buildKnotSystem(latestLM, snapColors); // pre-build knots for stack mode
   } else {
     buildKnotSystem(latestLM, snapColors);
   }
+  applyVisibility();
   document.getElementById('btn-snap').classList.add('snap-on');
   document.getElementById('btn-snap').textContent = 'Re-Stabilise';
   document.getElementById('btn-live').disabled = false;
@@ -1089,21 +1078,31 @@ function toggleLive() {
 // ════════════════════════════════════════════════
 //  VIEW MODE
 // ════════════════════════════════════════════════
+function toggleStack() {
+  stackMode = !stackMode;
+  document.getElementById('mb-stack').classList.toggle('on', stackMode);
+  applyVisibility();
+}
+
+function applyVisibility() {
+  const showSkin  = viewMode === 'skin' || stackMode;
+  const showKnots = viewMode !== 'skin' || stackMode;
+  if (skinMesh)   skinMesh.visible   = showSkin;
+  if (knotSystem) knotSystem.visible = showKnots;
+}
+
 function setView(v) {
   viewMode = v;
   ['knots','field','fabric','realist','skin'].forEach(id =>
     document.getElementById('mb-'+id)?.classList.toggle('on', id===v));
 
-  // Show/hide appropriate mesh
   if (v === 'skin') {
-    if (skinMesh) skinMesh.visible = true;
-    if (knotSystem) knotSystem.visible = false;
     if (latestLM && snapColors) buildSkinMesh(latestLM, snapColors);
+    if (latestLM && !knotSystem) buildKnotSystem(latestLM, snapColors);
   } else {
-    if (skinMesh) skinMesh.visible = false;
-    if (knotSystem) knotSystem.visible = true;
     if (latestLM) buildKnotSystem(latestLM, snapColors);
   }
+  applyVisibility();
 }
 
 function setDensity(v) {
