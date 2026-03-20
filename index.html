@@ -1,110 +1,510 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>TextCall AR Avatar</title>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
-  <style>
-    body { margin: 0; overflow: hidden; background: black; }
-    video, canvas {
-      position: absolute;
-      top: 0; left: 0;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibe Protocol · Avatar Renderer</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0c0b09;
+  --surface:#141210;
+  --border:#282420;
+  --text:#e8e2d8;
+  --muted:#4e4840;
+  --accent:#c9a96e;
+  --accent-dk:#7a5c2e;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'JetBrains Mono',monospace;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:44px 24px 72px;
+}
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:radial-gradient(circle,#2a2420 1px,transparent 1px);
+  background-size:26px 26px;
+  opacity:0.35;
+  pointer-events:none;
+  z-index:0;
+}
+header{
+  position:relative;z-index:1;
+  text-align:center;
+  margin-bottom:36px;
+}
+.eyebrow{
+  font-size:0.55rem;letter-spacing:.32em;color:var(--muted);
+  text-transform:uppercase;margin-bottom:6px;
+}
+.title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:2.9rem;font-weight:500;letter-spacing:.06em;
+  line-height:1;color:var(--text);
+}
+.title em{font-style:italic;color:var(--accent)}
+.sub{font-size:.54rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-top:9px}
+
+.frame{
+  position:relative;z-index:1;
+  border:1px solid var(--border);
+  background:var(--surface);
+}
+.frame::before,.frame::after{
+  content:'';position:absolute;width:14px;height:14px;
+}
+.frame::before{top:-1px;left:-1px;border-top:2px solid var(--accent-dk);border-left:2px solid var(--accent-dk)}
+.frame::after{bottom:-1px;right:-1px;border-bottom:2px solid var(--accent-dk);border-right:2px solid var(--accent-dk)}
+canvas{display:block}
+
+.status{
+  position:relative;z-index:1;
+  display:flex;justify-content:space-between;
+  width:480px;margin-top:9px;padding:0 2px;
+  font-size:.53rem;color:var(--muted);
+  letter-spacing:.14em;text-transform:uppercase;
+}
+
+.controls{
+  position:relative;z-index:1;
+  margin-top:28px;width:480px;
+  display:flex;flex-direction:column;gap:14px;
+}
+.row{display:flex;gap:10px;align-items:center}
+.lbl{
+  font-size:.52rem;letter-spacing:.2em;color:var(--muted);
+  text-transform:uppercase;width:52px;flex-shrink:0;
+}
+.btns{display:flex;gap:4px;flex-wrap:wrap}
+.btn{
+  font-family:'JetBrains Mono',monospace;
+  font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;
+  padding:6px 12px;
+  background:transparent;border:1px solid var(--border);
+  color:var(--muted);cursor:pointer;transition:all .12s;
+}
+.btn:hover{border-color:var(--accent-dk);color:var(--text)}
+.btn.on{background:var(--accent);border-color:var(--accent);color:#0c0b09;font-weight:500}
+
+.hint{
+  position:relative;z-index:1;
+  margin-top:20px;
+  font-size:.52rem;letter-spacing:.16em;color:var(--muted);
+  text-transform:uppercase;text-align:center;
+}
+</style>
 </head>
 <body>
 
-<video id="video" playsinline></video>
-<canvas id="canvas"></canvas>
+<header>
+  <div class="eyebrow">Vibe Protocol · Render Engine v0.1</div>
+  <h1 class="title">Chuck <em>Close</em></h1>
+  <div class="sub">Abstract optical → realist avatar system</div>
+</header>
+
+<div class="frame">
+  <canvas id="c" width="480" height="560"></canvas>
+</div>
+
+<div class="status">
+  <span id="sTier">Tier 02 · Mid</span>
+  <span id="sEm">Vibe · Neutral</span>
+  <span id="sCells">— cells</span>
+</div>
+
+<div class="controls">
+  <div class="row">
+    <div class="lbl">Tier</div>
+    <div class="btns" id="tierBtns">
+      <button class="btn" data-tier="0">01 · Low</button>
+      <button class="btn on" data-tier="1">02 · Mid</button>
+      <button class="btn" data-tier="2">03 · High</button>
+    </div>
+  </div>
+  <div class="row">
+    <div class="lbl">Vibe</div>
+    <div class="btns" id="emBtns">
+      <button class="btn on" data-em="neutral">Neutral</button>
+      <button class="btn" data-em="happy">Happy</button>
+      <button class="btn" data-em="sad">Sad</button>
+      <button class="btn" data-em="surprised">Surprised</button>
+      <button class="btn" data-em="angry">Angry</button>
+    </div>
+  </div>
+</div>
+
+<div class="hint">← · step back from screen to resolve the face · →</div>
 
 <script>
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+// ═══════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════
+const W = 480, H = 560;
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+const TIERS = [
+  { cs: 22, gap: 2,   label: 'Tier 01 · Low'  },
+  { cs: 11, gap: 1,   label: 'Tier 02 · Mid'  },
+  { cs:  6, gap: 0.5, label: 'Tier 03 · High' },
+];
 
-let vibe = {
-  emotion: "neutral",
-  voice: 0
+// ═══════════════════════════════════════════
+//  EMOTION PALETTES
+// ═══════════════════════════════════════════
+const PAL = {
+  neutral: {
+    skin:       [212, 172, 130],
+    shadow:     [148, 108,  82],
+    highlight:  [242, 210, 170],
+    cheek:      [195, 130, 115],
+    cheekAmt:   0.08,
+    lip:        [172,  90,  80],
+    iris:       [ 62, 102, 142],
+    brow:       [ 48,  36,  28],
+    hair:       [ 36,  26,  20],
+    mouthOpen:  0,
+    browLift:   0,
+    mouthCurve: 0,
+  },
+  happy: {
+    skin:       [224, 185, 143],
+    shadow:     [158, 118,  90],
+    highlight:  [255, 222, 180],
+    cheek:      [224, 115, 103],
+    cheekAmt:   0.30,
+    lip:        [198, 102,  88],
+    iris:       [ 72, 118, 154],
+    brow:       [ 50,  38,  30],
+    hair:       [ 38,  28,  22],
+    mouthOpen:  0.007,
+    browLift:   0.017,
+    mouthCurve: 1,
+  },
+  sad: {
+    skin:       [192, 162, 142],
+    shadow:     [136, 104,  90],
+    highlight:  [218, 192, 172],
+    cheek:      [165, 126, 120],
+    cheekAmt:   0.04,
+    lip:        [150,  86,  80],
+    iris:       [ 52,  84, 122],
+    brow:       [ 45,  34,  27],
+    hair:       [ 33,  23,  17],
+    mouthOpen:  0,
+    browLift:  -0.015,
+    mouthCurve: -1,
+  },
+  surprised: {
+    skin:       [216, 177, 136],
+    shadow:     [152, 112,  86],
+    highlight:  [248, 213, 173],
+    cheek:      [198, 134, 115],
+    cheekAmt:   0.14,
+    lip:        [168,  91,  82],
+    iris:       [ 65, 105, 145],
+    brow:       [ 48,  36,  28],
+    hair:       [ 36,  26,  20],
+    mouthOpen:  0.046,
+    browLift:   0.033,
+    mouthCurve: 0,
+  },
+  angry: {
+    skin:       [220, 150, 112],
+    shadow:     [164,  86,  66],
+    highlight:  [244, 184, 146],
+    cheek:      [216,  94,  83],
+    cheekAmt:   0.25,
+    lip:        [164,  70,  63],
+    iris:       [ 94,  57,  50],
+    brow:       [ 42,  30,  22],
+    hair:       [ 32,  22,  16],
+    mouthOpen:  0.005,
+    browLift:  -0.011,
+    mouthCurve: -0.66,
+  },
 };
 
-// Fake voice animation (replace later with mic)
-setInterval(() => {
-  vibe.voice = Math.random();
-}, 100);
+// ═══════════════════════════════════════════
+//  MATH
+// ═══════════════════════════════════════════
+const clamp = (v,lo,hi) => v<lo?lo:v>hi?hi:v;
+const lerp  = (a,b,t)   => a+(b-a)*clamp(t,0,1);
+const lerpC = (c1,c2,t) => [lerp(c1[0],c2[0],t),lerp(c1[1],c2[1],t),lerp(c1[2],c2[2],t)];
+const rand  = s => { let x=Math.sin(s+1)*43758.5453; return x-Math.floor(x); };
 
-// MediaPipe Pose
-const pose = new Pose({
-  locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
-});
-
-pose.setOptions({
-  modelComplexity: 0,
-  smoothLandmarks: true,
-  enableSegmentation: false
-});
-
-pose.onResults(results => {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-  if (!results.poseLandmarks) return;
-
-  const lm = results.poseLandmarks;
-
-  const leftShoulder = lm[11];
-  const rightShoulder = lm[12];
-  const nose = lm[0];
-
-  drawEnergy(leftShoulder, rightShoulder, nose);
-});
-
-function drawEnergy(l, r, head) {
-  let cx = (l.x + r.x) / 2 * canvas.width;
-  let cy = (l.y + r.y) / 2 * canvas.height;
-
-  let intensity = vibe.voice * 50;
-
-  // Glow aura
-  ctx.beginPath();
-  ctx.arc(cx, cy, 100 + intensity, 0, Math.PI * 2);
-  ctx.strokeStyle = getColor();
-  ctx.lineWidth = 5;
-  ctx.stroke();
-
-  // Head orbit particles
-  for (let i = 0; i < 20; i++) {
-    let angle = i + performance.now() * 0.002;
-    let radius = 50 + intensity;
-
-    let x = head.x * canvas.width + Math.cos(angle) * radius;
-    let y = head.y * canvas.height + Math.sin(angle) * radius;
-
-    ctx.fillStyle = getColor();
-    ctx.fillRect(x, y, 3, 3);
+function blendPal(a,b,t) {
+  const out={};
+  for(const k of Object.keys(a)) {
+    out[k] = Array.isArray(a[k]) ? lerpC(a[k],b[k],t) : lerp(a[k],b[k],t);
   }
+  return out;
 }
 
-function getColor() {
-  if (vibe.emotion === "happy") return "#00ffff";
-  if (vibe.emotion === "angry") return "#ff0033";
-  return "#8888ff";
+// ═══════════════════════════════════════════
+//  FACE COLOR SAMPLER
+//  Returns [r,g,b] or null (background)
+// ═══════════════════════════════════════════
+function sampleFace(px, py, pal) {
+  // Normalize: face center ≈ (0, –0.02) in this space
+  const nx = px/W - 0.5;
+  const ny = py/H - 0.5;
+
+  // Face oval and skull oval
+  const fR = (nx/0.272)**2 + ((ny+0.018)/0.390)**2;
+  const sR = (nx/0.296)**2 + ((ny-0.010)/0.454)**2;
+
+  if (sR > 1.0) return null; // background
+
+  if (fR > 1.0) {            // hair region
+    const d = clamp((sR-0.84)/0.18, 0, 1);
+    return lerpC(pal.hair, [16,10,8], d);
+  }
+
+  // ── Skin base ──
+  let r=pal.skin[0], g=pal.skin[1], b=pal.skin[2];
+
+  // Edge shadow
+  const et = clamp((fR-0.54)/0.46, 0, 1);
+  r=lerp(r,pal.shadow[0],et*.70); g=lerp(g,pal.shadow[1],et*.70); b=lerp(b,pal.shadow[2],et*.70);
+
+  // Chin shadow
+  if (ny > 0.265) {
+    const ct = clamp((ny-0.265)/0.14, 0, 1);
+    r=lerp(r,pal.shadow[0],ct*.58); g=lerp(g,pal.shadow[1],ct*.58); b=lerp(b,pal.shadow[2],ct*.58);
+  }
+
+  // Forehead highlight
+  const fhR = (nx/0.19)**2 + ((ny+0.225)/0.155)**2;
+  if (fhR < 1) { const t=(1-fhR)*.40; r=lerp(r,pal.highlight[0],t); g=lerp(g,pal.highlight[1],t); b=lerp(b,pal.highlight[2],t); }
+
+  // Cheeks
+  const lcR = ((nx+0.158)/0.10)**2 + ((ny-0.058)/0.083)**2;
+  const rcR = ((nx-0.158)/0.10)**2 + ((ny-0.058)/0.083)**2;
+  const ckT = clamp(1-Math.min(lcR,rcR), 0, 1);
+  if (ckT>0) { r=lerp(r,pal.cheek[0],ckT*pal.cheekAmt); g=lerp(g,pal.cheek[1],ckT*pal.cheekAmt); b=lerp(b,pal.cheek[2],ckT*pal.cheekAmt); }
+
+  // Nose bridge
+  if (Math.abs(nx)<0.028 && ny>-0.075 && ny<0.145) {
+    const t=(1-Math.abs(nx)/0.028)*.22;
+    r=lerp(r,pal.shadow[0],t); g=lerp(g,pal.shadow[1],t); b=lerp(b,pal.shadow[2],t);
+  }
+
+  // Nose tip
+  const ntR = (nx/0.082)**2 + ((ny-0.130)/0.054)**2;
+  if (ntR<1) { const t=(1-ntR)*.30; r=lerp(r,pal.shadow[0],t); g=lerp(g,pal.shadow[1],t); b=lerp(b,pal.shadow[2],t); }
+
+  // Nostrils
+  const lnR = ((nx+0.056)/0.025)**2 + ((ny-0.164)/0.023)**2;
+  const rnR = ((nx-0.056)/0.025)**2 + ((ny-0.164)/0.023)**2;
+  const nsT = clamp(1-Math.min(lnR,rnR), 0, 1);
+  if (nsT>0) { r=lerp(r,pal.shadow[0]*.42,nsT*.75); g=lerp(g,pal.shadow[1]*.42,nsT*.75); b=lerp(b,pal.shadow[2]*.42,nsT*.75); }
+
+  // ── Eyebrows ──
+  const bl = pal.browLift || 0;
+  const mad = (pal.mouthCurve||0) < -0.3;
+
+  const browHit = ex => {
+    if (Math.abs(ex) > 0.090) return 0;
+    const arc   = -0.045 * ex * ex * 5;
+    const slant = mad ? ex * 0.30 : 0;
+    const by    = -0.220 + bl + arc - slant;
+    const dx=ex/0.084, dy=(ny-by)/0.013;
+    return clamp(1-Math.sqrt(dx*dx+dy*dy), 0, 1);
+  };
+
+  const browT = Math.max(browHit(nx+0.152), browHit(-(nx-0.152)));
+  if (browT>0) { r=lerp(r,pal.brow[0],browT*.95); g=lerp(g,pal.brow[1],browT*.95); b=lerp(b,pal.brow[2],browT*.95); }
+
+  // ── Eyes ──
+  const eyeBaseY  = -0.124 + bl*.28;
+  const wideEye   = (pal.mouthOpen||0) > 0.025;
+  const eyeScaleY = wideEye ? 1.30 : 1.0;
+
+  const eyeAt = (ex, ey) => {
+    const oval = (ex/0.080)**2 + (ey/(0.047*eyeScaleY))**2;
+    if (oval > 1) return null;
+
+    let er=240, eg=234, eb=226;
+    // Top shadow
+    if (ey<0) { const ts=clamp(-ey/.038,0,1)*.48; er=lerp(er,172,ts); eg=lerp(eg,162,ts); eb=lerp(eb,157,ts); }
+
+    const iR = ex*ex + ey*ey;
+    if (iR < 0.00188) {
+      const it = 1-iR/0.00188;
+      er=lerp(er,pal.iris[0],it); eg=lerp(eg,pal.iris[1],it); eb=lerp(eb,pal.iris[2],it);
+      if (iR < 0.00066) { const pt=1-iR/0.00066; er=lerp(er,10,pt); eg=lerp(eg,7,pt); eb=lerp(eb,13,pt); }
+      const clR=(ex+0.021)**2+(ey+0.019)**2;
+      if (clR<0.000112) { const ct=(1-clR/0.000112)*.74; er=lerp(er,245,ct); eg=lerp(eg,245,ct); eb=lerp(eb,245,ct); }
+    }
+    return [er,eg,eb];
+  };
+
+  const lEye = eyeAt(nx+0.152, ny-eyeBaseY);
+  if (lEye) { r=lEye[0]; g=lEye[1]; b=lEye[2]; }
+  const rEye = eyeAt(nx-0.152, ny-eyeBaseY);
+  if (rEye) { r=rEye[0]; g=rEye[1]; b=rEye[2]; }
+
+  // Eyelid crease
+  const lidShadow = (ex,ey) => {
+    const oval=(ex/0.080)**2+(ey/(0.047*eyeScaleY))**2;
+    if (oval<0.68||oval>1.06||ey>0) return 0;
+    return clamp((oval-.68)/.38,0,1)*clamp(-ey/.019,0,1)*.58;
+  };
+  const lidT = Math.max(lidShadow(nx+0.152,ny-eyeBaseY), lidShadow(nx-0.152,ny-eyeBaseY));
+  if (lidT>0) { r=lerp(r,pal.shadow[0],lidT); g=lerp(g,pal.shadow[1],lidT); b=lerp(b,pal.shadow[2],lidT); }
+
+  // ── Mouth ──
+  const mY = 0.220;
+  const mc = pal.mouthCurve||0;
+  const mo = pal.mouthOpen||0;
+  const lw = 0.090;
+
+  const ucOff = mc*(nx/lw)**2*0.023;
+  const uLip  = (nx/lw)**2 + ((ny-(mY-mo/2)+ucOff)/0.020)**2;
+  const lcOff = mc*0.009;
+  const lLip  = (nx/(lw*1.06))**2 + ((ny-(mY+mo/2+0.023)+lcOff)/0.026)**2;
+
+  const lipT = clamp(Math.max(1-uLip, 1-lLip), 0, 1);
+  if (lipT>0) {
+    r=lerp(r,pal.lip[0],lipT*.80); g=lerp(g,pal.lip[1],lipT*.80); b=lerp(b,pal.lip[2],lipT*.80);
+    const lhR=(nx/0.044)**2+((ny-(mY+mo/2+0.015))/0.009)**2;
+    if (lhR<1) { const ht=(1-lhR)*lipT*.32; r=lerp(r,pal.highlight[0],ht); g=lerp(g,pal.highlight[1],ht); b=lerp(b,pal.highlight[2],ht); }
+  }
+
+  if (mo > 0.013) {
+    const mgR = (nx/(lw*.72))**2 + ((ny-mY)/(mo*.68))**2;
+    if (mgR<1) {
+      const mt=1-mgR;
+      r=lerp(r,26,mt*.93); g=lerp(g,10,mt*.93); b=lerp(b,10,mt*.93);
+      if (ny < mY+mo*.09) {
+        const tt=clamp((mY+mo*.09-ny)/(mo*.20),0,1);
+        r=lerp(r,233,tt*mt); g=lerp(g,227,tt*mt); b=lerp(b,220,tt*mt);
+      }
+    }
+  }
+
+  return [r,g,b];
 }
 
-// Camera
-const cam = new Camera(video, {
-  onFrame: async () => {
-    await pose.send({ image: video });
-  },
-  width: 640,
-  height: 480
+// ═══════════════════════════════════════════
+//  CELL RENDERER  (Chuck Close mark-making)
+// ═══════════════════════════════════════════
+function drawCell(ctx, cx, cy, sz, colors, seed) {
+  const valid = colors.filter(c=>c!==null);
+  if (!valid.length) return;
+
+  const c0=valid[0], c1=valid[Math.min(1,valid.length-1)], c2=valid[Math.min(2,valid.length-1)];
+  const h=sz/2;
+  const r0=rand(seed), r1=rand(seed+5.13), r2=rand(seed+11.37);
+  const pat=Math.floor(r0*4);
+  const css=c=>`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
+
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.beginPath(); ctx.rect(-h,-h,sz,sz); ctx.clip();
+
+  switch(pat) {
+    case 0: { // ── Concentric circles (most Chuck Close)
+      const jx=(r1-.5)*sz*.30, jy=(r2-.5)*sz*.30;
+      ctx.fillStyle=css(c0); ctx.fillRect(-h,-h,sz,sz);
+      ctx.beginPath(); ctx.arc(jx,jy,h*.73,0,Math.PI*2); ctx.fillStyle=css(c1); ctx.fill();
+      ctx.beginPath(); ctx.arc(jx*.33,jy*.33,h*.40,0,Math.PI*2); ctx.fillStyle=css(c2); ctx.fill();
+      ctx.beginPath(); ctx.arc(0,0,h*.16,0,Math.PI*2); ctx.fillStyle=css(c0); ctx.fill();
+      break;
+    }
+    case 1: { // ── Quadrant split
+      ctx.rotate((r1-.5)*.45);
+      ctx.fillStyle=css(c0); ctx.fillRect(-h,-h,h,h);
+      ctx.fillStyle=css(c1); ctx.fillRect(0,-h,h,h);
+      ctx.fillStyle=css(c2); ctx.fillRect(-h,0,h,h);
+      ctx.fillStyle=css(c1); ctx.fillRect(0,0,h,h);
+      ctx.beginPath(); ctx.arc(0,0,h*.50,0,Math.PI*2); ctx.fillStyle=css(c2); ctx.fill();
+      break;
+    }
+    case 2: { // ── Radial fan
+      ctx.rotate((r1-.5)*.90);
+      for(let i=0;i<4;i++) {
+        const a=i*Math.PI/2;
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,h*1.5,a,a+Math.PI/2); ctx.closePath();
+        ctx.fillStyle=css(i%2===0?c0:c1); ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(0,0,h*.45,0,Math.PI*2); ctx.fillStyle=css(c2); ctx.fill();
+      break;
+    }
+    case 3: { // ── Diamond
+      ctx.fillStyle=css(c0); ctx.fillRect(-h,-h,sz,sz);
+      ctx.beginPath();
+      ctx.moveTo(0,-h*.78); ctx.lineTo(h*.78,0); ctx.lineTo(0,h*.78); ctx.lineTo(-h*.78,0);
+      ctx.closePath(); ctx.fillStyle=css(c1); ctx.fill();
+      ctx.beginPath(); ctx.arc(0,0,h*.39,0,Math.PI*2); ctx.fillStyle=css(c2); ctx.fill();
+      break;
+    }
+  }
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════
+//  MAIN RENDER LOOP
+// ═══════════════════════════════════════════
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+let tierIdx = 1;
+let fromEm  = 'neutral', toEm = 'neutral', emBlend = 1;
+
+function render() {
+  const pal  = emBlend>=1 ? PAL[toEm] : blendPal(PAL[fromEm], PAL[toEm], emBlend);
+  const {cs, gap, label} = TIERS[tierIdx];
+  const step = cs + gap;
+
+  ctx.fillStyle='#0c0b09';
+  ctx.fillRect(0,0,W,H);
+
+  // Sample 4 nearby offsets per cell → gives color variation within each mark
+  const offs = [[0,0],[cs*.32,0],[0,cs*.30],[-cs*.24,cs*.26]];
+
+  let cellCount=0;
+  for(let px=step/2; px<W; px+=step) {
+    for(let py=step/2; py<H; py+=step) {
+      const colors = offs.map(([ox,oy])=>sampleFace(px+ox,py+oy,pal));
+      if(colors.every(c=>c===null)) continue;
+      drawCell(ctx, px, py, cs, colors, Math.round(px*997+py*11));
+      cellCount++;
+    }
+  }
+
+  document.getElementById('sTier').textContent  = label;
+  document.getElementById('sEm').textContent    = `Vibe · ${toEm[0].toUpperCase()+toEm.slice(1)}`;
+  document.getElementById('sCells').textContent = `${cellCount} cells`;
+
+  if(emBlend<1) { emBlend=Math.min(1,emBlend+.046); requestAnimationFrame(render); }
+}
+
+// ═══════════════════════════════════════════
+//  UI WIRING
+// ═══════════════════════════════════════════
+document.getElementById('tierBtns').addEventListener('click', e=>{
+  const b=e.target.closest('[data-tier]'); if(!b) return;
+  tierIdx=+b.dataset.tier;
+  document.querySelectorAll('[data-tier]').forEach(x=>x.classList.toggle('on',x===b));
+  render();
 });
 
-cam.start();
-</script>
+document.getElementById('emBtns').addEventListener('click', e=>{
+  const b=e.target.closest('[data-em]'); if(!b) return;
+  fromEm=toEm; toEm=b.dataset.em; emBlend=0;
+  document.querySelectorAll('[data-em]').forEach(x=>x.classList.toggle('on',x===b));
+  requestAnimationFrame(render);
+});
 
+render();
+</script>
 </body>
 </html>
