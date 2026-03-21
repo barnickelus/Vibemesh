@@ -2,51 +2,40 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibe Protocol · v0.8 (Close Synthesis)</title>
+<title>Vibe Protocol · Low-Bit Puppet v0.9</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0a0908;--surface:#11100f;--border:#2a2622;--text:#e2dcd0;--accent:#d4af37}
-body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;display:flex;flex-direction:column;align-items:center;padding:20px;overflow:hidden}
-header{text-align:center;margin-bottom:15px;z-index:10}
-.title{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:500;letter-spacing:.05em}
+:root{--bg:#0a0908;--surface:#11100f;--border:#2a2622;--accent:#c9a96e}
+body{background:var(--bg);color:#e2dcd0;font-family:'JetBrains Mono',monospace;display:flex;flex-direction:column;align-items:center;padding:20px;overflow:hidden}
+.title{font-family:'Cormorant Garamond',serif;font-size:1.8rem;margin-bottom:15px}
 .title em{color:var(--accent);font-style:italic}
-.stage{display:flex;gap:20px;align-items:flex-start}
-.frame-wrap{position:relative;background:#000;border:1px solid var(--border);box-shadow:0 20px 50px rgba(0,0,0,0.8)}
+.stage{display:flex;gap:20px}
+.frame-wrap{position:relative;background:#000;border:1px solid var(--border)}
 #display{display:block;width:520px;height:640px}
-#overlay{position:absolute;inset:0;background:rgba(10,9,8,0.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;transition:opacity 1s}
-#overlay.gone{opacity:0;pointer-events:none}
-.right-col{width:180px;display:flex;flex-direction:column;gap:12px}
-.panel{border:1px solid var(--border);padding:10px;background:var(--surface);font-size:.5rem;text-transform:uppercase;letter-spacing:.1em;color:#666}
+.right-col{width:200px;display:flex;flex-direction:column;gap:12px}
+.panel{border:1px solid var(--border);padding:10px;background:var(--surface);font-size:.45rem;text-transform:uppercase}
 .panel b{color:var(--accent);display:block;margin-bottom:4px}
-.pip-wrap{position:relative;border:1px solid var(--border);height:130px;overflow:hidden;background:#000}
-#pipCvs{width:100%;height:100%;transform:scaleX(-1)}
+.packet-view{font-family:monospace;color:#6a9e6a;height:120px;overflow:hidden;background:#050505;padding:5px;border:1px solid #1a1a1a}
 </style>
 </head>
 <body>
 
-<header>
-  <h1 class="title">Optical <em>Synthesis</em> v0.8</h1>
-</header>
+<header><h1 class="title">Low-Bit <em>Puppet</em> v0.9</h1></header>
 
 <div class="stage">
   <div class="frame-wrap">
     <canvas id="display" width="520" height="640"></canvas>
-    <div id="overlay">
-      <div style="font-family:'Cormorant Garamond';font-size:1.5rem;color:var(--accent);margin-bottom:10px">Calibrating Realism...</div>
-      <div id="statusText" style="font-size:.5rem;color:#555">Sampling Texture & Palette</div>
-    </div>
   </div>
 
   <div class="right-col">
-    <div class="pip-wrap"><canvas id="pipCvs" width="180" height="130"></canvas></div>
-    <div class="panel"><b>Engine</b>Tier 02 Synthesis</div>
-    <div class="panel"><b>Grid</b>Tilted 45° Mosaic</div>
-    <div class="panel"><b>Likeness</b>Video Projection</div>
+    <div class="panel"><b>Network Status</b>Semantic Stream: ACTIVE</div>
+    <div class="panel"><b>Data Packet (Deltas)</b><div id="packet" class="packet-view"></div></div>
+    <div class="panel"><b>Calculated Bitrate</b>~4.2 kbps</div>
+    <div class="panel" style="color:#444">Optical synthesis is reconstructed locally via puppet clusters.</div>
   </div>
 </div>
 
@@ -55,11 +44,12 @@ header{text-align:center;margin-bottom:15px;z-index:10}
 
 <script>
 'use strict';
-const W=520, H=640, STEP=10; 
-let lms=null, phase='calib', calibFrames=0;
+const W=520, H=640, STEP=11;
+let lms=null, phase='live';
 let pose={p:0, y:0, r:0};
+let vibe={m:0, eL:1, eR:1, bL:0, bR:0}; // The "Data Clusters"
 
-// --- THREE.JS SETUP ---
+// THREE.JS SETUP
 const glCanvas=document.getElementById('glCanvas'), renderer=new THREE.WebGLRenderer({canvas:glCanvas, antialias:true, alpha:true});
 renderer.setSize(W,H);
 const scene=new THREE.Scene(), cam3=new THREE.PerspectiveCamera(30,W/H,0.1,100);
@@ -67,78 +57,72 @@ cam3.position.z=4.5;
 
 const ftCvs=document.createElement('canvas'); ftCvs.width=1024; ftCvs.height=1024;
 const ftCtx=ftCvs.getContext('2d'), faceTex=new THREE.CanvasTexture(ftCvs);
-// Use a slightly flatter sphere to prevent "egg head" distortion
 const headMesh=new THREE.Mesh(new THREE.SphereGeometry(1,64,64), new THREE.MeshPhongMaterial({map:faceTex, shininess:2}));
-headMesh.scale.set(1.15, 1.4, 0.85); 
+headMesh.scale.set(1.15, 1.45, 0.9);
 scene.add(headMesh);
-scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
 
-// --- MOSAIC ENGINE (The Chuck Close Logic) ---
+// LOCAL RECONSTRUCTION ENGINE (Drawing the face based on floats, not video)
+function updatePuppetTexture() {
+  const ctx=ftCtx; ctx.clearRect(0,0,1024,1024);
+  const CX=512, CY=512;
+  
+  // 1. Structural Base (The local "Identity" - usually sent once at start)
+  ctx.fillStyle='#1a1816'; ctx.fillRect(0,0,1024,1024);
+  
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(CX, CY, 220, 310, 0, 0, Math.PI*2); ctx.clip();
+  const grad=ctx.createRadialGradient(CX, CY-100, 50, CX, CY, 400);
+  grad.addColorStop(0, '#ebd2bc'); grad.addColorStop(1, '#8a6a50');
+  ctx.fillStyle=grad; ctx.fillRect(0,0,1024,1024);
+  
+  // 2. Cluster Reconstruction: Eyes
+  const drawEye=(x, y, open)=>{
+    ctx.beginPath(); ctx.ellipse(x, y, 32, 16*open, 0, 0, Math.PI*2);
+    ctx.fillStyle='#fff'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2);
+    ctx.fillStyle='#4a607a'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2);
+    ctx.fillStyle='#000'; ctx.fill();
+  };
+  drawEye(CX-80, CY-50, vibe.eL); drawEye(CX+80, CY-50, vibe.eR);
+
+  // 3. Cluster Reconstruction: Nose (Structural bridge)
+  ctx.strokeStyle='rgba(100,70,50,0.4)'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(CX, CY-100); ctx.quadraticCurveTo(CX-10, CY, CX, CY+50); ctx.stroke();
+  
+  // 4. Cluster Reconstruction: Mouth
+  ctx.beginPath(); ctx.ellipse(CX, CY+150, 60, 10 + vibe.m*50, 0, 0, Math.PI*2);
+  ctx.fillStyle='#a65d52'; ctx.fill();
+  
+  ctx.restore();
+}
+
 const display=document.getElementById('display'), dCtx=display.getContext('2d');
 const pixels=new Uint8Array(W*H*4);
 
 function applyMosaic() {
   renderer.getContext().readPixels(0,0,W,H,0x1908,0x1401,pixels);
   dCtx.fillStyle='#0a0908'; dCtx.fillRect(0,0,W,H);
-  
-  // Tilted Grid Math: Rotate coordinates by 45 degrees
   const cos=Math.cos(Math.PI/4), sin=Math.sin(Math.PI/4);
-  
   for(let y=-H; y<H*1.5; y+=STEP){
     for(let x=-W; x<W*1.5; x+=STEP){
-      // Project tilted grid back to screen space
-      const screenX = (x * cos - y * sin) + W/2;
-      const screenY = (x * sin + y * cos) + H/2;
-      
-      if(screenX < 0 || screenX >= W || screenY < 0 || screenY >= H) continue;
-
-      const fy=H-1-(screenY|0), i=(fy*W+(screenX|0))*4;
+      const sX=(x*cos-y*sin)+W/2, sY=(x*sin+y*cos)+H/2;
+      if(sX<0||sX>=W||sY<0||sY>=H) continue;
+      const i=( (H-1-(sY|0))*W+(sX|0) )*4;
       if(pixels[i+3]<20) continue;
-
       const r=pixels[i], g=pixels[i+1], b=pixels[i+2];
-      
-      dCtx.save();
-      dCtx.translate(screenX, screenY);
-      dCtx.rotate(Math.PI/4); // Rotate individual cell
-      
-      // Layer 1: Base wash (Painterly jitter)
-      dCtx.fillStyle=`rgb(${r+10},${g-5},${b-10})`;
-      dCtx.fillRect(-STEP/2, -STEP/2, STEP-0.5, STEP-0.5);
-      
-      // Layer 2: The "Donut" Shape (Opposing tone for optical blending)
-      dCtx.beginPath();
-      dCtx.ellipse(0,0, STEP*0.35, STEP*0.25, Math.random(), 0, Math.PI*2);
-      dCtx.fillStyle=`rgba(${r-20},${g+15},${b+30},0.6)`;
-      dCtx.fill();
-      
-      // Layer 3: The Nucleus (The sharp detail)
-      dCtx.beginPath();
-      dCtx.arc((Math.random()-.5)*2, (Math.random()-.5)*2, STEP*0.12, 0, Math.PI*2);
-      dCtx.fillStyle=`rgb(${r},${g},${b})`;
-      dCtx.fill();
-      
+      dCtx.save(); dCtx.translate(sX, sY); dCtx.rotate(Math.PI/4);
+      dCtx.fillStyle=`rgb(${r},${g},${b})`; dCtx.fillRect(-STEP/2,-STEP/2,STEP-1,STEP-1);
+      dCtx.beginPath(); dCtx.arc(0,0,STEP*0.2,0,Math.PI*2);
+      dCtx.fillStyle=`rgba(${r+30},${g+30},${b+30},0.5)`; dCtx.fill();
       dCtx.restore();
     }
   }
 }
 
-function updateTexture() {
-  const ctx=ftCtx; ctx.clearRect(0,0,1024,1024);
-  if(!lms) return;
-
-  ctx.save();
-  // Projection Mapping: Project the VIDEO directly onto the 3D UV space
-  // This captures the user's actual nose, eyes, hair, and beard perfectly.
-  ctx.translate(512, 512);
-  ctx.scale(2.2, 2.2); // Scale to fit head mesh
-  ctx.translate(-320, -240); // Center video
-  ctx.drawImage(vid, 0, 0, 640, 480);
-  ctx.restore();
-}
-
 function loop(){
-  updateTexture(); faceTex.needsUpdate=true;
-  // Improved tracking alignment
+  updatePuppetTexture(); faceTex.needsUpdate=true;
   headMesh.rotation.set(pose.p, -Math.PI/2 + pose.y, pose.r);
   renderer.render(scene,cam3);
   applyMosaic();
@@ -146,27 +130,21 @@ function loop(){
 }
 
 function onResults(res){
-  const pipCvs=document.getElementById('pipCvs'), pCtx=pipCvs.getContext('2d');
-  pCtx.drawImage(vid, 0, 0, 180, 130);
-  
   if(!res.multiFaceLandmarks?.length) return;
   lms=res.multiFaceLandmarks[0];
 
-  if(phase==='calib'){
-    calibFrames++;
-    if(calibFrames > 30){
-      phase='live'; document.getElementById('overlay').classList.add('gone');
-    }
-  }
-
-  // Precision tracking math
+  // 1. DATA EXTRACTION (The Sender side)
   const top=lms[10], chin=lms[152], nose=lms[1], lE=lms[33], rE=lms[263];
-  const midX = (lE.x + rE.x)/2;
-  
-  // Fixed Pitch/Yaw mapping to align mesh with texture
   pose.p = (chin.z - top.z) * 4.5;
-  pose.y = (nose.x - midX) * -3.8;
-  pose.r = (rE.y - lE.y) * 0.8;
+  pose.y = (nose.x - (lE.x+rE.x)/2) * -3.8;
+  
+  vibe.m = Math.abs(lms[13].y - lms[14].y) * 10;
+  vibe.eL = Math.max(0, 1 - Math.abs(lms[159].y - lms[145].y) * 15);
+  vibe.eR = Math.max(0, 1 - Math.abs(lms[386].y - lms[374].y) * 15);
+
+  // 2. PROTOCOL VISUALIZATION
+  const packet = { pitch:pose.p.toFixed(2), yaw:pose.y.toFixed(2), mouth:vibe.m.toFixed(2), eyes:[vibe.eL.toFixed(2), vibe.eR.toFixed(2)] };
+  document.getElementById('packet').innerText = JSON.stringify(packet, null, 2);
 }
 
 async function init(){
