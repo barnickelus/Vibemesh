@@ -3,61 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibe Protocol · Optical Likeness v0.6</title>
+<title>Vibe Protocol · Structural Realism v0.7</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0c0b09;--surface:#141210;--border:#282420;
-  --text:#e8e2d8;--muted:#4e4840;--accent:#c9a96e;--accent-dk:#7a5c2e;
-}
-body{
-  background:var(--bg);color:var(--text);
-  font-family:'JetBrains Mono',monospace;
-  min-height:100vh;display:flex;flex-direction:column;
-  align-items:center;padding:32px 20px;overflow-x:hidden;
-}
+:root{--bg:#0c0b09;--surface:#141210;--border:#282420;--text:#e8e2d8;--accent:#c9a96e;--accent-dk:#7a5c2e}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;display:flex;flex-direction:column;align-items:center;padding:32px 20px;overflow-x:hidden}
 header{text-align:center;margin-bottom:20px;z-index:2}
-.eyebrow{font-size:.55rem;letter-spacing:.32em;color:var(--muted);text-transform:uppercase;margin-bottom:5px}
+.eyebrow{font-size:.55rem;letter-spacing:.32em;color:#4e4840;text-transform:uppercase;margin-bottom:5px}
 .title{font-family:'Cormorant Garamond',serif;font-size:2.4rem;font-weight:500;letter-spacing:.06em}
-
 .stage{display:flex;gap:20px;align-items:flex-start;position:relative;z-index:1}
 .frame-wrap{position:relative;background:#000;border:1px solid var(--border)}
-.frame-wrap::after{content:'';position:absolute;inset:0;box-shadow:inset 0 0 100px rgba(0,0,0,0.4);pointer-events:none}
 #display{display:block;width:480px;height:560px}
-
-#overlay{
-  position:absolute;inset:0;background:rgba(12,11,9,.95);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;transition:opacity .8s;
-}
+#overlay{position:absolute;inset:0;background:rgba(12,11,9,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;transition:opacity .8s}
 #overlay.gone{opacity:0;pointer-events:none}
-.ov-title{font-family:'Cormorant Garamond',serif;font-size:1.4rem;color:var(--accent);margin-bottom:8px}
-
 .right-col{width:200px;display:flex;flex-direction:column;gap:12px}
 .pip-wrap{position:relative;border:1px solid var(--border);height:150px;overflow:hidden;background:#000}
 #pipCvs{width:100%;height:100%;transform:scaleX(-1)}
-
 .panel{border:1px solid var(--border);padding:12px;background:var(--surface)}
 .phdr{font-size:.46rem;letter-spacing:.26em;text-transform:uppercase;color:var(--accent-dk);margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:5px}
-.prow{margin-bottom:8px}
-.plbl{font-size:.42rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;display:flex;justify-content:space-between}
-.pval{color:var(--accent)}
-.btrack{height:2px;background:var(--border);margin-top:3px;position:relative}
-.bfill{height:100%;background:var(--accent);position:absolute;left:0}
-
 .controls{margin-top:24px;display:flex;gap:10px}
-.btn{font-family:'JetBrains Mono';font-size:.55rem;padding:8px 16px;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;text-transform:uppercase}
+.btn{font-family:'JetBrains Mono';font-size:.55rem;padding:8px 16px;background:transparent;border:1px solid var(--border);color:#4e4840;cursor:pointer;text-transform:uppercase}
 .btn.on{background:var(--accent);color:#000;border-color:var(--accent)}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="eyebrow">Vibe Protocol · v0.6</div>
-  <h1 class="title">Optical <em>Synthesis.</em></h1>
+  <div class="eyebrow">Vibe Protocol · v0.7</div>
+  <h1 class="title">Structural <em>Likeness.</em></h1>
 </header>
 
 <div class="stage">
@@ -65,64 +42,39 @@ header{text-align:center;margin-bottom:20px;z-index:2}
     <div class="frame-wrap">
       <canvas id="display" width="480" height="560"></canvas>
       <div id="overlay">
-        <div class="ov-title">Waking Vibe...</div>
-        <div style="font-size:.5rem; color:var(--muted)">Proportioning Optical Grid</div>
+        <div style="font-family:'Cormorant Garamond';font-size:1.4rem;color:var(--accent)">Mapping Geometry...</div>
       </div>
     </div>
   </div>
-
   <div class="right-col">
-    <div class="pip-wrap">
-      <canvas id="pipCvs" width="200" height="150"></canvas>
-    </div>
+    <div class="pip-wrap"><canvas id="pipCvs" width="200" height="150"></canvas></div>
     <div class="panel">
-      <div class="phdr">Likeness Vector</div>
-      <div class="prow">
-        <div class="plbl">Optical Flow <span class="pval" id="v_flow">0%</span></div>
-        <div class="btrack"><div class="bfill" id="b_flow" style="width:0%"></div></div>
-      </div>
-      <div class="prow">
-        <div class="plbl">Pitch <span class="pval" id="v_pi">0.00</span></div>
-        <div class="btrack"><div class="bfill" id="b_pi" style="width:50%;left:0%"></div></div>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="phdr">Grid Status</div>
-      <div style="font-size:.45rem; color:var(--muted); line-height:1.6">
-        TIER: 02 (Realistic)<br>
-        MODE: Optical Blending<br>
-        DENSITY: 12px Grid
+      <div class="phdr">Structural Vector</div>
+      <div style="font-size:.45rem; color:#4e4840; line-height:1.6">
+        NOSE BRIDGE: ACTIVE<br>
+        HAIR MASK: ACTIVE<br>
+        SILHOUETTE: DYNAMIC
       </div>
     </div>
   </div>
 </div>
 
-<div class="controls">
-  <button class="btn on">Level 02: Synthesis</button>
-  <button class="btn" onclick="location.reload()">↺ Reset</button>
-</div>
+<div class="controls"><button class="btn on">Level 02: Realistic</button></div>
 
 <video id="vid" playsinline muted autoplay style="display:none"></video>
 <canvas id="glCanvas" width="480" height="560" style="display:none"></canvas>
 
 <script>
 'use strict';
-
-const W=480, H=560, FTW=1024, FTH=1024;
-const FCX=512, FCY=480, FFW=240, FFH=320;
-const STEP=12; // Grid Density for optical blending
-
+const W=480, H=560, FTW=1024, FTH=1024, FCX=512, FCY=512, STEP=8;
 let lms=null, phase='init';
-let pose={y:0, p:0, r:0}, vibe={open:0};
-let pal={skin:[225,185,160], iris:[90,110,130], hair:[35,30,28], lip:[190,110,105], shadow:[160,120,100]};
+let pose={p:0, y:0, r:0};
+let pal={skin:[215,175,150], iris:[80,100,120], hair:[25,20,18], lip:[160,90,85], shadow:[140,100,85]};
 
 const rgb=c=>`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
 const smooth=(c,n,s)=>c+(n-c)*s;
-const rand=s=>{let x=Math.sin(s)*43758.5453;return x-Math.floor(x);};
 
-// ══════════════════════════════════════════════════
-//  THREE.JS RENDERER
-// ══════════════════════════════════════════════════
+// THREE.JS
 const glCanvas=document.getElementById('glCanvas'), renderer=new THREE.WebGLRenderer({canvas:glCanvas, antialias:true, alpha:true});
 renderer.setSize(W,H);
 const scene=new THREE.Scene(), cam3=new THREE.PerspectiveCamera(35,W/H,0.1,100);
@@ -130,139 +82,102 @@ cam3.position.z=4.2;
 
 const ftCvs=document.createElement('canvas'); ftCvs.width=FTW; ftCvs.height=FTH;
 const ftCtx=ftCvs.getContext('2d'), faceTex=new THREE.CanvasTexture(ftCvs);
-const headMesh=new THREE.Mesh(new THREE.SphereGeometry(1,64,64), new THREE.MeshPhongMaterial({map:faceTex, shininess:10}));
-headMesh.scale.set(1.1, 1.4, 1.0);
+const headMesh=new THREE.Mesh(new THREE.SphereGeometry(1,64,64), new THREE.MeshPhongMaterial({map:faceTex, shininess:5}));
+headMesh.scale.set(1.1, 1.45, 1.0);
 scene.add(headMesh);
-scene.add(new THREE.AmbientLight(0xffffff, .6));
-const light=new THREE.DirectionalLight(0xffffff, .7); light.position.set(2,3,4); scene.add(light);
+scene.add(new THREE.AmbientLight(0xffffff, .7));
+const light=new THREE.DirectionalLight(0xffffff, .6); light.position.set(2,3,4); scene.add(light);
 
-// ══════════════════════════════════════════════════
-//  LANDMARK-DRIVEN TEXTURE
-// ══════════════════════════════════════════════════
 function updateTexture() {
   const ctx=ftCtx; ctx.clearRect(0,0,FTW,FTH);
-  
-  // Base Hair/Shadow
+  if(!lms) return;
+
+  const getP=(i, s=2.4)=>({x:FCX+(lms[i].x-0.5)*1024*s, y:FCY+(lms[i].y-0.5)*1024*s});
+
+  // 1. Hair & Silhouette Mask (Using actual face border)
   ctx.fillStyle=rgb(pal.hair); ctx.fillRect(0,0,FTW,FTH);
-
-  // Face Geometry (The actual oval)
+  
   ctx.save();
-  ctx.beginPath(); ctx.ellipse(FCX, FCY, FFW, FFH, 0, 0, Math.PI*2); ctx.clip();
-  const grad=ctx.createRadialGradient(FCX-40, FCY-100, 50, FCX, FCY, FFH*1.2);
-  grad.addColorStop(0, '#fff5ed'); grad.addColorStop(0.3, rgb(pal.skin)); grad.addColorStop(1, rgb(pal.shadow));
+  ctx.beginPath();
+  // Drawing the actual face shape from jawline landmarks
+  const jaw=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+  jaw.forEach((idx, i)=>{ const p=getP(idx); if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+  ctx.clip();
+  
+  const grad=ctx.createRadialGradient(FCX, FCY-100, 100, FCX, FCY, 600);
+  grad.addColorStop(0, '#ffe8d6'); grad.addColorStop(0.5, rgb(pal.skin)); grad.addColorStop(1, rgb(pal.shadow));
   ctx.fillStyle=grad; ctx.fillRect(0,0,FTW,FTH);
-
-  if(lms){
-    const getP=(i)=>({x:FCX+(lms[i].x-0.5)*FFW*2.2, y:FCY+(lms[i].y-0.5)*FFH*2.2});
-
-    // Eyes (Projected Landmarks)
-    const drawEye=(indices, irisIdx)=>{
-      ctx.beginPath();
-      indices.forEach((idx,i)=>{
-        const p=getP(idx);
-        if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
-      });
-      ctx.closePath(); ctx.fillStyle='#fefefe'; ctx.fill();
-      ctx.clip();
-      const iris=getP(irisIdx);
-      ctx.beginPath(); ctx.arc(iris.x, iris.y, 16, 0, Math.PI*2);
-      ctx.fillStyle=rgb(pal.iris); ctx.fill();
-      ctx.beginPath(); ctx.arc(iris.x, iris.y, 6, 0, Math.PI*2);
-      ctx.fillStyle='#000'; ctx.fill();
-    };
-    
-    ctx.save(); drawEye([33,160,158,133,153,144], 468); ctx.restore();
-    ctx.save(); drawEye([362,385,387,263,373,380], 473); ctx.restore();
-
-    // Brows
-    ctx.strokeStyle=rgb(pal.hair); ctx.lineWidth=8; ctx.lineCap='round';
-    ctx.beginPath(); [70,63,105,66,107].forEach((idx,i)=>{ const p=getP(idx); if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); }); ctx.stroke();
-    ctx.beginPath(); [300,293,334,296,336].forEach((idx,i)=>{ const p=getP(idx); if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); }); ctx.stroke();
-
-    // Mouth
-    ctx.beginPath(); [61,185,40,37,0,267,270,409,291,375,321,405,314,17,84,181,91,146].forEach((idx,i)=>{
-      const p=getP(idx); if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
-    });
-    ctx.closePath(); ctx.fillStyle=rgb(pal.lip); ctx.fill();
-  }
   ctx.restore();
+
+  // 2. The Nose (Structural Bridge)
+  ctx.strokeStyle=rgb(pal.shadow); ctx.lineWidth=2;
+  ctx.beginPath();
+  const bridge=[168,6,197,195,5]; // Center bridge
+  bridge.forEach((idx,i)=>{ const p=getP(idx); if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+  ctx.stroke();
+  
+  // Nose Base (Nostrils)
+  ctx.beginPath();
+  [102,64,98,97,2,326,327,294,331].forEach((idx,i)=>{ const p=getP(idx); if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+  ctx.fillStyle=rgb(pal.shadow); ctx.globalAlpha=0.3; ctx.fill(); ctx.globalAlpha=1.0;
+
+  // 3. Eyes & Brows
+  const drawPath=(indices, color, fill=false)=>{
+    ctx.beginPath(); indices.forEach((idx,i)=>{ const p=getP(idx); if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+    if(fill){ ctx.fillStyle=color; ctx.fill(); } else { ctx.strokeStyle=color; ctx.stroke(); }
+  };
+  
+  ctx.lineWidth=4;
+  drawPath([33,160,158,133,153,144], '#fff', true); // L Eye
+  drawPath([362,385,387,263,373,380], '#fff', true); // R Eye
+  
+  const lIris=getP(468), rIris=getP(473);
+  ctx.fillStyle=rgb(pal.iris);
+  ctx.beginPath(); ctx.arc(lIris.x, lIris.y, 14, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(rIris.x, rIris.y, 14, 0, Math.PI*2); ctx.fill();
+
+  // 4. Mouth
+  drawPath([61,185,40,37,0,267,270,409,291,375,321,405,314,17,84,181,91,146], rgb(pal.lip), true);
 }
 
-// ══════════════════════════════════════════════════
-//  CHUCK CLOSE OPTICAL ENGINE
-// ══════════════════════════════════════════════════
 const display=document.getElementById('display'), dCtx=display.getContext('2d');
 const pixels=new Uint8Array(W*H*4);
 
-function applyOpticalSynthesis() {
-  const gl=renderer.getContext();
-  gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+function applySynthesis() {
+  renderer.getContext().readPixels(0,0,W,H,0x1908,0x1401,pixels);
   dCtx.fillStyle='#0c0b09'; dCtx.fillRect(0,0,W,H);
-  
   for(let y=STEP/2; y<H; y+=STEP){
     for(let x=STEP/2; x<W; x+=STEP){
       const fy=H-1-(y|0), i=(fy*W+(x|0))*4;
       if(pixels[i+3]<20) continue;
-      
-      const r=pixels[i], g=pixels[i+1], b=pixels[i+2];
-      const seed=x*997+y;
-      
-      dCtx.save();
-      dCtx.translate(x,y);
-      dCtx.rotate(rand(seed)*0.2 - 0.1);
-      
-      // Layer 1: The Base Square
-      dCtx.fillStyle=`rgba(${r-15},${g-15},${b-15},0.9)`;
-      dCtx.fillRect(-STEP/2, -STEP/2, STEP-1, STEP-1);
-      
-      // Layer 2: The Nested Ellipse (Optical Counter-tone)
-      dCtx.beginPath();
-      dCtx.ellipse(0,0, STEP*0.4, STEP*0.3, rand(seed+1)*Math.PI, 0, Math.PI*2);
-      dCtx.fillStyle=`rgba(${r+20},${g+20},${b+20},0.8)`;
-      dCtx.fill();
-      
-      // Layer 3: The Core Dot (Focal Point)
-      dCtx.beginPath();
-      dCtx.arc(rand(seed+2)*2-1, rand(seed+3)*2-1, STEP*0.12, 0, Math.PI*2);
-      dCtx.fillStyle=`rgba(${r-40},${g-40},${b-40},0.6)`;
-      dCtx.fill();
-      
+      dCtx.save(); dCtx.translate(x,y);
+      dCtx.fillStyle=rgb([pixels[i],pixels[i+1],pixels[i+2]]);
+      // Complex cell: outer square + inner circle
+      dCtx.fillRect(-STEP/2, -STEP/2, STEP-0.5, STEP-0.5);
+      dCtx.beginPath(); dCtx.arc(0,0,STEP*0.3,0,Math.PI*2);
+      dCtx.fillStyle=rgb([pixels[i]+20,pixels[i]+20,pixels[i]+20]); dCtx.fill();
       dCtx.restore();
     }
   }
 }
 
-// ══════════════════════════════════════════════════
-//  CORE LOOP
-// ══════════════════════════════════════════════════
 function loop(){
   updateTexture(); faceTex.needsUpdate=true;
   headMesh.rotation.set(pose.p, -Math.PI/2 + pose.y, pose.r);
   renderer.render(scene,cam3);
-  applyOpticalSynthesis();
+  applySynthesis();
   requestAnimationFrame(loop);
 }
 
 function onResults(res){
   const pipCvs=document.getElementById('pipCvs'), pCtx=pipCvs.getContext('2d');
   pCtx.drawImage(vid,0,0,200,150);
-
   if(!res.multiFaceLandmarks?.length) return;
   lms=res.multiFaceLandmarks[0];
-
-  if(phase==='init'){
-    phase='live'; document.getElementById('overlay').classList.add('gone');
-  }
-
-  // Tracking Logic
+  if(phase==='init'){ phase='live'; document.getElementById('overlay').classList.add('gone'); }
   const top=lms[10], chin=lms[152], nose=lms[1], lE=lms[33], rE=lms[263];
-  pose.p = smooth(pose.p, (chin.z - top.z)*4, .15);
-  pose.y = smooth(pose.y, (nose.x - (lE.x+rE.x)/2)*-3, .15);
-  pose.r = smooth(pose.r, (rE.y-lE.y)*0.5, .15);
-
-  document.getElementById('v_pi').textContent=pose.p.toFixed(2);
-  document.getElementById('b_flow').style.width='100%';
-  document.getElementById('v_flow').textContent='100%';
+  pose.p = smooth(pose.p, (chin.z - top.z)*4.2, .15);
+  pose.y = smooth(pose.y, (nose.x - (lE.x+rE.x)/2)*-3.5, .15);
 }
 
 async function init(){
@@ -273,7 +188,6 @@ async function init(){
   cam.start();
   loop();
 }
-
 init();
 </script>
 </body>
