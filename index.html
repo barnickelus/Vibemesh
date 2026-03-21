@@ -2,40 +2,47 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Vibe Protocol · v1.0 (Segmented Synthesis)</title>
+<title>Vibe Protocol · v1.1 Latent Synthesis</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0a0908;--border:#2a2622;--accent:#c9a96e}
-body{background:var(--bg);color:#e2dcd0;font-family:'JetBrains Mono',monospace;display:flex;flex-direction:column;align-items:center;padding:20px;overflow:hidden}
-.title{font-family:'Cormorant Garamond',serif;font-size:1.8rem;margin-bottom:15px}
+:root{--bg:#080706;--border:#1e1c1a;--accent:#b89b72}
+body{background:var(--bg);color:#d1ccc0;font-family:'JetBrains Mono',monospace;display:flex;flex-direction:column;align-items:center;padding:20px;overflow:hidden}
+header{text-align:center;margin-bottom:15px}
+.title{font-family:'Cormorant Garamond',serif;font-size:1.8rem;letter-spacing:0.05em}
 .title em{color:var(--accent);font-style:italic}
 .stage{display:flex;gap:20px}
-.frame-wrap{position:relative;background:#000;border:1px solid var(--border);box-shadow:0 30px 60px rgba(0,0,0,0.9)}
+.frame-wrap{position:relative;background:#000;border:1px solid var(--border);box-shadow:0 40px 80px rgba(0,0,0,0.9)}
 #display{display:block;width:520px;height:640px}
+#overlay{position:absolute;inset:0;background:rgba(8,7,6,0.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;transition:opacity 1.5s}
+#overlay.gone{opacity:0;pointer-events:none}
 .right-col{width:200px;display:flex;flex-direction:column;gap:12px}
-.panel{border:1px solid var(--border);padding:10px;background:#11100f;font-size:.45rem;text-transform:uppercase}
+.panel{border:1px solid var(--border);padding:10px;background:#0f0e0d;font-size:.45rem;text-transform:uppercase}
 .panel b{color:var(--accent);display:block;margin-bottom:4px}
-.packet-view{font-family:monospace;color:#6a9e6a;height:120px;overflow:hidden;background:#050505;padding:5px;border:1px solid #1a1a1a;font-size:.4rem}
+.packet-view{font-family:monospace;color:#5a8a5a;height:120px;overflow:hidden;background:#050505;padding:5px;border:1px solid #141414;font-size:.4rem}
 </style>
 </head>
 <body>
 
-<header><h1 class="title">LoBi-Net <em>Segmented</em> v1.0</h1></header>
+<header><h1 class="title">Optical <em>Synthesis</em> v1.1</h1></header>
 
 <div class="stage">
   <div class="frame-wrap">
     <canvas id="display" width="520" height="640"></canvas>
+    <div id="overlay">
+      <div style="font-family:'Cormorant Garamond';font-size:1.4rem;color:var(--accent)">Analyzing Tonal Values...</div>
+      <div id="status" style="font-size:.5rem;margin-top:10px;color:#555">SAMPLING USER PALETTE</div>
+    </div>
   </div>
 
   <div class="right-col">
-    <div class="panel"><b>Protocol</b>Identity Segmentation</div>
-    <div class="panel"><b>Packet Log</b><div id="packet" class="packet-view"></div></div>
-    <div class="panel"><b>Bitrate</b>~2.8 kbps</div>
-    <div class="panel" style="color:#666">Receiving cluster deltas. Local reconstruction active.</div>
+    <div class="panel"><b>Sync</b>Identity Cluster Lock</div>
+    <div class="panel"><b>Deltas</b><div id="packet" class="packet-view"></div></div>
+    <div class="panel"><b>Tonal Bitrate</b>~3.1 kbps</div>
+    <div class="panel" style="color:#444">Local Reconstruction: Latent value field synthesis.</div>
   </div>
 </div>
 
@@ -44,91 +51,92 @@ body{background:var(--bg);color:#e2dcd0;font-family:'JetBrains Mono',monospace;d
 
 <script>
 'use strict';
-const W=520, H=640, STEP=9; // Tight grid for detail
-let lms=null, phase='live';
+const W=520, H=640, STEP=10;
+let lms=null, phase='calib', calibCount=0;
 let pose={p:0, y:0, r:0};
-let pal={skin:'#d4b196', hair:'#211d1a', beard:'#2a2521', eyes:'#4a607a', lip:'#8e544d'};
+let pal={skin:[0,0,0], hair:[0,0,0], shadow:[0,0,0]}; // Sampled from user
 
-// THREE.JS
+// THREE.JS CORE
 const glCanvas=document.getElementById('glCanvas'), renderer=new THREE.WebGLRenderer({canvas:glCanvas, antialias:true, alpha:true});
 renderer.setSize(W,H);
-const scene=new THREE.Scene(), cam3=new THREE.PerspectiveCamera(30,W/H,0.1,100);
-cam3.position.z=4.6;
+const scene=new THREE.Scene(), cam3=new THREE.PerspectiveCamera(28,W/H,0.1,100);
+cam3.position.z=5.2;
 
 const ftCvs=document.createElement('canvas'); ftCvs.width=1024; ftCvs.height=1024;
 const ftCtx=ftCvs.getContext('2d'), faceTex=new THREE.CanvasTexture(ftCvs);
-const headMesh=new THREE.Mesh(new THREE.SphereGeometry(1,64,64), new THREE.MeshPhongMaterial({map:faceTex, shininess:1}));
+const headMesh=new THREE.Mesh(new THREE.SphereGeometry(1,64,64), new THREE.MeshPhongMaterial({map:faceTex, shininess:2}));
 headMesh.scale.set(1.15, 1.45, 0.95);
 scene.add(headMesh);
-scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
 
-// THE SEGMENTATION ENGINE (Invisible Puppet Mask)
-function updateSegmentedTexture() {
+// RECONSTRUCTION ENGINE (Local value-field generation)
+function updateLatentTexture() {
   const ctx=ftCtx; ctx.clearRect(0,0,1024,1024);
   if(!lms) return;
-  const CX=512, CY=512, S=1100;
+  const CX=512, CY=512, S=1150;
   const getP=i=>({x:CX+(lms[i].x-0.5)*S, y:CY+(lms[i].y-0.5)*S});
 
-  const drawSegment=(indices, color, blur=0)=>{
-    ctx.beginPath(); 
-    indices.forEach((idx,i)=>{ const p=getP(idx); if(i===0)ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
-    ctx.closePath();
-    ctx.fillStyle=color;
-    if(blur) ctx.filter=`blur(${blur}px)`;
-    ctx.fill();
-    ctx.filter='none';
-  };
+  // 1. Hair Mass (The frame)
+  ctx.fillStyle=`rgb(${pal.hair[0]},${pal.hair[1]},${pal.hair[2]})`;
+  ctx.fillRect(0,0,1024,1024);
 
-  // 1. Hair Cluster (Capturing the long hair flow)
-  ctx.fillStyle=pal.hair; ctx.fillRect(0,0,1024,1024);
-
-  // 2. Skin Segment (Face Outline)
+  // 2. Skin Value Field (Gradients over geometry)
   const jaw=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
-  drawSegment(jaw, pal.skin);
+  ctx.beginPath(); jaw.forEach((idx,i)=>{ const p=getP(idx); if(i===0)ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+  ctx.clip();
+  
+  const grad=ctx.createRadialGradient(CX, CY-120, 50, CX, CY, 500);
+  grad.addColorStop(0, `rgb(${pal.skin[0]+30},${pal.skin[1]+25},${pal.skin[2]+20})`);
+  grad.addColorStop(0.6, `rgb(${pal.skin[0]},${pal.skin[1]},${pal.skin[2]})`);
+  grad.addColorStop(1, `rgb(${pal.shadow[0]},${pal.shadow[1]},${pal.shadow[2]})`);
+  ctx.fillStyle=grad; ctx.fillRect(0,0,1024,1024);
 
-  // 3. The Beard (Lower face lock)
-  const beard=[204,202,200,18,420,422,424,432,411,427,225,211,182,191];
-  drawSegment(beard, pal.beard, 15);
-
-  // 4. Nose Bridge Structure (The "Invisible" anchor)
-  ctx.strokeStyle='rgba(0,0,0,0.15)'; ctx.lineWidth=12; ctx.lineCap='round';
-  ctx.beginPath(); 
-  [168,6,197,195,5].forEach((idx,i)=>{ const p=getP(idx); if(i===0)ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+  // 3. Nose & Feature Shading (Defining the bridge)
+  ctx.strokeStyle='rgba(0,0,0,0.15)'; ctx.lineWidth=14; ctx.lineCap='round';
+  ctx.beginPath(); [168,6,197,195,5].forEach((idx,i)=>{ const p=getP(idx); if(i===0)ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
   ctx.stroke();
 
-  // 5. Eyes & Mouth (Puppet deltas)
-  drawSegment([33,160,158,133,153,144], '#fff'); // L Eye
-  drawSegment([362,385,387,263,373,380], '#fff'); // R Eye
-  drawSegment([61,185,40,37,0,267,270,409,291,375,321,405,314,17,84,181,91,146], pal.lip);
+  // 4. Features (Eyes/Mouth)
+  const drawF=(idx, r, c)=>{ const p=getP(idx); ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fillStyle=c; ctx.fill(); };
+  drawF(133, 15, '#fff'); drawF(362, 15, '#fff'); // Eye bases
+  drawF(468, 8, '#222'); drawF(473, 8, '#222'); // Pupils
+  
+  const mTop=getP(0), mBot=getP(17);
+  ctx.beginPath(); ctx.ellipse((mTop.x+mBot.x)/2, (mTop.y+mBot.y)/2, 50, 15+Math.abs(mTop.y-mBot.y)*2, 0,0,Math.PI*2);
+  ctx.fillStyle='rgba(120,40,40,0.6)'; ctx.fill();
 }
 
-// MOSAIC RENDERER (The Chuck Close Visualizer)
+// OPTICAL BLENDING RENDERER (The Chuck Close Visualizer)
 const display=document.getElementById('display'), dCtx=display.getContext('2d');
 const pixels=new Uint8Array(W*H*4);
 
-function applyMosaic() {
+function renderMosaic() {
   renderer.getContext().readPixels(0,0,W,H,0x1908,0x1401,pixels);
-  dCtx.fillStyle='#0a0908'; dCtx.fillRect(0,0,W,H);
+  dCtx.fillStyle='#080706'; dCtx.fillRect(0,0,W,H);
   const cos=Math.cos(Math.PI/4), sin=Math.sin(Math.PI/4);
   
   for(let y=-H; y<H*1.5; y+=STEP){
     for(let x=-W; x<W*1.5; x+=STEP){
       const sX=(x*cos-y*sin)+W/2, sY=(x*sin+y*cos)+H/2;
       if(sX<0||sX>=W||sY<0||sY>=H) continue;
-      const i=( (H-1-(sY|0))*W+(sX|0) )*4;
+      const i=((H-1-(sY|0))*W+(sX|0))*4;
       if(pixels[i+3]<20) continue;
 
       const r=pixels[i], g=pixels[i+1], b=pixels[i+2];
       dCtx.save(); dCtx.translate(sX, sY); dCtx.rotate(Math.PI/4);
       
-      // Paint the "Cell" based on the Segmented Map
-      dCtx.fillStyle=`rgb(${r-10},${g-10},${b-10})`;
+      // Layer 1: The Base "Wash"
+      dCtx.fillStyle=`rgb(${r-15},${g-10},${b-5})`;
       dCtx.fillRect(-STEP/2,-STEP/2,STEP-1,STEP-1);
       
-      // Optical Vibration (the inner "Close" blobs)
+      // Layer 2: The "Optical Nut" (Vibrating color)
       dCtx.beginPath();
-      dCtx.ellipse(0,0, STEP*0.3, STEP*0.2, (r+g+b)/100, 0, Math.PI*2);
-      dCtx.fillStyle=`rgba(${r+40},${g+20},${b},0.4)`; dCtx.fill();
+      dCtx.ellipse(0,0, STEP*0.35, STEP*0.22, (r+g+b)/50, 0, Math.PI*2);
+      dCtx.fillStyle=`rgba(${r+30},${g+15},${b-20},0.5)`; dCtx.fill();
+      
+      // Layer 3: The Core (Sharp focus)
+      dCtx.beginPath(); dCtx.arc(0,0, STEP*0.1, 0, Math.PI*2);
+      dCtx.fillStyle=`rgb(${r},${g},${b})`; dCtx.fill();
       
       dCtx.restore();
     }
@@ -136,23 +144,41 @@ function applyMosaic() {
 }
 
 function loop(){
-  updateSegmentedTexture(); faceTex.needsUpdate=true;
-  headMesh.rotation.set(pose.p, -Math.PI/2 + pose.y, pose.r);
+  if(phase==='live') {
+    updateLatentTexture(); faceTex.needsUpdate=true;
+    headMesh.rotation.set(pose.p, -Math.PI/2 + pose.y, pose.r);
+  }
   renderer.render(scene,cam3);
-  applyMosaic();
+  renderMosaic();
   requestAnimationFrame(loop);
 }
 
 function onResults(res){
   if(!res.multiFaceLandmarks?.length) return;
   lms=res.multiFaceLandmarks[0];
+
+  if(phase==='calib'){
+    calibCount++;
+    // Sampling real user colors for the local reconstruction
+    if(calibCount === 30){
+      const pipCvs=document.createElement('canvas'); pipCvs.width=640; pipCvs.height=480;
+      const pCtx=pipCvs.getContext('2d'); pCtx.drawImage(vid, 0, 0);
+      const data=pCtx.getImageData(320, 240, 1, 1).data; // Center (Skin)
+      pal.skin = [data[0], data[1], data[2]];
+      pal.shadow = [data[0]*0.6, data[1]*0.5, data[2]*0.4];
+      const hData=pCtx.getImageData(320, 50, 1, 1).data; // Top (Hair)
+      pal.hair = [hData[0], hData[1], hData[2]];
+      phase='live'; document.getElementById('overlay').classList.add('gone');
+    }
+    return;
+  }
+
   const top=lms[10], chin=lms[152], nose=lms[1], lE=lms[33], rE=lms[263];
-  pose.p = (chin.z - top.z) * 4.5;
-  pose.y = (nose.x - (lE.x+rE.x)/2) * -3.8;
+  pose.p = (chin.z - top.z) * 4.8;
+  pose.y = (nose.x - (lE.x+rE.x)/2) * -4.2;
   pose.r = (rE.y - lE.y) * 1.5;
 
-  const packet = { pitch:pose.p.toFixed(2), yaw:pose.y.toFixed(2), segments:["hair","skin","beard","nose"] };
-  document.getElementById('packet').innerText = JSON.stringify(packet, null, 2);
+  document.getElementById('packet').innerText = JSON.stringify({pitch:pose.p.toFixed(2), yaw:pose.y.toFixed(2), cluster_id:"tonal_v1"}, null, 2);
 }
 
 async function init(){
