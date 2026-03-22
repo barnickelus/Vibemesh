@@ -6,7 +6,6 @@
 <title>Vibe Protocol · 3D Live</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -846,7 +845,7 @@ function startCalib(){
 // ══════════════════════════════════════════════════
 //  MEDIAPIPE
 // ══════════════════════════════════════════════════
-let faceMesh, mpCamera;
+let faceMesh;
 
 function onResults(results){
   if(!results.multiFaceLandmarks?.length){
@@ -979,54 +978,90 @@ function updateVibeUI(){
 }
 
 // ══════════════════════════════════════════════════
+//  ERROR LOG (visible on screen for debugging)
+// ══════════════════════════════════════════════════
+function showErr(msg){
+  document.getElementById('ovTitle').textContent='Error';
+  document.getElementById('ovSub').textContent=msg;
+  document.getElementById('startBtn').textContent='Retry';
+  document.getElementById('startBtn').disabled=false;
+  document.getElementById('startBtn').style.display='';
+  document.getElementById('startBtn').onclick=()=>location.reload();
+  console.error('[VibeProtocol]',msg);
+}
+
+// ══════════════════════════════════════════════════
+//  FRAME PUMP — no Camera utility, drives MediaPipe
+//  directly from rAF loop to avoid stream conflicts
+// ══════════════════════════════════════════════════
+let pumpRunning=false;
+async function pumpFrame(){
+  if(!pumpRunning) return;
+  if(vid.readyState>=2 && !vid.paused){
+    try{ await faceMesh.send({image:vid}); }catch(e){ /* skip frame */ }
+  }
+  requestAnimationFrame(pumpFrame);
+}
+
+// ══════════════════════════════════════════════════
 //  BOOT
 // ══════════════════════════════════════════════════
 async function startCamera(){
   const btn=document.getElementById('startBtn');
   btn.textContent='Starting…'; btn.disabled=true;
 
-  // Explicitly request permission first — this triggers the browser prompt
-  try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
-    // Hand stream to video element so MediaPipe Camera can take over
-    vid.srcObject=stream;
-    await vid.play();
-  }catch(e){
-    document.getElementById('ovTitle').textContent='Camera Denied';
-    document.getElementById('ovSub').textContent='Enable camera in browser\nsettings and reload';
-    btn.textContent='Retry'; btn.disabled=false;
-    btn.onclick=()=>{ location.reload(); };
-    return;
+  // 1 — Check API exists
+  if(!navigator.mediaDevices?.getUserMedia){
+    showErr('getUserMedia not supported.\nTry Chrome or Firefox over HTTPS.'); return;
   }
+
+  // 2 — Request camera permission explicitly (user gesture required)
+  let stream;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},
+      audio:false,
+    });
+  }catch(e){
+    const msg=e.name==='NotAllowedError'
+      ?'Camera access denied.\nClick the camera icon in your\nbrowser address bar to allow it.'
+      :e.name==='NotFoundError'
+      ?'No camera found on this device.'
+      :`Camera error: ${e.name}`;
+    showErr(msg); return;
+  }
+
+  // 3 — Attach stream to video
+  vid.srcObject=stream;
+  try{ await vid.play(); }
+  catch(e){ showErr(`Video play failed: ${e.message}`); return; }
 
   btn.style.display='none';
 
-  faceMesh=new FaceMesh({
-    locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-  });
-  faceMesh.setOptions({
-    maxNumFaces:1, refineLandmarks:true,
-    minDetectionConfidence:.5, minTrackingConfidence:.5,
-  });
-  faceMesh.onResults(onResults);
-
-  mpCamera=new Camera(vid,{
-    onFrame:async()=>{ if(vid.readyState>=2) await faceMesh.send({image:vid}); },
-    width:VW, height:VH,
-  });
+  // 4 — Init MediaPipe FaceMesh (no Camera utility — we drive it ourselves)
   try{
-    await mpCamera.start();
-    setPhase('searching');
+    faceMesh=new FaceMesh({
+      locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    });
+    faceMesh.setOptions({
+      maxNumFaces:1, refineLandmarks:true,
+      minDetectionConfidence:.5, minTrackingConfidence:.5,
+    });
+    faceMesh.onResults(onResults);
+    // Warm up the wasm by sending one frame
+    await faceMesh.initialize();
   }catch(e){
-    document.getElementById('ovTitle').textContent='Camera Error';
-    document.getElementById('ovSub').textContent='Could not start camera.\nCheck permissions and reload.';
+    showErr(`MediaPipe init failed: ${e.message}\nCheck network / CDN access.`); return;
   }
+
+  // 5 — Start frame pump
+  pumpRunning=true;
+  setPhase('searching');
+  requestAnimationFrame(pumpFrame);
 }
 
 function init(){
   setPhase('waiting');
-
-  // Initial render so canvas isn't blank
   drawFace(); faceTex.needsUpdate=true;
   renderer.render(scene,cam3);
   readGLPixels(); applyChuckClose();
