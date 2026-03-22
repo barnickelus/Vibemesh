@@ -120,6 +120,7 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
         <div class="ov-title" id="ovTitle">Requesting Camera</div>
         <div class="ov-sub" id="ovSub">Allow camera access to begin</div>
         <div class="calib-track" id="calibTrack" style="display:none"><div id="calibFill"></div></div>
+        <button id="startBtn" style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;padding:10px 24px;margin-top:6px;cursor:pointer;background:var(--accent);border:none;color:#0c0b09;font-weight:500;">Enable Camera →</button>
       </div>
     </div>
     <div class="statusbar">
@@ -131,7 +132,7 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 
   <div class="right-col">
     <div class="pip-wrap">
-      <video id="vid" playsinline muted autoplay></video>
+      <video id="vid" playsinline muted></video>
       <div class="pip-badge searching" id="pipBadge">Searching</div>
       <div class="pip-lbl">Source</div>
     </div>
@@ -182,6 +183,7 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 </div>
 <div class="hint">Turn your head — the avatar turns · step back to resolve the face</div>
 
+<!-- Hidden workbench -->
 <canvas id="glCanvas" width="480" height="560" style="position:absolute;left:-9999px"></canvas>
 <canvas id="sampCanvas" width="640" height="480" style="position:absolute;left:-9999px"></canvas>
 
@@ -717,8 +719,8 @@ function extractProps(lm){
   const fW=rT.x-lT.x, fH=chin.y-top.y;
   if(fW<.05||fH<.05) return null;
 
-  const lEC={x:(lm[33].x+lm[133].x)*.5, y:(lm[LM.L_EYE_T].y+lm[LM.L_EYE_B].y)*.5};
-  const rEC={x:(lm[362].x+lm[263].x)*.5, y:(lm[LM.R_EYE_T].y+lm[LM.R_EYE_B].y)*.5};
+  const lEC={(x:(lm[33].x+lm[133].x)*.5),(y:(lm[LM.L_EYE_T].y+lm[LM.L_EYE_B].y)*.5)};
+  const rEC={(x:(lm[362].x+lm[263].x)*.5),(y:(lm[LM.R_EYE_T].y+lm[LM.R_EYE_B].y)*.5)};
 
   return{
     eyeSpacingRatio:Math.abs(rEC.x-lEC.x)/(fW*1.0),
@@ -815,6 +817,7 @@ function setPhase(p){
     ov.classList.remove('gone');
     ot.textContent='No Face Detected'; os.textContent='Position your face\nin the camera view';
     ct.style.display='none';
+    document.getElementById('startBtn').style.display='none';
     badge.className='pip-badge searching'; badge.textContent='Searching';
     pdot.className='pdot'; sp.textContent='Searching';
   }else if(p==='calibrating'){
@@ -822,6 +825,7 @@ function setPhase(p){
     ot.textContent='Calibrating';
     os.textContent='Sampling your likeness\nskin · hair · eyes · lips\nHold still';
     ct.style.display='block';
+    document.getElementById('startBtn').style.display='none';
     badge.className='pip-badge calibrating'; badge.textContent='Calibrating';
     pdot.className='pdot'; sp.textContent='Calibrating';
   }else if(p==='live'){
@@ -977,13 +981,25 @@ function updateVibeUI(){
 // ══════════════════════════════════════════════════
 //  BOOT
 // ══════════════════════════════════════════════════
-async function init(){
-  setPhase('waiting');
+async function startCamera(){
+  const btn=document.getElementById('startBtn');
+  btn.textContent='Starting…'; btn.disabled=true;
 
-  // Initial render so canvas isn't blank
-  drawFace(); faceTex.needsUpdate=true;
-  renderer.render(scene,cam3);
-  readGLPixels(); applyChuckClose();
+  // Explicitly request permission first — this triggers the browser prompt
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+    // Hand stream to video element so MediaPipe Camera can take over
+    vid.srcObject=stream;
+    await vid.play();
+  }catch(e){
+    document.getElementById('ovTitle').textContent='Camera Denied';
+    document.getElementById('ovSub').textContent='Enable camera in browser\nsettings and reload';
+    btn.textContent='Retry'; btn.disabled=false;
+    btn.onclick=()=>{ location.reload(); };
+    return;
+  }
+
+  btn.style.display='none';
 
   faceMesh=new FaceMesh({
     locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
@@ -1003,8 +1019,17 @@ async function init(){
     setPhase('searching');
   }catch(e){
     document.getElementById('ovTitle').textContent='Camera Error';
-    document.getElementById('ovSub').textContent='Check permissions\nand reload';
+    document.getElementById('ovSub').textContent='Could not start camera.\nCheck permissions and reload.';
   }
+}
+
+function init(){
+  setPhase('waiting');
+
+  // Initial render so canvas isn't blank
+  drawFace(); faceTex.needsUpdate=true;
+  renderer.render(scene,cam3);
+  readGLPixels(); applyChuckClose();
 }
 
 // ══════════════════════════════════════════════════
@@ -1020,6 +1045,8 @@ document.getElementById('tierBtns').addEventListener('click',e=>{
 document.getElementById('recalBtn').addEventListener('click',()=>{
   if(phase==='live') startCalib();
 });
+
+document.getElementById('startBtn').addEventListener('click', startCamera);
 
 init();
 </script>
