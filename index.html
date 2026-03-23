@@ -301,171 +301,520 @@ function drawFace(){
   const ctx=ftCtx;
   const p=props, vi=vibe, pa=pal;
 
+  // ── Coordinate helpers ──
   const fW=FFW*2, fH=FFH*2;
   const fy=r=>FCY-FFH+r*fH;
+  const fx=r=>FCX-FFW+r*fW;
 
-  const eyeY   = fy(p.eyeYRatio)+(vi.browLift||0)*fH*.06;
-  const lEyeX  = FCX-p.eyeSpacingRatio*fW*.5;
-  const rEyeX  = FCX+p.eyeSpacingRatio*fW*.5;
-  const eRX    = p.eyeRX*fW;
-  const eRY    = eRX*.50*(vi.eyeOpen||1.0);
-  const browY  = fy(p.browYRatio)+(vi.browLift||0)*fH*.16;
-  const noseY  = FCY+FFH*.06;
-  const noseHW = p.noseW*fW*.5;
-  const mY     = fy(p.mouthYRatio);
-  const mHW    = p.mouthW*fW*.5;
-  const mOpen  = (vi.mouthOpen||0)*fH*1.8;
-  const mCurve = vi.mouthCurve||0;
+  // ── Derived layout from props + live vibe ──
+  const bLift    = (vi.browLift||0);
+  const eyeY     = fy(p.eyeYRatio) + bLift*fH*.05;
+  const lEyeX    = FCX - p.eyeSpacingRatio*fW*.5;
+  const rEyeX    = FCX + p.eyeSpacingRatio*fW*.5;
+  const eRX      = p.eyeRX*fW;                          // eye half-width
+  const eRY      = eRX*.42 * clamp(vi.eyeOpen||1, .12, 1.4); // eye half-height
+  const browY    = fy(p.browYRatio) + bLift*fH*.18;
+  const noseRootY= fy(p.eyeYRatio+.09);
+  const noseTipY = FCY + FFH*.13;
+  const noseBaseY= FCY + FFH*.18;
+  const noseHW   = p.noseW*fW*.52;
+  const mY       = fy(p.mouthYRatio);
+  const mHW      = p.mouthW*fW*.5;
+  const mOpen    = (vi.mouthOpen||0)*fH*1.9;
+  const mCurve   = vi.mouthCurve||0;
+  const jawY     = FCY+FFH*.92;
 
-  // Hair background
-  const hg=ctx.createRadialGradient(FCX,FTH*.25,FTH*.05,FCX,FTH*.42,FTH*.72);
-  hg.addColorStop(0,rgba(pa.hair,.80));
-  hg.addColorStop(.55,rgba(pa.hair,1));
-  hg.addColorStop(1,rgba(dim(pa.hair,.45),1));
+  // ── Subsurface / warm skin helpers ──
+  const sss  = pa.skin.map((v,i)=>clamp(v+(i===0?22:i===1?-8:-10),0,255)); // SSS warm
+  const cool = pa.skin.map((v,i)=>clamp(v+(i===0?-14:i===1?-8:12),0,255)); // temple cool
+  const shad = pa.shadow;
+  const hi   = pa.highlight;
+
+  // ════════════════════════════════════════
+  //  1. HAIR + BACKGROUND
+  // ════════════════════════════════════════
+  // Full canvas hair base
+  const hg=ctx.createRadialGradient(FCX,FCY-FFH*1.1,FFW*.1, FCX,FCY-FFH*.3,FFW*1.9);
+  hg.addColorStop(0, rgba(bright(pa.hair,1.18),.95));
+  hg.addColorStop(.4, rgba(pa.hair,1));
+  hg.addColorStop(.75, rgba(dim(pa.hair,.7),1));
+  hg.addColorStop(1, rgba(dim(pa.hair,.35),1));
   ctx.fillStyle=hg; ctx.fillRect(0,0,FTW,FTH);
 
-  // Neck
+  // ════════════════════════════════════════
+  //  2. NECK + SHOULDERS (gives grounding)
+  // ════════════════════════════════════════
   ctx.save();
-  const neckY=FCY+FFH*1.02;
+  // Neck cylinder form
+  const nkTop=FCY+FFH*.88, nkBot=FTH*.95;
+  const nkW=FFW*.42;
+  const nkg=ctx.createLinearGradient(FCX-nkW,0,FCX+nkW,0);
+  nkg.addColorStop(0,   rgba(shad,.90));
+  nkg.addColorStop(.18, rgba(pa.skin,.80));
+  nkg.addColorStop(.5,  rgba(hi,.55));
+  nkg.addColorStop(.82, rgba(pa.skin,.80));
+  nkg.addColorStop(1,   rgba(shad,.90));
   ctx.beginPath();
-  ctx.ellipse(FCX,neckY+90,FFW*.36,130,0,0,Math.PI*2);
-  const ng=ctx.createLinearGradient(0,neckY,0,neckY+200);
-  ng.addColorStop(0,rgba(pa.skin,1));
-  ng.addColorStop(.35,rgba(pa.shadow,1));
-  ng.addColorStop(1,rgba(dim(pa.shadow,.6),0));
-  ctx.fillStyle=ng; ctx.fill(); ctx.restore();
-
-  // Face oval
-  ctx.save();
-  ctx.beginPath(); ctx.ellipse(FCX,FCY,FFW,FFH,0,0,Math.PI*2); ctx.clip();
-  const sg=ctx.createRadialGradient(FCX-22,FCY-FFH*.32,FFW*.18,FCX+8,FCY+FFH*.08,FFW*1.55);
-  sg.addColorStop(0,rgba(pa.highlight,1));
-  sg.addColorStop(.38,rgba(pa.skin,1));
-  sg.addColorStop(.72,rgba(pa.shadow,1));
-  sg.addColorStop(1,rgba(dim(pa.shadow,.82),1));
-  ctx.fillStyle=sg; ctx.fillRect(FCX-FFW,FCY-FFH,FFW*2,FFH*2);
+  ctx.moveTo(FCX-nkW,nkTop); ctx.lineTo(FCX+nkW,nkTop);
+  ctx.lineTo(FCX+nkW*1.6,nkBot); ctx.lineTo(FCX-nkW*1.6,nkBot);
+  ctx.closePath(); ctx.fillStyle=nkg; ctx.fill();
+  // Neck shadow under chin
+  const chsg=ctx.createRadialGradient(FCX,nkTop,0,FCX,nkTop,FFW*.55);
+  chsg.addColorStop(0,rgba(shad,.45)); chsg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=chsg; ctx.fillRect(FCX-FFW*.7,nkTop-20,FFW*1.4,80);
   ctx.restore();
 
-  // Hairline blend
-  const hlY=FCY-FFH*.86;
-  const hlg=ctx.createLinearGradient(0,hlY-50,0,hlY+52);
-  hlg.addColorStop(0,rgba(pa.hair,1)); hlg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.save(); ctx.beginPath(); ctx.ellipse(FCX,FCY,FFW*1.04,FFH*1.04,0,0,Math.PI*2);
-  ctx.clip(); ctx.fillStyle=hlg; ctx.fillRect(FCX-FFW*1.1,hlY-55,FFW*2.2,110); ctx.restore();
-
-  // Forehead highlight
+  // ════════════════════════════════════════
+  //  3. HEAD FORM — multi-plane skin shading
+  // ════════════════════════════════════════
   ctx.save();
-  const fhg=ctx.createRadialGradient(FCX-14,FCY-FFH*.68,FFW*.04,FCX,FCY-FFH*.42,FFW*.85);
-  fhg.addColorStop(0,rgba(pa.highlight,.36)); fhg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=fhg; ctx.fillRect(0,0,FTW,FTH); ctx.restore();
+  // Clip to head oval
+  ctx.beginPath(); ctx.ellipse(FCX,FCY,FFW,FFH,0,0,Math.PI*2); ctx.clip();
 
-  // Cheeks
-  const ca=(vi.cheekAmt||.08);
-  if(ca>.025){
-    const drawCheek=(x,y)=>{
-      const cg=ctx.createRadialGradient(x,y,0,x,y,FFW*.44);
-      cg.addColorStop(0,rgba(pa.cheek,ca*.72)); cg.addColorStop(1,'rgba(0,0,0,0)');
-      ctx.fillStyle=cg; ctx.fillRect(x-FFW*.55,y-FFW*.55,FFW*1.1,FFW*1.1);
-    };
-    drawCheek(lEyeX*1.04+FCX*.02,eyeY+eRY*3.2);
-    drawCheek(rEyeX*.96+FCX*.04,eyeY+eRY*3.2);
-  }
+  // Base skin fill — radial from forehead highlight center
+  const sg=ctx.createRadialGradient(FCX-18,FCY-FFH*.38,FFW*.08, FCX+10,FCY+FFH*.12,FFW*1.6);
+  sg.addColorStop(0,   rgba(hi,1));
+  sg.addColorStop(.22, rgba(pa.skin,1));
+  sg.addColorStop(.55, rgba(pa.skin,1));
+  sg.addColorStop(.80, rgba(shad,1));
+  sg.addColorStop(1,   rgba(dim(shad,.78),1));
+  ctx.fillStyle=sg; ctx.fillRect(FCX-FFW,FCY-FFH,FFW*2,FFH*2);
 
-  // Nose
-  ctx.save();
-  const bg=ctx.createLinearGradient(FCX-9,noseY-72,FCX+9,noseY-72);
-  bg.addColorStop(0,rgba(pa.shadow,.28)); bg.addColorStop(.5,rgba(pa.highlight,.14)); bg.addColorStop(1,rgba(pa.shadow,.28));
-  ctx.fillStyle=bg; ctx.fillRect(FCX-9,noseY-80,18,85);
-  [[FCX-noseHW*.88,noseY+12],[FCX+noseHW*.88,noseY+12]].forEach(([nx,ny])=>{
-    ctx.beginPath(); ctx.ellipse(nx,ny,noseHW*.28,noseHW*.21,0,0,Math.PI*2);
-    ctx.fillStyle=rgba(dim(pa.shadow,.5),.65); ctx.fill();
+  // Temporal planes — cooler, darker at sides
+  const drawTemple=(side)=>{
+    const sx = side==='L' ? FCX-FFW*.55 : FCX+FFW*.55;
+    const tg=ctx.createRadialGradient(sx,FCY-FFH*.2,0,sx,FCY-FFH*.2,FFW*.7);
+    tg.addColorStop(0,rgba(cool,.50)); tg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=tg; ctx.fillRect(0,FCY-FFH,FTW,FFH);
+  };
+  drawTemple('L'); drawTemple('R');
+
+  // Cheek planes — warm SSS blush zone
+  const drawCheekPlane=(cx,cy)=>{
+    const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,FFW*.55);
+    const amt=(vi.cheekAmt||.08);
+    cg.addColorStop(0,rgba(sss,amt*.85));
+    cg.addColorStop(.5,rgba(pa.cheek,amt*.45));
+    cg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=cg; ctx.fillRect(cx-FFW*.6,cy-FFW*.6,FFW*1.2,FFW*1.2);
+  };
+  drawCheekPlane(lEyeX+eRX*.4, eyeY+eRY*2.8);
+  drawCheekPlane(rEyeX-eRX*.4, eyeY+eRY*2.8);
+
+  // Under-eye hollows — subtle cool shadow
+  [[lEyeX,eyeY],[rEyeX,eyeY]].forEach(([ex,ey])=>{
+    const ug=ctx.createRadialGradient(ex,ey+eRY*1.6,0,ex,ey+eRY*1.6,eRX*1.1);
+    ug.addColorStop(0,rgba(cool,.22)); ug.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=ug; ctx.fillRect(ex-eRX*1.2,ey,eRX*2.4,eRX*2.2);
   });
-  ctx.beginPath(); ctx.ellipse(FCX,noseY-6,noseHW*.52,noseHW*.38,0,0,Math.PI*2);
-  ctx.fillStyle=rgba(pa.skin,.35); ctx.fill(); ctx.restore();
 
-  // Brows
+  // Jaw shadow — lower face darkens
+  const jsg=ctx.createLinearGradient(0,FCY+FFH*.38,0,FCY+FFH);
+  jsg.addColorStop(0,'rgba(0,0,0,0)'); jsg.addColorStop(1,rgba(shad,.48));
+  ctx.fillStyle=jsg; ctx.fillRect(FCX-FFW,FCY+FFH*.38,FFW*2,FFH*.62);
+
+  // Forehead center highlight — T-zone
+  const fhg=ctx.createRadialGradient(FCX,FCY-FFH*.58,FFW*.02, FCX,FCY-FFH*.38,FFW*.62);
+  fhg.addColorStop(0,rgba(hi,.52)); fhg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=fhg; ctx.fillRect(FCX-FFW*.8,FCY-FFH,FFW*1.6,FFH);
+
+  ctx.restore(); // end head clip
+
+  // ── Hairline — hair blends into forehead ──
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(FCX,FCY,FFW*1.02,FFH*1.02,0,0,Math.PI*2); ctx.clip();
+  const hlg=ctx.createLinearGradient(0,FCY-FFH*.96,0,FCY-FFH*.62);
+  hlg.addColorStop(0,rgba(pa.hair,1)); hlg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=hlg; ctx.fillRect(0,FCY-FFH,FTW,FFH*.42);
+  ctx.restore();
+
+  // ════════════════════════════════════════
+  //  4. EAR HINTS (visible at yaw)
+  // ════════════════════════════════════════
+  const drawEar=(ex,side)=>{
+    const ey=FCY-FFH*.05, erX=FFW*.11, erY=FFH*.20;
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(ex,ey,erX,erY,0,0,Math.PI*2);
+    const eg=ctx.createRadialGradient(ex+(side==='L'?erX*.2:-erX*.2),ey,0,ex,ey,erX);
+    eg.addColorStop(0,rgba(sss,.90)); eg.addColorStop(.6,rgba(pa.skin,.85)); eg.addColorStop(1,rgba(shad,.70));
+    ctx.fillStyle=eg; ctx.fill();
+    // Concha shadow
+    ctx.beginPath(); ctx.ellipse(ex+(side==='L'?-erX*.08:erX*.08),ey,erX*.52,erY*.55,0,0,Math.PI*2);
+    ctx.fillStyle=rgba(shad,.38); ctx.fill();
+    // Ear lobe
+    ctx.beginPath(); ctx.ellipse(ex,ey+erY*.78,erX*.42,erY*.28,0,0,Math.PI*2);
+    ctx.fillStyle=rgba(sss,.75); ctx.fill();
+    ctx.restore();
+  };
+  drawEar(FCX-FFW*.98,'L'); drawEar(FCX+FFW*.98,'R');
+
+  // ════════════════════════════════════════
+  //  5. NOSE — 3D form with planes + SSS
+  // ════════════════════════════════════════
+  ctx.save();
+
+  // Nasal bridge — narrow shadow planes either side
+  const bridgeW=noseHW*.38;
+  [[FCX-bridgeW*.9, -1],[FCX+bridgeW*.9, 1]].forEach(([bx, side])=>{
+    const bridgeG=ctx.createLinearGradient(bx,noseRootY,bx+side*bridgeW*.8,noseRootY);
+    bridgeG.addColorStop(0,rgba(shad,.30)); bridgeG.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=bridgeG; ctx.fillRect(bx-bridgeW*.5,noseRootY,bridgeW*1.5,noseTipY-noseRootY+20);
+  });
+
+  // Nose tip — rounded form
+  const tipR=noseHW*.68;
+  const tipg=ctx.createRadialGradient(FCX-tipR*.18,noseTipY-tipR*.22,tipR*.05,FCX,noseTipY,tipR);
+  tipg.addColorStop(0,rgba(hi,.72)); tipg.addColorStop(.45,rgba(pa.skin,.60));
+  tipg.addColorStop(.82,rgba(shad,.50)); tipg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=tipg; ctx.fillRect(FCX-tipR*1.5,noseTipY-tipR*1.1,tipR*3,tipR*2.2);
+
+  // Alar wings — fleshy rounded lobes
+  const drawAlar=(ax,ay,side)=>{
+    const ag=ctx.createRadialGradient(ax+side*noseHW*.12,ay-noseHW*.08,0,ax,ay,noseHW*.58);
+    ag.addColorStop(0,rgba(sss,.65)); ag.addColorStop(.55,rgba(pa.skin,.45));
+    ag.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=ag; ctx.fillRect(ax-noseHW*.6,ay-noseHW*.4,noseHW*1.2,noseHW*.9);
+    // Alar crease
+    ctx.beginPath();
+    ctx.moveTo(FCX+side*noseHW*.28,noseTipY+noseHW*.12);
+    ctx.bezierCurveTo(ax+side*noseHW*.18,ay-noseHW*.25, ax+side*noseHW*.05,ay+noseHW*.05, ax-side*noseHW*.22,ay+noseHW*.18);
+    ctx.strokeStyle=rgba(shad,.28); ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.stroke();
+    // Nostril opening
+    ctx.beginPath(); ctx.ellipse(ax,ay,noseHW*.26,noseHW*.18,-side*.25,0,Math.PI*2);
+    ctx.fillStyle=rgba(dim(shad,.42),.72); ctx.fill();
+  };
+  drawAlar(FCX-noseHW*.80,noseBaseY-noseHW*.05,-1);
+  drawAlar(FCX+noseHW*.80,noseBaseY-noseHW*.05, 1);
+
+  // Philtrum columns — two subtle ridges above mouth
+  const philW=mHW*.28;
+  [-1,1].forEach(side=>{
+    const pg=ctx.createLinearGradient(FCX+side*philW*.5,noseBaseY,FCX+side*philW,mY-mHW*.08);
+    pg.addColorStop(0,rgba(hi,.28)); pg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=pg; ctx.fillRect(FCX+side*philW*.2,noseBaseY,philW*.8,mY-noseBaseY);
+  });
+  // Philtrum center groove
+  const philtG=ctx.createLinearGradient(FCX,noseBaseY,FCX,mY-mHW*.1);
+  philtG.addColorStop(0,rgba(shad,.22)); philtG.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=philtG; ctx.fillRect(FCX-philW*.4,noseBaseY,philW*.8,mY-noseBaseY);
+
+  ctx.restore();
+
+  // ════════════════════════════════════════
+  //  6. EYEBROWS — thick, tapered, hair-like
+  // ════════════════════════════════════════
   const drawBrow=(bx,by,side)=>{
-    const bw=eRX*1.55, bh=eRX*.22;
-    const angry=mCurve<-.40;
-    const innerLift=side==='L'?(angry?bh*1.8:-bh*.3):(angry?-bh*1.8:bh*.3);
-    const x0=bx-bw, x1=bx+bw;
-    const y0=by+innerLift, y1=by-innerLift;
-    ctx.save(); ctx.beginPath();
-    ctx.moveTo(x0,y0+bh*.8);
-    ctx.bezierCurveTo(x0+bw*.3,y0-bh*.6,x1-bw*.35,y1-bh*.5,x1,y1+bh*.2);
-    ctx.bezierCurveTo(x1-bw*.28,y1+bh*1.9,x0+bw*.3,y0+bh*1.8,x0,y0+bh*.8);
-    ctx.fillStyle=rgba(pa.brow,.92); ctx.fill(); ctx.restore();
+    const bw=eRX*1.72, bh=eRX*.28;
+    const isAngry=mCurve<-.35;
+    // Medial end is higher when angry, lateral end lower (and vice versa for happy)
+    const mLift = isAngry ? (side==='L'? bh*1.4:-bh*1.4) : bLift*fH*.12;
+    const lLift = isAngry ? (side==='L'?-bh*.6: bh*.6)   : -bLift*fH*.06;
+    const x0=bx-bw*.92, x1=bx+bw*.92;
+    const yMed=by+mLift, yLat=by+lLift;
+
+    ctx.save();
+    // Shadow under brow
+    ctx.beginPath();
+    ctx.moveTo(x0, yMed+bh*1.8);
+    ctx.bezierCurveTo(bx-bw*.2,yMed+bh*2.4, bx+bw*.3,yLat+bh*2.2, x1,yLat+bh*1.6);
+    ctx.bezierCurveTo(x1,yLat+bh*.4, bx,Math.min(yMed,yLat)-bh*.8, x0,yMed+bh*1.8);
+    ctx.fillStyle=rgba(shad,.22); ctx.fill();
+
+    // Main brow body — tapers at lateral end
+    ctx.beginPath();
+    ctx.moveTo(x0, yMed+bh*.5);
+    ctx.bezierCurveTo(bx-bw*.25,yMed-bh*.9, bx+bw*.25,yLat-bh*.7, x1,yLat+bh*.1);
+    ctx.bezierCurveTo(x1,yLat+bh*1.3, bx+bw*.2,yLat+bh*1.6, x0+bw*.15,yMed+bh*1.7);
+    ctx.bezierCurveTo(x0,yMed+bh*1.4, x0,yMed+bh*.8, x0,yMed+bh*.5);
+    ctx.fillStyle=rgba(pa.brow,.88); ctx.fill();
+
+    // Highlight — brow arch top
+    const bhg=ctx.createLinearGradient(0,Math.min(yMed,yLat)-bh,0,Math.min(yMed,yLat));
+    bhg.addColorStop(0,rgba(bright(pa.brow,1.45),.38)); bhg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=bhg;
+    ctx.beginPath();
+    ctx.moveTo(x0,yMed+bh*.5);
+    ctx.bezierCurveTo(bx-bw*.25,yMed-bh*.9, bx+bw*.25,yLat-bh*.7, x1,yLat+bh*.1);
+    ctx.lineTo(x1,yLat+bh*.6); ctx.bezierCurveTo(bx,yLat-bh*.2, x0+bw*.1,yMed, x0,yMed+bh*.5);
+    ctx.fill();
+
+    // Hair stroke texture — a few short strokes
+    ctx.strokeStyle=rgba(dim(pa.brow,.75),.55); ctx.lineWidth=1.2; ctx.lineCap='round';
+    for(let i=0;i<7;i++){
+      const t=i/6;
+      const hx=lerp(x0+bw*.08,x1-bw*.05,t);
+      const hy=lerp(yMed,yLat,t);
+      const arch=-bh*.6*(1-Math.pow(t*2-1,2));
+      ctx.beginPath();
+      ctx.moveTo(hx,hy+bh*.8);
+      ctx.lineTo(hx+side*4*(1-t)*.6, hy+arch-bh*.2);
+      ctx.stroke();
+    }
+    ctx.restore();
   };
   drawBrow(lEyeX,browY,'L'); drawBrow(rEyeX,browY,'R');
 
-  // Eyes
-  const drawEye=(ex,ey)=>{
+  // ════════════════════════════════════════
+  //  7. EYES — anatomically accurate
+  // ════════════════════════════════════════
+  const drawEye=(ex,ey,side)=>{
     ctx.save();
-    ctx.beginPath(); ctx.ellipse(ex,ey,eRX*1.28,eRY*1.85,0,0,Math.PI*2);
-    ctx.fillStyle=rgba(pa.shadow,.28); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(ex,ey,eRX,eRY,0,0,Math.PI*2);
-    ctx.fillStyle='rgb(240,235,226)'; ctx.fill();
-    const ir=eRX*.66;
-    ctx.beginPath(); ctx.arc(ex,ey,ir,0,Math.PI*2);
-    const ig=ctx.createRadialGradient(ex-ir*.22,ey-ir*.22,ir*.08,ex,ey,ir);
-    ig.addColorStop(0,rgba(bright(pa.iris,1.35),1));
-    ig.addColorStop(.65,rgba(pa.iris,1));
-    ig.addColorStop(1,rgba(dim(pa.iris,.68),1));
+
+    // Orbit shadow / deep-set form
+    ctx.beginPath();
+    ctx.ellipse(ex, ey+eRY*.18, eRX*1.35, eRY*2.10, 0, 0, Math.PI*2);
+    ctx.fillStyle=rgba(shad,.30); ctx.fill();
+
+    // ── Sclera ──
+    // Not a perfect oval — inner corner lower, outer corner slight taper
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(ex-eRX, ey+eRY*.15);  // inner corner
+    ctx.bezierCurveTo(ex-eRX*.45,ey-eRY*.95, ex+eRX*.45,ey-eRY*.95, ex+eRX,ey-eRY*.05); // upper lid arc
+    ctx.bezierCurveTo(ex+eRX*.45,ey+eRY*.85, ex-eRX*.4,ey+eRY*.85, ex-eRX,ey+eRY*.15);  // lower lid arc
+    ctx.clip();
+    ctx.fillStyle='rgb(238,232,222)'; ctx.fill();
+
+    // Sclera shading — yellowish tinge toward inner/outer corners
+    const scg=ctx.createRadialGradient(ex,ey,0,ex,ey,eRX*1.1);
+    scg.addColorStop(.55,'rgba(0,0,0,0)'); scg.addColorStop(1,rgba([180,160,120],.22));
+    ctx.fillStyle=scg; ctx.fillRect(ex-eRX,ey-eRY,eRX*2,eRY*2);
+
+    // Upper sclera shadow from lid
+    const ulsg=ctx.createLinearGradient(ex,ey-eRY,ex,ey-eRY*.2);
+    ulsg.addColorStop(0,rgba(shad,.55)); ulsg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=ulsg; ctx.fillRect(ex-eRX,ey-eRY,eRX*2,eRY*.85);
+
+    // ── Iris ──
+    const ir=eRX*.65;
+    ctx.beginPath(); ctx.arc(ex,ey+eRY*.04,ir,0,Math.PI*2);
+    const iBaseR=pa.iris[0], iBaseG=pa.iris[1], iBaseB=pa.iris[2];
+    const ig=ctx.createRadialGradient(ex-ir*.25,ey-ir*.2,ir*.05,ex,ey,ir*1.05);
+    ig.addColorStop(0,`rgb(${Math.min(255,iBaseR+38)|0},${Math.min(255,iBaseG+28)|0},${Math.min(255,iBaseB+18)|0})`);
+    ig.addColorStop(.4,rgba(pa.iris,1));
+    ig.addColorStop(.85,rgba(dim(pa.iris,.72),1));
+    ig.addColorStop(1,rgba(dim(pa.iris,.5),1));
     ctx.fillStyle=ig; ctx.fill();
-    ctx.beginPath(); ctx.arc(ex,ey,ir*.42,0,Math.PI*2);
-    ctx.fillStyle='rgb(10,6,14)'; ctx.fill();
-    ctx.beginPath(); ctx.ellipse(ex-ir*.22,ey-ir*.24,ir*.20,ir*.15,-.3,0,Math.PI*2);
-    ctx.fillStyle='rgba(255,255,255,.88)'; ctx.fill();
-    ctx.beginPath(); ctx.arc(ex+ir*.18,ey-ir*.28,ir*.09,0,Math.PI*2);
-    ctx.fillStyle='rgba(255,255,255,.52)'; ctx.fill();
-    ctx.save(); ctx.beginPath(); ctx.ellipse(ex,ey,eRX,eRY,0,0,Math.PI*2); ctx.clip();
-    const lg=ctx.createLinearGradient(ex,ey-eRY,ex,ey);
-    lg.addColorStop(0,rgba(pa.shadow,.58)); lg.addColorStop(.5,'rgba(0,0,0,0)');
-    ctx.fillStyle=lg; ctx.fillRect(ex-eRX,ey-eRY,eRX*2,eRY); ctx.restore();
-    ctx.beginPath(); ctx.moveTo(ex-eRX,ey);
-    ctx.bezierCurveTo(ex-eRX*.45,ey-eRY*1.38,ex+eRX*.45,ey-eRY*1.38,ex+eRX,ey);
-    ctx.strokeStyle=rgba(dim(pa.brow,.9),.88); ctx.lineWidth=eRX*.12; ctx.lineCap='round'; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(ex-eRX,ey);
-    ctx.bezierCurveTo(ex-eRX*.45,ey+eRY*.52,ex+eRX*.45,ey+eRY*.52,ex+eRX,ey);
-    ctx.strokeStyle=rgba(pa.shadow,.28); ctx.lineWidth=eRX*.05; ctx.stroke();
+
+    // Iris fiber lines — radial streaks
+    ctx.save();
+    for(let a=0;a<Math.PI*2;a+=Math.PI/8){
+      ctx.beginPath();
+      ctx.moveTo(ex+Math.cos(a)*ir*.32, ey+Math.sin(a)*ir*.32);
+      ctx.lineTo(ex+Math.cos(a)*ir*.90, ey+Math.sin(a)*ir*.90);
+      ctx.strokeStyle=rgba(bright(pa.iris,1.28),.12); ctx.lineWidth=1; ctx.stroke();
+    }
+    ctx.restore();
+
+    // Limbal ring — dark edge of iris
+    ctx.beginPath(); ctx.arc(ex,ey+eRY*.04,ir,0,Math.PI*2);
+    ctx.strokeStyle=rgba(dim(pa.iris,.32),.90); ctx.lineWidth=ir*.12; ctx.stroke();
+
+    // ── Pupil ──
+    const pr=ir*.40;
+    ctx.beginPath(); ctx.arc(ex,ey+eRY*.04,pr,0,Math.PI*2);
+    const pg=ctx.createRadialGradient(ex,ey,0,ex,ey+eRY*.04,pr);
+    pg.addColorStop(0,'rgb(30,16,28)'); pg.addColorStop(1,'rgb(6,2,10)');
+    ctx.fillStyle=pg; ctx.fill();
+
+    // ── Catchlights ──
+    // Primary — key light reflection
+    ctx.beginPath(); ctx.ellipse(ex-pr*.52,ey-pr*.48,pr*.34,pr*.26,-.5,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,.92)'; ctx.fill();
+    // Secondary — fill light
+    ctx.beginPath(); ctx.arc(ex+pr*.38,ey-pr*.55,pr*.14,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,.48)'; ctx.fill();
+
+    ctx.restore(); // end sclera clip
+
+    // ── Upper eyelid ──
+    ctx.save();
+    // Lid crease shadow above eyelid
+    const creaseY=ey-eRY*1.05;
+    const creG=ctx.createLinearGradient(ex,creaseY-eRY*.35,ex,creaseY+eRY*.22);
+    creG.addColorStop(0,'rgba(0,0,0,0)'); creG.addColorStop(.6,rgba(shad,.24)); creG.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=creG; ctx.fillRect(ex-eRX*1.1,creaseY-eRY*.4,eRX*2.2,eRY*.65);
+
+    // Lid skin — thin strip over top of eye
+    ctx.beginPath();
+    ctx.moveTo(ex-eRX,ey+eRY*.15);
+    ctx.bezierCurveTo(ex-eRX*.48,ey-eRY*1.02, ex+eRX*.48,ey-eRY*1.02, ex+eRX,ey-eRY*.05);
+    ctx.bezierCurveTo(ex+eRX*.40,ey-eRY*.52, ex-eRX*.40,ey-eRY*.52, ex-eRX,ey+eRY*.15);
+    const lidG=ctx.createLinearGradient(ex,ey-eRY,ex,ey-eRY*.45);
+    lidG.addColorStop(0,rgba(pa.skin,.82)); lidG.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=lidG; ctx.fill();
+
+    // Upper lash line — thicker medially, tapers to lash at outer corner
+    ctx.beginPath();
+    ctx.moveTo(ex-eRX+eRX*.08, ey+eRY*.12);
+    ctx.bezierCurveTo(ex-eRX*.38,ey-eRY*1.08, ex+eRX*.42,ey-eRY*1.05, ex+eRX*1.02,ey-eRY*.18);
+    ctx.strokeStyle=rgba(dim(pa.brow,.55),.95); ctx.lineWidth=eRX*.14; ctx.lineCap='round'; ctx.stroke();
+    // Lash extension at outer corner
+    ctx.beginPath(); ctx.moveTo(ex+eRX*.9,ey-eRY*.25); ctx.lineTo(ex+eRX*1.22,ey-eRY*.68);
+    ctx.strokeStyle=rgba(dim(pa.brow,.55),.65); ctx.lineWidth=eRX*.07; ctx.stroke();
+
+    ctx.restore();
+
+    // ── Lower eyelid ──
+    // Lower lid highlight — the thin strip of skin
+    ctx.beginPath();
+    ctx.moveTo(ex-eRX, ey+eRY*.15);
+    ctx.bezierCurveTo(ex-eRX*.4,ey+eRY*.92, ex+eRX*.4,ey+eRY*.92, ex+eRX,ey-eRY*.05);
+    ctx.strokeStyle=rgba(bright(pa.skin,1.12),.42); ctx.lineWidth=eRX*.09; ctx.stroke();
+
+    // Tear duct — inner corner pink-warm
+    const tdg=ctx.createRadialGradient(ex-eRX*.92,ey+eRY*.08,0,ex-eRX*.92,ey+eRY*.08,eRX*.28);
+    tdg.addColorStop(0,rgba(sss,.62)); tdg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=tdg; ctx.fillRect(ex-eRX*1.2,ey-eRY*.1,eRX*.6,eRY*.5);
+
+    // Under-eye puffy highlight
+    const pugY=ey+eRY*1.05;
+    const pug=ctx.createRadialGradient(ex-eRX*.1,pugY,0,ex,pugY+eRX*.3,eRX*.9);
+    pug.addColorStop(0,rgba(bright(pa.skin,1.10),.28)); pug.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=pug; ctx.fillRect(ex-eRX,pugY-eRX*.2,eRX*2,eRX*.9);
+
     ctx.restore();
   };
-  drawEye(lEyeX,eyeY); drawEye(rEyeX,eyeY);
+  drawEye(lEyeX,eyeY,'L'); drawEye(rEyeX,eyeY,'R');
 
-  // Mouth
+  // ════════════════════════════════════════
+  //  8. LIPS — full anatomical form
+  // ════════════════════════════════════════
   ctx.save();
-  const lcX=FCX-mHW, rcX=FCX+mHW;
-  const lcY=mY+mCurve*mHW*.48, rcY=mY+mCurve*mHW*.48;
-  const ulY=mY-Math.max(mOpen*.5,2)+mCurve*mHW*.22;
-  const llY=mY+Math.max(mOpen*.5,2)+mCurve*mHW*.22;
-  ctx.beginPath(); ctx.moveTo(lcX,lcY);
-  ctx.bezierCurveTo(FCX-mHW*.55,ulY-mHW*.14,FCX-mHW*.12,ulY-mHW*.26,FCX,ulY);
-  ctx.bezierCurveTo(FCX+mHW*.12,ulY-mHW*.26,FCX+mHW*.55,ulY-mHW*.14,rcX,rcY);
-  ctx.bezierCurveTo(FCX+mHW*.48,mY-mOpen*.08,FCX-mHW*.48,mY-mOpen*.08,lcX,lcY);
-  ctx.fillStyle=rgba(pa.lip,.92); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(lcX,lcY);
-  ctx.bezierCurveTo(FCX-mHW*.52,llY+mHW*.10,FCX+mHW*.52,llY+mHW*.10,rcX,rcY);
-  ctx.bezierCurveTo(FCX+mHW*.38,llY+mHW*.20,FCX-mHW*.38,llY+mHW*.20,lcX,lcY);
-  ctx.fillStyle=rgba(bright(pa.lip,1.16),.88); ctx.fill();
-  if(mOpen>10){
-    ctx.save(); ctx.beginPath(); ctx.moveTo(lcX,lcY);
-    ctx.bezierCurveTo(FCX-mHW*.5,ulY,FCX+mHW*.5,ulY,rcX,rcY);
-    ctx.bezierCurveTo(FCX+mHW*.5,llY,FCX-mHW*.5,llY,lcX,lcY);
-    ctx.clip(); ctx.fillStyle='rgb(18,6,8)'; ctx.fillRect(lcX-5,ulY-5,mHW*2+10,llY-ulY+10);
-    const th=Math.min((llY-ulY)*.45,mOpen*.32);
-    if(th>5){
-      ctx.beginPath(); ctx.ellipse(FCX,ulY+th*.55,mHW*.68,th,0,0,Math.PI*2);
-      ctx.fillStyle='rgb(234,228,218)'; ctx.fill();
-      for(let i=-2;i<=2;i++){
-        ctx.beginPath(); ctx.moveTo(FCX+i*mHW*.24,ulY); ctx.lineTo(FCX+i*mHW*.24,ulY+th);
-        ctx.strokeStyle=rgba(pa.shadow,.14); ctx.lineWidth=1.5; ctx.stroke();
+
+  const lX=FCX-mHW, rX=FCX+mHW;
+  // Corner Y drops with smile, rises with frown
+  const cDrop=mCurve*mHW*.52;
+  const lcY=mY+cDrop, rcY=mY+cDrop;
+
+  // Cupid's bow peak positions
+  const cpW=mHW*.26;
+  const cpH=mHW*.22*(1+mCurve*.3);
+  const ulPeakLY=mY-cpH*1.05-mOpen*.28;
+  const ulPeakRY=mY-cpH*1.05-mOpen*.28;
+  const ulCenterY=mY-cpH*.22-mOpen*.30;
+  const llCenterY=mY+mHW*.22+mOpen*.55+mCurve*mHW*.12;
+
+  // ── Mouth interior (drawn first, clipped by lips) ──
+  if(mOpen>4){
+    ctx.save();
+    // Clip to mouth opening
+    ctx.beginPath();
+    ctx.moveTo(lX,lcY);
+    ctx.bezierCurveTo(FCX-mHW*.55,ulCenterY-8, FCX+mHW*.55,ulCenterY-8, rX,rcY);
+    ctx.bezierCurveTo(FCX+mHW*.55,llCenterY+8, FCX-mHW*.55,llCenterY+8, lX,lcY);
+    ctx.clip();
+
+    // Dark mouth cavity
+    ctx.fillStyle='rgb(14,5,7)'; ctx.fillRect(lX-5,ulCenterY-10,mHW*2+10,llCenterY-ulCenterY+20);
+
+    // Tongue glimpse if very open
+    if(mOpen>30){
+      const tg=ctx.createRadialGradient(FCX,llCenterY+mOpen*.12,0,FCX,llCenterY,mHW*.55);
+      tg.addColorStop(0,rgba(sss,.80)); tg.addColorStop(.7,rgba(dim(sss,.82),.65)); tg.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=tg; ctx.fillRect(FCX-mHW*.65,llCenterY-mOpen*.08,mHW*1.3,mOpen*.45);
+    }
+
+    // Upper teeth
+    const thH=Math.min(mOpen*.38,eRX*.90);
+    if(thH>5){
+      ctx.save();
+      ctx.beginPath(); ctx.rect(lX+mHW*.08,ulCenterY,mHW*1.84,thH+4); ctx.clip();
+      ctx.beginPath(); ctx.ellipse(FCX,ulCenterY+thH*.55,mHW*.82,thH*.72,0,0,Math.PI*2);
+      const tsg=ctx.createLinearGradient(FCX,ulCenterY,FCX,ulCenterY+thH);
+      tsg.addColorStop(0,'rgb(238,232,220)'); tsg.addColorStop(1,'rgb(216,210,200)');
+      ctx.fillStyle=tsg; ctx.fill();
+      // Tooth divisions
+      for(let i=-3;i<=3;i++){
+        ctx.beginPath(); ctx.moveTo(FCX+i*mHW*.24,ulCenterY+2); ctx.lineTo(FCX+i*mHW*.24,ulCenterY+thH*.85);
+        ctx.strokeStyle='rgba(120,110,100,.15)'; ctx.lineWidth=1.2; ctx.stroke();
       }
+      ctx.restore();
     }
     ctx.restore();
   }
-  const lhg=ctx.createRadialGradient(FCX,llY,0,FCX,llY,mHW*.42);
-  lhg.addColorStop(0,rgba(bright(pa.lip,1.42),.48)); lhg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=lhg; ctx.fillRect(FCX-mHW*.7,llY-mHW*.28,mHW*1.4,mHW*.56);
+
+  // ── Upper lip ──
+  ctx.beginPath();
+  ctx.moveTo(lX,lcY);
+  // Left slope to left cupid's bow peak
+  ctx.bezierCurveTo(FCX-mHW*.78,lcY-mHW*.08, FCX-cpW*1.3,ulPeakLY+mHW*.04, FCX-cpW*.65,ulPeakLY);
+  // Through the dip at center
+  ctx.bezierCurveTo(FCX-cpW*.18,ulCenterY+mHW*.04, FCX+cpW*.18,ulCenterY+mHW*.04, FCX+cpW*.65,ulPeakRY);
+  // Right slope down to right corner
+  ctx.bezierCurveTo(FCX+cpW*1.3,ulPeakRY+mHW*.04, FCX+mHW*.78,rcY-mHW*.08, rX,rcY);
+  // Bottom of upper lip — slight fullness
+  ctx.bezierCurveTo(FCX+mHW*.50,mY+mOpen*.12, FCX-mHW*.50,mY+mOpen*.12, lX,lcY);
+  ctx.fillStyle=rgba(pa.lip,.92); ctx.fill();
+
+  // Upper lip highlight — Cupid's bow ridge
+  const ulhg=ctx.createLinearGradient(FCX-cpW,ulPeakLY,FCX-cpW,ulPeakLY+mHW*.18);
+  ulhg.addColorStop(0,rgba(bright(pa.lip,1.32),.42)); ulhg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=ulhg; ctx.fillRect(FCX-cpW*1.5,ulPeakLY-2,cpW*3,mHW*.22);
+
+  // Upper lip center shadow (the natural shadow in the cupid bow dip)
+  const ulcsg=ctx.createRadialGradient(FCX,ulCenterY+2,0,FCX,ulCenterY,cpW*1.1);
+  ulcsg.addColorStop(0,rgba(dim(pa.lip,.78),.45)); ulcsg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=ulcsg; ctx.fillRect(FCX-cpW,ulCenterY-4,cpW*2,mHW*.22);
+
+  // ── Lower lip ──
+  ctx.beginPath();
+  ctx.moveTo(lX,lcY);
+  ctx.bezierCurveTo(FCX-mHW*.55,llCenterY+mHW*.12, FCX+mHW*.55,llCenterY+mHW*.12, rX,rcY);
+  ctx.bezierCurveTo(FCX+mHW*.42,lcY+mHW*.04, FCX-mHW*.42,lcY+mHW*.04, lX,lcY);
+  ctx.fillStyle=rgba(bright(pa.lip,1.14),.86); ctx.fill();
+
+  // Lower lip highlight — pronounced pout
+  const llhg=ctx.createRadialGradient(FCX+cpW*.12,llCenterY+mHW*.04,0,FCX,llCenterY+mHW*.1,mHW*.52);
+  llhg.addColorStop(0,rgba(bright(pa.lip,1.52),.62)); llhg.addColorStop(.45,rgba(bright(pa.lip,1.22),.32));
+  llhg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=llhg; ctx.fillRect(FCX-mHW*.65,llCenterY-mHW*.08,mHW*1.3,mHW*.55);
+
+  // Corner SSS — warm pink at lip corners
+  [[lX,lcY],[rX,rcY]].forEach(([cx,cy])=>{
+    const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,eRX*.55);
+    cg.addColorStop(0,rgba(sss,.38)); cg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=cg; ctx.fillRect(cx-eRX*.6,cy-eRX*.4,eRX*1.2,eRX*.8);
+  });
+
+  // Lip outline — subtle darkening at the vermilion border
+  ctx.beginPath();
+  ctx.moveTo(lX,lcY);
+  ctx.bezierCurveTo(FCX-mHW*.78,lcY-mHW*.08, FCX-cpW*1.3,ulPeakLY+mHW*.04, FCX-cpW*.65,ulPeakLY);
+  ctx.bezierCurveTo(FCX-cpW*.18,ulCenterY+mHW*.04, FCX+cpW*.18,ulCenterY+mHW*.04, FCX+cpW*.65,ulPeakRY);
+  ctx.bezierCurveTo(FCX+cpW*1.3,ulPeakRY+mHW*.04, FCX+mHW*.78,rcY-mHW*.08, rX,rcY);
+  ctx.strokeStyle=rgba(dim(pa.lip,.68),.38); ctx.lineWidth=1.8; ctx.stroke();
+
+  ctx.restore();
+
+  // ════════════════════════════════════════
+  //  9. FINAL SURFACE DETAILS
+  // ════════════════════════════════════════
+
+  // Nasolabial folds — smile lines
+  const foldStr=clamp((vi.cheekAmt||.08)-.02,.0,.30);
+  if(foldStr>.03){
+    [-1,1].forEach(side=>{
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(FCX+side*noseHW*.88, noseBaseY+noseHW*.1);
+      ctx.bezierCurveTo(
+        FCX+side*(noseHW*.88+mHW*.22), noseTipY+mHW*.55,
+        FCX+side*(mHW*.62+mHW*.22),   mY-mHW*.08,
+        FCX+side*mHW*.72,             mY+mHW*.28
+      );
+      ctx.strokeStyle=rgba(shad, foldStr*.55);
+      ctx.lineWidth=2.8; ctx.lineCap='round'; ctx.stroke();
+      ctx.restore();
+    });
+  }
+
+  // Final rim darkening — vignette around face edge
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(FCX,FCY,FFW,FFH,0,0,Math.PI*2); ctx.clip();
+  const vig=ctx.createRadialGradient(FCX,FCY,FFW*.5,FCX,FCY,FFW*1.02);
+  vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,rgba(shad,.38));
+  ctx.fillStyle=vig; ctx.fillRect(0,0,FTW,FTH);
   ctx.restore();
 }
 
