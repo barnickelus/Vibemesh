@@ -239,28 +239,30 @@ let pal={
   iris:[62,102,142], brow:[48,36,28], hair:[36,26,20],
 };
 
+// LOOMIS CANONICAL PROPORTIONS
+// 5-eyes rule: face=5 eye-widths. Face thirds: hairline→brow, brow→nose, nose→chin
 let props={
-  faceAspect:.72,          // W/H of face oval
-  jawWidthRatio:.72,       // jaw width / temple width
-  eyeSpacingRatio:.44,     // eye center-to-center / faceW
-  eyeYRatio:.375,          // eye center Y from top / fH
-  eyeRX:.118,              // eye half-width / faceW
-  eyeAspect:.50,           // eye H/W ratio (open)
-  browYRatio:.295,         // brow arch Y / fH
-  browInnerSpacing:.30,    // inner brow end separation / faceW
-  browOuterSpacing:.58,    // outer brow end separation / faceW
-  noseRootYRatio:.365,     // nose root Y / fH
-  noseTipYRatio:.615,      // nose tip Y / fH
-  noseBaseYRatio:.660,     // nose base Y / fH
-  noseW:.22,               // nostril span / faceW
-  noseBridgeW:.06,         // bridge width at root / faceW
-  mouthYRatio:.735,        // mouth center Y / fH
-  mouthW:.38,              // corner-to-corner / faceW
-  upperLipH:.055,          // upper lip height / fH
-  lowerLipH:.068,          // lower lip height / fH
-  cupidBowW:.18,           // width between cupid bow peaks / faceW
-  cupidBowDepth:.018,      // depth of cupid bow dip / fH
-  mouthChinGap:.16,        // lower lip to chin / fH
+  faceAspect:.72,
+  jawWidthRatio:.68,
+  eyeSpacingRatio:.400,  // center-to-center = 2 eye widths = 40% faceW
+  eyeYRatio:.390,        // eye line ~39% down face (just below 1/3 brow line)
+  eyeRX:.097,            // half-eye = 1/10 faceW (each full eye = 1/5 face)
+  eyeAspect:.420,        // realistic eye H/W open
+  browYRatio:.330,       // brow at 1/3 face
+  browInnerSpacing:.285,
+  browOuterSpacing:.560,
+  noseRootYRatio:.380,
+  noseTipYRatio:.660,    // nose tip at 2/3 face (2nd third bottom)
+  noseBaseYRatio:.695,
+  noseW:.190,            // = inner eye corners = 1 eye width
+  noseBridgeW:.042,
+  mouthYRatio:.775,      // 1/3 between nose base and chin
+  mouthW:.390,           // corners under pupils = ~2 eye widths
+  upperLipH:.036,
+  lowerLipH:.046,
+  cupidBowW:.150,
+  cupidBowDepth:.013,
+  mouthChinGap:.155,
 };
 
 let vibe={mouthOpen:0, mouthCurve:0, browLift:0, cheekAmt:.08, eyeOpen:1.0};
@@ -526,7 +528,7 @@ function drawFace(){
   //  6. EYEBROWS — placed from measured inner/outer/arch positions
   // ════════════════════════════════════════
   [[lEyeX,lBrowInX,lBrowOutX,'L'],[rEyeX,rBrowInX,rBrowOutX,'R']].forEach(([ex,inX,outX,side])=>{
-    const bh=eRX*.28;
+    const bh=eRX*.16;
     const isAngry=mCurve<-.32;
     const mLift=isAngry?(side==='L'? bh*1.6:-bh*1.6):bLift*fH*.14;
     const lLift=isAngry?(side==='L'?-bh*.7: bh*.7) :-bLift*fH*.06;
@@ -600,8 +602,8 @@ function drawFace(){
     ulss.addColorStop(0,rgba(shad,.58)); ulss.addColorStop(1,'rgba(0,0,0,0)');
     ctx.fillStyle=ulss; ctx.fillRect(ex-eRX,ey-eRY,eRX*2,eRY*.88);
 
-    // Iris — capped so it never exceeds eye opening height
-    const ir=Math.min(eRX*.68, eRY*.82);
+    // Iris ~62% of eye half-width; upper lid clips top naturally
+    const ir=eRX*.62;
     ctx.beginPath(); ctx.arc(ex,ey+eRY*.06,ir,0,Math.PI*2);
     const ig=ctx.createRadialGradient(ex-ir*.26,ey-ir*.22,ir*.06,ex,ey,ir*1.05);
     ig.addColorStop(0,rgba(bright(pa.iris,1.40),1)); ig.addColorStop(.38,rgba(pa.iris,1));
@@ -1039,9 +1041,7 @@ function buildPalette(){
   const lipBase=lip;
   const lipLum=(lipBase[0]+lipBase[1]+lipBase[2])/3;
   const lipSat=(Math.max(...lipBase)-Math.min(...lipBase))/Math.max(1,Math.max(...lipBase));
-  const lipAdj=lipSat>0.08
-    ?[clamp(lipBase[0]*1.08+8,0,255), clamp(lipBase[1]*.72,0,255), clamp(lipBase[2]*.68,0,255)]
-    :[clamp(lipLum*1.18+12,0,255), clamp(lipLum*.72,0,255), clamp(lipLum*.65,0,255)];
+  const lipAdj=[clamp(skin[0]*.96+6,0,255),clamp(skin[1]*.82,0,255),clamp(skin[2]*.78,0,255)];
   const finalProps={...props};
   for(const k of Object.keys(props)){
     const arr=calibProps[k];
