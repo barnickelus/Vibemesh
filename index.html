@@ -30,18 +30,13 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 .title{font-family:'Cormorant Garamond',serif;font-size:2.6rem;font-weight:500;letter-spacing:.06em;line-height:1}
 .title em{font-style:italic;color:var(--accent)}
 .sub{font-size:.53rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-top:7px}
-
 .stage{position:relative;z-index:1;display:flex;gap:18px;align-items:flex-start}
-
-/* avatar */
 .avatar-col{display:flex;flex-direction:column;gap:8px}
 .frame-wrap{position:relative}
 .frame-wrap::before,.frame-wrap::after{content:'';position:absolute;width:14px;height:14px;z-index:3;pointer-events:none}
 .frame-wrap::before{top:0;left:0;border-top:2px solid var(--accent-dk);border-left:2px solid var(--accent-dk)}
 .frame-wrap::after{bottom:0;right:0;border-bottom:2px solid var(--accent-dk);border-right:2px solid var(--accent-dk)}
 #display{display:block;border:1px solid var(--border)}
-
-/* overlay */
 #overlay{
   position:absolute;inset:0;
   background:rgba(12,11,9,.88);
@@ -50,16 +45,21 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 }
 #overlay.gone{opacity:0;pointer-events:none}
 .ov-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:var(--accent)}
-.ov-sub{font-size:.52rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;text-align:center;line-height:2}
+.ov-sub{font-size:.52rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;text-align:center;line-height:2;white-space:pre-line}
 .calib-track{width:180px;height:2px;background:var(--border);margin-top:4px}
 #calibFill{height:100%;background:var(--accent);width:0%;transition:width .12s}
-
+#startBtn{
+  font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.18em;
+  text-transform:uppercase;padding:11px 28px;margin-top:4px;cursor:pointer;
+  background:var(--accent);border:none;color:#0c0b09;font-weight:500;
+  transition:opacity .15s;
+}
+#startBtn:hover{opacity:.80}
+#startBtn:disabled{opacity:.45;cursor:default}
 .statusbar{
   display:flex;justify-content:space-between;
   font-size:.52rem;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;padding:0 2px;
 }
-
-/* right panel */
 .right-col{width:192px;display:flex;flex-direction:column;gap:13px;padding-top:2px}
 .pip-wrap{position:relative;border:1px solid var(--border);background:#000;overflow:hidden}
 .pip-wrap::before,.pip-wrap::after{content:'';position:absolute;width:9px;height:9px;z-index:2}
@@ -71,7 +71,6 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 .pip-badge.calibrating{color:var(--accent);border-color:var(--accent)}
 .pip-badge.live{color:var(--green);border-color:var(--green)}
 .pip-lbl{position:absolute;bottom:5px;left:6px;font-size:.45rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);z-index:2}
-
 .panel{border:1px solid var(--border);padding:11px 10px;background:var(--surface)}
 .phdr{font-size:.46rem;letter-spacing:.26em;text-transform:uppercase;color:var(--accent-dk);
   margin-bottom:9px;padding-bottom:5px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
@@ -90,7 +89,6 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 .shex{font-size:.42rem;color:var(--text);margin-left:auto}
 .bwrow{font-size:.43rem;letter-spacing:.12em;color:var(--muted);margin-top:5px;padding-top:5px;border-top:1px solid var(--border)}
 .bwval{color:var(--text)}
-
 .controls{position:relative;z-index:1;margin-top:18px;display:flex;gap:10px;align-items:center}
 .clbl{font-size:.52rem;letter-spacing:.2em;color:var(--muted);text-transform:uppercase}
 .btns{display:flex;gap:4px}
@@ -106,7 +104,7 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 <body>
 
 <header>
-  <div class="eyebrow">Vibe Protocol · 3D Live v0.3</div>
+  <div class="eyebrow">Vibe Protocol · 3D Live v0.4</div>
   <h1 class="title">Your likeness. <em>Abstracted.</em></h1>
   <div class="sub">3D presence — derived from your face</div>
 </header>
@@ -116,10 +114,10 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
     <div class="frame-wrap">
       <canvas id="display" width="480" height="560"></canvas>
       <div id="overlay">
-        <div class="ov-title" id="ovTitle">Requesting Camera</div>
-        <div class="ov-sub" id="ovSub">Allow camera access to begin</div>
+        <div class="ov-title" id="ovTitle">Vibe Protocol</div>
+        <div class="ov-sub" id="ovSub">Camera access needed\nto build your avatar</div>
+        <button id="startBtn">Enable Camera →</button>
         <div class="calib-track" id="calibTrack" style="display:none"><div id="calibFill"></div></div>
-        <button id="startBtn" style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;padding:10px 24px;margin-top:6px;cursor:pointer;background:var(--accent);border:none;color:#0c0b09;font-weight:500;">Enable Camera →</button>
       </div>
     </div>
     <div class="statusbar">
@@ -132,10 +130,9 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
   <div class="right-col">
     <div class="pip-wrap">
       <video id="vid" playsinline muted></video>
-      <div class="pip-badge searching" id="pipBadge">Searching</div>
+      <div class="pip-badge searching" id="pipBadge">Waiting</div>
       <div class="pip-lbl">Source</div>
     </div>
-
     <div class="panel">
       <div class="phdr">Vibe Packet <div class="pdot" id="pdot"></div></div>
       <div class="prow">
@@ -159,7 +156,6 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
         <div class="btrack"><div class="bcent"></div><div class="bfill" id="b_ya" style="width:0%;left:50%"></div></div>
       </div>
     </div>
-
     <div class="panel">
       <div class="phdr">Likeness Palette</div>
       <div class="srow"><div class="sw" id="sw_skin"></div><div class="slbl">Skin</div><div class="shex" id="sh_skin">—</div></div>
@@ -182,9 +178,9 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 </div>
 <div class="hint">Turn your head — the avatar turns · step back to resolve the face</div>
 
-<!-- Hidden workbench -->
-<canvas id="glCanvas" width="480" height="560" style="position:absolute;left:-9999px"></canvas>
-<canvas id="sampCanvas" width="640" height="480" style="position:absolute;left:-9999px"></canvas>
+<!-- Hidden workbench canvases -->
+<canvas id="glCanvas" width="480" height="560" style="position:absolute;left:-9999px;top:-9999px"></canvas>
+<canvas id="sampCanvas" width="640" height="480" style="position:absolute;left:-9999px;top:-9999px"></canvas>
 
 <script>
 'use strict';
@@ -193,9 +189,9 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 //  CONSTANTS
 // ══════════════════════════════════════════════════
 const W=480, H=560, VW=640, VH=480;
-const FTW=1024, FTH=1024;  // face texture dimensions
-const FCX=FTW/2, FCY=FTH*0.458; // face oval center on texture
-const FFW=198, FFH=256;    // face oval half-extents
+const FTW=1024, FTH=1024;
+const FCX=FTW/2, FCY=FTH*0.458;
+const FFW=198, FFH=256;
 const CALIB_FRAMES=55;
 
 const TIERS=[
@@ -204,7 +200,6 @@ const TIERS=[
   {cs:7,  gap:1, label:'Tier 03 · High'},
 ];
 
-// landmark indices
 const LM={
   NOSE:1, CHIN:152, TOP:10,
   L_EYE_OUT:33, R_EYE_OUT:263,
@@ -244,15 +239,14 @@ let pal={
   iris:[62,102,142], brow:[48,36,28], hair:[36,26,20],
 };
 
-// Face proportions (normalized to face dims)
 let props={
-  eyeSpacingRatio:.38, // eye-center-to-center / face full width
-  eyeYRatio:.385,      // eye Y from face top / face height
-  eyeRX:.115,          // eye half-width / face full width
-  noseW:.20,           // nostril-to-nostril / face full width
-  mouthYRatio:.685,    // mouth Y from face top / face height
-  mouthW:.315,         // mouth width / face full width
-  browYRatio:.295,     // brow Y from face top / face height
+  eyeSpacingRatio:.38,
+  eyeYRatio:.385,
+  eyeRX:.115,
+  noseW:.20,
+  mouthYRatio:.685,
+  mouthW:.315,
+  browYRatio:.295,
 };
 
 let vibe={mouthOpen:0, mouthCurve:0, browLift:0, cheekAmt:.08, eyeOpen:1.0};
@@ -277,13 +271,11 @@ const scene=new THREE.Scene();
 const cam3=new THREE.PerspectiveCamera(40,W/H,0.1,100);
 cam3.position.z=3.5;
 
-// Face texture canvas
 const ftCvs=document.createElement('canvas');
 ftCvs.width=FTW; ftCvs.height=FTH;
 const ftCtx=ftCvs.getContext('2d');
 const faceTex=new THREE.CanvasTexture(ftCvs);
 
-// Head mesh: slightly tall, slightly shallow ellipsoid
 const headGeo=new THREE.SphereGeometry(1.0,64,48);
 const headMat=new THREE.MeshPhongMaterial({
   map:faceTex, shininess:20,
@@ -291,13 +283,9 @@ const headMat=new THREE.MeshPhongMaterial({
 });
 const headMesh=new THREE.Mesh(headGeo,headMat);
 headMesh.scale.set(1.0,1.22,0.90);
-
-// Base rotation: U=0.5 on texture (at +X on sphere) rotated to face camera (+Z)
-// rotation.y = -π/2 sends +X to +Z (toward camera)
 headMesh.rotation.y=-Math.PI/2;
 scene.add(headMesh);
 
-// Lighting — key + rim + fill for good 3D depth
 scene.add(new THREE.AmbientLight(0xfff5e8,.42));
 const keyL=new THREE.DirectionalLight(0xfffaf0,.88);
 keyL.position.set(1.2,1.8,2.5); scene.add(keyL);
@@ -308,63 +296,48 @@ fillL.position.set(-1.0,-1.0,1.5); scene.add(fillL);
 
 // ══════════════════════════════════════════════════
 //  FACE TEXTURE DRAWING
-//  Face oval is at (FCX, FCY) ± (FFW, FFH) on 1024×1024
-//  This maps to U=0.5, V=0.458 — the front of the sphere
 // ══════════════════════════════════════════════════
-function drawFace() {
+function drawFace(){
   const ctx=ftCtx;
   const p=props, vi=vibe, pa=pal;
 
-  // — derived pixel positions —
   const fW=FFW*2, fH=FFH*2;
-  const fx=r=>FCX+r*fW;
   const fy=r=>FCY-FFH+r*fH;
 
-  // eyes
-  const eyeY   = fy(p.eyeYRatio) + (vi.browLift||0)*fH*.06;
-  const lEyeX  = FCX - p.eyeSpacingRatio*fW*.5;
-  const rEyeX  = FCX + p.eyeSpacingRatio*fW*.5;
+  const eyeY   = fy(p.eyeYRatio)+(vi.browLift||0)*fH*.06;
+  const lEyeX  = FCX-p.eyeSpacingRatio*fW*.5;
+  const rEyeX  = FCX+p.eyeSpacingRatio*fW*.5;
   const eRX    = p.eyeRX*fW;
   const eRY    = eRX*.50*(vi.eyeOpen||1.0);
-
-  // brows
-  const browY  = fy(p.browYRatio) + (vi.browLift||0)*fH*.16;
-
-  // nose
+  const browY  = fy(p.browYRatio)+(vi.browLift||0)*fH*.16;
   const noseY  = FCY+FFH*.06;
   const noseHW = p.noseW*fW*.5;
-
-  // mouth
   const mY     = fy(p.mouthYRatio);
   const mHW    = p.mouthW*fW*.5;
   const mOpen  = (vi.mouthOpen||0)*fH*1.8;
   const mCurve = vi.mouthCurve||0;
 
-  // ── Hair background ──
+  // Hair background
   const hg=ctx.createRadialGradient(FCX,FTH*.25,FTH*.05,FCX,FTH*.42,FTH*.72);
   hg.addColorStop(0,rgba(pa.hair,.80));
   hg.addColorStop(.55,rgba(pa.hair,1));
   hg.addColorStop(1,rgba(dim(pa.hair,.45),1));
   ctx.fillStyle=hg; ctx.fillRect(0,0,FTW,FTH);
 
-  // ── Neck ──
+  // Neck
   ctx.save();
   const neckY=FCY+FFH*1.02;
   ctx.beginPath();
-  ctx.ellipse(FCX, neckY+90, FFW*.36, 130, 0, 0, Math.PI*2);
+  ctx.ellipse(FCX,neckY+90,FFW*.36,130,0,0,Math.PI*2);
   const ng=ctx.createLinearGradient(0,neckY,0,neckY+200);
   ng.addColorStop(0,rgba(pa.skin,1));
   ng.addColorStop(.35,rgba(pa.shadow,1));
   ng.addColorStop(1,rgba(dim(pa.shadow,.6),0));
-  ctx.fillStyle=ng; ctx.fill();
-  ctx.restore();
+  ctx.fillStyle=ng; ctx.fill(); ctx.restore();
 
-  // ── Face oval with skin gradient ──
+  // Face oval
   ctx.save();
-  ctx.beginPath();
-  ctx.ellipse(FCX,FCY,FFW,FFH,0,0,Math.PI*2);
-  ctx.clip();
-
+  ctx.beginPath(); ctx.ellipse(FCX,FCY,FFW,FFH,0,0,Math.PI*2); ctx.clip();
   const sg=ctx.createRadialGradient(FCX-22,FCY-FFH*.32,FFW*.18,FCX+8,FCY+FFH*.08,FFW*1.55);
   sg.addColorStop(0,rgba(pa.highlight,1));
   sg.addColorStop(.38,rgba(pa.skin,1));
@@ -373,90 +346,65 @@ function drawFace() {
   ctx.fillStyle=sg; ctx.fillRect(FCX-FFW,FCY-FFH,FFW*2,FFH*2);
   ctx.restore();
 
-  // Soft hairline blend — hair color fades down over top of face oval
+  // Hairline blend
   const hlY=FCY-FFH*.86;
   const hlg=ctx.createLinearGradient(0,hlY-50,0,hlY+52);
-  hlg.addColorStop(0,rgba(pa.hair,1));
-  hlg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.save();
-  ctx.beginPath(); ctx.ellipse(FCX,FCY,FFW*1.04,FFH*1.04,0,0,Math.PI*2);
-  ctx.clip(); ctx.fillStyle=hlg; ctx.fillRect(FCX-FFW*1.1,hlY-55,FFW*2.2,110);
-  ctx.restore();
+  hlg.addColorStop(0,rgba(pa.hair,1)); hlg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.save(); ctx.beginPath(); ctx.ellipse(FCX,FCY,FFW*1.04,FFH*1.04,0,0,Math.PI*2);
+  ctx.clip(); ctx.fillStyle=hlg; ctx.fillRect(FCX-FFW*1.1,hlY-55,FFW*2.2,110); ctx.restore();
 
   // Forehead highlight
   ctx.save();
   const fhg=ctx.createRadialGradient(FCX-14,FCY-FFH*.68,FFW*.04,FCX,FCY-FFH*.42,FFW*.85);
-  fhg.addColorStop(0,rgba(pa.highlight,.36));
-  fhg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=fhg; ctx.fillRect(0,0,FTW,FTH);
-  ctx.restore();
+  fhg.addColorStop(0,rgba(pa.highlight,.36)); fhg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=fhg; ctx.fillRect(0,0,FTW,FTH); ctx.restore();
 
-  // ── Cheek blush ──
+  // Cheeks
   const ca=(vi.cheekAmt||.08);
   if(ca>.025){
     const drawCheek=(x,y)=>{
       const cg=ctx.createRadialGradient(x,y,0,x,y,FFW*.44);
-      cg.addColorStop(0,rgba(pa.cheek,ca*.72));
-      cg.addColorStop(1,'rgba(0,0,0,0)');
+      cg.addColorStop(0,rgba(pa.cheek,ca*.72)); cg.addColorStop(1,'rgba(0,0,0,0)');
       ctx.fillStyle=cg; ctx.fillRect(x-FFW*.55,y-FFW*.55,FFW*1.1,FFW*1.1);
     };
     drawCheek(lEyeX*1.04+FCX*.02,eyeY+eRY*3.2);
     drawCheek(rEyeX*.96+FCX*.04,eyeY+eRY*3.2);
   }
 
-  // ── Nose ──
+  // Nose
   ctx.save();
-  // Bridge shading
   const bg=ctx.createLinearGradient(FCX-9,noseY-72,FCX+9,noseY-72);
-  bg.addColorStop(0,rgba(pa.shadow,.28));
-  bg.addColorStop(.5,rgba(pa.highlight,.14));
-  bg.addColorStop(1,rgba(pa.shadow,.28));
+  bg.addColorStop(0,rgba(pa.shadow,.28)); bg.addColorStop(.5,rgba(pa.highlight,.14)); bg.addColorStop(1,rgba(pa.shadow,.28));
   ctx.fillStyle=bg; ctx.fillRect(FCX-9,noseY-80,18,85);
-  // Nostrils
-  const drawNostril=(nx,ny)=>{
-    ctx.beginPath();
-    ctx.ellipse(nx,ny,noseHW*.28,noseHW*.21,0,0,Math.PI*2);
-    ctx.fillStyle=rgba(dim(pa.shadow,.5),.65);
-    ctx.fill();
-  };
-  drawNostril(FCX-noseHW*.88,noseY+12);
-  drawNostril(FCX+noseHW*.88,noseY+12);
-  // Tip highlight
-  ctx.beginPath();
-  ctx.ellipse(FCX,noseY-6,noseHW*.52,noseHW*.38,0,0,Math.PI*2);
-  ctx.fillStyle=rgba(pa.skin,.35); ctx.fill();
-  ctx.restore();
+  [[FCX-noseHW*.88,noseY+12],[FCX+noseHW*.88,noseY+12]].forEach(([nx,ny])=>{
+    ctx.beginPath(); ctx.ellipse(nx,ny,noseHW*.28,noseHW*.21,0,0,Math.PI*2);
+    ctx.fillStyle=rgba(dim(pa.shadow,.5),.65); ctx.fill();
+  });
+  ctx.beginPath(); ctx.ellipse(FCX,noseY-6,noseHW*.52,noseHW*.38,0,0,Math.PI*2);
+  ctx.fillStyle=rgba(pa.skin,.35); ctx.fill(); ctx.restore();
 
-  // ── Eyebrows ──
+  // Brows
   const drawBrow=(bx,by,side)=>{
     const bw=eRX*1.55, bh=eRX*.22;
     const angry=mCurve<-.40;
-    const innerLift=side==='L' ? (angry?bh*1.8:-bh*.3) : (angry?-bh*1.8:bh*.3);
+    const innerLift=side==='L'?(angry?bh*1.8:-bh*.3):(angry?-bh*1.8:bh*.3);
     const x0=bx-bw, x1=bx+bw;
     const y0=by+innerLift, y1=by-innerLift;
-    ctx.save();
-    ctx.beginPath();
+    ctx.save(); ctx.beginPath();
     ctx.moveTo(x0,y0+bh*.8);
-    ctx.bezierCurveTo(x0+bw*.3,y0-bh*.6, x1-bw*.35,y1-bh*.5, x1,y1+bh*.2);
-    ctx.bezierCurveTo(x1-bw*.28,y1+bh*1.9, x0+bw*.3,y0+bh*1.8, x0,y0+bh*.8);
-    ctx.fillStyle=rgba(pa.brow,.92); ctx.fill();
-    ctx.restore();
+    ctx.bezierCurveTo(x0+bw*.3,y0-bh*.6,x1-bw*.35,y1-bh*.5,x1,y1+bh*.2);
+    ctx.bezierCurveTo(x1-bw*.28,y1+bh*1.9,x0+bw*.3,y0+bh*1.8,x0,y0+bh*.8);
+    ctx.fillStyle=rgba(pa.brow,.92); ctx.fill(); ctx.restore();
   };
-  drawBrow(lEyeX,browY,'L');
-  drawBrow(rEyeX,browY,'R');
+  drawBrow(lEyeX,browY,'L'); drawBrow(rEyeX,browY,'R');
 
-  // ── Eyes ──
+  // Eyes
   const drawEye=(ex,ey)=>{
     ctx.save();
-    // Socket shadow
-    ctx.beginPath();
-    ctx.ellipse(ex,ey,eRX*1.28,eRY*1.85,0,0,Math.PI*2);
+    ctx.beginPath(); ctx.ellipse(ex,ey,eRX*1.28,eRY*1.85,0,0,Math.PI*2);
     ctx.fillStyle=rgba(pa.shadow,.28); ctx.fill();
-    // Sclera
-    ctx.beginPath();
-    ctx.ellipse(ex,ey,eRX,eRY,0,0,Math.PI*2);
+    ctx.beginPath(); ctx.ellipse(ex,ey,eRX,eRY,0,0,Math.PI*2);
     ctx.fillStyle='rgb(240,235,226)'; ctx.fill();
-    // Iris gradient
     const ir=eRX*.66;
     ctx.beginPath(); ctx.arc(ex,ey,ir,0,Math.PI*2);
     const ig=ctx.createRadialGradient(ex-ir*.22,ey-ir*.22,ir*.08,ex,ey,ir);
@@ -464,105 +412,68 @@ function drawFace() {
     ig.addColorStop(.65,rgba(pa.iris,1));
     ig.addColorStop(1,rgba(dim(pa.iris,.68),1));
     ctx.fillStyle=ig; ctx.fill();
-    // Pupil
     ctx.beginPath(); ctx.arc(ex,ey,ir*.42,0,Math.PI*2);
     ctx.fillStyle='rgb(10,6,14)'; ctx.fill();
-    // Catchlights
-    ctx.beginPath();
-    ctx.ellipse(ex-ir*.22,ey-ir*.24,ir*.20,ir*.15,-.3,0,Math.PI*2);
+    ctx.beginPath(); ctx.ellipse(ex-ir*.22,ey-ir*.24,ir*.20,ir*.15,-.3,0,Math.PI*2);
     ctx.fillStyle='rgba(255,255,255,.88)'; ctx.fill();
     ctx.beginPath(); ctx.arc(ex+ir*.18,ey-ir*.28,ir*.09,0,Math.PI*2);
     ctx.fillStyle='rgba(255,255,255,.52)'; ctx.fill();
-    // Upper lid shadow
-    ctx.save();
-    ctx.beginPath(); ctx.ellipse(ex,ey,eRX,eRY,0,0,Math.PI*2); ctx.clip();
+    ctx.save(); ctx.beginPath(); ctx.ellipse(ex,ey,eRX,eRY,0,0,Math.PI*2); ctx.clip();
     const lg=ctx.createLinearGradient(ex,ey-eRY,ex,ey);
-    lg.addColorStop(0,rgba(pa.shadow,.58));
-    lg.addColorStop(.5,'rgba(0,0,0,0)');
-    ctx.fillStyle=lg; ctx.fillRect(ex-eRX,ey-eRY,eRX*2,eRY);
-    ctx.restore();
-    // Upper lash line
-    ctx.beginPath();
-    ctx.moveTo(ex-eRX,ey);
-    ctx.bezierCurveTo(ex-eRX*.45,ey-eRY*1.38, ex+eRX*.45,ey-eRY*1.38, ex+eRX,ey);
-    ctx.strokeStyle=rgba(dim(pa.brow,.9),.88);
-    ctx.lineWidth=eRX*.12; ctx.lineCap='round'; ctx.stroke();
-    // Lower lash (subtle)
-    ctx.beginPath();
-    ctx.moveTo(ex-eRX,ey);
-    ctx.bezierCurveTo(ex-eRX*.45,ey+eRY*.52, ex+eRX*.45,ey+eRY*.52, ex+eRX,ey);
-    ctx.strokeStyle=rgba(pa.shadow,.28);
-    ctx.lineWidth=eRX*.05; ctx.stroke();
+    lg.addColorStop(0,rgba(pa.shadow,.58)); lg.addColorStop(.5,'rgba(0,0,0,0)');
+    ctx.fillStyle=lg; ctx.fillRect(ex-eRX,ey-eRY,eRX*2,eRY); ctx.restore();
+    ctx.beginPath(); ctx.moveTo(ex-eRX,ey);
+    ctx.bezierCurveTo(ex-eRX*.45,ey-eRY*1.38,ex+eRX*.45,ey-eRY*1.38,ex+eRX,ey);
+    ctx.strokeStyle=rgba(dim(pa.brow,.9),.88); ctx.lineWidth=eRX*.12; ctx.lineCap='round'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ex-eRX,ey);
+    ctx.bezierCurveTo(ex-eRX*.45,ey+eRY*.52,ex+eRX*.45,ey+eRY*.52,ex+eRX,ey);
+    ctx.strokeStyle=rgba(pa.shadow,.28); ctx.lineWidth=eRX*.05; ctx.stroke();
     ctx.restore();
   };
-  drawEye(lEyeX,eyeY);
-  drawEye(rEyeX,eyeY);
+  drawEye(lEyeX,eyeY); drawEye(rEyeX,eyeY);
 
-  // ── Mouth ──
+  // Mouth
   ctx.save();
   const lcX=FCX-mHW, rcX=FCX+mHW;
-  const lcY=mY+mCurve*mHW*.48;
-  const rcY=mY+mCurve*mHW*.48;
+  const lcY=mY+mCurve*mHW*.48, rcY=mY+mCurve*mHW*.48;
   const ulY=mY-Math.max(mOpen*.5,2)+mCurve*mHW*.22;
   const llY=mY+Math.max(mOpen*.5,2)+mCurve*mHW*.22;
-
-  // Upper lip
-  ctx.beginPath();
-  ctx.moveTo(lcX,lcY);
-  ctx.bezierCurveTo(FCX-mHW*.55,ulY-mHW*.14, FCX-mHW*.12,ulY-mHW*.26, FCX,ulY);
-  ctx.bezierCurveTo(FCX+mHW*.12,ulY-mHW*.26, FCX+mHW*.55,ulY-mHW*.14, rcX,rcY);
-  ctx.bezierCurveTo(FCX+mHW*.48,mY-mOpen*.08, FCX-mHW*.48,mY-mOpen*.08, lcX,lcY);
+  ctx.beginPath(); ctx.moveTo(lcX,lcY);
+  ctx.bezierCurveTo(FCX-mHW*.55,ulY-mHW*.14,FCX-mHW*.12,ulY-mHW*.26,FCX,ulY);
+  ctx.bezierCurveTo(FCX+mHW*.12,ulY-mHW*.26,FCX+mHW*.55,ulY-mHW*.14,rcX,rcY);
+  ctx.bezierCurveTo(FCX+mHW*.48,mY-mOpen*.08,FCX-mHW*.48,mY-mOpen*.08,lcX,lcY);
   ctx.fillStyle=rgba(pa.lip,.92); ctx.fill();
-
-  // Lower lip
-  ctx.beginPath();
-  ctx.moveTo(lcX,lcY);
-  ctx.bezierCurveTo(FCX-mHW*.52,llY+mHW*.10, FCX+mHW*.52,llY+mHW*.10, rcX,rcY);
-  ctx.bezierCurveTo(FCX+mHW*.38,llY+mHW*.20, FCX-mHW*.38,llY+mHW*.20, lcX,lcY);
+  ctx.beginPath(); ctx.moveTo(lcX,lcY);
+  ctx.bezierCurveTo(FCX-mHW*.52,llY+mHW*.10,FCX+mHW*.52,llY+mHW*.10,rcX,rcY);
+  ctx.bezierCurveTo(FCX+mHW*.38,llY+mHW*.20,FCX-mHW*.38,llY+mHW*.20,lcX,lcY);
   ctx.fillStyle=rgba(bright(pa.lip,1.16),.88); ctx.fill();
-
-  // Mouth interior
   if(mOpen>10){
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(lcX,lcY);
-    ctx.bezierCurveTo(FCX-mHW*.5,ulY, FCX+mHW*.5,ulY, rcX,rcY);
-    ctx.bezierCurveTo(FCX+mHW*.5,llY, FCX-mHW*.5,llY, lcX,lcY);
-    ctx.clip();
-    ctx.fillStyle='rgb(18,6,8)';
-    ctx.fillRect(lcX-5,ulY-5,mHW*2+10,llY-ulY+10);
-    // Teeth
+    ctx.save(); ctx.beginPath(); ctx.moveTo(lcX,lcY);
+    ctx.bezierCurveTo(FCX-mHW*.5,ulY,FCX+mHW*.5,ulY,rcX,rcY);
+    ctx.bezierCurveTo(FCX+mHW*.5,llY,FCX-mHW*.5,llY,lcX,lcY);
+    ctx.clip(); ctx.fillStyle='rgb(18,6,8)'; ctx.fillRect(lcX-5,ulY-5,mHW*2+10,llY-ulY+10);
     const th=Math.min((llY-ulY)*.45,mOpen*.32);
     if(th>5){
-      ctx.beginPath();
-      ctx.ellipse(FCX,ulY+th*.55,mHW*.68,th,0,0,Math.PI*2);
+      ctx.beginPath(); ctx.ellipse(FCX,ulY+th*.55,mHW*.68,th,0,0,Math.PI*2);
       ctx.fillStyle='rgb(234,228,218)'; ctx.fill();
       for(let i=-2;i<=2;i++){
-        ctx.beginPath();
-        ctx.moveTo(FCX+i*mHW*.24,ulY);
-        ctx.lineTo(FCX+i*mHW*.24,ulY+th);
+        ctx.beginPath(); ctx.moveTo(FCX+i*mHW*.24,ulY); ctx.lineTo(FCX+i*mHW*.24,ulY+th);
         ctx.strokeStyle=rgba(pa.shadow,.14); ctx.lineWidth=1.5; ctx.stroke();
       }
     }
     ctx.restore();
   }
-
-  // Lower lip highlight
   const lhg=ctx.createRadialGradient(FCX,llY,0,FCX,llY,mHW*.42);
-  lhg.addColorStop(0,rgba(bright(pa.lip,1.42),.48));
-  lhg.addColorStop(1,'rgba(0,0,0,0)');
+  lhg.addColorStop(0,rgba(bright(pa.lip,1.42),.48)); lhg.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=lhg; ctx.fillRect(FCX-mHW*.7,llY-mHW*.28,mHW*1.4,mHW*.56);
   ctx.restore();
 }
 
 // ══════════════════════════════════════════════════
 //  CHUCK CLOSE POST-PROCESS
-//  Reads from Three.js WebGL canvas via gl.readPixels
-//  Applies cell marks to the visible 2D canvas
 // ══════════════════════════════════════════════════
 const display=document.getElementById('display');
 const dCtx=display.getContext('2d');
-
 let glPixels=new Uint8Array(W*H*4);
 const gl=renderer.getContext();
 
@@ -573,7 +484,7 @@ function readGLPixels(){
 function getPixel(x,y){
   const xi=Math.max(0,Math.min(W-1,x|0));
   const yi=Math.max(0,Math.min(H-1,y|0));
-  const fy=H-1-yi; // WebGL: y=0 is bottom
+  const fy=H-1-yi;
   const i=(fy*W+xi)*4;
   if(glPixels[i+3]<15) return null;
   return [glPixels[i],glPixels[i+1],glPixels[i+2]];
@@ -581,16 +492,14 @@ function getPixel(x,y){
 
 function drawCCMark(cx,cy,sz,c0,c1,c2,seed){
   const h=sz*.5;
-  const r0=rand(seed), r1=rand(seed+5.13), r2=rand(seed+11.37);
+  const r0=rand(seed),r1=rand(seed+5.13),r2=rand(seed+11.37);
   const pat=Math.floor(r0*4);
-  const cs0=rgb(c0), cs1=rgb(c1), cs2=rgb(c2);
-  dCtx.save();
-  dCtx.translate(cx,cy);
+  const cs0=rgb(c0),cs1=rgb(c1),cs2=rgb(c2);
+  dCtx.save(); dCtx.translate(cx,cy);
   dCtx.beginPath(); dCtx.rect(-h,-h,sz,sz); dCtx.clip();
-
   switch(pat){
     case 0:{
-      const jx=(r1-.5)*sz*.28, jy=(r2-.5)*sz*.28;
+      const jx=(r1-.5)*sz*.28,jy=(r2-.5)*sz*.28;
       dCtx.fillStyle=cs0; dCtx.fillRect(-h,-h,sz,sz);
       dCtx.beginPath(); dCtx.arc(jx,jy,h*.74,0,Math.PI*2); dCtx.fillStyle=cs1; dCtx.fill();
       dCtx.beginPath(); dCtx.arc(jx*.32,jy*.32,h*.40,0,Math.PI*2); dCtx.fillStyle=cs2; dCtx.fill();
@@ -627,24 +536,18 @@ function drawCCMark(cx,cy,sz,c0,c1,c2,seed){
 function applyChuckClose(){
   const {cs,gap,label}=TIERS[tierIdx];
   const step=cs+gap;
-
-  dCtx.fillStyle='#0c0b09';
-  dCtx.fillRect(0,0,W,H);
-
+  dCtx.fillStyle='#0c0b09'; dCtx.fillRect(0,0,W,H);
   let cells=0;
   const offsets=[[0,0],[cs*.30,0],[0,cs*.28],[-cs*.22,cs*.24]];
-
   for(let cx=step*.5;cx<W;cx+=step){
     for(let cy=step*.5;cy<H;cy+=step){
-      const c0=getPixel(cx,cy);
-      if(!c0) continue;
+      const c0=getPixel(cx,cy); if(!c0) continue;
       const c1=getPixel(cx+offsets[1][0],cy+offsets[1][1])||c0;
       const c2=getPixel(cx+offsets[2][0],cy+offsets[2][1])||c0;
       drawCCMark(cx,cy,cs,c0,c1,c2,Math.round(cx*997+cy*11));
       cells++;
     }
   }
-  // update status
   document.getElementById('sTier').textContent=label;
   document.getElementById('sCells').textContent=`${cells} cells`;
   document.getElementById('cellVal').textContent=cells;
@@ -653,30 +556,31 @@ function applyChuckClose(){
 
 // ══════════════════════════════════════════════════
 //  HEAD POSE EXTRACTION
+//  FIX: pitch sign corrected — was inverted (up/down flipped)
 // ══════════════════════════════════════════════════
 function extractPose(lm){
   const nose=lm[LM.NOSE];
   const lEy=lm[LM.L_EYE_OUT], rEy=lm[LM.R_EYE_OUT];
 
-  // Yaw: nose offset from eye midpoint / eye span
+  // Yaw: nose offset from eye midpoint
   const eyeMidX=(lEy.x+rEy.x)*.5;
   const eyeSpan=rEy.x-lEy.x;
   const nOff=eyeSpan>.01?(nose.x-eyeMidX)/eyeSpan:0;
-  // positive nOff = nose right of center in raw frame
-  // for mirrored selfie cam: person turns right → nose goes LEFT (nOff negative)
-  // we negate to match expected direction
   const yaw=nOff*Math.PI*-0.95;
 
-  // Pitch: z depth difference top vs chin (MediaPipe z: negative=closer)
+  // Pitch: FIXED — was (topZ-chinZ), should be (chinZ-topZ)
+  // When you look up: chin moves closer (chinZ decreases/more negative),
+  // top moves away (topZ increases). chinZ-topZ → negative → negative
+  // rotation.x → Three.js head tilts up. Correct.
   const topZ=lm[LM.TOP].z, chinZ=lm[LM.CHIN].z;
   const fH=lm[LM.CHIN].y-lm[LM.TOP].y;
-  const pitch=fH>.04 ? (topZ-chinZ)*3.2 : 0;
+  const pitch=fH>.04 ? (chinZ-topZ)*3.2 : 0;
 
   // Roll: eye-line angle
   const dx=rEy.x-lEy.x, dy=rEy.y-lEy.y;
   const roll=-Math.atan2(dy,dx)*.75;
 
-  return {yaw,pitch,roll};
+  return {yaw, pitch, roll};
 }
 
 // ══════════════════════════════════════════════════
@@ -685,27 +589,22 @@ function extractPose(lm){
 function extractVibe(lm){
   const fH=dist2(lm[LM.TOP],lm[LM.CHIN]);
   if(fH<.01) return null;
-
   const mO=dist2(lm[LM.MOUTH_T],lm[LM.MOUTH_B])/fH;
   const cornerY=(lm[LM.MOUTH_L].y+lm[LM.MOUTH_R].y)*.5;
   const centerY=(lm[LM.MOUTH_T].y+lm[LM.MOUTH_B].y)*.5;
   const mC=clamp((centerY-cornerY)/(fH*.055),-1,1);
-
   const browY=(lm[LM.L_BROW].y+lm[LM.R_BROW].y)*.5;
   const eyeTopY=(lm[LM.L_EYE_T].y+lm[LM.R_EYE_T].y)*.5;
   const bd=eyeTopY-browY;
   let bl=0;
   if(browBaseline!==null) bl=clamp((bd-browBaseline)/(fH*.16)*.058,-0.055,0.075);
-
   const lEH=Math.abs(lm[LM.L_EYE_T].y-lm[LM.L_EYE_B].y);
   const rEH=Math.abs(lm[LM.R_EYE_T].y-lm[LM.R_EYE_B].y);
   const eo=clamp((lEH+rEH)/(fH*.095),0,1.35);
   const ca=clamp(mC*.26+.06,.02,.36);
-
   return{
     mouthOpen:clamp(mO*1.85-.04,0,.12),
-    mouthCurve:mC, browLift:bl,
-    eyeOpen:eo, cheekAmt:ca,
+    mouthCurve:mC, browLift:bl, eyeOpen:eo, cheekAmt:ca,
   };
 }
 
@@ -717,17 +616,15 @@ function extractProps(lm){
   const top=lm[LM.TOP], chin=lm[LM.CHIN];
   const fW=rT.x-lT.x, fH=chin.y-top.y;
   if(fW<.05||fH<.05) return null;
-
-  const lEC={(x:(lm[33].x+lm[133].x)*.5),(y:(lm[LM.L_EYE_T].y+lm[LM.L_EYE_B].y)*.5)};
-  const rEC={(x:(lm[362].x+lm[263].x)*.5),(y:(lm[LM.R_EYE_T].y+lm[LM.R_EYE_B].y)*.5)};
-
+  const lEC={x:(lm[33].x+lm[133].x)*.5, y:(lm[LM.L_EYE_T].y+lm[LM.L_EYE_B].y)*.5};
+  const rEC={x:(lm[362].x+lm[263].x)*.5, y:(lm[LM.R_EYE_T].y+lm[LM.R_EYE_B].y)*.5};
   return{
-    eyeSpacingRatio:Math.abs(rEC.x-lEC.x)/(fW*1.0),
+    eyeSpacingRatio:Math.abs(rEC.x-lEC.x)/fW,
     eyeYRatio:((lEC.y+rEC.y)*.5-top.y)/fH,
     eyeRX:Math.abs(lm[133].x-lm[33].x)/(fW*1.8),
     noseW:Math.abs(lm[LM.R_NOSTR].x-lm[LM.L_NOSTR].x)/fW,
     mouthYRatio:(lm[LM.MOUTH_T].y-top.y)/fH,
-    mouthW:Math.abs(lm[LM.MOUTH_R].x-lm[LM.MOUTH_L].x)/(fW*1.0),
+    mouthW:Math.abs(lm[LM.MOUTH_R].x-lm[LM.MOUTH_L].x)/fW,
     browYRatio:((lm[LM.L_BROW].y+lm[LM.R_BROW].y)*.5-top.y)/fH,
   };
 }
@@ -752,10 +649,7 @@ function sampleAt(x,y,r=5){
   }catch{return null;}
 }
 
-function accPush(acc,v){
-  if(!v) return;
-  acc[0].push(v[0]); acc[1].push(v[1]); acc[2].push(v[2]);
-}
+function accPush(acc,v){if(!v)return;acc[0].push(v[0]);acc[1].push(v[1]);acc[2].push(v[2]);}
 function accMean(acc){
   if(!acc[0].length) return null;
   const m=ch=>ch.reduce((s,v)=>s+v,0)/ch.length;
@@ -772,22 +666,19 @@ function buildPalette(){
   const highlight=skin.map(v=>clamp(v*1.28+16,0,255));
   const cheek=skin.map((v,i)=>clamp(v+(i===0?10:i===1?-5:0),0,255));
   const lipAdj=[clamp(lip[0]*1.06+5,0,255),clamp(lip[1]*.76,0,255),clamp(lip[2]*.74,0,255)];
-
-  // Average accumulated props
   const finalProps={...props};
   for(const k of Object.keys(props)){
     const arr=calibProps[k];
     if(arr?.length>3) finalProps[k]=arr.reduce((s,v)=>s+v,0)/arr.length;
   }
   props={...finalProps};
-
   pal={skin,shadow,highlight,cheek,lip:lipAdj,iris,brow,hair};
   updateSwatches();
 }
 
 function updateSwatches(){
-  const pairs=[['skin','sw_skin','sh_skin'],['hair','sw_hair','sh_hair'],['iris','sw_iris','sh_iris'],['lip','sw_lip','sh_lip']];
-  pairs.forEach(([k,sw,sh])=>{
+  [['skin','sw_skin','sh_skin'],['hair','sw_hair','sh_hair'],['iris','sw_iris','sh_iris'],['lip','sw_lip','sh_lip']]
+  .forEach(([k,sw,sh])=>{
     document.getElementById(sw).style.background=rgb(pal[k]);
     document.getElementById(sh).textContent=toHex(pal[k]);
   });
@@ -802,48 +693,53 @@ function setPhase(p){
   const ot=document.getElementById('ovTitle');
   const os=document.getElementById('ovSub');
   const ct=document.getElementById('calibTrack');
+  const btn=document.getElementById('startBtn');
   const badge=document.getElementById('pipBadge');
   const pdot=document.getElementById('pdot');
-  const sp=document.getElementById('sPhase');
+  document.getElementById('sPhase').textContent=p.charAt(0).toUpperCase()+p.slice(1);
+
+  // Hide button unless waiting
+  btn.style.display=(p==='waiting')?'':'none';
 
   if(p==='waiting'){
     ov.classList.remove('gone');
-    ot.textContent='Requesting Camera'; os.textContent='Allow camera access to begin';
+    ot.textContent='Vibe Protocol'; os.textContent='Camera access needed\nto build your avatar';
     ct.style.display='none';
-    badge.className='pip-badge searching'; badge.textContent='Searching';
-    pdot.className='pdot'; sp.textContent='Waiting';
+    badge.className='pip-badge searching'; badge.textContent='Waiting';
+    pdot.className='pdot';
   }else if(p==='searching'){
     ov.classList.remove('gone');
     ot.textContent='No Face Detected'; os.textContent='Position your face\nin the camera view';
     ct.style.display='none';
-    document.getElementById('startBtn').style.display='none';
     badge.className='pip-badge searching'; badge.textContent='Searching';
-    pdot.className='pdot'; sp.textContent='Searching';
+    pdot.className='pdot';
   }else if(p==='calibrating'){
     ov.classList.remove('gone');
     ot.textContent='Calibrating';
     os.textContent='Sampling your likeness\nskin · hair · eyes · lips\nHold still';
     ct.style.display='block';
-    document.getElementById('startBtn').style.display='none';
     badge.className='pip-badge calibrating'; badge.textContent='Calibrating';
-    pdot.className='pdot'; sp.textContent='Calibrating';
+    pdot.className='pdot';
   }else if(p==='live'){
     ov.classList.add('gone');
     badge.className='pip-badge live'; badge.textContent='Live';
-    pdot.className='pdot on'; sp.textContent='Live';
+    pdot.className='pdot on';
+  }else if(p==='error'){
+    ov.classList.remove('gone');
+    badge.className='pip-badge searching'; badge.textContent='Error';
+    pdot.className='pdot';
   }
 }
 
 function startCalib(){
   calibCount=0;
   calibColors={skin:[[],[],[]], hair:[[],[],[]], iris:[[],[],[]], lip:[[],[],[]], brow:[[],[],[]]};
-  calibProps={};
-  browBaseline=null;
+  calibProps={}; browBaseline=null;
   setPhase('calibrating');
 }
 
 // ══════════════════════════════════════════════════
-//  MEDIAPIPE
+//  MEDIAPIPE RESULTS
 // ══════════════════════════════════════════════════
 let faceMesh;
 
@@ -854,7 +750,7 @@ function onResults(results){
   }
   const lm=results.multiFaceLandmarks[0];
 
-  // Draw raw frame to sample canvas
+  // Sample frame for color extraction
   sampCtx.drawImage(vid,0,0,VW,VH);
 
   if(phase==='searching'||phase==='waiting') startCalib();
@@ -863,58 +759,43 @@ function onResults(results){
     calibCount++;
     document.getElementById('calibFill').style.width=(calibCount/CALIB_FRAMES*100)+'%';
 
-    // Skin — from cheeks
-    accPush(calibColors.skin, sampleAt((lm[LM.L_CHEEK].x+lm[LM.R_CHEEK].x)*.5, (lm[LM.L_CHEEK].y+lm[LM.R_CHEEK].y)*.5,7));
-    // Hair — above forehead
-    accPush(calibColors.hair, sampleAt(lm[LM.TOP].x, clamp(lm[LM.TOP].y-.08,.02,.98),5));
-    // Iris
+    accPush(calibColors.skin, sampleAt((lm[LM.L_CHEEK].x+lm[LM.R_CHEEK].x)*.5,(lm[LM.L_CHEEK].y+lm[LM.R_CHEEK].y)*.5,7));
+    accPush(calibColors.hair, sampleAt(lm[LM.TOP].x,clamp(lm[LM.TOP].y-.08,.02,.98),5));
     const iL=lm[LM.L_IRIS]||lm[33];
     accPush(calibColors.iris, sampleAt(iL.x,iL.y,3));
-    // Lip
     accPush(calibColors.lip, sampleAt(lm[LM.LIP_BOT].x,lm[LM.LIP_BOT].y,5));
-    // Brow
     accPush(calibColors.brow, sampleAt((lm[LM.L_BROW].x+lm[LM.R_BROW].x)*.5,(lm[LM.L_BROW].y+lm[LM.R_BROW].y)*.5,4));
 
-    // Props
     const np=extractProps(lm);
-    if(np){
-      for(const k of Object.keys(np)){
-        if(!calibProps[k]) calibProps[k]=[];
-        calibProps[k].push(np[k]);
-      }
-    }
+    if(np){ for(const k of Object.keys(np)){if(!calibProps[k])calibProps[k]=[];calibProps[k].push(np[k]);} }
 
-    // Brow baseline
     const bd=(lm[LM.L_EYE_T].y+lm[LM.R_EYE_T].y)*.5-(lm[LM.L_BROW].y+lm[LM.R_BROW].y)*.5;
     browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;
 
-    if(calibCount>=CALIB_FRAMES){
-      buildPalette();
-      setPhase('live');
-    }
+    if(calibCount>=CALIB_FRAMES){ buildPalette(); setPhase('live'); }
     tick(); return;
   }
 
-  // Live — extract pose + expression
+  // Live
   const p3=extractPose(lm);
-  pose.yaw  =smooth(pose.yaw,   p3.yaw,   .18);
-  pose.pitch=smooth(pose.pitch, p3.pitch,  .18);
-  pose.roll =smooth(pose.roll,  p3.roll,   .18);
+  pose.yaw  =smooth(pose.yaw,  p3.yaw,  .18);
+  pose.pitch=smooth(pose.pitch,p3.pitch,.18);
+  pose.roll =smooth(pose.roll, p3.roll, .18);
 
   const nv=extractVibe(lm);
   if(nv){
     const s=.20;
-    vibe.mouthOpen  =smooth(vibe.mouthOpen,  nv.mouthOpen,  s);
-    vibe.mouthCurve =smooth(vibe.mouthCurve, nv.mouthCurve, s);
-    vibe.browLift   =smooth(vibe.browLift,   nv.browLift,   s);
-    vibe.eyeOpen    =smooth(vibe.eyeOpen,    nv.eyeOpen,    .16);
-    vibe.cheekAmt   =smooth(vibe.cheekAmt,   nv.cheekAmt,   s);
+    vibe.mouthOpen =smooth(vibe.mouthOpen, nv.mouthOpen, s);
+    vibe.mouthCurve=smooth(vibe.mouthCurve,nv.mouthCurve,s);
+    vibe.browLift  =smooth(vibe.browLift,  nv.browLift,  s);
+    vibe.eyeOpen   =smooth(vibe.eyeOpen,   nv.eyeOpen,  .16);
+    vibe.cheekAmt  =smooth(vibe.cheekAmt,  nv.cheekAmt,  s);
   }
   tick();
 }
 
 // ══════════════════════════════════════════════════
-//  MAIN RENDER TICK
+//  RENDER TICK
 // ══════════════════════════════════════════════════
 let tickQueued=false;
 function tick(){
@@ -922,26 +803,12 @@ function tick(){
   tickQueued=true;
   requestAnimationFrame(()=>{
     tickQueued=false;
-
-    // 1 — Update face texture (redrawn every frame from current state)
-    drawFace();
-    faceTex.needsUpdate=true;
-
-    // 2 — Apply head pose rotation
-    // base rotation.y=-π/2 puts face (U=0.5) toward camera
-    // add tracked pose on top
-    headMesh.rotation.x = pose.pitch;
-    headMesh.rotation.y = -Math.PI/2 + pose.yaw;
-    headMesh.rotation.z = pose.roll;
-
-    // 3 — Three.js render to hidden WebGL canvas
+    drawFace(); faceTex.needsUpdate=true;
+    headMesh.rotation.x=pose.pitch;
+    headMesh.rotation.y=-Math.PI/2+pose.yaw;
+    headMesh.rotation.z=pose.roll;
     renderer.render(scene,cam3);
-
-    // 4 — Read pixels + Chuck Close post-process to visible canvas
-    readGLPixels();
-    applyChuckClose();
-
-    // 5 — Update vibe packet UI
+    readGLPixels(); applyChuckClose();
     updateVibeUI();
   });
 }
@@ -949,26 +816,21 @@ function tick(){
 function updateVibeUI(){
   const fmt=v=>(v>=0?'+':'')+v.toFixed(2);
   const pct=(v,lo,hi)=>clamp((v-lo)/(hi-lo)*100,0,100);
-  const mo=vibe.mouthOpen;
-  document.getElementById('v_mo').textContent=mo.toFixed(2);
-  document.getElementById('b_mo').style.width=pct(mo,0,.12)+'%';
-
+  document.getElementById('v_mo').textContent=vibe.mouthOpen.toFixed(2);
+  document.getElementById('b_mo').style.width=pct(vibe.mouthOpen,0,.12)+'%';
   const mc=vibe.mouthCurve;
   document.getElementById('v_mc').textContent=fmt(mc);
   const bmc=document.getElementById('b_mc');
   if(mc>=0){bmc.style.left='50%';bmc.style.right='auto';bmc.style.width=(mc*50)+'%';}
   else{bmc.style.right='50%';bmc.style.left='auto';bmc.style.width=(-mc*50)+'%';}
-
   const bl=vibe.browLift;
   document.getElementById('v_bl').textContent=fmt(bl);
   const bbl=document.getElementById('b_bl');
   const bp=clamp(Math.abs(bl)/.075*50,0,50);
   if(bl>=0){bbl.style.left='50%';bbl.style.right='auto';bbl.style.width=bp+'%';}
   else{bbl.style.right='50%';bbl.style.left='auto';bbl.style.width=bp+'%';}
-
-  document.getElementById('v_eo').textContent=(vibe.eyeOpen).toFixed(2);
+  document.getElementById('v_eo').textContent=vibe.eyeOpen.toFixed(2);
   document.getElementById('b_eo').style.width=pct(vibe.eyeOpen,0,1.35)+'%';
-
   const ya=pose.yaw;
   document.getElementById('v_ya').textContent=fmt(ya);
   const bya=document.getElementById('b_ya');
@@ -978,44 +840,25 @@ function updateVibeUI(){
 }
 
 // ══════════════════════════════════════════════════
-//  ERROR LOG (visible on screen for debugging)
+//  FRAME PUMP — drives MediaPipe via rAF, no Camera util
 // ══════════════════════════════════════════════════
-function showErr(msg){
-  document.getElementById('ovTitle').textContent='Error';
-  document.getElementById('ovSub').textContent=msg;
-  document.getElementById('startBtn').textContent='Retry';
-  document.getElementById('startBtn').disabled=false;
-  document.getElementById('startBtn').style.display='';
-  document.getElementById('startBtn').onclick=()=>location.reload();
-  console.error('[VibeProtocol]',msg);
-}
-
-// ══════════════════════════════════════════════════
-//  FRAME PUMP — no Camera utility, drives MediaPipe
-//  directly from rAF loop to avoid stream conflicts
-// ══════════════════════════════════════════════════
-let pumpRunning=false;
-async function pumpFrame(){
-  if(!pumpRunning) return;
-  if(vid.readyState>=2 && !vid.paused){
-    try{ await faceMesh.send({image:vid}); }catch(e){ /* skip frame */ }
+let pumpActive=false;
+async function pump(){
+  if(!pumpActive) return;
+  if(vid.readyState>=2&&!vid.paused){
+    try{ await faceMesh.send({image:vid}); }catch(e){}
   }
-  requestAnimationFrame(pumpFrame);
+  requestAnimationFrame(pump);
 }
 
 // ══════════════════════════════════════════════════
-//  BOOT
+//  CAMERA BOOT — triggered by button click (user gesture)
 // ══════════════════════════════════════════════════
 async function startCamera(){
   const btn=document.getElementById('startBtn');
   btn.textContent='Starting…'; btn.disabled=true;
 
-  // 1 — Check API exists
-  if(!navigator.mediaDevices?.getUserMedia){
-    showErr('getUserMedia not supported.\nTry Chrome or Firefox over HTTPS.'); return;
-  }
-
-  // 2 — Request camera permission explicitly (user gesture required)
+  // Must happen inside user gesture for permission prompt to fire
   let stream;
   try{
     stream=await navigator.mediaDevices.getUserMedia({
@@ -1023,43 +866,53 @@ async function startCamera(){
       audio:false,
     });
   }catch(e){
-    const msg=e.name==='NotAllowedError'
-      ?'Camera access denied.\nClick the camera icon in your\nbrowser address bar to allow it.'
-      :e.name==='NotFoundError'
-      ?'No camera found on this device.'
-      :`Camera error: ${e.name}`;
-    showErr(msg); return;
+    const msg=
+      e.name==='NotAllowedError' ? 'Camera access denied.\nClick the camera icon\nin your address bar to allow.'
+      :e.name==='NotFoundError'  ? 'No camera found.'
+      :`Camera error:\n${e.name}`;
+    document.getElementById('ovTitle').textContent='Camera Blocked';
+    document.getElementById('ovSub').textContent=msg;
+    btn.textContent='Retry'; btn.disabled=false;
+    btn.onclick=()=>location.reload();
+    return;
   }
 
-  // 3 — Attach stream to video
+  // Attach stream
   vid.srcObject=stream;
   try{ await vid.play(); }
-  catch(e){ showErr(`Video play failed: ${e.message}`); return; }
+  catch(e){
+    document.getElementById('ovTitle').textContent='Video Error';
+    document.getElementById('ovSub').textContent=e.message;
+    btn.textContent='Retry'; btn.disabled=false;
+    return;
+  }
 
-  btn.style.display='none';
-
-  // 4 — Init MediaPipe FaceMesh (no Camera utility — we drive it ourselves)
+  // Init MediaPipe
   try{
     faceMesh=new FaceMesh({
-      locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+      locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
     });
     faceMesh.setOptions({
       maxNumFaces:1, refineLandmarks:true,
       minDetectionConfidence:.5, minTrackingConfidence:.5,
     });
     faceMesh.onResults(onResults);
-    // Warm up the wasm by sending one frame
     await faceMesh.initialize();
   }catch(e){
-    showErr(`MediaPipe init failed: ${e.message}\nCheck network / CDN access.`); return;
+    document.getElementById('ovTitle').textContent='MediaPipe Error';
+    document.getElementById('ovSub').textContent='Could not load face tracking.\nCheck network connection.';
+    setPhase('error'); return;
   }
 
-  // 5 — Start frame pump
-  pumpRunning=true;
+  // Start frame pump
+  pumpActive=true;
   setPhase('searching');
-  requestAnimationFrame(pumpFrame);
+  requestAnimationFrame(pump);
 }
 
+// ══════════════════════════════════════════════════
+//  INIT + UI WIRING
+// ══════════════════════════════════════════════════
 function init(){
   setPhase('waiting');
   drawFace(); faceTex.needsUpdate=true;
@@ -1067,9 +920,8 @@ function init(){
   readGLPixels(); applyChuckClose();
 }
 
-// ══════════════════════════════════════════════════
-//  UI WIRING
-// ══════════════════════════════════════════════════
+document.getElementById('startBtn').addEventListener('click', startCamera);
+
 document.getElementById('tierBtns').addEventListener('click',e=>{
   const b=e.target.closest('[data-tier]'); if(!b) return;
   tierIdx=+b.dataset.tier;
@@ -1080,8 +932,6 @@ document.getElementById('tierBtns').addEventListener('click',e=>{
 document.getElementById('recalBtn').addEventListener('click',()=>{
   if(phase==='live') startCalib();
 });
-
-document.getElementById('startBtn').addEventListener('click', startCamera);
 
 init();
 </script>
