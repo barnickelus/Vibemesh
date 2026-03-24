@@ -2,794 +2,354 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Classical Realism Avatar · Live Portrait Study</title>
-<!-- Three.js Core -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibe Protocol · 3D Live</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<!-- MediaPipe Face Mesh -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
-<!-- Google Fonts: classical serif + monospace for UI -->
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #0e0c0a;
-    background-image: radial-gradient(circle at 25% 40%, rgba(70, 50, 40, 0.2) 1px, transparent 1px);
-    background-size: 32px 32px;
-    font-family: 'Inter', sans-serif;
-    color: #ece4dc;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 28px 20px 48px;
-  }
-  .master-container {
-    max-width: 1100px;
-    width: 100%;
-  }
-  header { text-align: center; margin-bottom: 28px; letter-spacing: 0.02em; }
-  .eyebrow {
-    font-size: 0.6rem;
-    letter-spacing: 0.32em;
-    text-transform: uppercase;
-    color: #aa8e6c;
-    font-weight: 300;
-    margin-bottom: 8px;
-  }
-  h1 {
-    font-family: 'Cormorant Garamond', serif;
-    font-weight: 500;
-    font-size: 2.8rem;
-    letter-spacing: 0.02em;
-    color: #f2e5d8;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-  }
-  h1 em { font-style: italic; color: #dbb87c; font-weight: 400; }
-  .sub {
-    font-size: 0.55rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: #8f7a64;
-    margin-top: 6px;
-  }
-  .stage {
-    display: flex;
-    gap: 22px;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: flex-start;
-  }
-  .avatar-col { display: flex; flex-direction: column; gap: 10px; }
-  .frame-wrap {
-    position: relative;
-    box-shadow: 0 12px 28px rgba(0,0,0,0.5);
-    border: 1px solid #3e362e;
-  }
-  .frame-wrap::before, .frame-wrap::after {
-    content: '';
-    position: absolute;
-    width: 18px;
-    height: 18px;
-    pointer-events: none;
-    border-color: #b4946c;
-    border-style: solid;
-  }
-  .frame-wrap::before { top: -1px; left: -1px; border-top-width: 2px; border-left-width: 2px; }
-  .frame-wrap::after { bottom: -1px; right: -1px; border-bottom-width: 2px; border-right-width: 2px; }
-  #display {
-    display: block;
-    width: 480px;
-    height: 560px;
-    background: #0a0806;
-    cursor: pointer;
-  }
-  #overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(12, 10, 8, 0.92);
-    backdrop-filter: blur(4px);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-    z-index: 10;
-    transition: opacity 0.35s ease;
-  }
-  #overlay.gone { opacity: 0; pointer-events: none; }
-  .ov-title { font-family: 'Cormorant Garamond', serif; font-size: 1.6rem; color: #dbb87c; letter-spacing: 1px; }
-  .ov-sub { font-size: 0.65rem; text-align: center; white-space: pre-line; color: #bcab96; text-transform: uppercase; letter-spacing: 0.12em; }
-  .calib-track { width: 180px; height: 2px; background: #3a322a; margin-top: 4px; }
-  #calibFill { height: 100%; background: #dbb87c; width: 0%; transition: width 0.08s linear; }
-  #startBtn {
-    background: #dbb87c;
-    border: none;
-    font-family: 'Inter', monospace;
-    font-size: 0.65rem;
-    letter-spacing: 0.2em;
-    padding: 10px 28px;
-    cursor: pointer;
-    color: #1e1915;
-    font-weight: 500;
-    transition: 0.2s;
-    margin-top: 8px;
-  }
-  #startBtn:hover { background: #c9a25c; transform: scale(0.98); }
-  .statusbar {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.48rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #8b7864;
-    padding: 0 6px;
-  }
-  .right-col { width: 210px; display: flex; flex-direction: column; gap: 16px; }
-  .pip-wrap {
-    position: relative;
-    border: 1px solid #4a3e34;
-    background: #030202;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  }
-  #vid {
-    display: block;
-    width: 100%;
-    height: auto;
-    transform: scaleX(-1);
-    opacity: 0.9;
-  }
-  .pip-badge {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    font-size: 0.45rem;
-    background: rgba(0,0,0,0.6);
-    padding: 2px 6px;
-    letter-spacing: 0.12em;
-    backdrop-filter: blur(2px);
-  }
-  .pip-badge.searching { color: #e0b07a; border-left: 2px solid #e0b07a; }
-  .pip-badge.calibrating { color: #dbb87c; border-left: 2px solid #dbb87c; }
-  .pip-badge.live { color: #b8a07c; border-left: 2px solid #b8a07c; }
-  .panel {
-    border: 1px solid #3e332a;
-    background: #14100ecc;
-    backdrop-filter: blur(4px);
-    padding: 12px 10px;
-  }
-  .phdr {
-    font-size: 0.5rem;
-    letter-spacing: 0.24em;
-    text-transform: uppercase;
-    color: #bb9a70;
-    border-bottom: 1px solid #3e332a;
-    padding-bottom: 6px;
-    margin-bottom: 12px;
-    display: flex;
-    justify-content: space-between;
-  }
-  .pdot { width: 6px; height: 6px; border-radius: 50%; background: #5e5348; }
-  .pdot.on { background: #c2a070; animation: softPulse 1.6s infinite; }
-  @keyframes softPulse { 0% { opacity: 0.4; } 100% { opacity: 1; } }
-  .prow { margin-bottom: 8px; }
-  .plbl { font-size: 0.42rem; letter-spacing: 0.1em; color: #a18d76; display: flex; justify-content: space-between; margin-bottom: 3px; }
-  .btrack { height: 2px; background: #2a241f; position: relative; }
-  .bfill { height: 100%; background: #c9a25c; position: absolute; left: 0; transition: width 0.08s; }
-  .bcent { position: absolute; left: 50%; width: 1px; height: 100%; background: #6a5a4a; }
-  .srow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .sw { width: 14px; height: 14px; border: 1px solid #4f443b; border-radius: 0px; }
-  .slbl { font-size: 0.45rem; text-transform: uppercase; color: #bba990; }
-  .shex { font-size: 0.4rem; margin-left: auto; color: #cfb38b; }
-  .controls {
-    display: flex;
-    gap: 16px;
-    margin-top: 28px;
-    justify-content: center;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  .btn {
-    background: transparent;
-    border: 1px solid #5f4d3a;
-    font-size: 0.6rem;
-    letter-spacing: 0.12em;
-    padding: 6px 14px;
-    cursor: pointer;
-    color: #ceb690;
-    transition: all 0.2s;
-    font-weight: 400;
-  }
-  .btn.on { background: #b2824a; border-color: #b2824a; color: #14100c; }
-  .btn-recal { border-color: #b2824a; color: #e0bc88; }
-  .btn-recal:hover { background: #b2824a30; }
-  .hint {
-    font-size: 0.5rem;
-    letter-spacing: 0.16em;
-    color: #6b5a4a;
-    margin-top: 24px;
-    text-align: center;
-    text-transform: uppercase;
-  }
-  #sCells, #cellVal, #bwVal, .bwrow { display: none; }
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0a;--surface:#151515;--border:#222222;
+  --text:#e8e2d8;--muted:#555555;--accent:#c9a96e;--accent-dk:#7a5c2e;
+  --green:#6a9e6a;--amber:#c9a050;
+}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'JetBrains Mono',monospace;
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;padding:32px 20px 56px;
+}
+header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
+.eyebrow{font-size:.55rem;letter-spacing:.32em;color:var(--muted);text-transform:uppercase;margin-bottom:5px}
+.title{font-family:'Cormorant Garamond',serif;font-size:2.6rem;font-weight:500;letter-spacing:.06em;line-height:1}
+.title em{font-style:italic;color:var(--accent)}
+.sub{font-size:.53rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-top:7px}
+.stage{position:relative;z-index:1;display:flex;gap:18px;align-items:flex-start}
+.avatar-col{display:flex;flex-direction:column;gap:8px}
+.frame-wrap{position:relative}
+.frame-wrap::before,.frame-wrap::after{content:'';position:absolute;width:14px;height:14px;z-index:3;pointer-events:none}
+.frame-wrap::before{top:0;left:0;border-top:2px solid var(--accent-dk);border-left:2px solid var(--accent-dk)}
+.frame-wrap::after{bottom:0;right:0;border-bottom:2px solid var(--accent-dk);border-right:2px solid var(--accent-dk)}
+#display{display:block;border:1px solid var(--border); background:#000;}
+#overlay{
+  position:absolute;inset:0;
+  background:rgba(10,10,10,.92);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;z-index:5;transition:opacity .4s;
+}
+#overlay.gone{opacity:0;pointer-events:none}
+.ov-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:var(--accent)}
+.ov-sub{font-size:.52rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;text-align:center;line-height:2;white-space:pre-line}
+#startBtn{
+  font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.18em;
+  text-transform:uppercase;padding:11px 28px;margin-top:4px;cursor:pointer;
+  background:var(--accent);border:none;color:#0c0b09;font-weight:500;
+}
+.statusbar{
+  display:flex;justify-content:space-between;
+  font-size:.52rem;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;padding:0 2px;
+}
+.right-col{width:192px;display:flex;flex-direction:column;gap:13px;padding-top:2px}
+.pip-wrap{position:relative;border:1px solid var(--border);background:#000;overflow:hidden}
+#vid{display:block;width:192px;height:144px;object-fit:cover;transform:scaleX(-1)}
+.panel{border:1px solid var(--border);padding:11px 10px;background:var(--surface)}
+.phdr{font-size:.46rem;letter-spacing:.26em;text-transform:uppercase;color:var(--accent-dk);
+  margin-bottom:9px;padding-bottom:5px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.pdot{width:5px;height:5px;border-radius:50%;background:var(--border)}
+.pdot.on{background:var(--green)}
+.prow{margin-bottom:6px}
+.plbl{font-size:.43rem;letter-spacing:.13em;color:var(--muted);text-transform:uppercase;margin-bottom:2px;display:flex;justify-content:space-between}
+.pval{color:var(--accent);font-size:.43rem}
+.btrack{height:3px;background:var(--border);position:relative}
+.bfill{height:100%;background:var(--accent-dk);position:absolute;left:0}
+.sw{width:12px;height:12px;border:1px solid var(--border)}
+.slbl{font-size:.42rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.shex{font-size:.42rem;color:var(--text);margin-left:auto}
+.srow{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.controls{margin-top:18px;display:flex;gap:10px;align-items:center}
+.btn{font-family:'JetBrains Mono',monospace;font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;
+  padding:6px 11px;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer}
+.btn.on{background:var(--accent);border-color:var(--accent);color:#0c0b09}
 </style>
 </head>
 <body>
-<div class="master-container">
-  <header>
-    <div class="eyebrow">Étude du visage · Live</div>
-    <h1>Classical <em>Realism</em></h1>
-    <div class="sub">oil on canvas · derived from your presence</div>
-  </header>
 
-  <div class="stage">
-    <div class="avatar-col">
-      <div class="frame-wrap">
-        <canvas id="display" width="480" height="560"></canvas>
-        <div id="overlay">
-          <div class="ov-title" id="ovTitle">Camera Obscura</div>
-          <div class="ov-sub" id="ovSub">Enable camera to begin<br>capturing your likeness</div>
-          <button id="startBtn">Allow Camera →</button>
-          <div class="calib-track" id="calibTrack" style="display:none"><div id="calibFill"></div></div>
-        </div>
-      </div>
-      <div class="statusbar">
-        <span id="sTier">Tier II · Classical</span>
-        <span id="sPhase">Awaiting</span>
-        <span id="sCells" style="display:none">—</span>
+<header>
+  <div class="eyebrow">Vibe Protocol · 3D Live v0.4.1</div>
+  <h1 class="title">Your likeness. <em>Abstracted.</em></h1>
+  <div class="sub">3D presence — derived from your face</div>
+</header>
+
+<div class="stage">
+  <div class="avatar-col">
+    <div class="frame-wrap">
+      <canvas id="display" width="480" height="560"></canvas>
+      <div id="overlay">
+        <div class="ov-title" id="ovTitle">Vibe Protocol</div>
+        <div class="ov-sub" id="ovSub">Camera access needed</div>
+        <button id="startBtn">Enable Camera →</button>
       </div>
     </div>
-
-    <div class="right-col">
-      <div class="pip-wrap">
-        <video id="vid" playsinline muted></video>
-        <div class="pip-badge searching" id="pipBadge">Standby</div>
-      </div>
-      <div class="panel">
-        <div class="phdr">Morphodynamic <div class="pdot" id="pdot"></div></div>
-        <div class="prow"><div class="plbl">Mouth aperture <span id="v_mo">0.00</span></div><div class="btrack"><div class="bfill" id="b_mo"></div></div></div>
-        <div class="prow"><div class="plbl">Mouth curve <span id="v_mc">+0.00</span></div><div class="btrack"><div class="bcent"></div><div class="bfill" id="b_mc"></div></div></div>
-        <div class="prow"><div class="plbl">Brow lift <span id="v_bl">+0.00</span></div><div class="btrack"><div class="bcent"></div><div class="bfill" id="b_bl"></div></div></div>
-        <div class="prow"><div class="plbl">Eyelid openness <span id="v_eo">1.00</span></div><div class="btrack"><div class="bfill" id="b_eo"></div></div></div>
-        <div class="prow"><div class="plbl">Head yaw <span id="v_ya">0.00</span></div><div class="btrack"><div class="bcent"></div><div class="bfill" id="b_ya"></div></div></div>
-      </div>
-      <div class="panel">
-        <div class="phdr">Palette · from observation</div>
-        <div class="srow"><div class="sw" id="sw_skin"></div><div class="slbl">Skin ground</div><div class="shex" id="sh_skin">—</div></div>
-        <div class="srow"><div class="sw" id="sw_hair"></div><div class="slbl">Hair mass</div><div class="shex" id="sh_hair">—</div></div>
-        <div class="srow"><div class="sw" id="sw_iris"></div><div class="slbl">Iris glaze</div><div class="shex" id="sh_iris">—</div></div>
-        <div class="srow"><div class="sw" id="sw_lip"></div><div class="slbl">Lip velatura</div><div class="shex" id="sh_lip">—</div></div>
-      </div>
+    <div class="statusbar">
+      <span id="sTier">Tier 02 · Mid</span>
+      <span id="sPhase">Waiting</span>
+      <span id="sCells">— cells</span>
     </div>
   </div>
 
-  <div class="controls">
-    <div class="btn" data-tier="0">Tier I · Sketch</div>
-    <div class="btn on" data-tier="1">Tier II · Classical</div>
-    <div class="btn" data-tier="2">Tier III · Refined</div>
-    <button class="btn btn-recal" id="recalBtn">⟳ Recalibrate palette</button>
+  <div class="right-col">
+    <div class="pip-wrap">
+      <video id="vid" playsinline muted></video>
+    </div>
+    <div class="panel">
+      <div class="phdr">Vibe Packet <div class="pdot" id="pdot"></div></div>
+      <div class="prow"><div class="plbl">Mouth Open <span class="pval" id="v_mo">0.00</span></div><div class="btrack"><div class="bfill" id="b_mo"></div></div></div>
+      <div class="prow"><div class="plbl">Eye Open <span class="pval" id="v_eo">1.00</span></div><div class="btrack"><div class="bfill" id="b_eo"></div></div></div>
+    </div>
+    <div class="panel">
+      <div class="phdr">Likeness Palette</div>
+      <div class="srow"><div class="sw" id="sw_skin"></div><div class="slbl">Skin</div><div class="shex" id="sh_skin">—</div></div>
+      <div class="srow"><div class="sw" id="sw_hair"></div><div class="slbl">Hair</div><div class="shex" id="sh_hair">—</div></div>
+    </div>
   </div>
-  <div class="hint">Hold natural expression · turn gently — the portrait follows light & proportion</div>
 </div>
 
-<!-- hidden canvases for sampling & webgl -->
-<canvas id="glCanvas" width="480" height="560" style="position:absolute;left:-9999px;top:-9999px"></canvas>
-<canvas id="sampCanvas" width="640" height="480" style="position:absolute;left:-9999px;top:-9999px"></canvas>
+<div class="controls">
+  <div class="btns" id="tierBtns">
+    <button class="btn" data-tier="0">01</button>
+    <button class="btn on" data-tier="1">02</button>
+    <button class="btn" data-tier="2">03</button>
+  </div>
+</div>
+
+<canvas id="glCanvas" width="480" height="560" style="display:none"></canvas>
+<canvas id="sampCanvas" width="640" height="480" style="display:none"></canvas>
 
 <script>
-  (function(){
-    // --------------------------------------------------------------
-    //  CONSTANTS & REALISM ENGINE
-    // --------------------------------------------------------------
-    const W = 480, H = 560, VW = 640, VH = 480;
-    const FTW = 1024, FTH = 1024;
-    const FCX = FTW/2, FCY = FTH*0.48;
-    const FFW = 290, FFH = 340;
-    const CALIB_FRAMES = 60;
-    
-    const TIERS = [
-      { label: 'Tier I · Sketch', shadowIntensity:0.7, detail:0.8 },
-      { label: 'Tier II · Classical', shadowIntensity:1.0, detail:1.0 },
-      { label: 'Tier III · Refined', shadowIntensity:1.0, detail:1.2 }
-    ];
-    let tierIdx = 1;
-    
-    const LM = {
-      NOSE:1, CHIN:152, TOP:10,
-      L_EYE_OUT:33, R_EYE_OUT:263,
-      L_EYE_T:159, L_EYE_B:145, L_EYE_L:33, L_EYE_R:133,
-      R_EYE_T:386, R_EYE_B:374, R_EYE_L:362, R_EYE_R:263,
-      L_IRIS:468, R_IRIS:473,
-      L_BROW:105, R_BROW:334,
-      MOUTH_T:13, MOUTH_B:14, MOUTH_L:61, MOUTH_R:291,
-      LIP_BOT:17,
-      L_CHEEK:116, R_CHEEK:345,
-      L_TEMPLE:127, R_TEMPLE:356,
-    };
-    
-    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-    const lerp = (a,b,t) => a + (b-a)*clamp(t,0,1);
-    const dist2 = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
-    const toHex = ([r,g,b]) => '#'+[r,g,b].map(v=>Math.floor(clamp(v,0,255)).toString(16).padStart(2,'0')).join('');
-    const rgb = c => `rgb(${Math.floor(c[0])},${Math.floor(c[1])},${Math.floor(c[2])})`;
-    const rgba = (c,a) => `rgba(${Math.floor(c[0])},${Math.floor(c[1])},${Math.floor(c[2])},${a})`;
-    const smooth = (curr,next,s) => curr + (next-curr)*s;
-    const brighten = (c,f) => [clamp(c[0]*f,0,255), clamp(c[1]*f,0,255), clamp(c[2]*f,0,255)];
-    const darken = (c,f) => [c[0]*f, c[1]*f, c[2]*f];
-    
-    // Realism palette
-    let pal = {
-      skin: [198, 152, 122], shadow: [112, 82, 68], highlight: [226, 190, 166],
-      cheek: [182, 118, 98], lip: [162, 88, 78], iris: [65, 78, 92], brow: [48, 36, 28], hair: [42, 32, 26]
-    };
-    
-    let props = {
-      faceAspect:0.74, jawWidthRatio:0.72, eyeSpacingRatio:0.44,
-      eyeYRatio:0.485, eyeRX:0.092, eyeAspect:0.285, browYRatio:0.395,
-      browInnerSpacing:0.24, browOuterSpacing:0.59, noseRootYRatio:0.46,
-      noseTipYRatio:0.645, noseBaseYRatio:0.68, noseW:0.162, noseBridgeW:0.034,
-      mouthYRatio:0.785, mouthW:0.35, upperLipH:0.032, lowerLipH:0.04,
-      cupidBowW:0.124, cupidBowDepth:0.01, mouthChinGap:0.148
-    };
-    
-    let vibe = { mouthOpen:0, mouthCurve:0, browLift:0, cheekAmt:0.08, eyeOpen:1.0 };
-    let pose = { yaw:0, pitch:0, roll:0 };
-    let calibCount = 0, phase = 'waiting';
-    let calibColors = { skin:[[],[],[]], hair:[[],[],[]], iris:[[],[],[]], lip:[[],[],[]], brow:[[],[],[]] };
-    let calibProps = {};
-    let browBaseline = null;
-    
-    // Three.js
-    const glCanvas = document.getElementById('glCanvas');
-    const renderer = new THREE.WebGLRenderer({ canvas:glCanvas, alpha:false, preserveDrawingBuffer:true });
-    renderer.setSize(W, H);
-    renderer.setClearColor(0x0e0c0a, 1);
-    const scene = new THREE.Scene();
-    const cam3 = new THREE.PerspectiveCamera(42, W/H, 0.1, 100);
-    cam3.position.set(0, 0.1, 3.6);
-    cam3.lookAt(0,0.1,0);
-    
-    const ftCvs = document.createElement('canvas');
-    ftCvs.width = FTW; ftCvs.height = FTH;
-    const ftCtx = ftCvs.getContext('2d');
-    const faceTex = new THREE.CanvasTexture(ftCvs);
-    faceTex.needsUpdate = true;
-    
-    const headGeo = new THREE.SphereGeometry(0.96, 96, 80);
-    const headMat = new THREE.MeshStandardMaterial({ map: faceTex, roughness:0.42, metalness:0.08, color:0xffffff });
-    const headMesh = new THREE.Mesh(headGeo, headMat);
-    headMesh.scale.set(1.0, 1.18, 0.92);
-    headMesh.position.y = 0.06;
-    scene.add(headMesh);
-    
-    // Lighting: Rembrandt mood
-    scene.add(new THREE.AmbientLight(0xffeedd, 0.42));
-    const keyLight = new THREE.DirectionalLight(0xffe6cc, 1.05);
-    keyLight.position.set(1.2, 1.4, 2.2);
-    scene.add(keyLight);
-    const fillLight = new THREE.DirectionalLight(0xccaa88, 0.38);
-    fillLight.position.set(-1.2, 0.8, 1.6);
-    scene.add(fillLight);
-    const rimLight = new THREE.DirectionalLight(0xafc7e6, 0.35);
-    rimLight.position.set(-1.8, 1.2, -2.0);
-    scene.add(rimLight);
-    const backRim = new THREE.PointLight(0x886e54, 0.25);
-    backRim.position.set(0, 0.5, -2.2);
-    scene.add(backRim);
-    
-    // Realistic face texture drawing (classical oil painting style)
-    function drawRealisticFace() {
-      const ctx = ftCtx;
-      const p = props, vi = vibe, pa = pal;
-      const toX = r => FCX - FFW + r * (FFW*2);
-      const toY = r => FCY - FFH + r * (FFH*2);
+'use strict';
+
+const W=480, H=560, VW=640, VH=480, FTW=1024, FTH=1024;
+const FCX=FTW/2, FCY=FTH*0.48, FFW=260, FFH=330;
+
+const TIERS=[
+  {cs:28, gap:2, label:'Tier 01 · Low'},
+  {cs:14, gap:1, label:'Tier 02 · Mid'},
+  {cs:7,  gap:1, label:'Tier 03 · High'},
+];
+
+const LM={
+  NOSE:1, CHIN:152, TOP:10, L_EYE_OUT:33, R_EYE_OUT:263,
+  L_EYE_T:159, L_EYE_B:145, R_EYE_T:386, R_EYE_B:374,
+  L_BROW:105, R_BROW:334, MOUTH_T:13, MOUTH_B:14,
+  L_TEMPLE:127, R_TEMPLE:356, LIP_BOT:17, L_CHEEK:116, R_CHEEK:345
+};
+
+// ══════════════════════════════════════════════════
+//  REFINED PROPORTIONS (Smaller features, larger skull)
+// ══════════════════════════════════════════════════
+let props={
+  faceAspect:.75,
+  jawWidthRatio:.78,
+  eyeSpacingRatio:.42, 
+  eyeYRatio:.50,       // Eyes exactly in middle of head
+  eyeRX:.065,          // Smaller eyes
+  eyeAspect:.28,
+  browYRatio:.42,
+  noseTipYRatio:.66,
+  noseW:.16,
+  mouthYRatio:.80,
+  mouthW:.34,          // Smaller mouth
+  upperLipH:.028,
+  lowerLipH:.038,
+};
+
+let pal={
+  skin:[198,154,122], shadow:[110,80,65], highlight:[225,190,160],
+  hair:[35,28,22], lip:[145,85,75], iris:[60,70,80], brow:[45,35,30]
+};
+
+let vibe={mouthOpen:0, eyeOpen:1, browLift:0, yaw:0};
+let pose={yaw:0, pitch:0, roll:0};
+
+// ══════════════════════════════════════════════════
+//  THREE.JS SETUP
+// ══════════════════════════════════════════════════
+const glCanvas=document.getElementById('glCanvas');
+const renderer=new THREE.WebGLRenderer({canvas:glCanvas, antialias:true, alpha:true});
+renderer.setSize(W,H);
+const scene=new THREE.Scene();
+const cam3=new THREE.PerspectiveCamera(38,W/H,0.1,100);
+cam3.position.z=3.8;
+
+const ftCvs=document.createElement('canvas');
+ftCvs.width=FTW; ftCvs.height=FTH;
+const ftCtx=ftCvs.getContext('2d');
+const faceTex=new THREE.CanvasTexture(ftCvs);
+
+const headMesh=new THREE.Mesh(
+  new THREE.SphereGeometry(1, 64, 48),
+  new THREE.MeshPhongMaterial({map:faceTex, shininess:10})
+);
+headMesh.scale.set(1.1, 1.35, 1.0); // Taller skull
+headMesh.rotation.y=-Math.PI/2;
+scene.add(headMesh);
+scene.add(new THREE.AmbientLight(0xffffff, .4));
+const keyL=new THREE.DirectionalLight(0xffffff, .8);
+keyL.position.set(1,2,3); scene.add(keyL);
+
+// ══════════════════════════════════════════════════
+//  DRAW FACE (With Hair & Beard)
+// ══════════════════════════════════════════════════
+function drawFace(){
+  const ctx=ftCtx, p=props, vi=vibe, pa=pal;
+  const fW=FFW*2, fH=FFH*2;
+  const toX=r=>FCX-FFW+r*fW, toY=r=>FCY-FFH+r*fH;
+
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,FTW,FTH);
+
+  // 1. HAIR (Back Layer)
+  ctx.fillStyle=`rgb(${pa.hair})`;
+  ctx.beginPath();
+  ctx.ellipse(FCX, FCY-FFH*0.1, FFW*1.1, FFH*1.15, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // 2. SKIN BASE
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(FCX, FCY, FFW, FFH, 0, 0, Math.PI*2);
+  ctx.clip();
+  const grd=ctx.createRadialGradient(FCX, FCY-FFH*0.2, FFW*0.2, FCX, FCY, FFW*1.2);
+  grd.addColorStop(0, `rgb(${pa.highlight})`);
+  grd.addColorStop(0.5, `rgb(${pa.skin})`);
+  grd.addColorStop(1, `rgb(${pa.shadow})`);
+  ctx.fillStyle=grd; ctx.fillRect(0,0,FTW,FTH);
+  ctx.restore();
+
+  // 3. BEARD & HAIR (Front Layer)
+  ctx.fillStyle=`rgba(${pa.hair[0]},${pa.hair[1]},${pa.hair[2]}, 0.95)`;
+  // Beard wrap
+  ctx.beginPath();
+  ctx.moveTo(FCX-FFW, FCY);
+  ctx.bezierCurveTo(FCX-FFW, toY(1.05), FCX+FFW, toY(1.05), FCX+FFW, FCY);
+  ctx.bezierCurveTo(FCX+FFW, toY(0.7), FCX-FFW, toY(0.7), FCX-FFW, FCY);
+  ctx.fill();
+  // Mustache
+  ctx.beginPath();
+  ctx.ellipse(FCX, toY(p.mouthYRatio-0.05), p.mouthW*fW*0.6, 25, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // 4. FEATURES (Eyes, Nose, Mouth)
+  const eyeY=toY(p.eyeYRatio), mCenterY=toY(p.mouthYRatio);
+  const lEyeX=FCX-p.eyeSpacingRatio*fW*.5, rEyeX=FCX+p.eyeSpacingRatio*fW*.5;
+  const eRX=p.eyeRX*fW, eRY=eRX*p.eyeAspect*vi.eyeOpen;
+
+  // Eyes
+  ctx.fillStyle='#fff';
+  [lEyeX, rEyeX].forEach(x=>{
+    ctx.beginPath(); ctx.ellipse(x, eyeY, eRX, eRY, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle=`rgb(${pa.iris})`;
+    ctx.beginPath(); ctx.arc(x, eyeY, eRY*0.8, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Lips
+  ctx.fillStyle=`rgb(${pa.lip})`;
+  const mOpen=vi.mouthOpen*100;
+  ctx.beginPath();
+  ctx.ellipse(FCX, mCenterY, p.mouthW*fW*0.5, 12 + mOpen, 0, 0, Math.PI*2);
+  ctx.fill();
+}
+
+// ══════════════════════════════════════════════════
+//  POST-PROCESS (Background Sampling)
+// ══════════════════════════════════════════════════
+const display=document.getElementById('display');
+const dCtx=display.getContext('2d');
+const sampCvs=document.getElementById('sampCanvas');
+const sampCtx=sampCvs.getContext('2d');
+let glPixels=new Uint8Array(W*H*4);
+
+function applyChuckClose(){
+  const {cs, gap}=TIERS[tierIdx];
+  const step=cs+gap;
+  
+  // Background: Sample and Blur Camera
+  dCtx.save();
+  dCtx.globalAlpha = 0.3;
+  dCtx.filter = 'blur(20px) grayscale(100%)';
+  dCtx.drawImage(sampCvs, 0, 0, W, H);
+  dCtx.restore();
+  dCtx.fillStyle = 'rgba(10,10,10,0.85)';
+  dCtx.fillRect(0,0,W,H);
+
+  renderer.getContext().readPixels(0,0,W,H,0x1908,0x1401,glPixels);
+
+  for(let cx=step*.5; cx<W; cx+=step){
+    for(let cy=step*.5; cy<H; cy+=step){
+      const i=((H-1-(cy|0))*W+(cx|0))*4;
+      if(glPixels[i+3]<20) continue;
+      const r=glPixels[i], g=glPixels[i+1], b=glPixels[i+2];
       
-      const eyeOpenFactor = clamp(vi.eyeOpen, 0.22, 1.2);
-      const browShift = vi.browLift * 0.08;
-      const mouthCurveOffset = vi.mouthCurve * 0.028 * FFH;
-      const mouthOpenShift = vi.mouthOpen * 0.055 * FFH;
-      
-      const eyeY = toY(p.eyeYRatio) + browShift * 9;
-      const lEyeX = FCX - p.eyeSpacingRatio * FFW * 0.48;
-      const rEyeX = FCX + p.eyeSpacingRatio * FFW * 0.48;
-      const eyeWidth = p.eyeRX * FFW * 1.2;
-      const eyeHeight = eyeWidth * p.eyeAspect * eyeOpenFactor;
-      
-      const browY = toY(p.browYRatio) + browShift * 15;
-      const lBrowIn = FCX - p.browInnerSpacing * FFW * 0.48;
-      const rBrowIn = FCX + p.browInnerSpacing * FFW * 0.48;
-      const lBrowOut = FCX - p.browOuterSpacing * FFW * 0.48;
-      const rBrowOut = FCX + p.browOuterSpacing * FFW * 0.48;
-      
-      const noseTipY = toY(p.noseTipYRatio);
-      const noseBaseY = toY(p.noseBaseYRatio);
-      const noseWidth = p.noseW * FFW;
-      const bridgeWidth = p.noseBridgeW * FFW;
-      
-      const mouthY = toY(p.mouthYRatio) + mouthCurveOffset * 0.6;
-      const mouthHalf = p.mouthW * FFW * 0.48;
-      const cupidW = p.cupidBowW * FFW;
-      
-      ctx.clearRect(0,0,FTW,FTH);
-      ctx.fillStyle = '#0c0907';
-      ctx.fillRect(0,0,FTW,FTH);
-      
-      // Skin gradient
-      const skinGrd = ctx.createLinearGradient(FCX-FFW*0.6, FCY-FFH*0.3, FCX+FFW*0.5, FCY+FFH*0.5);
-      skinGrd.addColorStop(0, rgb(pa.highlight));
-      skinGrd.addColorStop(0.55, rgb(pa.skin));
-      skinGrd.addColorStop(1, rgb(pa.shadow));
-      ctx.fillStyle = skinGrd;
-      ctx.beginPath();
-      ctx.ellipse(FCX, FCY, FFW*0.92, FFH*0.95, 0, 0, Math.PI*2);
-      ctx.fill();
-      
-      // Cheek flush
-      ctx.save();
-      ctx.globalCompositeOperation = 'multiply';
-      const cheekGrd = ctx.createRadialGradient(lEyeX-12, eyeY+18, 6, lEyeX, eyeY+25, FFW*0.34);
-      cheekGrd.addColorStop(0, rgba(pa.cheek, 0.28));
-      cheekGrd.addColorStop(1, 'rgba(80,50,40,0)');
-      ctx.fillStyle = cheekGrd;
-      ctx.fillRect(FCX-FFW, FCY-FFH*0.2, FFW*2, FFH*0.7);
-      ctx.restore();
-      
-      // Nose (subtle)
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(FCX - bridgeWidth*0.8, toY(p.noseRootYRatio));
-      ctx.quadraticCurveTo(FCX, noseTipY-12, FCX + noseWidth*0.3, noseBaseY);
-      ctx.lineTo(FCX - noseWidth*0.3, noseBaseY);
-      ctx.fillStyle = rgba(pa.shadow, 0.22);
-      ctx.fill();
-      const noseHighlight = ctx.createLinearGradient(FCX-4, noseTipY-10, FCX+6, noseTipY+5);
-      noseHighlight.addColorStop(0, rgba(pa.highlight,0.35));
-      noseHighlight.addColorStop(1, rgba(pa.skin,0.2));
-      ctx.fillStyle = noseHighlight;
-      ctx.beginPath();
-      ctx.ellipse(FCX, noseTipY-2, noseWidth*0.34, noseWidth*0.28, 0, 0, Math.PI*2);
-      ctx.fill();
-      ctx.restore();
-      
-      // Eyes (realistic iris, sclera)
-      [[lEyeX, 'L'],[rEyeX, 'R']].forEach(([ex, side]) => {
-        const ey = eyeY;
-        ctx.save();
-        ctx.beginPath();
-        ctx.ellipse(ex, ey, eyeWidth*0.92, eyeHeight*1.02, 0, 0, Math.PI*2);
-        ctx.fillStyle = '#faf3e8';
-        ctx.fill();
-        const irisRad = eyeWidth * 0.38;
-        const irisGrd = ctx.createRadialGradient(ex-irisRad*0.2, ey-irisRad*0.15, irisRad*0.2, ex, ey, irisRad);
-        irisGrd.addColorStop(0, rgb(brighten(pa.iris,1.2)));
-        irisGrd.addColorStop(0.6, rgb(pa.iris));
-        irisGrd.addColorStop(1, rgb(darken(pa.iris,0.55)));
-        ctx.beginPath();
-        ctx.ellipse(ex, ey+1, irisRad, irisRad*0.92, 0, 0, Math.PI*2);
-        ctx.fillStyle = irisGrd;
-        ctx.fill();
-        ctx.fillStyle = '#0b0a08';
-        ctx.beginPath();
-        ctx.arc(ex, ey+1, irisRad*0.4, 0, Math.PI*2);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(255,250,235,0.92)';
-        ctx.beginPath();
-        ctx.ellipse(ex-irisRad*0.45, ey-irisRad*0.25, irisRad*0.22, irisRad*0.18, -0.2, 0, Math.PI*2);
-        ctx.fill();
-        ctx.restore();
-        // eyelid crease
-        ctx.beginPath();
-        ctx.moveTo(ex-eyeWidth*0.85, ey-eyeHeight*0.4);
-        ctx.quadraticCurveTo(ex, ey-eyeHeight*0.7, ex+eyeWidth*0.85, ey-eyeHeight*0.35);
-        ctx.strokeStyle = rgba(pa.brow, 0.45);
-        ctx.lineWidth = 1.8;
-        ctx.stroke();
-      });
-      
-      // Eyebrows
-      ctx.lineWidth = 2.2;
-      ctx.lineCap = 'round';
-      for(let i=0;i<12;i++){
-        const t=i/11;
-        const xL = lerp(lBrowIn, lBrowOut, t);
-        const yL = browY + Math.sin(t*Math.PI)*3 - 1;
-        ctx.beginPath();
-        ctx.moveTo(xL-2, yL);
-        ctx.lineTo(xL+6, yL-2);
-        ctx.strokeStyle = rgba(pa.brow, 0.68);
-        ctx.stroke();
-        const xR = lerp(rBrowIn, rBrowOut, t);
-        ctx.beginPath();
-        ctx.moveTo(xR-4, yL);
-        ctx.lineTo(xR+4, yL-1.5);
-        ctx.stroke();
+      dCtx.fillStyle=`rgb(${r},${g},${b})`;
+      dCtx.fillRect(cx-cs/2, cy-cs/2, cs, cs);
+      // Small "compass" detail from the pixel grid
+      if(Math.random()>0.9){
+        dCtx.fillStyle='rgba(255,255,255,0.2)';
+        dCtx.fillRect(cx, cy, 2, 2);
       }
-      
-      // Lips (classical shape)
-      const mL = FCX - mouthHalf, mR = FCX + mouthHalf;
-      const mCenter = mouthY + mouthCurveOffset*0.4;
-      const upperDip = mouthY - p.upperLipH*FFH*0.9 - mouthOpenShift*0.5;
-      const lowerTop = mouthY + mouthOpenShift*0.7;
-      const lowerBase = mouthY + p.lowerLipH*FFH*1.1 + mouthOpenShift*0.9;
-      
-      ctx.beginPath();
-      ctx.moveTo(mL, mCenter);
-      ctx.quadraticCurveTo(FCX - cupidW*0.5, upperDip-2, FCX - cupidW*0.22, upperDip-1);
-      ctx.quadraticCurveTo(FCX, upperDip+1, FCX + cupidW*0.22, upperDip-1);
-      ctx.quadraticCurveTo(FCX + cupidW*0.5, upperDip-2, mR, mCenter);
-      ctx.fillStyle = rgba(pa.lip, 0.88);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(mL, mCenter);
-      ctx.quadraticCurveTo(FCX, lowerTop+2, mR, mCenter);
-      ctx.quadraticCurveTo(FCX+mouthHalf*0.5, lowerBase-4, FCX, lowerBase);
-      ctx.quadraticCurveTo(FCX-mouthHalf*0.5, lowerBase-4, mL, mCenter);
-      ctx.fillStyle = rgba(brighten(pa.lip,1.12), 0.85);
-      ctx.fill();
-      
-      // Hair mass
-      const hairGrd = ctx.createLinearGradient(FCX-FFW*0.7, FCY-FFH*0.7, FCX+FFW*0.5, FCY-FFH*0.1);
-      hairGrd.addColorStop(0, rgb(darken(pa.hair,0.8)));
-      hairGrd.addColorStop(0.7, rgb(pa.hair));
-      ctx.fillStyle = hairGrd;
-      ctx.beginPath();
-      ctx.ellipse(FCX, FCY-FFH*0.68, FFW*0.9, FFH*0.34, 0, 0, Math.PI*2);
-      ctx.fill();
-      for(let i=0;i<60;i++){
-        ctx.beginPath();
-        const sx = FCX + (Math.sin(i)*FFW*0.44);
-        const sy = FCY-FFH*0.62 + i*1.4;
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(sx-4 + (i%7), sy-12);
-        ctx.strokeStyle = rgba(darken(pa.hair,0.7), 0.6);
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-      }
-      
-      ctx.fillStyle = rgba(pa.shadow, 0.2);
-      ctx.beginPath();
-      ctx.ellipse(FCX+18, FCY+FFH*0.3, FFW*0.48, FFH*0.18, 0, 0, Math.PI*2);
-      ctx.fill();
-      faceTex.needsUpdate = true;
     }
-    
-    const displayCanvas = document.getElementById('display');
-    const dCtx = displayCanvas.getContext('2d');
-    function copyRealisticRender() { dCtx.drawImage(glCanvas, 0, 0, W, H); }
-    
-    function updateTier() { document.getElementById('sTier').textContent = TIERS[tierIdx].label; }
-    
-    // MediaPipe helpers
-    let faceMesh;
-    const sampCanvas = document.getElementById('sampCanvas');
-    const sampCtx = sampCanvas.getContext('2d');
-    const vid = document.getElementById('vid');
-    
-    function sampleAt(x,y,r=5){
-      const px=clamp(Math.round(x*VW)-r,0,VW-1);
-      const py=clamp(Math.round(y*VH)-r,0,VH-1);
-      try{
-        const d=sampCtx.getImageData(px,py,Math.min(r*2+1,VW-px),Math.min(r*2+1,VH-py)).data;
-        let R=0,G=0,B=0,n=0;
-        for(let i=0;i<d.length;i+=4){R+=d[i];G+=d[i+1];B+=d[i+2];n++;}
-        return n?[R/n,G/n,B/n]:null;
-      }catch(e){ return null; }
-    }
-    function accPush(acc,v){ if(v){acc[0].push(v[0]);acc[1].push(v[1]);acc[2].push(v[2]);} }
-    function accMean(acc){ if(!acc[0].length) return null; return [acc[0].reduce((s,v)=>s+v)/acc[0].length, acc[1].reduce((s,v)=>s+v)/acc[1].length, acc[2].reduce((s,v)=>s+v)/acc[2].length]; }
-    
-    function buildPaletteFromCalibration(){
-      const skin=accMean(calibColors.skin)||pal.skin;
-      const hair=accMean(calibColors.hair)||pal.hair;
-      const iris=accMean(calibColors.iris)||pal.iris;
-      const lip=accMean(calibColors.lip)||pal.lip;
-      const brow=accMean(calibColors.brow)||pal.brow;
-      pal = { skin, shadow:[skin[0]*0.58,skin[1]*0.52,skin[2]*0.48], highlight:[skin[0]*1.16,skin[1]*1.12,skin[2]*1.08], cheek:[skin[0]+18,skin[1]-4,skin[2]-2], lip, iris, brow, hair };
-      updateSwatches();
-    }
-    
-    function updateSwatches(){
-      [['skin','sw_skin','sh_skin'],['hair','sw_hair','sh_hair'],['iris','sw_iris','sh_iris'],['lip','sw_lip','sh_lip']].forEach(([k,sw,sh])=>{
-        document.getElementById(sw).style.background=rgb(pal[k]);
-        document.getElementById(sh).textContent=toHex(pal[k]);
-      });
-    }
-    
-    function extractPose(lm){
-      const nose=lm[LM.NOSE], lEye=lm[LM.L_EYE_OUT], rEye=lm[LM.R_EYE_OUT];
-      const eyeMid=(lEye.x+rEye.x)*0.5;
-      const yaw=(nose.x-eyeMid)*2.4;
-      const pitch=(lm[LM.CHIN].z - lm[LM.TOP].z)*1.8;
-      const roll=-Math.atan2(rEye.y-lEye.y, rEye.x-lEye.x)*0.9;
-      return { yaw:clamp(yaw,-0.9,0.9), pitch:clamp(pitch,-0.4,0.4), roll:clamp(roll,-0.4,0.4) };
-    }
-    function extractVibe(lm){
-      const fH=dist2(lm[LM.TOP],lm[LM.CHIN]); if(fH<0.01) return null;
-      const mO=dist2(lm[LM.MOUTH_T],lm[LM.MOUTH_B])/fH;
-      const cornerY=(lm[LM.MOUTH_L].y+lm[LM.MOUTH_R].y)*0.5;
-      const centerY=(lm[LM.MOUTH_T].y+lm[LM.MOUTH_B].y)*0.5;
-      const mC=clamp((centerY-cornerY)/(fH*0.058),-0.85,0.85);
-      const browY=(lm[LM.L_BROW].y+lm[LM.R_BROW].y)*0.5;
-      const eyeTopY=(lm[LM.L_EYE_T].y+lm[LM.R_EYE_T].y)*0.5;
-      let bl=0;
-      if(browBaseline!==null) bl=clamp((eyeTopY-browY - browBaseline)/(fH*0.14),-0.06,0.09);
-      const lEH=Math.abs(lm[LM.L_EYE_T].y-lm[LM.L_EYE_B].y);
-      const rEH=Math.abs(lm[LM.R_EYE_T].y-lm[LM.R_EYE_B].y);
-      const eo=clamp((lEH+rEH)/(fH*0.098),0.2,1.35);
-      return { mouthOpen:clamp(mO*1.5-0.04,0,0.13), mouthCurve:mC, browLift:bl, eyeOpen:eo, cheekAmt:0.09 };
-    }
-    
-    function onResults(results){
-      if(!results.multiFaceLandmarks?.length){ if(phase!=='waiting' && phase!=='calibrating') setPhase('searching'); return; }
-      const lm=results.multiFaceLandmarks[0];
-      sampCtx.drawImage(vid,0,0,VW,VH);
-      if(phase==='calibrating'){
-        calibCount++;
-        document.getElementById('calibFill').style.width=(calibCount/CALIB_FRAMES*100)+'%';
-        const skinS=[sampleAt(lm[9].x,lm[9].y,6), sampleAt(lm[LM.L_CHEEK].x,lm[LM.L_CHEEK].y,5), sampleAt(lm[LM.R_CHEEK].x,lm[LM.R_CHEEK].y,5)].filter(Boolean);
-        if(skinS.length) accPush(calibColors.skin, skinS[0]);
-        accPush(calibColors.hair, sampleAt(clamp(lm[LM.L_TEMPLE].x-0.03,0,1), lm[LM.L_TEMPLE].y,5));
-        accPush(calibColors.iris, sampleAt(lm[LM.L_IRIS]?.x||lm[33].x, lm[LM.L_IRIS]?.y||lm[33].y,4));
-        accPush(calibColors.lip, sampleAt(lm[LM.LIP_BOT].x, lm[LM.LIP_BOT].y,6));
-        const browAvg= (lm[LM.L_BROW].y+lm[LM.R_BROW].y)*0.5;
-        const eyeTopAvg=(lm[LM.L_EYE_T].y+lm[LM.R_EYE_T].y)*0.5;
-        browBaseline = browBaseline===null ? eyeTopAvg-browAvg : browBaseline*0.85+(eyeTopAvg-browAvg)*0.15;
-        if(calibCount>=CALIB_FRAMES){ buildPaletteFromCalibration(); setPhase('live'); }
-        tick(); return;
-      }
-      const p3=extractPose(lm);
-      pose.yaw=smooth(pose.yaw,p3.yaw,0.22); pose.pitch=smooth(pose.pitch,p3.pitch,0.2); pose.roll=smooth(pose.roll,p3.roll,0.2);
-      const nv=extractVibe(lm);
-      if(nv){ vibe.mouthOpen=smooth(vibe.mouthOpen,nv.mouthOpen,0.22); vibe.mouthCurve=smooth(vibe.mouthCurve,nv.mouthCurve,0.2); vibe.browLift=smooth(vibe.browLift,nv.browLift,0.2); vibe.eyeOpen=smooth(vibe.eyeOpen,nv.eyeOpen,0.18); }
-      tick();
-    }
-    
-    let tickQueued=false;
-    function tick(){
-      if(tickQueued) return;
-      tickQueued=true;
-      requestAnimationFrame(()=>{
-        tickQueued=false;
-        drawRealisticFace();
-        headMesh.rotation.x = pose.pitch*0.6;
-        headMesh.rotation.y = -Math.PI/2 + pose.yaw*0.9;
-        headMesh.rotation.z = pose.roll*0.4;
-        renderer.render(scene, cam3);
-        copyRealisticRender();
-        updateUI();
-      });
-    }
-    
-    function updateUI(){
-      const pct=(v,lo,hi)=>clamp((v-lo)/(hi-lo)*100,0,100);
-      document.getElementById('v_mo').textContent=vibe.mouthOpen.toFixed(2);
-      document.getElementById('b_mo').style.width=pct(vibe.mouthOpen,0,0.13)+'%';
-      const mc=vibe.mouthCurve;
-      document.getElementById('v_mc').textContent=(mc>=0?'+':'')+mc.toFixed(2);
-      const bmc=document.getElementById('b_mc');
-      if(mc>=0){ bmc.style.left='50%'; bmc.style.width=(mc*55)+'%'; } else { bmc.style.right='50%'; bmc.style.width=(-mc*55)+'%'; }
-      document.getElementById('v_bl').textContent=((vibe.browLift)*100).toFixed(1);
-      document.getElementById('v_eo').textContent=vibe.eyeOpen.toFixed(2);
-      document.getElementById('b_eo').style.width=pct(vibe.eyeOpen,0,1.35)+'%';
-      document.getElementById('v_ya').textContent=pose.yaw.toFixed(2);
-      const bya=document.getElementById('b_ya');
-      const ya=pose.yaw;
-      if(ya>=0){ bya.style.left='50%'; bya.style.width=(ya*45)+'%'; } else { bya.style.right='50%'; bya.style.width=(-ya*45)+'%'; }
-    }
-    
-    function setPhase(p){
-      phase=p;
-      const ov=document.getElementById('overlay'), ct=document.getElementById('calibTrack'), btn=document.getElementById('startBtn'), badge=document.getElementById('pipBadge'), pdot=document.getElementById('pdot');
-      document.getElementById('sPhase').textContent=p.charAt(0).toUpperCase()+p.slice(1);
-      btn.style.display=(p==='waiting')?'':'none';
-      if(p==='waiting'){ ov.classList.remove('gone'); ct.style.display='none'; badge.className='pip-badge searching'; badge.textContent='Awaiting'; pdot.className='pdot'; }
-      else if(p==='searching'){ ov.classList.remove('gone'); ct.style.display='none'; badge.textContent='Searching'; }
-      else if(p==='calibrating'){ ov.classList.remove('gone'); ct.style.display='block'; badge.className='pip-badge calibrating'; badge.textContent='Calibrating'; pdot.className='pdot'; }
-      else if(p==='live'){ ov.classList.add('gone'); badge.className='pip-badge live'; badge.textContent='Live Portrait'; pdot.className='pdot on'; }
-      else if(p==='error'){ ov.classList.remove('gone'); badge.className='pip-badge searching'; badge.textContent='Error'; pdot.className='pdot'; }
-    }
-    
-    function startCalib(){ calibCount=0; calibColors={skin:[[],[],[]], hair:[[],[],[]], iris:[[],[],[]], lip:[[],[],[]], brow:[[],[],[]]}; browBaseline=null; setPhase('calibrating'); }
-    
-    let pumpActive=false;
-    let pumpLoopId = null;
-    async function pump() {
-      if (!pumpActive) return;
-      try {
-        if (vid.readyState >= 2 && faceMesh) {
-          await faceMesh.send({image: vid});
-        }
-      } catch (err) {
-        console.warn("MediaPipe send error:", err);
-        // Keep the loop alive even if one frame fails
-      }
-      pumpLoopId = requestAnimationFrame(pump);
-    }
-    
-    async function startCamera(){
-      const btn = document.getElementById('startBtn');
-      btn.textContent = 'Starting…';
-      btn.disabled = true;
-      
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-          audio: false
-        });
-      } catch(e) {
-        console.error("Camera error:", e);
-        document.getElementById('ovTitle').textContent = 'Camera Blocked';
-        let msg = e.name === 'NotAllowedError' ? 'Permission denied.\nClick the camera icon in the address bar to allow.'
-                  : e.name === 'NotFoundError' ? 'No camera found.' : `Error: ${e.message}`;
-        document.getElementById('ovSub').textContent = msg;
-        btn.textContent = 'Retry';
-        btn.disabled = false;
-        btn.onclick = () => location.reload();
-        return;
-      }
-      
-      vid.srcObject = stream;
-      try {
-        await vid.play();
-      } catch(e) {
-        console.error("Video play error:", e);
-        document.getElementById('ovTitle').textContent = 'Video Error';
-        document.getElementById('ovSub').textContent = e.message;
-        btn.textContent = 'Retry';
-        btn.disabled = false;
-        return;
-      }
-      
-      try {
-        faceMesh = new FaceMesh({
-          locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
-        });
-        faceMesh.setOptions({
-          maxNumFaces: 1,
-          refineLandmarks: true,
-          minDetectionConfidence: 0.5,
-          minTrackingConfidence: 0.5
-        });
-        faceMesh.onResults(onResults);
-        await faceMesh.initialize();
-        console.log("MediaPipe initialized");
-      } catch(e) {
-        console.error("MediaPipe init error:", e);
-        document.getElementById('ovTitle').textContent = 'Tracking Error';
-        document.getElementById('ovSub').textContent = 'Could not load face tracking.\nCheck your network connection.';
-        setPhase('error');
-        btn.textContent = 'Retry';
-        btn.disabled = false;
-        btn.onclick = () => location.reload();
-        return;
-      }
-      
-      pumpActive = true;
-      setPhase('searching');
-      if (pumpLoopId) cancelAnimationFrame(pumpLoopId);
-      pumpLoopId = requestAnimationFrame(pump);
-    }
-    
-    // UI event wiring
-    document.getElementById('startBtn').addEventListener('click', startCamera);
-    document.querySelectorAll('[data-tier]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        tierIdx = parseInt(btn.dataset.tier);
-        document.querySelectorAll('[data-tier]').forEach(b => b.classList.remove('on'));
-        btn.classList.add('on');
-        updateTier();
-        tick();
-      });
-    });
-    document.getElementById('recalBtn').addEventListener('click', () => { if(phase === 'live') startCalib(); });
-    
-    updateTier();
-    setPhase('waiting');
-    drawRealisticFace();
-    copyRealisticRender();
-  })();
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  CORE LOOP & CAMERA
+// ══════════════════════════════════════════════════
+let tierIdx=1, phase='waiting', faceMesh;
+
+async function onResults(res){
+  if(!res.multiFaceLandmarks?.length) return;
+  const lm=res.multiFaceLandmarks[0];
+  sampCtx.drawImage(document.getElementById('vid'),0,0,VW,VH);
+  
+  if(phase!=='live') { phase='live'; document.getElementById('overlay').classList.add('gone'); }
+
+  // Extract Vibe
+  const fH=Math.sqrt((lm[10].x-lm[152].x)**2 + (lm[10].y-lm[152].y)**2);
+  vibe.mouthOpen = Math.abs(lm[13].y-lm[14].y)/fH;
+  vibe.eyeOpen = Math.max(0.1, Math.abs(lm[159].y-lm[145].y)/(fH*0.1));
+  
+  pose.yaw = (lm[1].x - (lm[33].x+lm[263].x)*.5) * -1.5;
+  pose.pitch = (lm[152].z - lm[10].z) * 2;
+
+  drawFace(); faceTex.needsUpdate=true;
+  headMesh.rotation.y = -Math.PI/2 + pose.yaw;
+  headMesh.rotation.x = pose.pitch;
+  renderer.render(scene,cam3);
+  applyChuckClose();
+
+  // Update UI
+  document.getElementById('v_mo').textContent=vibe.mouthOpen.toFixed(2);
+  document.getElementById('b_mo').style.width=(vibe.mouthOpen*500)+'%';
+}
+
+document.getElementById('startBtn').onclick=async()=>{
+  const stream=await navigator.mediaDevices.getUserMedia({video:{width:640, height:480}});
+  const vid=document.getElementById('vid');
+  vid.srcObject=stream; vid.play();
+  faceMesh=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
+  faceMesh.setOptions({refineLandmarks:true});
+  faceMesh.onResults(onResults);
+  const pump=async()=>{ await faceMesh.send({image:vid}); requestAnimationFrame(pump); };
+  pump();
+};
+
+document.getElementById('tierBtns').onclick=e=>{
+  if(e.target.dataset.tier){
+    tierIdx=+e.target.dataset.tier;
+    document.querySelectorAll('.btn').forEach(b=>b.classList.remove('on'));
+    e.target.classList.add('on');
+  }
+};
 </script>
 </body>
 </html>
