@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Classical Realism Avatar · Live Portrait</title>
+<title>Chuck Close · Classical Realism Mosaic</title>
 <!-- Three.js Core -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <!-- MediaPipe Face Mesh -->
@@ -72,8 +72,6 @@
   #overlay.hidden { opacity: 0; pointer-events: none; }
   .ov-title { font-family: 'Cormorant Garamond', serif; font-size: 1.6rem; color: #dbb87c; letter-spacing: 1px; }
   .ov-sub { font-size: 0.65rem; text-align: center; white-space: pre-line; color: #bcab96; text-transform: uppercase; letter-spacing: 0.12em; }
-  .calib-track { width: 180px; height: 2px; background: #3a322a; margin-top: 4px; }
-  #calibFill { height: 100%; background: #dbb87c; width: 0%; transition: width 0.08s linear; }
   #startBtn {
     background: #dbb87c;
     border: none;
@@ -124,6 +122,18 @@
   .pip-badge.searching { color: #e0b07a; border-left: 2px solid #e0b07a; }
   .pip-badge.calibrating { color: #dbb87c; border-left: 2px solid #dbb87c; }
   .pip-badge.live { color: #b8a07c; border-left: 2px solid #b8a07c; }
+  .calib-progress {
+    margin-top: 4px;
+    width: 100%;
+    height: 2px;
+    background: #3a322a;
+  }
+  .calib-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: #dbb87c;
+    transition: width 0.08s linear;
+  }
   .panel {
     border: 1px solid #3e332a;
     background: #14100ecc;
@@ -183,15 +193,15 @@
     text-align: center;
     text-transform: uppercase;
   }
-  #sCells, #cellVal, #bwVal, .bwrow { display: none; }
+  .cells-info { font-size: 0.45rem; letter-spacing: 0.1em; color: #8b7864; text-align: right; }
 </style>
 </head>
 <body>
 <div class="master-container">
   <header>
     <div class="eyebrow">Étude du visage · Live</div>
-    <h1>Classical <em>Realism</em></h1>
-    <div class="sub">oil on canvas · derived from your presence</div>
+    <h1>Chuck Close <em>Mosaic</em></h1>
+    <div class="sub">classical realism · pixelated cells</div>
   </header>
 
   <div class="stage">
@@ -202,14 +212,14 @@
           <div class="ov-title" id="ovTitle">Camera Obscura</div>
           <div class="ov-sub" id="ovSub">Enable camera to begin<br>capturing your likeness</div>
           <button id="startBtn">Allow Camera →</button>
-          <div class="calib-track" id="calibTrack" style="display:none"><div id="calibFill"></div></div>
         </div>
       </div>
       <div class="statusbar">
         <span id="sTier">Tier II · Classical</span>
         <span id="sPhase">Awaiting</span>
-        <span id="sCells" style="display:none">—</span>
+        <span id="cellCount">— cells</span>
       </div>
+      <div class="calib-progress" id="calibProgress" style="display:none"><div class="calib-progress-bar" id="calibFill"></div></div>
     </div>
 
     <div class="right-col">
@@ -236,12 +246,12 @@
   </div>
 
   <div class="controls">
-    <div class="btn" data-tier="0">Tier I · Sketch</div>
-    <div class="btn on" data-tier="1">Tier II · Classical</div>
-    <div class="btn" data-tier="2">Tier III · Refined</div>
+    <div class="btn" data-tier="0">Tier I · 28px</div>
+    <div class="btn on" data-tier="1">Tier II · 14px</div>
+    <div class="btn" data-tier="2">Tier III · 7px</div>
     <button class="btn btn-recal" id="recalBtn">⟳ Recalibrate palette</button>
   </div>
-  <div class="hint">Hold natural expression · turn gently — the portrait follows light & proportion</div>
+  <div class="hint">Hold natural expression · turn gently — mosaic resolution changes with tiers</div>
 </div>
 
 <!-- hidden canvases for sampling & webgl -->
@@ -251,7 +261,7 @@
 <script>
   (function(){
     // --------------------------------------------------------------
-    //  CONSTANTS & REALISM ENGINE
+    //  CONSTANTS
     // --------------------------------------------------------------
     const W = 480, H = 560, VW = 640, VH = 480;
     const FTW = 1024, FTH = 1024;
@@ -260,9 +270,9 @@
     const CALIB_FRAMES = 60;
     
     const TIERS = [
-      { label: 'Tier I · Sketch', shadowIntensity:0.7, detail:0.8 },
-      { label: 'Tier II · Classical', shadowIntensity:1.0, detail:1.0 },
-      { label: 'Tier III · Refined', shadowIntensity:1.0, detail:1.2 }
+      { cs: 28, gap: 2, label: 'Tier I · 28px' },
+      { cs: 14, gap: 1, label: 'Tier II · 14px' },
+      { cs: 7,  gap: 1, label: 'Tier III · 7px' }
     ];
     let tierIdx = 1;
     
@@ -523,13 +533,137 @@
       faceTex.needsUpdate = true;
     }
     
+    // ------------------------------------------------------------------
+    // CHUCK CLOSE MOSAIC (exactly as original but with realistic source)
+    // ------------------------------------------------------------------
     const displayCanvas = document.getElementById('display');
     const dCtx = displayCanvas.getContext('2d');
-    function copyRealisticRender() { dCtx.drawImage(glCanvas, 0, 0, W, H); }
+    let glPixels = new Uint8Array(W * H * 4);
+    const gl = renderer.getContext();
     
-    function updateTier() { document.getElementById('sTier').textContent = TIERS[tierIdx].label; }
+    function readGLPixels() {
+      gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, glPixels);
+    }
     
-    // MediaPipe helpers
+    function getPixel(x, y) {
+      const xi = Math.max(0, Math.min(W-1, x|0));
+      const yi = Math.max(0, Math.min(H-1, y|0));
+      const fy = H - 1 - yi;
+      const i = (fy * W + xi) * 4;
+      if (glPixels[i+3] < 15) return null;
+      return [glPixels[i], glPixels[i+1], glPixels[i+2]];
+    }
+    
+    function drawCCMark(cx, cy, sz, c0, c1, c2, seed) {
+      const h = sz * 0.5;
+      const r0 = (seed * 43758.5453) % 1;
+      const r1 = ((seed + 5.13) * 43758.5453) % 1;
+      const r2 = ((seed + 11.37) * 43758.5453) % 1;
+      const pat = Math.floor(r0 * 4);
+      const cs0 = rgb(c0), cs1 = rgb(c1), cs2 = rgb(c2);
+      dCtx.save();
+      dCtx.translate(cx, cy);
+      dCtx.beginPath();
+      dCtx.rect(-h, -h, sz, sz);
+      dCtx.clip();
+      switch(pat) {
+        case 0: {
+          const jx = (r1 - 0.5) * sz * 0.28;
+          const jy = (r2 - 0.5) * sz * 0.28;
+          dCtx.fillStyle = cs0;
+          dCtx.fillRect(-h, -h, sz, sz);
+          dCtx.beginPath();
+          dCtx.arc(jx, jy, h * 0.74, 0, Math.PI*2);
+          dCtx.fillStyle = cs1;
+          dCtx.fill();
+          dCtx.beginPath();
+          dCtx.arc(jx * 0.32, jy * 0.32, h * 0.40, 0, Math.PI*2);
+          dCtx.fillStyle = cs2;
+          dCtx.fill();
+          dCtx.beginPath();
+          dCtx.arc(0, 0, h * 0.15, 0, Math.PI*2);
+          dCtx.fillStyle = cs0;
+          dCtx.fill();
+          break;
+        }
+        case 1: {
+          dCtx.rotate((r1 - 0.5) * 0.44);
+          dCtx.fillStyle = cs0;
+          dCtx.fillRect(-h, -h, h, h);
+          dCtx.fillStyle = cs1;
+          dCtx.fillRect(0, -h, h, h);
+          dCtx.fillStyle = cs2;
+          dCtx.fillRect(-h, 0, h, h);
+          dCtx.fillStyle = cs1;
+          dCtx.fillRect(0, 0, h, h);
+          dCtx.beginPath();
+          dCtx.arc(0, 0, h * 0.50, 0, Math.PI*2);
+          dCtx.fillStyle = cs2;
+          dCtx.fill();
+          break;
+        }
+        case 2: {
+          dCtx.rotate((r1 - 0.5) * 0.88);
+          for (let i = 0; i < 4; i++) {
+            const a = i * Math.PI * 0.5;
+            dCtx.beginPath();
+            dCtx.moveTo(0, 0);
+            dCtx.arc(0, 0, h * 1.5, a, a + Math.PI * 0.5);
+            dCtx.closePath();
+            dCtx.fillStyle = (i % 2 === 0) ? cs0 : cs1;
+            dCtx.fill();
+          }
+          dCtx.beginPath();
+          dCtx.arc(0, 0, h * 0.44, 0, Math.PI*2);
+          dCtx.fillStyle = cs2;
+          dCtx.fill();
+          break;
+        }
+        case 3: {
+          dCtx.fillStyle = cs0;
+          dCtx.fillRect(-h, -h, sz, sz);
+          dCtx.beginPath();
+          dCtx.moveTo(0, -h * 0.78);
+          dCtx.lineTo(h * 0.78, 0);
+          dCtx.lineTo(0, h * 0.78);
+          dCtx.lineTo(-h * 0.78, 0);
+          dCtx.closePath();
+          dCtx.fillStyle = cs1;
+          dCtx.fill();
+          dCtx.beginPath();
+          dCtx.arc(0, 0, h * 0.38, 0, Math.PI*2);
+          dCtx.fillStyle = cs2;
+          dCtx.fill();
+          break;
+        }
+      }
+      dCtx.restore();
+    }
+    
+    function applyChuckMosaic() {
+      const { cs, gap, label } = TIERS[tierIdx];
+      const step = cs + gap;
+      dCtx.fillStyle = '#0e0c0a';
+      dCtx.fillRect(0, 0, W, H);
+      let cells = 0;
+      const offsets = [[0,0], [cs*0.30,0], [0,cs*0.28], [-cs*0.22, cs*0.24]];
+      for (let cx = step * 0.5; cx < W; cx += step) {
+        for (let cy = step * 0.5; cy < H; cy += step) {
+          const c0 = getPixel(cx, cy);
+          if (!c0) continue;
+          const c1 = getPixel(cx + offsets[1][0], cy + offsets[1][1]) || c0;
+          const c2 = getPixel(cx + offsets[2][0], cy + offsets[2][1]) || c0;
+          drawCCMark(cx, cy, cs, c0, c1, c2, Math.round(cx * 997 + cy * 11));
+          cells++;
+        }
+      }
+      document.getElementById('sTier').textContent = label;
+      document.getElementById('cellCount').textContent = cells + ' cells';
+    }
+    
+    // --------------------------------------------------------------
+    // MEDIAPIPE & VIBE EXTRACTION
+    // --------------------------------------------------------------
     let faceMesh;
     const sampCanvas = document.getElementById('sampCanvas');
     const sampCtx = sampCanvas.getContext('2d');
@@ -597,14 +731,12 @@
       const lm=results.multiFaceLandmarks[0];
       sampCtx.drawImage(vid,0,0,VW,VH);
       
-      // If we're in searching mode, start calibration immediately
-      if(phase === 'searching') {
-        startCalib();
-      }
+      if(phase === 'searching') startCalib();
       
       if(phase === 'calibrating'){
         calibCount++;
-        document.getElementById('calibFill').style.width=(calibCount/CALIB_FRAMES*100)+'%';
+        const fillPercent = (calibCount / CALIB_FRAMES) * 100;
+        document.getElementById('calibFill').style.width = fillPercent + '%';
         const skinS=[sampleAt(lm[9].x,lm[9].y,6), sampleAt(lm[LM.L_CHEEK].x,lm[LM.L_CHEEK].y,5), sampleAt(lm[LM.R_CHEEK].x,lm[LM.R_CHEEK].y,5)].filter(Boolean);
         if(skinS.length) accPush(calibColors.skin, skinS[0]);
         accPush(calibColors.hair, sampleAt(clamp(lm[LM.L_TEMPLE].x-0.03,0,1), lm[LM.L_TEMPLE].y,5));
@@ -615,9 +747,8 @@
         browBaseline = browBaseline===null ? eyeTopAvg-browAvg : browBaseline*0.85+(eyeTopAvg-browAvg)*0.15;
         if(calibCount >= CALIB_FRAMES){ 
           buildPaletteFromCalibration(); 
-          setPhase('live'); 
-          // hide calibration progress bar
-          document.getElementById('calibTrack').style.display = 'none';
+          setPhase('live');
+          document.getElementById('calibProgress').style.display = 'none';
         }
         tick(); 
         return;
@@ -647,7 +778,8 @@
         headMesh.rotation.y = -Math.PI/2 + pose.yaw*0.9;
         headMesh.rotation.z = pose.roll*0.4;
         renderer.render(scene, cam3);
-        copyRealisticRender();
+        readGLPixels();
+        applyChuckMosaic();
         updateUI();
       });
     }
@@ -672,38 +804,36 @@
     function setPhase(p){
       phase = p;
       const ov = document.getElementById('overlay');
-      const ct = document.getElementById('calibTrack');
+      const progressDiv = document.getElementById('calibProgress');
       const btn = document.getElementById('startBtn');
       const badge = document.getElementById('pipBadge');
       const pdot = document.getElementById('pdot');
       document.getElementById('sPhase').textContent = p.charAt(0).toUpperCase() + p.slice(1);
       
-      // Only show the overlay if we are waiting for camera permission
       if(p === 'waiting') {
         ov.classList.remove('hidden');
-        ct.style.display = 'none';
+        progressDiv.style.display = 'none';
         badge.className = 'pip-badge searching';
         badge.textContent = 'Awaiting';
         pdot.className = 'pdot';
         btn.style.display = '';
       } else {
-        // In all other states, hide the overlay so the avatar is visible
         ov.classList.add('hidden');
         btn.style.display = 'none';
       }
       
       if(p === 'searching') {
-        ct.style.display = 'none';
+        progressDiv.style.display = 'none';
         badge.className = 'pip-badge searching';
         badge.textContent = 'Searching';
         pdot.className = 'pdot';
       } else if(p === 'calibrating') {
-        ct.style.display = 'block';
+        progressDiv.style.display = 'block';
         badge.className = 'pip-badge calibrating';
         badge.textContent = 'Calibrating';
         pdot.className = 'pdot';
       } else if(p === 'live') {
-        ct.style.display = 'none';
+        progressDiv.style.display = 'none';
         badge.className = 'pip-badge live';
         badge.textContent = 'Live Portrait';
         pdot.className = 'pdot on';
@@ -795,28 +925,26 @@
       }
       
       pumpActive = true;
-      setPhase('searching');   // Overlay is hidden automatically by setPhase
+      setPhase('searching');
       if (pumpLoopId) cancelAnimationFrame(pumpLoopId);
       pumpLoopId = requestAnimationFrame(pump);
     }
     
-    // UI event wiring
+    // UI wiring
     document.getElementById('startBtn').addEventListener('click', startCamera);
     document.querySelectorAll('[data-tier]').forEach(btn => {
       btn.addEventListener('click', () => {
         tierIdx = parseInt(btn.dataset.tier);
         document.querySelectorAll('[data-tier]').forEach(b => b.classList.remove('on'));
         btn.classList.add('on');
-        updateTier();
         tick();
       });
     });
     document.getElementById('recalBtn').addEventListener('click', () => { if(phase === 'live') startCalib(); });
     
-    updateTier();
     setPhase('waiting');
     drawRealisticFace();
-    copyRealisticRender();
+    tick();
   })();
 </script>
 </body>
