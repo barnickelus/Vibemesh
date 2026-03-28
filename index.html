@@ -178,7 +178,6 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 </div>
 <div class="hint">Turn your head — the avatar turns · step back to resolve the face</div>
 
-<!-- Hidden workbench canvases -->
 <canvas id="glCanvas" width="480" height="560" style="position:absolute;left:-9999px;top:-9999px"></canvas>
 <canvas id="sampCanvas" width="640" height="480" style="position:absolute;left:-9999px;top:-9999px"></canvas>
 
@@ -727,6 +726,34 @@ function drawFaceDefault(){
   ctx.beginPath(); ctx.ellipse(FCX,FCY,FFW,FFH,0,0,Math.PI*2);
   ctx.fillStyle=rgba(pa.skin,.6); ctx.fill();
 }
+
+// ══════════════════════════════════════════════════
+//  THREE.JS & CANVAS SETUP
+// ══════════════════════════════════════════════════
+const glCanvas = document.getElementById('glCanvas');
+const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, alpha: true });
+renderer.setSize(W, H);
+
+const scene = new THREE.Scene();
+const cam3 = new THREE.PerspectiveCamera(45, W/H, 0.1, 100);
+cam3.position.z = 4;
+
+// Offscreen canvas for the 2D face drawing (drawn by drawFace)
+const ftCanvas = document.createElement('canvas');
+ftCanvas.width = FTW;
+ftCanvas.height = FTH;
+const ftCtx = ftCanvas.getContext('2d');
+
+// The texture driven by ftCtx and applied to the 3D head
+const faceTex = new THREE.CanvasTexture(ftCanvas);
+faceTex.minFilter = THREE.LinearFilter;
+
+// Basic head proxy geometry
+const headGeom = new THREE.CylinderGeometry(1.4, 1.4, 3, 32); 
+const headMat = new THREE.MeshBasicMaterial({ map: faceTex });
+const headMesh = new THREE.Mesh(headGeom, headMat);
+scene.add(headMesh);
+
 // ══════════════════════════════════════════════════
 //  CHUCK CLOSE POST-PROCESS
 // ══════════════════════════════════════════════════
@@ -814,7 +841,6 @@ function applyChuckClose(){
 
 // ══════════════════════════════════════════════════
 //  HEAD POSE EXTRACTION
-//  FIX: pitch sign corrected — was inverted (up/down flipped)
 // ══════════════════════════════════════════════════
 function extractPose(lm){
   const nose=lm[LM.NOSE];
@@ -827,9 +853,6 @@ function extractPose(lm){
   const yaw=nOff*Math.PI*-0.95;
 
   // Pitch: FIXED — was (topZ-chinZ), should be (chinZ-topZ)
-  // When you look up: chin moves closer (chinZ decreases/more negative),
-  // top moves away (topZ increases). chinZ-topZ → negative → negative
-  // rotation.x → Three.js head tilts up. Correct.
   const topZ=lm[LM.TOP].z, chinZ=lm[LM.CHIN].z;
   const fH=lm[LM.CHIN].y-lm[LM.TOP].y;
   const pitch=fH>.04 ? (chinZ-topZ)*3.2 : 0;
@@ -866,9 +889,6 @@ function extractVibe(lm){
   };
 }
 
-// ══════════════════════════════════════════════════
-//  FACE PROPORTION EXTRACTION
-// ══════════════════════════════════════════════════
 // ══════════════════════════════════════════════════
 //  COLOR SAMPLING
 // ══════════════════════════════════════════════════
@@ -1010,214 +1030,4 @@ function onResults(results){
   }
   const lm=results.multiFaceLandmarks[0];
 
-  // Sample frame for color extraction
-  sampCtx.drawImage(vid,0,0,VW,VH);
-
-  if(phase==='searching'||phase==='waiting') startCalib();
-
-  if(phase==='calibrating'){
-    calibCount++;
-    document.getElementById('calibFill').style.width=(calibCount/CALIB_FRAMES*100)+'%';
-
-    // ── Accumulate landmark positions (EMA average) ──
-    accumulateLM(lm);
-
-    // ── Color sampling — multiple well-lit skin points ──
-    const skinSamples=[
-      sampleAt(lm[9].x,  lm[9].y,  6),   // forehead
-      sampleAt(lm[116].x,lm[116].y,5),   // left cheek
-      sampleAt(lm[345].x,lm[345].y,5),   // right cheek
-      sampleAt(lm[6].x,  lm[6].y,  4),   // nose bridge
-    ].filter(Boolean);
-    if(skinSamples.length>1){
-      skinSamples.sort((a,b)=>(a[0]+a[1]+a[2])-(b[0]+b[1]+b[2]));
-      const use=skinSamples.slice(1); // drop darkest
-      accPush(calibColors.skin,[0,1,2].map(i=>use.reduce((s,c)=>s+c[i],0)/use.length));
-    }
-
-    // Hair: sample beside temples — NOT above head (sky)
-    const hL=sampleAt(clamp(lm[127].x-.05,.01,.99),lm[127].y,5);
-    const hR=sampleAt(clamp(lm[356].x+.05,.01,.99),lm[356].y,5);
-    if(hL&&hR) accPush(calibColors.hair,[(hL[0]+hR[0])*.5,(hL[1]+hR[1])*.5,(hL[2]+hR[2])*.5]);
-    else if(hL) accPush(calibColors.hair,hL);
-    else if(hR) accPush(calibColors.hair,hR);
-
-    // Iris center
-    const iL=lm[468]||lm[33];
-    accPush(calibColors.iris,sampleAt(iL.x,iL.y,2));
-
-    // Lower lip
-    accPush(calibColors.lip,sampleAt(lm[17].x,lm[17].y,5));
-
-    // Brow
-    accPush(calibColors.brow,sampleAt((lm[105].x+lm[334].x)*.5,(lm[105].y+lm[334].y)*.5,4));
-
-    // Brow baseline for expression delta
-    const bd=(lm[159].y+lm[386].y)*.5-(lm[105].y+lm[334].y)*.5;
-    browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;
-
-    if(calibCount>=CALIB_FRAMES){ buildPalette(); setPhase('live'); }
-    tick(); return;
-  }
-
-  // Live
-  const p3=extractPose(lm);
-  pose.yaw  =smooth(pose.yaw,  p3.yaw,  .18);
-  pose.pitch=smooth(pose.pitch,p3.pitch,.18);
-  pose.roll =smooth(pose.roll, p3.roll, .18);
-
-  const nv=extractVibe(lm);
-  if(nv){
-    const s=.20;
-    vibe.mouthOpen =smooth(vibe.mouthOpen, nv.mouthOpen, s);
-    vibe.mouthCurve=smooth(vibe.mouthCurve,nv.mouthCurve,s);
-    vibe.browLift  =smooth(vibe.browLift,  nv.browLift,  s);
-    vibe.eyeOpen   =smooth(vibe.eyeOpen,   nv.eyeOpen,  .16);
-    vibe.cheekAmt  =smooth(vibe.cheekAmt,  nv.cheekAmt,  s);
-  }
-  tick();
-}
-
-// ══════════════════════════════════════════════════
-//  RENDER TICK
-// ══════════════════════════════════════════════════
-let tickQueued=false;
-function tick(){
-  if(tickQueued) return;
-  tickQueued=true;
-  requestAnimationFrame(()=>{
-    tickQueued=false;
-    drawFace(); faceTex.needsUpdate=true;
-    headMesh.rotation.x=pose.pitch;
-    headMesh.rotation.y=-Math.PI/2+pose.yaw;
-    headMesh.rotation.z=pose.roll;
-    renderer.render(scene,cam3);
-    readGLPixels(); applyChuckClose();
-    updateVibeUI();
-  });
-}
-
-function updateVibeUI(){
-  const fmt=v=>(v>=0?'+':'')+v.toFixed(2);
-  const pct=(v,lo,hi)=>clamp((v-lo)/(hi-lo)*100,0,100);
-  document.getElementById('v_mo').textContent=vibe.mouthOpen.toFixed(2);
-  document.getElementById('b_mo').style.width=pct(vibe.mouthOpen,0,.12)+'%';
-  const mc=vibe.mouthCurve;
-  document.getElementById('v_mc').textContent=fmt(mc);
-  const bmc=document.getElementById('b_mc');
-  if(mc>=0){bmc.style.left='50%';bmc.style.right='auto';bmc.style.width=(mc*50)+'%';}
-  else{bmc.style.right='50%';bmc.style.left='auto';bmc.style.width=(-mc*50)+'%';}
-  const bl=vibe.browLift;
-  document.getElementById('v_bl').textContent=fmt(bl);
-  const bbl=document.getElementById('b_bl');
-  const bp=clamp(Math.abs(bl)/.075*50,0,50);
-  if(bl>=0){bbl.style.left='50%';bbl.style.right='auto';bbl.style.width=bp+'%';}
-  else{bbl.style.right='50%';bbl.style.left='auto';bbl.style.width=bp+'%';}
-  document.getElementById('v_eo').textContent=vibe.eyeOpen.toFixed(2);
-  document.getElementById('b_eo').style.width=pct(vibe.eyeOpen,0,1.35)+'%';
-  const ya=pose.yaw;
-  document.getElementById('v_ya').textContent=fmt(ya);
-  const bya=document.getElementById('b_ya');
-  const yp=clamp(Math.abs(ya)/1.5*50,0,50);
-  if(ya>=0){bya.style.left='50%';bya.style.right='auto';bya.style.width=yp+'%';}
-  else{bya.style.right='50%';bya.style.left='auto';bya.style.width=yp+'%';}
-}
-
-// ══════════════════════════════════════════════════
-//  FRAME PUMP — drives MediaPipe via rAF, no Camera util
-// ══════════════════════════════════════════════════
-let pumpActive=false;
-async function pump(){
-  if(!pumpActive) return;
-  if(vid.readyState>=2&&!vid.paused){
-    try{ await faceMesh.send({image:vid}); }catch(e){}
-  }
-  requestAnimationFrame(pump);
-}
-
-// ══════════════════════════════════════════════════
-//  CAMERA BOOT — triggered by button click (user gesture)
-// ══════════════════════════════════════════════════
-async function startCamera(){
-  const btn=document.getElementById('startBtn');
-  btn.textContent='Starting…'; btn.disabled=true;
-
-  // Must happen inside user gesture for permission prompt to fire
-  let stream;
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({
-      video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},
-      audio:false,
-    });
-  }catch(e){
-    const msg=
-      e.name==='NotAllowedError' ? 'Camera access denied.\nClick the camera icon\nin your address bar to allow.'
-      :e.name==='NotFoundError'  ? 'No camera found.'
-      :`Camera error:\n${e.name}`;
-    document.getElementById('ovTitle').textContent='Camera Blocked';
-    document.getElementById('ovSub').textContent=msg;
-    btn.textContent='Retry'; btn.disabled=false;
-    btn.onclick=()=>location.reload();
-    return;
-  }
-
-  // Attach stream
-  vid.srcObject=stream;
-  try{ await vid.play(); }
-  catch(e){
-    document.getElementById('ovTitle').textContent='Video Error';
-    document.getElementById('ovSub').textContent=e.message;
-    btn.textContent='Retry'; btn.disabled=false;
-    return;
-  }
-
-  // Init MediaPipe
-  try{
-    faceMesh=new FaceMesh({
-      locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
-    });
-    faceMesh.setOptions({
-      maxNumFaces:1, refineLandmarks:true,
-      minDetectionConfidence:.5, minTrackingConfidence:.5,
-    });
-    faceMesh.onResults(onResults);
-    await faceMesh.initialize();
-  }catch(e){
-    document.getElementById('ovTitle').textContent='MediaPipe Error';
-    document.getElementById('ovSub').textContent='Could not load face tracking.\nCheck network connection.';
-    setPhase('error'); return;
-  }
-
-  // Start frame pump
-  pumpActive=true;
-  setPhase('searching');
-  requestAnimationFrame(pump);
-}
-
-// ══════════════════════════════════════════════════
-//  INIT + UI WIRING
-// ══════════════════════════════════════════════════
-function init(){
-  setPhase('waiting');
-  drawFace(); faceTex.needsUpdate=true;
-  renderer.render(scene,cam3);
-  readGLPixels(); applyChuckClose();
-}
-
-document.getElementById('startBtn').addEventListener('click', startCamera);
-
-document.getElementById('tierBtns').addEventListener('click',e=>{
-  const b=e.target.closest('[data-tier]'); if(!b) return;
-  tierIdx=+b.dataset.tier;
-  document.querySelectorAll('[data-tier]').forEach(x=>x.classList.toggle('on',x===b));
-  tick();
-});
-
-document.getElementById('recalBtn').addEventListener('click',()=>{
-  if(phase==='live') startCalib();
-});
-
-init();
-</script>
-</body>
-</html>
+  // Sample
