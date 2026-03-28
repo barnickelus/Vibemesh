@@ -254,11 +254,11 @@ const splatFrag=`
   varying vec3 vColor;
   varying float vOpacity;
   void main(){
-    // Gaussian falloff from center of point
+    // Hard circle mask + soft Gaussian glow
     vec2 c=gl_PointCoord-0.5;
-    float d=dot(c,c);
-    float g=exp(-d*4.0);  // softer falloff — splats blend together
-    if(g<0.01) discard;
+    float r=length(c);
+    if(r>0.48) discard;  // hard circle cutoff — no square corners
+    float g=exp(-r*r*12.0)*smoothstep(0.48,0.3,r);  // soft center, sharp edge
     gl_FragColor=vec4(vColor,g*vOpacity);
   }
 `;
@@ -306,27 +306,39 @@ function buildSplatCloud(lm, snapCanvas){
   const snapCtx=snapCanvas.getContext('2d',{willReadFrequently:true});
   const imgData=snapCtx.getImageData(0,0,VW,VH);
 
-  // Sample color from snapshot at normalized coords with brightness correction
-  function sampleColor(nx,ny){
-    const px=clamp(Math.round(nx*VW),0,VW-1);
-    const py=clamp(Math.round(ny*VH),0,VH-1);
-    const i=(py*VW+px)*4;
-    let r=imgData.data[i]/255, g=imgData.data[i+1]/255, b=imgData.data[i+2]/255;
-    // Boost if underexposed (common with webcams)
-    const lum=r*0.299+g*0.587+b*0.114;
-    if(lum<0.35){
-      const boost=0.35/(lum+0.01);
-      r=Math.min(r*boost,1); g=Math.min(g*boost,1); b=Math.min(b*boost,1);
-    }
-    return [r,g,b];
-  }
-
-  // Compute face geometry for normalization
+  // Compute face geometry for normalization — MUST be before sampleColor
   const oxs=FACE_OVAL.map(i=>lm[i].x), oys=FACE_OVAL.map(i=>lm[i].y);
   const fcx=(Math.min(...oxs)+Math.max(...oxs))*.5;
   const fcy=(Math.min(...oys)+Math.max(...oys))*.5;
   const frw=(Math.max(...oxs)-Math.min(...oxs))*.5||.001;
   const frh=(Math.max(...oys)-Math.min(...oys))*.5||.001;
+
+  // Sample color — averages a small patch, rejects background, boosts dark webcams
+  function sampleColor(nx,ny){
+    // Check if inside face oval — reject background
+    const fdx=(nx-fcx)/frw, fdy=(ny-fcy)/frh;
+    if(fdx*fdx+fdy*fdy>1.3){
+      return [pal.skin[0]/255*0.7, pal.skin[1]/255*0.7, pal.skin[2]/255*0.7];
+    }
+    // Average a 5×5 patch for noise reduction
+    let rr=0,gg=0,bb=0,n=0;
+    for(let oy=-2;oy<=2;oy++){
+      for(let ox=-2;ox<=2;ox++){
+        const px=clamp(Math.round(nx*VW)+ox,0,VW-1);
+        const py=clamp(Math.round(ny*VH)+oy,0,VH-1);
+        const i=(py*VW+px)*4;
+        rr+=imgData.data[i]; gg+=imgData.data[i+1]; bb+=imgData.data[i+2]; n++;
+      }
+    }
+    let r=rr/n/255, g=gg/n/255, b=bb/n/255;
+    // Boost underexposed
+    const lum=r*0.299+g*0.587+b*0.114;
+    if(lum<0.3){
+      const boost=0.3/(lum+0.01);
+      r=Math.min(r*boost,1); g=Math.min(g*boost,1); b=Math.min(b*boost,1);
+    }
+    return [r,g,b];
+  }
 
   // Convert normalized landmark to 3D position (roughly on a unit sphere)
   function lmTo3D(p){
