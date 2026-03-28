@@ -1422,18 +1422,18 @@ function extractVoiceParams(lm){
 function buildSynthesizer(){
   if(!audioCtx) return;
 
-  // ── Glottal source: custom periodic wave ──
-  // Pulse-like waveform with harmonics that roll off like a real glottis
-  const nHarm=32;
+  // ── Glottal source: rich pulse-like periodic wave ──
+  // disableNormalization:true so we control the amplitude ourselves.
+  // Sawtooth-like spectrum with -6dB/octave rolloff (closer to real glottis)
+  const nHarm=40;
   const real=new Float32Array(nHarm+1);
   const imag=new Float32Array(nHarm+1);
   real[0]=0; imag[0]=0;
   for(let h=1;h<=nHarm;h++){
     real[h]=0;
-    // Glottal spectrum: each harmonic rolls off as 1/h²
-    imag[h]=(1/(h*h))*((h%2===0)?-1:1);
+    imag[h]=1.0/h;  // sawtooth harmonics, -6dB/octave
   }
-  const glottalWave=audioCtx.createPeriodicWave(real,imag,{disableNormalization:false});
+  const glottalWave=audioCtx.createPeriodicWave(real,imag,{disableNormalization:true});
   const glottal=audioCtx.createOscillator();
   glottal.setPeriodicWave(glottalWave);
   glottal.frequency.value=120;
@@ -1447,13 +1447,15 @@ function buildSynthesizer(){
   noise.buffer=noiseBuffer;
   noise.loop=true;
 
-  // ── Gain nodes for source mixing ──
+  // ── Source gain nodes — MUCH louder than before ──
   const voicedGain=audioCtx.createGain();
   voicedGain.gain.value=0;
   const noiseGain=audioCtx.createGain();
   noiseGain.gain.value=0;
 
-  // ── Formant filters (resonant bandpass) ──
+  // ── Formant filters — WIDER resonances for intelligible speech ──
+  // Lower Q = wider bandwidth = more natural vowels
+  // Real speech formants have bandwidths of 60-120Hz
   const makeFormant=(freq,q)=>{
     const f=audioCtx.createBiquadFilter();
     f.type='bandpass';
@@ -1461,46 +1463,49 @@ function buildSynthesizer(){
     f.Q.value=q;
     return f;
   };
-  const f1=makeFormant(500, 8);
-  const f2=makeFormant(1500, 10);
-  const f3=makeFormant(2500, 12);
+  const f1=makeFormant(500, 3);   // F1: wide, carries vowel height
+  const f2=makeFormant(1500, 4);  // F2: medium, carries front/back
+  const f3=makeFormant(2500, 5);  // F3: tighter, adds brightness
 
-  // ── Parallel formant routing ──
-  // Each source → each formant filter → sum at master gain
-  // Parallel routing sounds more natural than serial for speech
-  const f1Gain=audioCtx.createGain(); f1Gain.gain.value=1.0;
-  const f2Gain=audioCtx.createGain(); f2Gain.gain.value=0.7;
-  const f3Gain=audioCtx.createGain(); f3Gain.gain.value=0.4;
+  // ── Parallel formant routing with boosted gains ──
+  const f1Gain=audioCtx.createGain(); f1Gain.gain.value=1.2;
+  const f2Gain=audioCtx.createGain(); f2Gain.gain.value=1.0;
+  const f3Gain=audioCtx.createGain(); f3Gain.gain.value=0.6;
 
   const masterGain=audioCtx.createGain();
   masterGain.gain.value=0;
 
-  // Wire: glottal → voicedGain → each formant filter → formant gain → master
+  // Wire sources → formants → master
   glottal.connect(voicedGain);
   noise.connect(noiseGain);
 
   [voicedGain,noiseGain].forEach(src=>{
-    const s1=src; // connect source to each formant
-    s1.connect(f1); s1.connect(f2); s1.connect(f3);
+    src.connect(f1); src.connect(f2); src.connect(f3);
   });
 
   f1.connect(f1Gain); f1Gain.connect(masterGain);
   f2.connect(f2Gain); f2Gain.connect(masterGain);
   f3.connect(f3Gain); f3Gain.connect(masterGain);
 
-  // Final output limiter
+  // Gentle limiter — don't crush the signal, just protect from clipping
   const limiter=audioCtx.createDynamicsCompressor();
-  limiter.threshold.value=-12;
-  limiter.knee.value=6;
-  limiter.ratio.value=8;
+  limiter.threshold.value=-6;
+  limiter.knee.value=12;
+  limiter.ratio.value=4;
+  limiter.attack.value=0.003;
+  limiter.release.value=0.1;
   masterGain.connect(limiter);
   limiter.connect(audioCtx.destination);
 
-  // Start sources
+  // Analyser on synth output for waveform visualization
+  const synthAnalyser=audioCtx.createAnalyser();
+  synthAnalyser.fftSize=512;
+  limiter.connect(synthAnalyser);
+
   glottal.start();
   noise.start();
 
-  synthNodes={glottal, noise, voicedGain, noiseGain, f1, f2, f3, masterGain, f1Gain, f2Gain, f3Gain};
+  synthNodes={glottal, noise, voicedGain, noiseGain, f1, f2, f3, masterGain, f1Gain, f2Gain, f3Gain, synthAnalyser};
 }
 
 // ── Update synthesizer parameters from voice state ──
@@ -1508,27 +1513,27 @@ function updateSynthesizer(){
   if(!synthNodes||!synthEnabled) return;
   const vp=voiceParams;
   const t=audioCtx.currentTime;
-  const ramp=0.03; // 30ms ramp for click-free parameter changes
+  const ramp=0.02; // 20ms ramp for click-free parameter changes
 
-  // F0 → oscillator frequency (clamped to musical range)
+  // F0 → oscillator frequency
   const targetF0=clamp(vp.f0, 60, 500);
   if(targetF0>60&&vp.amplitude>0.01){
     synthNodes.glottal.frequency.setTargetAtTime(targetF0, t, ramp);
   }
 
-  // Voicing mix: voiced → glottal gain, unvoiced → noise gain
+  // Voicing mix — source gains need to be loud since bandpass attenuates heavily
   const vAmt=clamp(vp.voicing, 0, 1);
-  synthNodes.voicedGain.gain.setTargetAtTime(vAmt*0.35, t, ramp);
-  synthNodes.noiseGain.gain.setTargetAtTime((1-vAmt)*0.15, t, ramp);
+  synthNodes.voicedGain.gain.setTargetAtTime(vAmt*1.5, t, ramp);
+  synthNodes.noiseGain.gain.setTargetAtTime((1-vAmt*0.5)*0.8, t, ramp);
 
-  // Formant frequencies
+  // Formant frequencies — update filter centers
   synthNodes.f1.frequency.setTargetAtTime(clamp(vp.f1, 200, 900), t, ramp);
   synthNodes.f2.frequency.setTargetAtTime(clamp(vp.f2, 700, 2800), t, ramp);
   synthNodes.f3.frequency.setTargetAtTime(clamp(vp.f3, 1800, 3800), t, ramp);
 
-  // Master amplitude (lung pressure)
+  // Master amplitude (lung pressure) — full range
   const amp=clamp(vp.amplitude, 0, 1);
-  synthNodes.masterGain.gain.setTargetAtTime(amp*0.5, t, ramp);
+  synthNodes.masterGain.gain.setTargetAtTime(amp*1.2, t, ramp);
 }
 
 // ── Mute synthesizer ──
@@ -1547,16 +1552,27 @@ function drawWaveform(){
   waveCtx.fillStyle='rgba(12,11,9,.4)';
   waveCtx.fillRect(0,0,w,h);
 
-  if(!micAnalyser||!micFreqBuf) return;
-  micAnalyser.getByteTimeDomainData(micFreqBuf);
+  // Choose analyser: synth output when synth is on, mic input when not
+  let analyser=null;
+  if(synthEnabled&&synthNodes&&synthNodes.synthAnalyser){
+    analyser=synthNodes.synthAnalyser;
+  } else if(micAnalyser){
+    analyser=micAnalyser;
+  }
+  if(!analyser) return;
 
+  const bufLen=analyser.frequencyBinCount;
+  const buf=new Uint8Array(bufLen);
+  analyser.getByteTimeDomainData(buf);
+
+  const isActive=voiceParams.amplitude>0.02||isPlaying;
   waveCtx.beginPath();
-  waveCtx.strokeStyle=voiceParams.amplitude>0.02?'#c9a96e':'#3a3428';
-  waveCtx.lineWidth=1;
+  waveCtx.strokeStyle=isActive?'#c9a96e':'#3a3428';
+  waveCtx.lineWidth=1.5;
 
-  const sliceW=w/micFreqBuf.length;
-  for(let i=0;i<micFreqBuf.length;i++){
-    const v=micFreqBuf[i]/128.0;
+  const sliceW=w/bufLen;
+  for(let i=0;i<bufLen;i++){
+    const v=buf[i]/128.0;
     const y=(v*h/2);
     if(i===0) waveCtx.moveTo(0,y);
     else waveCtx.lineTo(i*sliceW,y);
@@ -1591,7 +1607,11 @@ function updateVoiceUI(){
   document.getElementById('vv_bw').textContent='56 B/f';
 
   const vdot=document.getElementById('vdot');
-  vdot.className=vp.amplitude>0.02?'pdot on':'pdot';
+  vdot.className=vp.amplitude>0.02||isPlaying?'pdot on':'pdot';
+
+  // Update waveform label
+  const waveLbl=document.querySelector('.wave-lbl');
+  if(waveLbl) waveLbl.textContent=synthEnabled?'Synth output':'Mic input';
 
   drawWaveform();
 }
@@ -1730,28 +1750,31 @@ function generateDemo(){
   // Each segment: [vowel, durationFrames, startPitch, endPitch, amp]
   const phrase=[
     // "Hah"
-    {f1:750,f2:1200,f3:2600, dur:12, p0:140,p1:135, amp:0.7, voic:0.8},
+    {f1:750,f2:1200,f3:2600, dur:14, p0:140,p1:132, amp:0.9, voic:0.85},
     // brief pause
-    {f1:500,f2:1500,f3:2500, dur:4,  p0:0,  p1:0,   amp:0,   voic:0},
+    {f1:500,f2:1500,f3:2500, dur:3,  p0:0,  p1:0,   amp:0,   voic:0},
     // "lee"
-    {f1:350,f2:2200,f3:2900, dur:14, p0:150,p1:160, amp:0.8, voic:0.9},
+    {f1:320,f2:2300,f3:3000, dur:16, p0:150,p1:165, amp:0.95,voic:0.92},
     // "oh"
-    {f1:500,f2:900, f3:2500, dur:16, p0:155,p1:130, amp:0.75,voic:0.85},
+    {f1:450,f2:850, f3:2500, dur:18, p0:155,p1:125, amp:0.9, voic:0.88},
     // pause
     {f1:500,f2:1500,f3:2500, dur:5,  p0:0,  p1:0,   amp:0,   voic:0},
     // "world" — "wuh"
-    {f1:400,f2:800, f3:2300, dur:8,  p0:125,p1:140, amp:0.6, voic:0.7},
+    {f1:380,f2:750, f3:2200, dur:10, p0:125,p1:145, amp:0.85,voic:0.78},
     // "erld"
-    {f1:500,f2:1350,f3:1700, dur:14, p0:140,p1:110, amp:0.65,voic:0.75},
+    {f1:520,f2:1400,f3:1650, dur:16, p0:140,p1:108, amp:0.8, voic:0.8},
     // trail off
-    {f1:450,f2:1400,f3:2400, dur:10, p0:110,p1:85,  amp:0.3, voic:0.4},
+    {f1:450,f2:1400,f3:2400, dur:12, p0:108,p1:82,  amp:0.4, voic:0.5},
     // silence
     {f1:500,f2:1500,f3:2500, dur:8,  p0:0,  p1:0,   amp:0,   voic:0},
-    // "Testing"
-    {f1:550,f2:1800,f3:2700, dur:6,  p0:160,p1:155, amp:0.5, voic:0.3}, // "T" noise
-    {f1:450,f2:1900,f3:2700, dur:10, p0:150,p1:145, amp:0.75,voic:0.85},// "eh"
-    {f1:500,f2:1600,f3:2500, dur:5,  p0:145,p1:140, amp:0.4, voic:0.3}, // "s" noise
-    {f1:400,f2:1700,f3:2600, dur:8,  p0:135,p1:120, amp:0.6, voic:0.7}, // "ting"
+    // "Testing" — "T" burst
+    {f1:550,f2:1800,f3:2700, dur:5,  p0:0,  p1:0,   amp:0.7, voic:0.1},
+    // "eh"
+    {f1:550,f2:1900,f3:2700, dur:12, p0:155,p1:148, amp:0.95,voic:0.9},
+    // "ss" noise
+    {f1:500,f2:1600,f3:2500, dur:6,  p0:0,  p1:0,   amp:0.5, voic:0.05},
+    // "ting"
+    {f1:380,f2:1750,f3:2650, dur:10, p0:138,p1:115, amp:0.8, voic:0.82},
     // final silence
     {f1:500,f2:1500,f3:2500, dur:10, p0:0,  p1:0,   amp:0,   voic:0},
   ];
