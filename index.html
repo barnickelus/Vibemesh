@@ -3,165 +3,210 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoBi-Net // ITERATION BUILD</title>
+    <title>LoBi-Net // FULL ITERATION BUILD</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body { margin: 0; background: #050505; color: #00ff00; font-family: 'Courier New', monospace; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        #container { position: relative; width: 480px; height: 560px; border: 1px solid #333; box-shadow: 0 0 20px rgba(0,255,0,0.2); }
+        #container { position: relative; width: 480px; height: 560px; border: 1px solid #222; box-shadow: 0 0 20px rgba(0,255,0,0.2); }
         canvas, video { position: absolute; top: 0; left: 0; }
-        #ui { position: absolute; bottom: 10px; left: 10px; z-index: 10; font-size: 10px; background: rgba(0,0,0,0.85); padding: 8px; border: 1px solid #00ff0033; pointer-events: none; }
-        .hint { position: absolute; top: 10px; right: 10px; font-size: 9px; color: #444; text-transform: uppercase; letter-spacing: 1px; }
+        #ui { position: absolute; bottom: 10px; left: 10px; z-index: 100; font-size: 9px; background: rgba(0,0,0,0.9); padding: 8px; border: 1px solid #00ff0033; pointer-events: none; line-height: 1.5; }
+        .hint { position: absolute; top: 10px; right: 10px; font-size: 8px; color: #444; z-index: 100; text-transform: uppercase; }
     </style>
 </head>
 <body>
 
 <div id="container">
     <video id="input_video" style="display:none"></video>
+    <canvas id="ft_canvas" width="512" height="512" style="display:none"></canvas>
     <canvas id="final_canvas" width="480" height="560"></canvas>
     <div id="ui">
-        LOBI-NET // PROTOCOL ANALYZER<br>
-        STATUS: <span id="status" style="color:#fff">INIT...</span><br>
-        DATA: <span id="packet_size" style="color:#00ffff">24-BYTE PACKET</span>
+        LOBI-NET v0.6 [ITERATION]<br>
+        MODE: <span id="mode_label" style="color:#fff">DEBUG</span><br>
+        PACKET: <span style="color:#00ffff">24 BYTES</span>
     </div>
-    <div class="hint">PRESS 'D' TO TOGGLE DEV MODE</div>
+    <div class="hint">PRESS 'D' TO TOGGLE</div>
 </div>
 
 <script>
 'use strict';
 
-const vid = document.getElementById('input_video');
-const canvas = document.getElementById('final_canvas');
-const finalCtx = canvas.getContext('2d');
-const W=480, H=560;
-
-// Iteration State
+// ══════════════════════════════════════════════════
+//  1. CONSTANTS & FACE MAPPING
+// ══════════════════════════════════════════════════
+const W=480, H=560, VW=640, VH=480;
 let isDevMode = true; 
+
+const LM={
+  NOSE:1, CHIN:152, TOP:10, MOUTH_T:13, MOUTH_B:14, MOUTH_L:61, MOUTH_R:291
+};
+
+// State
+let vibe={mouthOpen:0, yaw:0, pitch:0, roll:0};
 let liveLM = null;
-let vibe = { mouthOpen: 0, yaw: 0, pitch: 0 };
 
-// Landmark Indices for Calibration
-const LM = { NOSE:1, CHIN:152, TOP:10, MOUTH_T:13, MOUTH_B:14 };
+// ══════════════════════════════════════════════════
+//  2. THREE.JS & TEXTURE ENGINE
+// ══════════════════════════════════════════════════
+const ftCanvas = document.getElementById('ft_canvas');
+const ftCtx = ftCanvas.getContext('2d', {alpha:false});
+const faceTex = new THREE.CanvasTexture(ftCanvas);
 
-// --- THREE.JS SETUP (THE PUPPET) ---
 const scene = new THREE.Scene();
 const cam3 = new THREE.PerspectiveCamera(35, (W/2)/H, 0.1, 1000);
-cam3.position.z = 5;
+cam3.position.set(0, 0, 4.5);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setSize(W, H); 
+renderer.setSize(W, H);
 
-// High-Fidelity Protocol Asset (The "Clean" Version)
-const hiFiMaterial = new THREE.MeshStandardMaterial({
-    color: 0x111111, roughness: 0.1, metalness: 0.9, emissive: 0x001122
+// Materials
+const faceMat = new THREE.MeshBasicMaterial({ map: faceTex });
+const hiFiMat = new THREE.MeshStandardMaterial({ 
+    color: 0x111111, roughness: 0.1, metalness: 0.9, emissive: 0x001122 
 });
-const headMesh = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.8, 1.2), hiFiMaterial);
+
+const headMesh = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.0, 1.2), faceMat);
 scene.add(headMesh);
 
-const light = new THREE.PointLight(0xffffff, 1.5);
-light.position.set(5, 5, 5);
-scene.add(light);
-scene.add(new THREE.AmbientLight(0x404040));
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const pLight = new THREE.PointLight(0xffffff, 1.5);
+pLight.position.set(2, 2, 5);
+scene.add(pLight);
 
-// --- CALIBRATION LOGIC (24-BYTE EXTRACTION) ---
-function extractVibeData(lm) {
-    // 1. Mouth Opening (Normalized to 0.0 - 1.0)
-    const top = lm[LM.TOP], bot = lm[LM.CHIN];
-    const mT = lm[LM.MOUTH_T], mB = lm[LM.MOUTH_B];
-    const dist = Math.sqrt(Math.pow(mT.x - mB.x, 2) + Math.pow(mT.y - mB.y, 2));
-    const faceSize = Math.sqrt(Math.pow(top.x - bot.x, 2) + Math.pow(top.y - bot.y, 2));
-    
-    // 2. Pose (Yaw/Pitch)
-    const nose = lm[LM.NOSE];
-    
-    return {
-        mouth: Math.min(dist / faceSize * 6.0, 1.0), // Gain multiplier
-        yaw: (nose.x - 0.5) * 1.5,
-        pitch: (nose.y - 0.5) * -1.2
-    };
+// ══════════════════════════════════════════════════
+//  3. TRIANGLE WARPER (CORE ENGINE)
+// ══════════════════════════════════════════════════
+function warpTriangle(ctx, img, p0, p1, p2, u0, u1, u2) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(u0.x, u0.y);
+    ctx.lineTo(u1.x, u1.y);
+    ctx.lineTo(u2.x, u2.y);
+    ctx.closePath();
+    ctx.clip();
+
+    const d = (u0.x * (u1.y - u2.y) + u1.x * (u2.y - u0.y) + u2.x * (u0.y - u1.y));
+    const a = ((p0.x * (u1.y - u2.y) + p1.x * (u2.y - u0.y) + p2.x * (u0.y - u1.y)) / d);
+    const b = ((p0.x * (u1.x - u2.x) + p1.x * (u2.x - u0.x) + p2.x * (u0.x - u1.x)) / -d);
+    const c = p0.x - a * u0.x - b * u0.y;
+    const e = ((p0.y * (u1.y - u2.y) + p1.y * (u2.y - u0.y) + p2.y * (u0.y - u1.y)) / d);
+    const f = ((p0.y * (u1.x - u2.x) + p1.x * (u2.x - u0.x) + p2.x * (u0.x - u1.x)) / -d);
+    const g = p0.y - e * u0.x - f * u0.y;
+
+    ctx.setTransform(a, e, b, f, c, g);
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
 }
 
-function onResults(results) {
-    if (!results.multiFaceLandmarks || !results.multiFaceLandmarks[0]) return;
-    document.getElementById('status').innerText = "STREAMING";
-    liveLM = results.multiFaceLandmarks[0];
+function drawFace() {
+    if (!liveLM) return;
+    ftCtx.fillStyle = 'black';
+    ftCtx.fillRect(0,0,512,512);
     
-    const data = extractVibeData(liveLM);
-    vibe.mouthOpen = data.mouth;
-    vibe.yaw = data.yaw;
-    vibe.pitch = data.pitch;
-    
-    tick();
+    // Example Face Warping Triangle (Simplified for brevity, but uses warpTriangle logic)
+    const p1 = liveLM[LM.TOP], p2 = liveLM[LM.CHIN], p3 = liveLM[LM.NOSE];
+    warpTriangle(ftCtx, vid, 
+        {x:p1.x*VW, y:p1.y*VH}, {x:p2.x*VW, y:p2.y*VH}, {x:p3.x*VW, y:p3.y*VH},
+        {x:256, y:50}, {x:256, y:450}, {x:256, y:250}
+    );
 }
 
+// ══════════════════════════════════════════════════
+//  4. POST-PROCESSING (applyChuckClose)
+// ══════════════════════════════════════════════════
+function applyChuckClose() {
+    const ctx = document.getElementById('final_canvas').getContext('2d');
+    const size = isDevMode ? 4 : 8; 
+    const imageData = ctx.getImageData(0, 0, W, H);
+    ctx.clearRect(0,0,W,H);
+    
+    for (let y = 0; y < H; y += size) {
+        for (let x = 0; x < W; x += size) {
+            const idx = (y * W + x) * 4;
+            const r = imageData.data[idx], g = imageData.data[idx+1], b = imageData.data[idx+2];
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.beginPath();
+            ctx.arc(x + size/2, y + size/2, size/2.2, 0, Math.PI*2);
+            ctx.fill();
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════
+//  5. THE ITERATION TICK
+// ══════════════════════════════════════════════════
 function tick() {
-    // Apply 24-byte protocol data to the 3D Puppet
-    headMesh.rotation.y = -vibe.yaw;
+    // 24-Byte Data Drive
     headMesh.rotation.x = vibe.pitch;
-    headMesh.scale.y = 1 + (vibe.mouthOpen * 0.4); // Morph simulation
+    headMesh.rotation.y = -Math.PI/2 + vibe.yaw;
+    headMesh.scale.y = 1 + (vibe.mouthOpen * 0.4);
+
+    const mainCtx = document.getElementById('final_canvas').getContext('2d');
+    mainCtx.clearRect(0, 0, W, H);
 
     if (isDevMode) {
-        renderDevView();
+        renderDevView(mainCtx);
     } else {
-        renderImmersiveView();
+        renderImmersiveView(mainCtx);
     }
 }
 
-function renderDevView() {
-    finalCtx.clearRect(0, 0, W, H);
+function renderDevView(ctx) {
+    // LEFT: SOURCE + DEBUG DOTS
+    ctx.drawImage(vid, 0, 0, W/2, H);
+    ctx.fillStyle = "#0f0";
+    [LM.TOP, LM.CHIN, LM.NOSE, LM.MOUTH_T, LM.MOUTH_B].forEach(i => {
+        const pt = liveLM[i];
+        ctx.beginPath(); ctx.arc(pt.x*W/2, pt.y*H, 3, 0, 7); ctx.fill();
+    });
 
-    // LEFT: GROUND TRUTH (RAW CAMERA + TRACKING OVERLAY)
-    finalCtx.save();
-    finalCtx.drawImage(vid, 0, 0, W/2, H);
-    drawDebugDots(finalCtx, liveLM, W/2, H);
-    drawLabel(finalCtx, "GROUND TRUTH", 10, 20);
-    finalCtx.restore();
-
-    // RIGHT: PROTOCOL OUTPUT (CLEAN 3D PUPPET)
+    // RIGHT: PROTOCOL OUTPUT (HI-FI)
+    headMesh.material = hiFiMat;
     renderer.setViewport(0, 0, W/2, H);
     renderer.render(scene, cam3);
-    finalCtx.drawImage(renderer.domElement, W/2, 0, W/2, H);
-    drawLabel(finalCtx, "PROTOCOL OUTPUT", W/2 + 10, 20);
-
-    renderDataHUD(finalCtx);
+    ctx.drawImage(renderer.domElement, W/2, 0, W/2, H);
+    
+    renderDataHUD(ctx);
 }
 
-function renderImmersiveView() {
-    // Standard full-screen view (Placeholder for your pixel filter)
+function renderImmersiveView(ctx) {
+    headMesh.material = faceMat;
+    drawFace();
+    faceTex.needsUpdate = true;
     renderer.setViewport(0, 0, W, H);
     renderer.render(scene, cam3);
-    finalCtx.drawImage(renderer.domElement, 0, 0, W, H);
-    drawLabel(finalCtx, "IMMERSIVE MODE", 10, 20);
-}
-
-function drawDebugDots(ctx, lm, w, h) {
-    ctx.fillStyle = "#00ff00";
-    for(let key in LM) {
-        const pt = lm[LM[key]];
-        ctx.beginPath(); ctx.arc(pt.x * w, pt.y * h, 3, 0, 7); ctx.fill();
-    }
+    ctx.drawImage(renderer.domElement, 0, 0, W, H);
+    applyChuckClose();
 }
 
 function renderDataHUD(ctx) {
-    ctx.fillStyle = "rgba(0,0,0,0.8)";
-    ctx.fillRect(W/2 - 70, H - 70, 140, 50);
-    ctx.fillStyle = "#00ffff";
+    ctx.fillStyle = "rgba(0,0,0,0.85)";
+    ctx.fillRect(W/2-70, H-90, 140, 70);
+    ctx.fillStyle = "#0ff";
     ctx.font = "bold 11px monospace";
-    ctx.fillText(`MOUTH: ${(vibe.mouthOpen*100).toFixed(1)}%`, W/2 - 60, H - 50);
-    ctx.fillText(`YAW:   ${vibe.yaw.toFixed(2)}`, W/2 - 60, H - 35);
+    ctx.fillText(`MOUTH: ${(vibe.mouthOpen*100).toFixed(1)}%`, W/2-60, H-65);
+    ctx.fillText(`YAW:   ${vibe.yaw.toFixed(2)}`, W/2-60, H-45);
+    ctx.fillText(`PITCH: ${vibe.pitch.toFixed(2)}`, W/2-60, H-25);
 }
 
-function drawLabel(ctx, txt, x, y) {
-    ctx.fillStyle = "black";
-    ctx.fillRect(x-2, y-12, ctx.measureText(txt).width+4, 15);
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 9px sans-serif";
-    ctx.fillText(txt, x, y);
-}
-
-// --- SETUP MEDIAPIPE ---
+// ══════════════════════════════════════════════════
+//  6. MEDIAPIPE & START
+// ══════════════════════════════════════════════════
 window.addEventListener('keydown', e => { if(e.key.toLowerCase()==='d') isDevMode = !isDevMode; });
+
+function onResults(results) {
+    if (!results.multiFaceLandmarks || !results.multiFaceLandmarks[0]) return;
+    liveLM = results.multiFaceLandmarks[0];
+    
+    // Simple Vibe Math
+    const dist = Math.abs(liveLM[LM.MOUTH_T].y - liveLM[LM.MOUTH_B].y);
+    vibe.mouthOpen = Math.min(dist * 8.0, 1.0);
+    vibe.yaw = (liveLM[LM.NOSE].x - 0.5) * 1.5;
+    vibe.pitch = (liveLM[LM.NOSE].y - 0.5) * -1.2;
+    
+    tick();
+}
 
 const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
 faceMesh.setOptions({maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
@@ -169,6 +214,7 @@ faceMesh.onResults(onResults);
 
 const camera = new Camera(vid, {onFrame: async () => { await faceMesh.send({image: vid}); }, width: 640, height: 480});
 camera.start();
+
 </script>
 </body>
 </html>
