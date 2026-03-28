@@ -121,6 +121,8 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 .synth-toggle::after{content:'';position:absolute;top:1px;left:1px;width:10px;height:10px;border-radius:50%;background:var(--text);transition:left .15s}
 .synth-toggle.on::after{left:15px}
 .synth-lbl{font-size:.42rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.btn.recording{background:var(--accent);color:#0c0b09;border-color:var(--accent);animation:pulse 1s infinite}
+.btn.playing{background:var(--green);color:#0c0b09;border-color:var(--green)}
 </style>
 </head>
 <body>
@@ -205,8 +207,10 @@ to build your avatar</div>
       <div class="vrow"><div class="vdot" style="background:#6ac9a0"></div><div class="vlbl">F3</div><div class="vtrack"><div class="vfill f3" id="vb_f3" style="width:0%"></div></div><div class="vval" id="vv_f3">—Hz</div></div>
       <div class="synth-row">
         <div class="synth-toggle" id="synthToggle"></div>
-        <div class="synth-lbl">Synth output</div>
-        <div class="vval" id="vv_bw">— B/f</div>
+        <div class="synth-lbl">Synth</div>
+        <button class="btn" id="demoBtn" style="font-size:.4rem;padding:3px 7px;margin-left:auto">▶ Demo</button>
+        <button class="btn" id="recBtn" style="font-size:.4rem;padding:3px 7px">● Rec</button>
+        <button class="btn" id="playBtn" style="font-size:.4rem;padding:3px 7px" disabled>⟳ Play</button>
       </div>
     </div>
   </div>
@@ -346,7 +350,14 @@ let voiceCalib={
 };
 
 // Synthesizer nodes (Web Audio graph)
-let synthNodes=null;  // {glottal, noise, f1, f2, f3, masterGain, noiseGain, voicedGain}
+let synthNodes=null;
+
+// Recording/playback for prototyping
+let voiceRecording=[];       // array of {f0, amplitude, voicing, f1, f2, f3} snapshots
+let isRecording=false;
+let isPlaying=false;
+let playbackIdx=0;
+let playbackTimer=null;
 
 // Face oval landmark indices
 const FACE_OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
@@ -1383,6 +1394,18 @@ function extractVoiceParams(lm){
     voiceCalib.f0Count++;
     voiceCalib.ampMax=Math.max(voiceCalib.ampMax, rawAmp);
   }
+
+  // Capture frame for recording
+  if(isRecording){
+    voiceRecording.push({
+      f0:voiceParams.f0,
+      amplitude:voiceParams.amplitude,
+      voicing:voiceParams.voicing,
+      f1:voiceParams.f1,
+      f2:voiceParams.f2,
+      f3:voiceParams.f3,
+    });
+  }
 }
 
 // ══════════════════════════════════════════════════
@@ -1695,8 +1718,144 @@ document.getElementById('synthToggle').addEventListener('click',function(){
   synthEnabled=!synthEnabled;
   this.classList.toggle('on',synthEnabled);
   if(!synthEnabled) muteSynth();
-  // Resume AudioContext on user gesture (Chrome autoplay policy)
   if(synthEnabled&&audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
+});
+
+// ── Demo: generate a canned vowel/syllable sequence through the synth ──
+// Simulates a short phrase "ah-ee-oo-eh-oh" with pitch contour
+function generateDemo(){
+  const seq=[];
+  const sr=30; // frames per second (matched to render loop)
+
+  // Each segment: [vowel, durationFrames, startPitch, endPitch, amp]
+  const phrase=[
+    // "Hah"
+    {f1:750,f2:1200,f3:2600, dur:12, p0:140,p1:135, amp:0.7, voic:0.8},
+    // brief pause
+    {f1:500,f2:1500,f3:2500, dur:4,  p0:0,  p1:0,   amp:0,   voic:0},
+    // "lee"
+    {f1:350,f2:2200,f3:2900, dur:14, p0:150,p1:160, amp:0.8, voic:0.9},
+    // "oh"
+    {f1:500,f2:900, f3:2500, dur:16, p0:155,p1:130, amp:0.75,voic:0.85},
+    // pause
+    {f1:500,f2:1500,f3:2500, dur:5,  p0:0,  p1:0,   amp:0,   voic:0},
+    // "world" — "wuh"
+    {f1:400,f2:800, f3:2300, dur:8,  p0:125,p1:140, amp:0.6, voic:0.7},
+    // "erld"
+    {f1:500,f2:1350,f3:1700, dur:14, p0:140,p1:110, amp:0.65,voic:0.75},
+    // trail off
+    {f1:450,f2:1400,f3:2400, dur:10, p0:110,p1:85,  amp:0.3, voic:0.4},
+    // silence
+    {f1:500,f2:1500,f3:2500, dur:8,  p0:0,  p1:0,   amp:0,   voic:0},
+    // "Testing"
+    {f1:550,f2:1800,f3:2700, dur:6,  p0:160,p1:155, amp:0.5, voic:0.3}, // "T" noise
+    {f1:450,f2:1900,f3:2700, dur:10, p0:150,p1:145, amp:0.75,voic:0.85},// "eh"
+    {f1:500,f2:1600,f3:2500, dur:5,  p0:145,p1:140, amp:0.4, voic:0.3}, // "s" noise
+    {f1:400,f2:1700,f3:2600, dur:8,  p0:135,p1:120, amp:0.6, voic:0.7}, // "ting"
+    // final silence
+    {f1:500,f2:1500,f3:2500, dur:10, p0:0,  p1:0,   amp:0,   voic:0},
+  ];
+
+  for(const seg of phrase){
+    for(let i=0;i<seg.dur;i++){
+      const t=seg.dur>1?i/(seg.dur-1):0;
+      seq.push({
+        f0:seg.p0+(seg.p1-seg.p0)*t,
+        amplitude:seg.amp*(0.9+Math.random()*0.2), // micro-variation
+        voicing:seg.voic,
+        f1:seg.f1+(Math.random()-0.5)*20,
+        f2:seg.f2+(Math.random()-0.5)*30,
+        f3:seg.f3+(Math.random()-0.5)*25,
+      });
+    }
+  }
+  return seq;
+}
+
+function stopPlayback(){
+  if(playbackTimer) clearInterval(playbackTimer);
+  playbackTimer=null;
+  isPlaying=false;
+  muteSynth();
+  document.getElementById('playBtn').classList.remove('playing');
+  document.getElementById('demoBtn').classList.remove('playing');
+  document.getElementById('demoBtn').textContent='▶ Demo';
+}
+
+function startPlayback(sequence, btn){
+  if(!audioCtx){
+    // Create a minimal audio context if mic wasn't granted
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    buildSynthesizer();
+  }
+  if(audioCtx.state==='suspended') audioCtx.resume();
+
+  // Force synth on
+  synthEnabled=true;
+  document.getElementById('synthToggle').classList.add('on');
+
+  stopPlayback();
+  isPlaying=true;
+  playbackIdx=0;
+  btn.classList.add('playing');
+
+  playbackTimer=setInterval(()=>{
+    if(playbackIdx>=sequence.length){
+      stopPlayback();
+      return;
+    }
+    const frame=sequence[playbackIdx];
+    // Drive voice params directly (bypassing mic extraction)
+    voiceParams.f0=smooth(voiceParams.f0, frame.f0, 0.3);
+    voiceParams.amplitude=smooth(voiceParams.amplitude, frame.amplitude, 0.25);
+    voiceParams.voicing=smooth(voiceParams.voicing, frame.voicing, 0.3);
+    voiceParams.f1=smooth(voiceParams.f1, frame.f1, 0.2);
+    voiceParams.f2=smooth(voiceParams.f2, frame.f2, 0.2);
+    voiceParams.f3=smooth(voiceParams.f3, frame.f3, 0.2);
+
+    updateSynthesizer();
+    updateVoiceUI();
+    playbackIdx++;
+  }, 1000/30); // 30fps playback
+}
+
+// Demo button
+document.getElementById('demoBtn').addEventListener('click',function(){
+  if(isPlaying){
+    stopPlayback();
+    return;
+  }
+  this.textContent='■ Stop';
+  startPlayback(generateDemo(), this);
+});
+
+// Record button — captures live voice params
+document.getElementById('recBtn').addEventListener('click',function(){
+  if(isRecording){
+    isRecording=false;
+    this.classList.remove('recording');
+    this.textContent='● Rec';
+    if(voiceRecording.length>0){
+      document.getElementById('playBtn').disabled=false;
+      document.getElementById('playBtn').textContent=`⟳ Play (${voiceRecording.length}f)`;
+    }
+    return;
+  }
+  voiceRecording=[];
+  isRecording=true;
+  this.classList.add('recording');
+  this.textContent='■ Stop';
+  document.getElementById('playBtn').disabled=true;
+});
+
+// Playback button — plays back recorded voice params through synth
+document.getElementById('playBtn').addEventListener('click',function(){
+  if(isPlaying){
+    stopPlayback();
+    return;
+  }
+  if(voiceRecording.length===0) return;
+  startPlayback(voiceRecording, this);
 });
 
 init();
