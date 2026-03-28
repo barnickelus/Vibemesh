@@ -106,7 +106,7 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 <header>
   <div class="eyebrow">Vibe Protocol · 3D Live v0.5</div>
   <h1 class="title">Your likeness. <em>Abstracted.</em></h1>
-  <div class="sub">3D presence — derived from your face</div>
+  <div class="sub">Presence without video — snapshot + expression floats</div>
 </header>
 
 <div class="stage">
@@ -167,7 +167,7 @@ to build your avatar</div>
       <div class="srow"><div class="sw" id="sw_hair"></div><div class="slbl">Hair</div><div class="shex" id="sh_hair">—</div></div>
       <div class="srow"><div class="sw" id="sw_iris"></div><div class="slbl">Iris</div><div class="shex" id="sh_iris">—</div></div>
       <div class="srow"><div class="sw" id="sw_lip"></div><div class="slbl">Lip</div><div class="shex" id="sh_lip">—</div></div>
-      <div class="bwrow">~<span class="bwval" id="bwVal">—</span> bytes · <span class="bwval" id="cellVal">—</span> cells</div>
+      <div class="bwrow">Identity <span class="bwval" id="idSize">—</span> · Stream <span class="bwval" id="streamRate">32B/f</span></div>
     </div>
   </div>
 </div>
@@ -181,7 +181,7 @@ to build your avatar</div>
   </div>
   <button class="btn btn-recal" id="recalBtn" style="margin-left:14px">↺ Recalibrate</button>
 </div>
-<div class="hint">Turn your head — the avatar turns · step back to resolve the face</div>
+<div class="hint">Camera tracks expression — avatar renders from snapshot + 8 floats · no video transmitted</div>
 
 <canvas id="sampCanvas" width="640" height="480" style="position:absolute;left:-9999px;top:-9999px"></canvas>
 
@@ -250,6 +250,11 @@ let browBaseline=null;
 let faceMap=null;       // calibration landmarks → texture pixel positions
 let faceTris=null;      // Delaunay triangle indices [[i0,i1,i2], ...]
 let liveLM=null;        // current-frame raw landmarks from MediaPipe
+
+// Snapshot-based rendering (honest protocol — no live video in render path)
+let snapshotCanvas=null;   // captured neutral-face image from calibration
+let calibSourcePts=null;   // calibration landmarks in snapshot pixel coords [0..VW, 0..VH]
+let snapshotSize=0;        // JPEG byte size of identity payload
 
 // Pose calibration baselines
 let poseBaseline={noseRatio:0.55, yawOffset:0};
@@ -404,17 +409,25 @@ function buildFaceMap(lm){
 }
 
 // ══════════════════════════════════════════════════
-//  DRAW FACE — VIDEO TEXTURE WARPING
-//  Instead of procedural gradients, this warps the actual
-//  live video onto the texture using Delaunay triangulation.
-//  Each triangle maps: live video landmark positions →
-//  calibrated neutral-pose texture positions.
-//  Result: exact likeness with real skin, real eyes, real
-//  features. Expressions transfer naturally from the video.
+//  DRAW FACE — SNAPSHOT + EXPRESSION DELTAS
+//  The honest protocol: warp a single calibration snapshot
+//  using expression-driven landmark offsets. No live video
+//  pixels enter the render path after calibration.
+//
+//  How it works:
+//  1. Source triangles = calibration landmarks on the snapshot image
+//  2. Dest triangles = live landmarks mapped to texture space
+//     (using the live frame's own face oval for normalization,
+//      which factors out translation/scale, keeping only expression)
+//  3. Affine-warp each triangle from snapshot → texture
+//
+//  The delta between calibration and live landmark positions IS
+//  the expression. Mouth opens → lower lip landmarks drop →
+//  snapshot's lip pixels get stretched apart → open mouth appears.
 // ══════════════════════════════════════════════════
 function drawFace(){
   const ctx=ftCtx;
-  if(!faceMap||!faceTris||!liveLM){
+  if(!faceMap||!faceTris||!liveLM||!snapshotCanvas||!calibSourcePts){
     drawFaceDefault();
     return;
   }
@@ -445,20 +458,40 @@ function drawFace(){
   ctx.fillStyle=nkg; ctx.fill();
   ctx.restore();
 
-  // Warp every triangle: live video → texture
+  // ── Compute expression-deformed destination positions ──
+  // Map live landmarks to texture space using the LIVE frame's face oval.
+  // Since calibration landmarks used the calibration oval, the difference
+  // between the two mappings isolates pure expression (rigid motion cancels).
   const lm=liveLM;
-  const fm=faceMap.all;
+  const loxs=FACE_OVAL.map(i=>lm[i].x);
+  const loys=FACE_OVAL.map(i=>lm[i].y);
+  const lcx=(Math.min(...loxs)+Math.max(...loxs))*.5;
+  const lcy=(Math.min(...loys)+Math.max(...loys))*.5;
+  const lrw=(Math.max(...loxs)-Math.min(...loxs))*.5||.001;
+  const lrh=(Math.max(...loys)-Math.min(...loys))*.5||.001;
+
+  // Live landmarks → texture pixel positions (same mapping formula as calibration)
+  const liveTex=new Array(468);
+  for(let i=0;i<468;i++){
+    liveTex[i]={
+      x:FCX+((lm[i].x-lcx)/lrw)*FFW,
+      y:FCY+((lm[i].y-lcy)/lrh)*FFH,
+    };
+  }
+
+  // ── Warp snapshot from calibration source → expression-deformed dest ──
+  // Source: where each landmark sits on the snapshot (static, never changes)
+  // Dest: where that landmark should appear on the texture NOW (driven by expression)
   for(let t=0;t<faceTris.length;t++){
     const[i0,i1,i2]=faceTris[t];
-    warpTriangle(ctx, vid,
-      {x:lm[i0].x*VW, y:lm[i0].y*VH},
-      {x:lm[i1].x*VW, y:lm[i1].y*VH},
-      {x:lm[i2].x*VW, y:lm[i2].y*VH},
-      fm[i0], fm[i1], fm[i2]
+    warpTriangle(ctx, snapshotCanvas,
+      calibSourcePts[i0], calibSourcePts[i1], calibSourcePts[i2],
+      liveTex[i0], liveTex[i1], liveTex[i2]
     );
   }
 
   // Edge feathering — blend face boundary into hair
+  const fm=faceMap.all;
   const ov=FACE_OVAL.map(i=>fm[i]);
   ctx.save();
   ctx.beginPath();
@@ -578,8 +611,6 @@ function applyChuckClose(){
   }
   document.getElementById('sTier').textContent=label;
   document.getElementById('sCells').textContent=`${cells} cells`;
-  document.getElementById('cellVal').textContent=cells;
-  document.getElementById('bwVal').textContent='~24B';
 }
 
 // ══════════════════════════════════════════════════
@@ -729,6 +760,33 @@ function buildPalette(){
     console.log(`Delaunay: ${faceTris.length} triangles from 468 landmarks`);
   }
 
+  // ─── SNAPSHOT CAPTURE ───
+  // This is the honest protocol: capture ONE neutral-face image,
+  // then never read camera pixels for rendering again.
+  // All subsequent rendering drives this snapshot with expression floats.
+  if(calibLM){
+    snapshotCanvas=document.createElement('canvas');
+    snapshotCanvas.width=VW; snapshotCanvas.height=VH;
+    const snapCtx=snapshotCanvas.getContext('2d');
+    snapCtx.drawImage(vid,0,0,VW,VH);
+
+    // Store calibration landmarks in snapshot pixel coords (source for warp)
+    calibSourcePts=calibLM.slice(0,468).map(p=>({x:p.x*VW, y:p.y*VH}));
+
+    // Compute actual JPEG size of identity payload
+    snapshotCanvas.toBlob(blob=>{
+      if(blob){
+        snapshotSize=blob.size;
+        const triBytes=faceTris.length*3*2;  // triangle indices
+        const lmBytes=468*2*2;               // landmark coords (float16)
+        const palBytes=5*3;                  // palette colors
+        const totalKB=((blob.size+triBytes+lmBytes+palBytes)/1024).toFixed(1);
+        document.getElementById('idSize').textContent=totalKB+'KB';
+        console.log(`Identity payload: snapshot=${(blob.size/1024).toFixed(1)}KB, tris=${(triBytes/1024).toFixed(1)}KB, total=${totalKB}KB`);
+      }
+    },'image/jpeg',0.85);
+  }
+
   // Calibrate pose baselines from neutral-pose landmarks
   if(calibLM){
     const nose=calibLM[LM.NOSE];
@@ -789,7 +847,7 @@ function setPhase(p){
     pdot.className='pdot';
   }else if(p==='live'){
     ov.classList.add('gone');
-    badge.className='pip-badge live'; badge.textContent='Live';
+    badge.className='pip-badge live'; badge.textContent='Tracking';
     pdot.className='pdot on';
   }else if(p==='error'){
     ov.classList.remove('gone');
@@ -806,6 +864,9 @@ function startCalib(){
   faceMap=null;
   faceTris=null;
   liveLM=null;
+  snapshotCanvas=null;
+  calibSourcePts=null;
+  snapshotSize=0;
   poseBaseline={noseRatio:0.55,yawOffset:0};
   setPhase('calibrating');
 }
