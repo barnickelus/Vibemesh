@@ -249,15 +249,12 @@ let calibCount=0;
 let calibColors={skin:[[],[],[]], hair:[[],[],[]], iris:[[],[],[]], lip:[[],[],[]], brow:[[],[],[]]};
 let calibLM=null;   // averaged landmarks in [0,1] video space
 let browBaseline=null;
+let calibProps={};  // kept for compat
 
 // Built from calibLM after calibration
 let faceMap=null;
 
-let pal={
-  skin:[212,172,130], shadow:[148,108,82], highlight:[242,210,170],
-  cheek:[195,130,115], lip:[172,90,80],
-  iris:[62,102,142], brow:[48,36,28], hair:[36,26,20],
-};
+
 
 // ── Landmark index groups (MediaPipe FaceMesh 468) ──
 const FACE_OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
