@@ -129,6 +129,7 @@ let vibe={mouthOpen:0,mouthCurve:0,browLift:0,eyeOpen:1.0};
 let pose={yaw:0,pitch:0,roll:0};
 let poseBaseline={noseRatio:0.55,yawOffset:0};
 let calibCount=0, calibLM=null, browBaseline=null;
+let pal={skin:[180,140,110],hair:[40,30,22],iris:[80,110,140]};
 
 // ── Mesh data ──
 let faceMeshObj=null;
@@ -650,7 +651,26 @@ function onResults(results){
     accumulateLM(lm);
     const bd=(lm[159].y+lm[386].y)*.5-(lm[105].y+lm[334].y)*.5;
     browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;
-    if(calibCount>=CALIB_FRAMES){finishCalibration();setPhase('live');}
+
+    // Sample skin color from cheek area
+    if(calibCount>10){
+      const sampCvs=document.createElement('canvas');
+      sampCvs.width=VW;sampCvs.height=VH;
+      const sctx=sampCvs.getContext('2d');
+      sctx.drawImage(vid,0,0,VW,VH);
+      try{
+        const px=Math.round(lm[116].x*VW),py=Math.round(lm[116].y*VH);
+        const d=sctx.getImageData(clamp(px-3,0,VW),clamp(py-3,0,VH),7,7).data;
+        let r=0,g=0,b=0,n=0;
+        for(let i=0;i<d.length;i+=4){r+=d[i];g+=d[i+1];b+=d[i+2];n++;}
+        if(n>0)pal.skin=pal.skin.map((v,j)=>v*.85+[r/n,g/n,b/n][j]*.15);
+      }catch(e){}
+    }
+
+    if(calibCount>=CALIB_FRAMES){
+      try{finishCalibration();setPhase('live');}
+      catch(e){console.error('Calibration error:',e);setPhase('live');}
+    }
     return;
   }
 
