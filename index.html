@@ -1451,25 +1451,32 @@ function extractVoiceParams(lm){
 function buildSynthesizer(){
   if(!audioCtx) return;
 
-  // Glottal source — rich sawtooth-like pulse
-  const nHarm=40;
+  // Glottal source — soft, warm, breathy
+  // Rolloff as 1/h³ gives a much gentler, rounder tone than sawtooth
+  const nHarm=20;
   const real=new Float32Array(nHarm+1);
   const imag=new Float32Array(nHarm+1);
   real[0]=0; imag[0]=0;
   for(let h=1;h<=nHarm;h++){
     real[h]=0;
-    imag[h]=1.0/h;
+    imag[h]=1.0/(h*h*h);  // cubic rolloff — warm, not buzzy
   }
   const glottalWave=audioCtx.createPeriodicWave(real,imag,{disableNormalization:true});
   const glottal=audioCtx.createOscillator();
   glottal.setPeriodicWave(glottalWave);
   glottal.frequency.value=120;
 
-  // Noise source
+  // Noise source — filtered pink-ish noise (less harsh than white)
   const noiseBufLen=audioCtx.sampleRate*2;
   const noiseBuffer=audioCtx.createBuffer(1,noiseBufLen,audioCtx.sampleRate);
   const noiseData=noiseBuffer.getChannelData(0);
-  for(let i=0;i<noiseBufLen;i++) noiseData[i]=Math.random()*2-1;
+  // Simple pink-ish: low-pass the random signal
+  let prev=0;
+  for(let i=0;i<noiseBufLen;i++){
+    const white=Math.random()*2-1;
+    prev=prev*0.7+white*0.3;
+    noiseData[i]=prev;
+  }
   const noise=audioCtx.createBufferSource();
   noise.buffer=noiseBuffer;
   noise.loop=true;
@@ -1478,7 +1485,13 @@ function buildSynthesizer(){
   const voicedGain=audioCtx.createGain(); voicedGain.gain.value=0;
   const noiseGain=audioCtx.createGain();  noiseGain.gain.value=0;
 
-  // Formant filters — wide resonances
+  // Warmth filter: tame anything above 4kHz before it hits the formants
+  const warmth=audioCtx.createBiquadFilter();
+  warmth.type='lowpass';
+  warmth.frequency.value=4200;
+  warmth.Q.value=0.5;
+
+  // Formant filters — wider Q for more natural resonance
   const makeFormant=(freq,q)=>{
     const f=audioCtx.createBiquadFilter();
     f.type='bandpass';
@@ -1486,32 +1499,33 @@ function buildSynthesizer(){
     f.Q.value=q;
     return f;
   };
-  const f1=makeFormant(500, 3);
-  const f2=makeFormant(1500, 4);
-  const f3=makeFormant(2500, 5);
+  const f1=makeFormant(500, 2.5);   // very wide — natural vowel body
+  const f2=makeFormant(1500, 3.5);
+  const f3=makeFormant(2500, 4);
 
-  // Formant output gains
-  const f1Gain=audioCtx.createGain(); f1Gain.gain.value=1.2;
-  const f2Gain=audioCtx.createGain(); f2Gain.gain.value=1.0;
-  const f3Gain=audioCtx.createGain(); f3Gain.gain.value=0.6;
+  // Formant output gains — F1 dominant, F3 subtle
+  const f1Gain=audioCtx.createGain(); f1Gain.gain.value=1.0;
+  const f2Gain=audioCtx.createGain(); f2Gain.gain.value=0.65;
+  const f3Gain=audioCtx.createGain(); f3Gain.gain.value=0.3;
 
   const masterGain=audioCtx.createGain();
   masterGain.gain.value=0;
 
-  // Wire
+  // Wire: sources → warmth → formants → master
   glottal.connect(voicedGain);
   noise.connect(noiseGain);
-  [voicedGain,noiseGain].forEach(src=>{
-    src.connect(f1); src.connect(f2); src.connect(f3);
-  });
+  voicedGain.connect(warmth);
+  noiseGain.connect(warmth);
+  warmth.connect(f1); warmth.connect(f2); warmth.connect(f3);
+
   f1.connect(f1Gain); f1Gain.connect(masterGain);
   f2.connect(f2Gain); f2Gain.connect(masterGain);
   f3.connect(f3Gain); f3Gain.connect(masterGain);
 
-  // Limiter
+  // Soft limiter
   const limiter=audioCtx.createDynamicsCompressor();
-  limiter.threshold.value=-6; limiter.knee.value=12;
-  limiter.ratio.value=4; limiter.attack.value=0.003; limiter.release.value=0.1;
+  limiter.threshold.value=-8; limiter.knee.value=20;
+  limiter.ratio.value=3; limiter.attack.value=0.01; limiter.release.value=0.15;
   masterGain.connect(limiter);
   limiter.connect(audioCtx.destination);
 
@@ -1524,7 +1538,7 @@ function buildSynthesizer(){
   noise.start();
 
   synthNodes={glottal, noise, voicedGain, noiseGain, f1, f2, f3,
-              masterGain, f1Gain, f2Gain, f3Gain, synthAnalyser};
+              masterGain, f1Gain, f2Gain, f3Gain, synthAnalyser, warmth};
 }
 
 // ── Update synthesizer from vocal notation ──
@@ -1532,37 +1546,35 @@ function updateSynthesizer(){
   if(!synthNodes||!synthEnabled) return;
   const vn=vocalNote;
   const t=audioCtx.currentTime;
-  const ramp=0.02;
+  const ramp=0.025;
 
   // Pitch from notation
   const hz=midiToHz(vn.pitch);
   if(hz>50&&vn.dynamic>0.01){
-    // Apply cents bend
     const bendHz=hz*Math.pow(2, vn.cents/1200);
     synthNodes.glottal.frequency.setTargetAtTime(clamp(bendHz,60,500), t, ramp);
   }
 
-  // Voicing mix
+  // Voicing mix — softer gains
   const vAmt=clamp(vn.voicing, 0, 1);
-  synthNodes.voicedGain.gain.setTargetAtTime(vAmt*1.5, t, ramp);
-  synthNodes.noiseGain.gain.setTargetAtTime((1-vAmt*0.5)*0.8, t, ramp);
+  synthNodes.voicedGain.gain.setTargetAtTime(vAmt*1.0, t, ramp);
+  synthNodes.noiseGain.gain.setTargetAtTime((1-vAmt*0.6)*0.4, t, ramp);
 
   // Formants from phoneme chart — smooth interpolation
   const phon=PHONEMES[vn.phoneme]||PHONEMES.ax;
   if(phon.f1>0){
-    const interpSpeed=0.12;
-    synthFormants.f1=smooth(synthFormants.f1, phon.f1, interpSpeed);
-    synthFormants.f2=smooth(synthFormants.f2, phon.f2, interpSpeed);
-    synthFormants.f3=smooth(synthFormants.f3, phon.f3, interpSpeed);
+    synthFormants.f1=smooth(synthFormants.f1, phon.f1, 0.10);
+    synthFormants.f2=smooth(synthFormants.f2, phon.f2, 0.10);
+    synthFormants.f3=smooth(synthFormants.f3, phon.f3, 0.10);
   }
 
   synthNodes.f1.frequency.setTargetAtTime(clamp(synthFormants.f1,200,900), t, ramp);
   synthNodes.f2.frequency.setTargetAtTime(clamp(synthFormants.f2,700,2800), t, ramp);
   synthNodes.f3.frequency.setTargetAtTime(clamp(synthFormants.f3,1800,3800), t, ramp);
 
-  // Master amplitude
+  // Master amplitude — gentle
   const amp=clamp(vn.dynamic, 0, 1);
-  synthNodes.masterGain.gain.setTargetAtTime(amp*1.2, t, ramp);
+  synthNodes.masterGain.gain.setTargetAtTime(amp*0.8, t, ramp);
 }
 
 function muteSynth(){
@@ -1874,23 +1886,63 @@ document.getElementById('demoBtn').addEventListener('click',function(){
   startPlayback(generateDemo(), this);
 });
 
-// Record button
-document.getElementById('recBtn').addEventListener('click',function(){
+// ── Standalone voice analysis loop for recording ──
+// Runs independently of face tracking so you can record without camera
+let voiceAnalysisTimer=null;
+function voiceAnalysisTick(){
+  if(!micAnalyser||!micTimeBuf) return;
+  extractVoiceParams(null); // null landmarks — phoneme classification from audio only
+  updateVoiceUI();
+}
+
+// Record button — gets mic, runs standalone analysis, captures notation
+document.getElementById('recBtn').addEventListener('click',async function(){
   if(isRecording){
+    // Stop recording
     isRecording=false;
+    if(voiceAnalysisTimer){ clearInterval(voiceAnalysisTimer); voiceAnalysisTimer=null; }
     this.classList.remove('recording');
     this.textContent='● Rec';
     if(voiceRecording.length>0){
       document.getElementById('playBtn').disabled=false;
-      document.getElementById('playBtn').textContent=`⟳ Play (${voiceRecording.length}f)`;
+      const dur=(voiceRecording.length/30).toFixed(1);
+      document.getElementById('playBtn').textContent=`⟳ Play (${dur}s)`;
     }
     return;
   }
+
+  // Ensure mic + audio is initialized
+  if(!audioCtx||!micAnalyser){
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      if(!audioCtx){
+        audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+        buildSynthesizer();
+      }
+      const source=audioCtx.createMediaStreamSource(stream);
+      micAnalyser=audioCtx.createAnalyser();
+      micAnalyser.fftSize=2048;
+      micAnalyser.smoothingTimeConstant=0.4;
+      source.connect(micAnalyser);
+      micTimeBuf=new Float32Array(micAnalyser.fftSize);
+      micFreqBuf=new Uint8Array(micAnalyser.fftSize);
+      console.log('Mic initialized for recording');
+    }catch(e){
+      console.warn('Mic access denied:',e);
+      return;
+    }
+  }
+  if(audioCtx.state==='suspended') await audioCtx.resume();
+
+  // Start recording
   voiceRecording=[];
   isRecording=true;
   this.classList.add('recording');
   this.textContent='■ Stop';
   document.getElementById('playBtn').disabled=true;
+
+  // Run voice analysis at 30fps independent of face tracking
+  voiceAnalysisTimer=setInterval(voiceAnalysisTick, 1000/30);
 });
 
 // Playback button
