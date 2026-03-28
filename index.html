@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibe Protocol · Depth Reproject</title>
+<title>Vibe Protocol · Deformable Mesh</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
@@ -30,21 +30,17 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:20px}
 .ov-sub{font-size:.52rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;text-align:center;line-height:2;white-space:pre-line}
 .calib-track{width:180px;height:2px;background:var(--border);margin-top:4px}
 #calibFill{height:100%;background:var(--accent);width:0%;transition:width .12s}
-#startBtn{font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;padding:11px 28px;margin-top:4px;cursor:pointer;background:var(--accent);border:none;color:#0c0b09;font-weight:500;transition:opacity .15s}
+#startBtn{font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;padding:11px 28px;margin-top:4px;cursor:pointer;background:var(--accent);border:none;color:#0c0b09;font-weight:500}
 #startBtn:hover{opacity:.80}
 #startBtn:disabled{opacity:.45;cursor:default}
 .statusbar{display:flex;justify-content:space-between;font-size:.52rem;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;padding:0 2px}
-.right-col{width:192px;display:flex;flex-direction:column;gap:10px;padding-top:2px}
+.right-col{width:200px;display:flex;flex-direction:column;gap:10px;padding-top:2px}
 .pip-wrap{position:relative;border:1px solid var(--border);background:#000;overflow:hidden}
-.pip-wrap::before,.pip-wrap::after{content:'';position:absolute;width:9px;height:9px;z-index:2}
-.pip-wrap::before{top:-1px;left:-1px;border-top:1px solid var(--accent-dk);border-left:1px solid var(--accent-dk)}
-.pip-wrap::after{bottom:-1px;right:-1px;border-bottom:1px solid var(--accent-dk);border-right:1px solid var(--accent-dk)}
-#vid{display:block;width:192px;height:144px;object-fit:cover;transform:scaleX(-1)}
+#vid{display:block;width:200px;height:150px;object-fit:cover;transform:scaleX(-1)}
 .pip-badge{position:absolute;top:5px;right:5px;font-size:.44rem;letter-spacing:.14em;text-transform:uppercase;padding:2px 5px;border:1px solid;z-index:2}
 .pip-badge.searching{color:var(--amber);border-color:var(--amber)}
 .pip-badge.calibrating{color:var(--accent);border-color:var(--accent)}
 .pip-badge.live{color:var(--green);border-color:var(--green)}
-.pip-lbl{position:absolute;bottom:5px;left:6px;font-size:.45rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);z-index:2}
 .panel{border:1px solid var(--border);padding:10px;background:var(--surface)}
 .phdr{font-size:.46rem;letter-spacing:.26em;text-transform:uppercase;color:var(--accent-dk);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
 .pdot{width:5px;height:5px;border-radius:50%;background:var(--border);transition:background .3s}
@@ -55,22 +51,20 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:20px}
 .pval{color:var(--accent);font-size:.43rem}
 .btrack{height:3px;background:var(--border);position:relative}
 .bfill{height:100%;background:var(--accent-dk);position:absolute;left:0;transition:width .06s}
-.depth-preview{border:1px solid var(--border);margin-bottom:6px}
-#depthCanvas{display:block;width:192px;height:144px}
+.accum-row{font-size:.42rem;color:var(--muted);letter-spacing:.10em;text-transform:uppercase;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+.accum-row span{color:var(--accent)}
 .controls{position:relative;z-index:1;margin-top:14px;display:flex;gap:10px;align-items:center}
 .btn{font-family:'JetBrains Mono',monospace;font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;padding:6px 11px;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .12s}
 .btn:hover{border-color:var(--accent-dk);color:var(--text)}
-.btn-recal{border-color:var(--accent-dk);color:var(--accent-dk)}
-.btn-recal:hover{background:var(--accent-dk);color:var(--text)}
 .hint{position:relative;z-index:1;margin-top:12px;font-size:.48rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;text-align:center;max-width:700px}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="eyebrow">Vibe Protocol · Depth Reproject v0.1</div>
-  <h1 class="title">Your face. <em>Reprojected.</em></h1>
-  <div class="sub">Photo + depth map → 3D parallax from a single image</div>
+  <div class="eyebrow">Vibe Protocol · v1.0</div>
+  <h1 class="title">Deformable <em>Presence</em></h1>
+  <div class="sub">468 landmarks = the blendshape rig · photo texture · progressive accumulation</div>
 </header>
 
 <div class="stage">
@@ -87,7 +81,8 @@ to build your avatar</div>
     </div>
     <div class="statusbar">
       <span id="sPhase">Waiting</span>
-      <span id="sInfo">Photo + Depth</span>
+      <span id="sVerts">0 verts</span>
+      <span id="sTex">0 textures</span>
     </div>
   </div>
 
@@ -95,52 +90,32 @@ to build your avatar</div>
     <div class="pip-wrap">
       <video id="vid" playsinline muted></video>
       <div class="pip-badge searching" id="pipBadge">Waiting</div>
-      <div class="pip-lbl">Source</div>
     </div>
     <div class="panel">
-      <div class="phdr">Depth Map <div class="pdot" id="pdot"></div></div>
-      <div class="depth-preview">
-        <canvas id="depthCanvas" width="256" height="256"></canvas>
-      </div>
-      <div class="prow">
-        <div class="plbl">Yaw <span class="pval" id="v_ya">0.00</span></div>
-        <div class="btrack"><div class="bfill" id="b_ya" style="width:0%"></div></div>
-      </div>
-      <div class="prow">
-        <div class="plbl">Pitch <span class="pval" id="v_pi">0.00</span></div>
-        <div class="btrack"><div class="bfill" id="b_pi" style="width:0%"></div></div>
-      </div>
-      <div class="prow">
-        <div class="plbl">Mouth <span class="pval" id="v_mo">0.00</span></div>
-        <div class="btrack"><div class="bfill" id="b_mo" style="width:0%"></div></div>
-      </div>
-      <div class="prow">
-        <div class="plbl">Eyes <span class="pval" id="v_eo">1.00</span></div>
-        <div class="btrack"><div class="bfill" id="b_eo" style="width:0%"></div></div>
-      </div>
+      <div class="phdr">Expression <div class="pdot" id="pdot"></div></div>
+      <div class="prow"><div class="plbl">Mouth <span class="pval" id="v_mo">0.00</span></div><div class="btrack"><div class="bfill" id="b_mo" style="width:0%"></div></div></div>
+      <div class="prow"><div class="plbl">Smile <span class="pval" id="v_mc">0.00</span></div><div class="btrack"><div class="bfill" id="b_mc" style="width:0%"></div></div></div>
+      <div class="prow"><div class="plbl">Eyes <span class="pval" id="v_eo">1.00</span></div><div class="btrack"><div class="bfill" id="b_eo" style="width:0%"></div></div></div>
+      <div class="prow"><div class="plbl">Brows <span class="pval" id="v_bl">0.00</span></div><div class="btrack"><div class="bfill" id="b_bl" style="width:0%"></div></div></div>
+      <div class="prow"><div class="plbl">Yaw <span class="pval" id="v_ya">0.00</span></div><div class="btrack"><div class="bfill" id="b_ya" style="width:0%"></div></div></div>
+      <div class="accum-row">Accumulated: <span id="accumCount">1</span> texture(s) · <span id="accumBytes">0</span> KB</div>
     </div>
   </div>
 </div>
 
 <div class="controls">
-  <button class="btn btn-recal" id="recalBtn">↺ Recalibrate</button>
+  <button class="btn" id="recalBtn">↺ Recalibrate</button>
 </div>
-<div class="hint">Inspired by ActiveFrame (@luruke / @active_theory) — single photo + depth channel = 3D parallax reprojection · 36 bytes/frame</div>
+<div class="hint">Landmarks drive mesh deformation · snapshot texture warps with expression · additional textures captured automatically during conversation</div>
 
 <script>
 'use strict';
 
 const W=480, H=560, VW=640, VH=480;
-const CALIB_FRAMES=50;
-const DEPTH_RES=256; // depth map resolution
+const CALIB_FRAMES=45;
+const NUM_LM=468; // MediaPipe landmarks (excluding iris refinements)
 
-const LM={
-  NOSE:1,CHIN:152,TOP:10,
-  L_EYE_OUT:33,R_EYE_OUT:263,
-  L_EYE_T:159,L_EYE_B:145,R_EYE_T:386,R_EYE_B:374,
-  L_BROW:105,R_BROW:334,
-  MOUTH_T:13,MOUTH_B:14,MOUTH_L:61,MOUTH_R:291,
-};
+const LM={NOSE:1,CHIN:152,TOP:10,L_EYE_OUT:33,R_EYE_OUT:263,L_EYE_T:159,L_EYE_B:145,R_EYE_T:386,R_EYE_B:374,L_BROW:105,R_BROW:334,MOUTH_T:13,MOUTH_B:14,MOUTH_L:61,MOUTH_R:291};
 const FACE_OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
 
 const clamp=(v,lo,hi)=>v<lo?lo:v>hi?hi:v;
@@ -153,17 +128,24 @@ let phase='waiting';
 let vibe={mouthOpen:0,mouthCurve:0,browLift:0,eyeOpen:1.0};
 let pose={yaw:0,pitch:0,roll:0};
 let poseBaseline={noseRatio:0.55,yawOffset:0};
-
 let calibCount=0, calibLM=null, browBaseline=null;
 
-// Textures
-let faceTexture=null;   // THREE.Texture from snapshot
-let depthTexture=null;  // THREE.Texture from depth map
-let depthCanvas=null;   // offscreen canvas for depth generation
-let faceMeshObj=null;   // THREE.Mesh — the face plane
+// ── Mesh data ──
+let faceMeshObj=null;           // THREE.Mesh
+let calibPositions=null;        // Float32Array[NUM_LM*3] — neutral 3D positions
+let calibUVs=null;              // Float32Array[NUM_LM*2] — UV coords on snapshot
+let triIndices=null;            // Uint16Array — triangle vertex indices
+let liveDisplacements=null;     // Float32Array[NUM_LM*3] — per-frame vertex offsets
+
+// ── Textures: accumulated during call ──
+let neutralTex=null;            // THREE.CanvasTexture — calibration snapshot
+let expressionTextures=[];      // [{tex, mouthOpen, mouthCurve, eyeOpen}] — captured over time
+let lastCaptureTime=0;
+const CAPTURE_INTERVAL=3000;    // min ms between texture captures
+const MAX_TEXTURES=6;
 
 // ══════════════════════════════════════════════════
-//  THREE.JS SETUP
+//  THREE.JS
 // ══════════════════════════════════════════════════
 const display=document.getElementById('display');
 const renderer=new THREE.WebGLRenderer({canvas:display,antialias:true,alpha:false});
@@ -172,251 +154,340 @@ renderer.setClearColor(0x0c0b09,1);
 
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(28,W/H,0.1,100);
-camera.position.set(0,0,3.0);
+camera.position.set(0,0,3.2);
 
-scene.add(new THREE.AmbientLight(0xffffff,1.0));
+scene.add(new THREE.AmbientLight(0xffffff,0.95));
+const dirLight=new THREE.DirectionalLight(0xfff8f0,0.25);
+dirLight.position.set(-1,1.5,3);
+scene.add(dirLight);
 
 // ══════════════════════════════════════════════════
-//  DEPTH-REPROJECTION SHADER
-//  The core of the ActiveFrame approach:
-//  - Vertex shader reads depth texture, displaces vertices along Z
-//  - When the mesh rotates, depth displacement creates parallax
-//  - Fragment shader samples the face photo — every pixel is real
+//  SHADER — landmark-driven deformable mesh
+//  Vertex positions = calibration + live displacement
+//  UVs map to the snapshot texture
 // ══════════════════════════════════════════════════
-const faceVert=`
-  uniform sampler2D depthMap;
-  uniform float depthScale;
-  uniform float mouthOpen;
-  uniform float eyeOpen;
+const meshVert=`
+  attribute vec3 displacement;
   varying vec2 vUv;
-  varying float vDepth;
   varying float vMask;
 
   void main(){
     vUv=uv;
 
-    // Sample depth at this vertex's UV position
-    float d=texture2D(depthMap,uv).r;
-    vDepth=d;
+    // Apply expression displacement to calibration position
+    vec3 pos=position+displacement;
 
-    // Alpha mask: depth=0 means outside face
-    vMask=d>0.01?1.0:0.0;
-
-    // Displace vertex along Z by depth value
-    // Nose (high depth) pushes forward, ears (low depth) stay back
-    vec3 pos=position;
-    pos.z+=d*depthScale;
-
-    // Expression deformation in UV space
-    // Mouth: stretch lower face down when mouth opens
-    float mouthRegion=smoothstep(0.35,0.55,uv.y)*smoothstep(0.75,0.55,uv.y);
-    float isLower=smoothstep(0.48,0.58,uv.y);
-    pos.y-=mouthOpen*isLower*mouthRegion*0.15;
-    pos.y+=mouthOpen*(1.0-isLower)*mouthRegion*0.03;
-
-    // Eyes: subtle lid shift
-    float eyeRegion=smoothstep(0.25,0.35,uv.y)*smoothstep(0.45,0.35,uv.y);
-    float eyeLR=smoothstep(0.15,0.3,uv.x)*smoothstep(0.85,0.7,uv.x);
-    eyeRegion*=eyeLR;
-    pos.y+=(eyeOpen-1.0)*eyeRegion*0.02;
+    // Mask: fade edges based on distance from center
+    float cx=uv.x-0.5, cy=uv.y-0.5;
+    vMask=1.0-smoothstep(0.38,0.50,length(vec2(cx,cy)));
 
     gl_Position=projectionMatrix*modelViewMatrix*vec4(pos,1.0);
   }
 `;
-const faceFrag=`
-  uniform sampler2D faceMap;
-  uniform float vignetteStr;
+const meshFrag=`
+  uniform sampler2D faceTex;
   varying vec2 vUv;
-  varying float vDepth;
   varying float vMask;
 
   void main(){
-    if(vMask<0.5) discard;
-
-    vec4 col=texture2D(faceMap,vUv);
-
-    // Soft edge vignette — fade at the borders of the face
-    float edgeFade=smoothstep(0.0,0.08,vDepth);
-
-    // Slight depth-based shading — darker at edges (lower depth)
-    float shading=0.7+0.3*vDepth;
-
-    col.rgb*=shading*edgeFade;
-    col.a=edgeFade;
-
+    if(vMask<0.01) discard;
+    vec4 col=texture2D(faceTex,vUv);
+    col.a*=vMask;
     gl_FragColor=col;
   }
 `;
 
 // ══════════════════════════════════════════════════
-//  DEPTH MAP GENERATOR
-//  Builds a depth map from MediaPipe's 468 landmarks.
-//  Each landmark has x,y,z — the z value encodes depth.
-//  We paint soft circles at each landmark's position
-//  with brightness = normalized depth, then blur to fill gaps.
+//  DELAUNAY TRIANGULATION
 // ══════════════════════════════════════════════════
-function buildDepthMap(lm){
-  const size=DEPTH_RES;
-  const canvas=document.createElement('canvas');
-  canvas.width=size; canvas.height=size;
-  const ctx=canvas.getContext('2d');
-
-  // Compute face bounding box
-  const oxs=FACE_OVAL.map(i=>lm[i].x), oys=FACE_OVAL.map(i=>lm[i].y);
-  const fcx=(Math.min(...oxs)+Math.max(...oxs))*.5;
-  const fcy=(Math.min(...oys)+Math.max(...oys))*.5;
-  const frw=(Math.max(...oxs)-Math.min(...oxs))*.5||.001;
-  const frh=(Math.max(...oys)-Math.min(...oys))*.5||.001;
-
-  // Normalize z values — find range
-  let zMin=Infinity, zMax=-Infinity;
-  for(let i=0;i<468;i++){
-    const z=lm[i].z||0;
-    if(z<zMin) zMin=z;
-    if(z>zMax) zMax=z;
+function delaunay(points){
+  const n=points.length;
+  if(n<3) return [];
+  let mnx=Infinity,mny=Infinity,mxx=-Infinity,mxy=-Infinity;
+  for(let i=0;i<n;i++){
+    if(points[i].x<mnx)mnx=points[i].x;if(points[i].y<mny)mny=points[i].y;
+    if(points[i].x>mxx)mxx=points[i].x;if(points[i].y>mxy)mxy=points[i].y;
   }
-  const zRange=zMax-zMin||0.001;
-
-  // Clear to black (zero depth = background)
-  ctx.fillStyle='#000';
-  ctx.fillRect(0,0,size,size);
-
-  // Paint each landmark as a soft radial gradient circle
-  // Brightness = normalized depth (nose=bright=forward, ears=dark=back)
-  for(let i=0;i<468;i++){
-    const nx=(lm[i].x-fcx)/frw; // -1..1
-    const ny=(lm[i].y-fcy)/frh;
-
-    // Skip if outside face oval
-    if(nx*nx+ny*ny>1.4) continue;
-
-    // Map to canvas coords
-    const cx=(nx*0.42+0.5)*size;
-    const cy=(ny*0.50+0.45)*size;
-
-    // Depth: invert z (MediaPipe z is negative-forward)
-    const depth=1.0-((lm[i].z||0)-zMin)/zRange;
-
-    // Radius: larger for more coverage
-    const r=size*0.06;
-
-    const grad=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
-    const v=Math.round(clamp(depth*255,0,255));
-    grad.addColorStop(0,`rgba(${v},${v},${v},1)`);
-    grad.addColorStop(1,`rgba(${v},${v},${v},0)`);
-    ctx.fillStyle=grad;
-    ctx.fillRect(cx-r,cy-r,r*2,r*2);
+  const dx=mxx-mnx||1,dy=mxy-mny||1,dm=Math.max(dx,dy)*10;
+  const sp=[{x:mnx-dm,y:mny-dm},{x:mnx+dm*3,y:mny-dm},{x:mnx+dx*.5,y:mny+dm*3}];
+  const all=points.concat(sp);
+  function makeTri(a,b,c){
+    const ax=all[a].x,ay=all[a].y,bx=all[b].x,by=all[b].y,cx=all[c].x,cy=all[c].y;
+    const D=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));
+    if(Math.abs(D)<1e-12)return{v:[a,b,c],cx:0,cy:0,r2:-1};
+    const ux=((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/D;
+    const uy=((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/D;
+    return{v:[a,b,c],cx:ux,cy:uy,r2:(ax-ux)**2+(ay-uy)**2};
   }
-
-  // Fill the face oval interior with a base depth
-  // This fills gaps the landmarks didn't cover
-  ctx.save();
-  ctx.globalCompositeOperation='destination-over'; // paint BEHIND existing
-  ctx.beginPath();
-  const ovalPts=FACE_OVAL.map(i=>{
-    const nx=(lm[i].x-fcx)/frw;
-    const ny=(lm[i].y-fcy)/frh;
-    return {x:(nx*0.42+0.5)*size, y:(ny*0.50+0.45)*size};
-  });
-  ctx.moveTo(ovalPts[0].x, ovalPts[0].y);
-  ovalPts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.closePath();
-  // Base depth gradient: brighter in center (nose), darker at edges
-  const baseGrad=ctx.createRadialGradient(size*0.5,size*0.45,0,size*0.5,size*0.45,size*0.45);
-  baseGrad.addColorStop(0,'rgb(180,180,180)');
-  baseGrad.addColorStop(0.6,'rgb(120,120,120)');
-  baseGrad.addColorStop(1,'rgb(40,40,40)');
-  ctx.fillStyle=baseGrad;
-  ctx.fill();
-  ctx.restore();
-
-  // Display in the preview panel
-  const previewCtx=document.getElementById('depthCanvas').getContext('2d');
-  previewCtx.drawImage(canvas,0,0,192,144);
-
-  return canvas;
+  let tris=[makeTri(n,n+1,n+2)];
+  for(let i=0;i<n;i++){
+    const px=points[i].x,py=points[i].y;
+    const bad=[],good=[];
+    for(const t of tris){if(t.r2>=0&&(px-t.cx)**2+(py-t.cy)**2<t.r2*1.000001)bad.push(t);else good.push(t);}
+    const edges=[];
+    for(let j=0;j<bad.length;j++){
+      const v=bad[j].v;
+      for(let e=0;e<3;e++){
+        const a=v[e],b=v[(e+1)%3];
+        let shared=false;
+        for(let k=0;k<bad.length;k++){if(k===j)continue;const ov=bad[k].v;if((ov[0]===a||ov[1]===a||ov[2]===a)&&(ov[0]===b||ov[1]===b||ov[2]===b)){shared=true;break;}}
+        if(!shared)edges.push([a,b]);
+      }
+    }
+    tris=good;
+    for(const[a,b]of edges)tris.push(makeTri(i,a,b));
+  }
+  return tris.filter(t=>t.v[0]<n&&t.v[1]<n&&t.v[2]<n&&t.r2>=0).map(t=>t.v);
 }
 
 // ══════════════════════════════════════════════════
-//  BUILD FACE MESH — subdivided plane with face texture + depth
+//  BUILD FACE MESH from calibration landmarks
+//  - Projects 468 landmarks to 3D using z-values
+//  - Triangulates with Delaunay
+//  - UV-maps to snapshot
+//  - Creates THREE.Mesh with displacement attribute
 // ══════════════════════════════════════════════════
-function buildFaceMesh(snapshot, depthMap, lm){
-  if(faceMeshObj){ scene.remove(faceMeshObj); faceMeshObj.geometry.dispose(); }
+function buildFaceMesh(lm, snapshot){
+  if(faceMeshObj){scene.remove(faceMeshObj);faceMeshObj.geometry.dispose();}
 
-  // Compute face crop from snapshot
-  const oxs=FACE_OVAL.map(i=>lm[i].x), oys=FACE_OVAL.map(i=>lm[i].y);
+  // Face bounding box
+  const oxs=FACE_OVAL.map(i=>lm[i].x),oys=FACE_OVAL.map(i=>lm[i].y);
   const fcx=(Math.min(...oxs)+Math.max(...oxs))*.5;
   const fcy=(Math.min(...oys)+Math.max(...oys))*.5;
   const frw=(Math.max(...oxs)-Math.min(...oxs))*.5||.001;
   const frh=(Math.max(...oys)-Math.min(...oys))*.5||.001;
 
-  // Crop face region from snapshot with padding
-  const padW=frw*1.4, padH=frh*1.5;
-  const cropX=Math.max(0,(fcx-padW)*VW);
-  const cropY=Math.max(0,(fcy-padH)*VH);
-  const cropW=Math.min(padW*2*VW, VW-cropX);
-  const cropH=Math.min(padH*2*VH, VH-cropY);
+  // Z-range
+  let zMin=Infinity,zMax=-Infinity;
+  for(let i=0;i<NUM_LM;i++){const z=lm[i].z||0;if(z<zMin)zMin=z;if(z>zMax)zMax=z;}
+  const zRange=zMax-zMin||0.001;
 
-  // Draw cropped face to a square texture
-  const texSize=512;
+  // ── Build 3D positions ──
+  // Landmarks → 3D: X,Y normalized to face oval, Z from MediaPipe depth
+  calibPositions=new Float32Array(NUM_LM*3);
+  calibUVs=new Float32Array(NUM_LM*2);
+
+  for(let i=0;i<NUM_LM;i++){
+    const nx=(lm[i].x-fcx)/frw;    // -1..1
+    const ny=-(lm[i].y-fcy)/frh;   // -1..1, flip Y
+    // Z: nose forward (positive), ears back (negative)
+    // MediaPipe z is typically negative-forward, so invert
+    const nz=((lm[i].z||0)-zMin)/zRange; // 0..1
+    const depth=(1-nz)*0.5;  // nose=0.5 forward, ears=0
+
+    calibPositions[i*3]=nx*0.75;
+    calibPositions[i*3+1]=ny*0.90;
+    calibPositions[i*3+2]=depth;
+
+    // UV: map landmark's video position to snapshot texture
+    // Expand slightly beyond face oval for coverage
+    const u=clamp((lm[i].x-fcx)/(frw*2.4)+0.5,0,1);
+    const v=clamp((lm[i].y-fcy)/(frh*2.6)+0.5,0,1);
+    calibUVs[i*2]=u;
+    calibUVs[i*2+1]=1-v; // flip V for OpenGL
+  }
+
+  // ── Triangulate (Delaunay on 2D projection) ──
+  const pts2d=[];
+  for(let i=0;i<NUM_LM;i++){
+    pts2d.push({x:lm[i].x+((i*7919)%100-50)*1e-8, y:lm[i].y+((i*6271)%100-50)*1e-8});
+  }
+  let tris=delaunay(pts2d);
+  // Filter oversized triangles (hull artifacts)
+  tris=tris.filter(([a,b,c])=>{
+    const pa=lm[a],pb=lm[b],pc=lm[c];
+    return Math.abs((pb.x-pa.x)*(pc.y-pa.y)-(pc.x-pa.x)*(pb.y-pa.y))*.5<0.004;
+  });
+  triIndices=new Uint16Array(tris.length*3);
+  for(let i=0;i<tris.length;i++){
+    triIndices[i*3]=tris[i][0];
+    triIndices[i*3+1]=tris[i][1];
+    triIndices[i*3+2]=tris[i][2];
+  }
+
+  // ── Displacement attribute (starts at zero) ──
+  liveDisplacements=new Float32Array(NUM_LM*3);
+
+  // ── Snapshot texture ──
+  // Crop face from snapshot with padding
+  const pad=1.3;
+  const cx=Math.max(0,(fcx-frw*pad)*VW);
+  const cy=Math.max(0,(fcy-frh*pad)*VH);
+  const cw=Math.min(frw*pad*2*VW,VW-cx);
+  const ch=Math.min(frh*pad*2*VH,VH-cy);
   const texCanvas=document.createElement('canvas');
-  texCanvas.width=texSize; texCanvas.height=texSize;
-  const texCtx=texCanvas.getContext('2d');
-  texCtx.drawImage(snapshot, cropX,cropY,cropW,cropH, 0,0,texSize,texSize);
+  texCanvas.width=512;texCanvas.height=512;
+  texCanvas.getContext('2d').drawImage(snapshot,cx,cy,cw,ch,0,0,512,512);
 
-  // Create Three.js textures
-  faceTexture=new THREE.CanvasTexture(texCanvas);
-  faceTexture.minFilter=THREE.LinearFilter;
-  faceTexture.magFilter=THREE.LinearFilter;
+  neutralTex=new THREE.CanvasTexture(texCanvas);
+  neutralTex.minFilter=THREE.LinearFilter;
+  neutralTex.magFilter=THREE.LinearFilter;
 
-  depthTexture=new THREE.CanvasTexture(depthMap);
-  depthTexture.minFilter=THREE.LinearFilter;
-  depthTexture.magFilter=THREE.LinearFilter;
-
-  // Subdivided plane — more segments = smoother depth displacement
-  const segments=120;
-  const aspect=cropH/cropW;
-  const planeW=1.6;
-  const planeH=planeW*aspect;
-  const geo=new THREE.PlaneGeometry(planeW,planeH,segments,Math.round(segments*aspect));
+  // ── Create THREE.Mesh ──
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(calibPositions),3));
+  geo.setAttribute('uv',new THREE.BufferAttribute(new Float32Array(calibUVs),2));
+  geo.setAttribute('displacement',new THREE.BufferAttribute(liveDisplacements,3));
+  geo.setIndex(new THREE.BufferAttribute(triIndices,1));
+  geo.computeVertexNormals();
 
   const mat=new THREE.ShaderMaterial({
-    uniforms:{
-      faceMap:{value:faceTexture},
-      depthMap:{value:depthTexture},
-      depthScale:{value:0.35},
-      mouthOpen:{value:0},
-      eyeOpen:{value:1.0},
-      vignetteStr:{value:1.0},
-    },
-    vertexShader:faceVert,
-    fragmentShader:faceFrag,
+    uniforms:{faceTex:{value:neutralTex}},
+    vertexShader:meshVert,
+    fragmentShader:meshFrag,
     transparent:true,
     side:THREE.DoubleSide,
-    depthWrite:false,
+    depthWrite:true,
   });
 
   faceMeshObj=new THREE.Mesh(geo,mat);
   faceMeshObj.rotation.order='YXZ';
   scene.add(faceMeshObj);
+
+  document.getElementById('sVerts').textContent=NUM_LM+' verts';
+  document.getElementById('sTex').textContent='1 texture';
+  console.log(`Face mesh: ${NUM_LM} vertices, ${tris.length} triangles`);
 }
 
 // ══════════════════════════════════════════════════
-//  POSE & EXPRESSION
+//  EXPRESSION-DRIVEN DEFORMATION
+//  The core: compute displacement between live landmarks
+//  and calibration landmarks. This IS the puppetry.
 // ══════════════════════════════════════════════════
-function deadZone(v,t){
-  if(Math.abs(v)<t) return 0;
-  return (v>0?1:-1)*(Math.abs(v)-t)/(1-t);
+function updateDisplacements(liveLM){
+  if(!calibPositions||!liveDisplacements||!calibLM) return;
+
+  // Face bounding box (live)
+  const oxs=FACE_OVAL.map(i=>liveLM[i].x),oys=FACE_OVAL.map(i=>liveLM[i].y);
+  const lfcx=(Math.min(...oxs)+Math.max(...oxs))*.5;
+  const lfcy=(Math.min(...oys)+Math.max(...oys))*.5;
+  const lfrw=(Math.max(...oxs)-Math.min(...oxs))*.5||.001;
+  const lfrh=(Math.max(...oys)-Math.min(...oys))*.5||.001;
+
+  // Calibration bounding box
+  const coxs=FACE_OVAL.map(i=>calibLM[i].x),coys=FACE_OVAL.map(i=>calibLM[i].y);
+  const cfcx=(Math.min(...coxs)+Math.max(...coxs))*.5;
+  const cfcy=(Math.min(...coys)+Math.max(...coys))*.5;
+  const cfrw=(Math.max(...coxs)-Math.min(...coxs))*.5||.001;
+  const cfrh=(Math.max(...coys)-Math.min(...coys))*.5||.001;
+
+  for(let i=0;i<NUM_LM;i++){
+    // Normalize both to face-oval-relative coords, then compute delta
+    const liveNX=(liveLM[i].x-lfcx)/lfrw;
+    const liveNY=-(liveLM[i].y-lfcy)/lfrh;
+    const calNX=(calibLM[i].x-cfcx)/cfrw;
+    const calNY=-(calibLM[i].y-cfcy)/cfrh;
+
+    // Displacement = how much this landmark moved relative to neutral
+    const dx=(liveNX-calNX)*0.75;
+    const dy=(liveNY-calNY)*0.90;
+
+    liveDisplacements[i*3]=dx;
+    liveDisplacements[i*3+1]=dy;
+    liveDisplacements[i*3+2]=0; // Z displacement could be added later
+  }
+
+  // Update the buffer attribute
+  const dispAttr=faceMeshObj.geometry.getAttribute('displacement');
+  dispAttr.array.set(liveDisplacements);
+  dispAttr.needsUpdate=true;
 }
+
+// ══════════════════════════════════════════════════
+//  PROGRESSIVE TEXTURE ACCUMULATION
+//  As the call persists, capture new expression snapshots.
+//  These could be blended in the shader for better fidelity
+//  at different expressions (mouth open shows teeth, etc.)
+// ══════════════════════════════════════════════════
+function tryAccumulateTexture(liveLM){
+  if(!neutralTex||!calibLM) return;
+  const now=Date.now();
+  if(now-lastCaptureTime<CAPTURE_INTERVAL) return;
+  if(expressionTextures.length>=MAX_TEXTURES) return;
+
+  // Only capture if expression differs significantly from neutral
+  const mOpen=vibe.mouthOpen;
+  const mCurve=vibe.mouthCurve;
+  const eo=vibe.eyeOpen;
+
+  // Check if this expression is sufficiently different from existing captures
+  const isDifferent=expressionTextures.every(et=>{
+    const dmo=Math.abs(et.mouthOpen-mOpen);
+    const dmc=Math.abs(et.mouthCurve-mCurve);
+    const deo=Math.abs(et.eyeOpen-eo);
+    return dmo>0.03||dmc>0.3||deo>0.3;
+  });
+
+  // Must have some notable expression (not just neutral)
+  const isExpressive=mOpen>0.04||Math.abs(mCurve)>0.3||eo<0.6||eo>1.2;
+
+  if(isDifferent&&isExpressive){
+    // Capture current frame as a new expression texture
+    const oxs=FACE_OVAL.map(i=>calibLM[i].x),oys=FACE_OVAL.map(i=>calibLM[i].y);
+    const fcx=(Math.min(...oxs)+Math.max(...oxs))*.5;
+    const fcy=(Math.min(...oys)+Math.max(...oys))*.5;
+    const frw=(Math.max(...oxs)-Math.min(...oxs))*.5||.001;
+    const frh=(Math.max(...oys)-Math.min(...oys))*.5||.001;
+
+    const pad=1.3;
+    const cx=Math.max(0,(fcx-frw*pad)*VW);
+    const cy=Math.max(0,(fcy-frh*pad)*VH);
+    const cw=Math.min(frw*pad*2*VW,VW-cx);
+    const ch=Math.min(frh*pad*2*VH,VH-cy);
+    const texCanvas=document.createElement('canvas');
+    texCanvas.width=512;texCanvas.height=512;
+    // Draw from live video (not snapshot)
+    texCanvas.getContext('2d').drawImage(vid,cx,cy,cw,ch,0,0,512,512);
+
+    const tex=new THREE.CanvasTexture(texCanvas);
+    tex.minFilter=THREE.LinearFilter;
+    tex.magFilter=THREE.LinearFilter;
+
+    expressionTextures.push({tex, mouthOpen:mOpen, mouthCurve:mCurve, eyeOpen:eo});
+    lastCaptureTime=now;
+
+    // Update status
+    const total=1+expressionTextures.length;
+    document.getElementById('sTex').textContent=total+' textures';
+    document.getElementById('accumCount').textContent=total;
+    document.getElementById('accumBytes').textContent=((total*50)/1).toFixed(0);
+    console.log(`Accumulated texture #${total}: mO=${mOpen.toFixed(2)} mC=${mCurve.toFixed(2)} eO=${eo.toFixed(2)}`);
+
+    // Select best texture for current expression
+    selectBestTexture();
+  }
+}
+
+function selectBestTexture(){
+  if(!faceMeshObj||expressionTextures.length===0) return;
+
+  // Find the expression texture closest to current vibe
+  let bestDist=Infinity, bestTex=neutralTex;
+  const mo=vibe.mouthOpen, mc=vibe.mouthCurve, eo=vibe.eyeOpen;
+
+  // Neutral is always a candidate (distance = expression magnitude)
+  let neutralDist=mo*5+Math.abs(mc)*0.5+(1-eo)*0.5;
+  bestDist=neutralDist;
+
+  for(const et of expressionTextures){
+    const d=Math.abs(et.mouthOpen-mo)*5+Math.abs(et.mouthCurve-mc)*0.5+Math.abs(et.eyeOpen-eo)*0.5;
+    if(d<bestDist){bestDist=d;bestTex=et.tex;}
+  }
+
+  faceMeshObj.material.uniforms.faceTex.value=bestTex;
+}
+
+// ══════════════════════════════════════════════════
+//  POSE & EXPRESSION EXTRACTION
+// ══════════════════════════════════════════════════
+function deadZone(v,t){if(Math.abs(v)<t)return 0;return(v>0?1:-1)*(Math.abs(v)-t)/(1-t);}
 
 function extractPose(lm){
   const nose=lm[LM.NOSE],lEy=lm[LM.L_EYE_OUT],rEy=lm[LM.R_EYE_OUT],chin=lm[LM.CHIN];
-  const eyeMidX=(lEy.x+rEy.x)*.5;
-  const eyeSpan=Math.abs(rEy.x-lEy.x);
+  const eyeMidX=(lEy.x+rEy.x)*.5,eyeSpan=Math.abs(rEy.x-lEy.x);
   const rawYaw=eyeSpan>.01?(nose.x-eyeMidX)/eyeSpan:0;
   const yaw=deadZone(rawYaw-poseBaseline.yawOffset,0.03)*Math.PI*0.72;
-  const eyeMidY=(lEy.y+rEy.y)*.5;
-  const faceH=chin.y-eyeMidY;
+  const eyeMidY=(lEy.y+rEy.y)*.5,faceH=chin.y-eyeMidY;
   const noseRatio=faceH>.01?(nose.y-eyeMidY)/faceH:0.55;
   const pitch=deadZone(noseRatio-poseBaseline.noseRatio,0.012)*Math.PI*1.2;
   const dx=rEy.x-lEy.x,dy=rEy.y-lEy.y;
@@ -426,7 +497,7 @@ function extractPose(lm){
 
 function extractVibe(lm){
   const fH=Math.sqrt((lm[LM.TOP].x-lm[LM.CHIN].x)**2+(lm[LM.TOP].y-lm[LM.CHIN].y)**2);
-  if(fH<.01) return null;
+  if(fH<.01)return null;
   const mO=Math.sqrt((lm[LM.MOUTH_T].x-lm[LM.MOUTH_B].x)**2+(lm[LM.MOUTH_T].y-lm[LM.MOUTH_B].y)**2)/fH;
   const cornerY=(lm[LM.MOUTH_L].y+lm[LM.MOUTH_R].y)*.5;
   const centerY=(lm[LM.MOUTH_T].y+lm[LM.MOUTH_B].y)*.5;
@@ -435,7 +506,7 @@ function extractVibe(lm){
   const eyeTopY=(lm[LM.L_EYE_T].y+lm[LM.R_EYE_T].y)*.5;
   const bd=eyeTopY-browY;
   let bl=0;
-  if(browBaseline!==null) bl=clamp((bd-browBaseline)/(fH*.16)*.058,-0.055,0.075);
+  if(browBaseline!==null)bl=clamp((bd-browBaseline)/(fH*.16)*.058,-0.055,0.075);
   const lEH=Math.abs(lm[LM.L_EYE_T].y-lm[LM.L_EYE_B].y);
   const rEH=Math.abs(lm[LM.R_EYE_T].y-lm[LM.R_EYE_B].y);
   const eo=clamp((lEH+rEH)/(fH*.095),0,1.35);
@@ -448,39 +519,26 @@ function extractVibe(lm){
 const vid=document.getElementById('vid');
 
 function accumulateLM(lm){
-  if(!calibLM){
-    calibLM=lm.map(p=>({x:p.x,y:p.y,z:p.z||0}));
-  }else{
-    lm.forEach((p,i)=>{
-      calibLM[i].x=calibLM[i].x*.82+p.x*.18;
-      calibLM[i].y=calibLM[i].y*.82+p.y*.18;
-      calibLM[i].z=calibLM[i].z*.82+(p.z||0)*.18;
-    });
-  }
+  if(!calibLM){calibLM=lm.map(p=>({x:p.x,y:p.y,z:p.z||0}));}
+  else{lm.forEach((p,i)=>{calibLM[i].x=calibLM[i].x*.82+p.x*.18;calibLM[i].y=calibLM[i].y*.82+p.y*.18;calibLM[i].z=calibLM[i].z*.82+(p.z||0)*.18;});}
 }
 
 function finishCalibration(){
-  if(!calibLM) return;
+  if(!calibLM)return;
+  const snap=document.createElement('canvas');
+  snap.width=VW;snap.height=VH;
+  snap.getContext('2d').drawImage(vid,0,0,VW,VH);
 
-  // Capture snapshot
-  const snapCanvas=document.createElement('canvas');
-  snapCanvas.width=VW; snapCanvas.height=VH;
-  snapCanvas.getContext('2d').drawImage(vid,0,0,VW,VH);
+  buildFaceMesh(calibLM,snap);
 
-  // Build depth map from landmarks
-  const depthMap=buildDepthMap(calibLM);
-
-  // Build face mesh with photo + depth
-  buildFaceMesh(snapCanvas, depthMap, calibLM);
-
-  // Pose baseline
   const nose=calibLM[LM.NOSE],lEy=calibLM[LM.L_EYE_OUT],rEy=calibLM[LM.R_EYE_OUT],chin=calibLM[LM.CHIN];
   const eyeSpan=Math.abs(rEy.x-lEy.x);
   poseBaseline.yawOffset=eyeSpan>.01?(nose.x-(lEy.x+rEy.x)*.5)/eyeSpan:0;
   const eyeMidY=(lEy.y+rEy.y)*.5;
   poseBaseline.noseRatio=(chin.y-eyeMidY)>.01?(nose.y-eyeMidY)/(chin.y-eyeMidY):0.55;
 
-  console.log('Calibration complete — face mesh built with depth reprojection');
+  expressionTextures=[];
+  lastCaptureTime=Date.now();
 }
 
 // ══════════════════════════════════════════════════
@@ -488,37 +546,20 @@ function finishCalibration(){
 // ══════════════════════════════════════════════════
 function setPhase(p){
   phase=p;
-  const ov=document.getElementById('overlay');
-  const ot=document.getElementById('ovTitle');
-  const os=document.getElementById('ovSub');
-  const ct=document.getElementById('calibTrack');
-  const btn=document.getElementById('startBtn');
-  const badge=document.getElementById('pipBadge');
+  const ov=document.getElementById('overlay'),ot=document.getElementById('ovTitle'),os=document.getElementById('ovSub');
+  const ct=document.getElementById('calibTrack'),btn=document.getElementById('startBtn'),badge=document.getElementById('pipBadge');
   document.getElementById('sPhase').textContent=p.charAt(0).toUpperCase()+p.slice(1);
   btn.style.display=(p==='waiting')?'':'none';
-
-  if(p==='waiting'){
-    ov.classList.remove('gone');
-    ot.textContent='Vibe Protocol'; os.textContent='Camera access needed\nto build your avatar';
-    ct.style.display='none'; badge.className='pip-badge searching'; badge.textContent='Waiting';
-  }else if(p==='searching'){
-    ov.classList.remove('gone');
-    ot.textContent='No Face Detected'; os.textContent='Position your face\nin the camera view';
-    ct.style.display='none'; badge.className='pip-badge searching'; badge.textContent='Searching';
-  }else if(p==='calibrating'){
-    ov.classList.remove('gone');
-    ot.textContent='Calibrating'; os.textContent='Building depth map\nHold still — look straight ahead';
-    ct.style.display='block'; badge.className='pip-badge calibrating'; badge.textContent='Calibrating';
-  }else if(p==='live'){
-    ov.classList.add('gone');
-    badge.className='pip-badge live'; badge.textContent='Tracking';
-    document.getElementById('pdot').className='pdot on';
-  }
+  if(p==='waiting'){ov.classList.remove('gone');ot.textContent='Vibe Protocol';os.textContent='Camera access needed\nto build your avatar';ct.style.display='none';badge.className='pip-badge searching';badge.textContent='Waiting';}
+  else if(p==='searching'){ov.classList.remove('gone');ot.textContent='No Face Detected';os.textContent='Position your face\nin the camera view';ct.style.display='none';badge.className='pip-badge searching';badge.textContent='Searching';}
+  else if(p==='calibrating'){ov.classList.remove('gone');ot.textContent='Calibrating';os.textContent='Building your face mesh\nHold still — look straight ahead';ct.style.display='block';badge.className='pip-badge calibrating';badge.textContent='Calibrating';}
+  else if(p==='live'){ov.classList.add('gone');badge.className='pip-badge live';badge.textContent='Tracking';document.getElementById('pdot').className='pdot on';}
 }
 
 function startCalib(){
-  calibCount=0; calibLM=null; browBaseline=null;
+  calibCount=0;calibLM=null;browBaseline=null;
   poseBaseline={noseRatio:0.55,yawOffset:0};
+  expressionTextures=[];
   setPhase('calibrating');
 }
 
@@ -526,69 +567,61 @@ function startCalib(){
 //  MEDIAPIPE
 // ══════════════════════════════════════════════════
 let faceMesh;
-
 function onResults(results){
-  if(!results.multiFaceLandmarks?.length){
-    if(phase!=='waiting'&&phase!=='calibrating') setPhase('searching');
-    return;
-  }
+  if(!results.multiFaceLandmarks?.length){if(phase!=='waiting'&&phase!=='calibrating')setPhase('searching');return;}
   const lm=results.multiFaceLandmarks[0];
-
-  if(phase==='searching'||phase==='waiting') startCalib();
+  if(phase==='searching'||phase==='waiting')startCalib();
 
   if(phase==='calibrating'){
     calibCount++;
     document.getElementById('calibFill').style.width=(calibCount/CALIB_FRAMES*100)+'%';
     accumulateLM(lm);
-
     const bd=(lm[159].y+lm[386].y)*.5-(lm[105].y+lm[334].y)*.5;
     browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;
-
-    if(calibCount>=CALIB_FRAMES){
-      finishCalibration();
-      setPhase('live');
-    }
+    if(calibCount>=CALIB_FRAMES){finishCalibration();setPhase('live');}
     return;
   }
 
   // ── LIVE ──
   const p3=extractPose(lm);
-  pose.yaw  =smooth(pose.yaw,  p3.yaw,  .08);
+  pose.yaw=smooth(pose.yaw,p3.yaw,.08);
   pose.pitch=smooth(pose.pitch,p3.pitch,.07);
-  pose.roll =smooth(pose.roll, p3.roll, .08);
+  pose.roll=smooth(pose.roll,p3.roll,.08);
 
   const nv=extractVibe(lm);
   if(nv){
-    vibe.mouthOpen =smooth(vibe.mouthOpen, nv.mouthOpen,.20);
+    vibe.mouthOpen=smooth(vibe.mouthOpen,nv.mouthOpen,.20);
     vibe.mouthCurve=smooth(vibe.mouthCurve,nv.mouthCurve,.20);
-    vibe.browLift  =smooth(vibe.browLift,  nv.browLift,  .20);
-    vibe.eyeOpen   =smooth(vibe.eyeOpen,   nv.eyeOpen,   .16);
+    vibe.browLift=smooth(vibe.browLift,nv.browLift,.20);
+    vibe.eyeOpen=smooth(vibe.eyeOpen,nv.eyeOpen,.16);
   }
+
+  // Update mesh deformation from live landmarks
+  updateDisplacements(lm);
+
+  // Try to accumulate a new expression texture
+  tryAccumulateTexture(lm);
+
+  // Select best texture for current expression
+  if(expressionTextures.length>0) selectBestTexture();
 
   tick();
 }
 
 // ══════════════════════════════════════════════════
-//  RENDER TICK
+//  RENDER
 // ══════════════════════════════════════════════════
 let tickQueued=false;
 function tick(){
-  if(tickQueued) return;
+  if(tickQueued)return;
   tickQueued=true;
   requestAnimationFrame(()=>{
     tickQueued=false;
-
     if(faceMeshObj){
-      // Apply head rotation — depth displacement creates parallax
       faceMeshObj.rotation.y=pose.yaw;
       faceMeshObj.rotation.x=pose.pitch;
       faceMeshObj.rotation.z=pose.roll;
-
-      // Update expression uniforms
-      faceMeshObj.material.uniforms.mouthOpen.value=vibe.mouthOpen;
-      faceMeshObj.material.uniforms.eyeOpen.value=vibe.eyeOpen;
     }
-
     renderer.render(scene,camera);
     updateUI();
   });
@@ -597,47 +630,32 @@ function tick(){
 function updateUI(){
   const fmt=v=>(v>=0?'+':'')+v.toFixed(2);
   const pct=(v,lo,hi)=>clamp((v-lo)/(hi-lo)*100,0,100);
-  document.getElementById('v_ya').textContent=fmt(pose.yaw);
-  document.getElementById('b_ya').style.width=clamp(Math.abs(pose.yaw)/1.5*100,0,100)+'%';
-  document.getElementById('v_pi').textContent=fmt(pose.pitch);
-  document.getElementById('b_pi').style.width=clamp(Math.abs(pose.pitch)/1.0*100,0,100)+'%';
   document.getElementById('v_mo').textContent=vibe.mouthOpen.toFixed(2);
   document.getElementById('b_mo').style.width=pct(vibe.mouthOpen,0,.12)+'%';
+  document.getElementById('v_mc').textContent=fmt(vibe.mouthCurve);
+  document.getElementById('b_mc').style.width=clamp(Math.abs(vibe.mouthCurve)*50,0,100)+'%';
   document.getElementById('v_eo').textContent=vibe.eyeOpen.toFixed(2);
   document.getElementById('b_eo').style.width=pct(vibe.eyeOpen,0,1.35)+'%';
+  document.getElementById('v_bl').textContent=fmt(vibe.browLift);
+  document.getElementById('b_bl').style.width=clamp(Math.abs(vibe.browLift)/.075*50,0,50)+'%';
+  document.getElementById('v_ya').textContent=fmt(pose.yaw);
+  document.getElementById('b_ya').style.width=clamp(Math.abs(pose.yaw)/1.5*100,0,100)+'%';
 }
 
 // ══════════════════════════════════════════════════
-//  FRAME PUMP + CAMERA
+//  CAMERA + PUMP
 // ══════════════════════════════════════════════════
 let pumpActive=false;
-async function pump(){
-  if(!pumpActive) return;
-  if(vid.readyState>=2&&!vid.paused){
-    try{await faceMesh.send({image:vid});}catch(e){}
-  }
-  requestAnimationFrame(pump);
-}
+async function pump(){if(!pumpActive)return;if(vid.readyState>=2&&!vid.paused){try{await faceMesh.send({image:vid});}catch(e){}}requestAnimationFrame(pump);}
 
 async function startCamera(){
   const btn=document.getElementById('startBtn');
-  btn.textContent='Starting…'; btn.disabled=true;
+  btn.textContent='Starting…';btn.disabled=true;
   let stream;
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({
-      video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false,
-    });
-  }catch(e){
-    document.getElementById('ovTitle').textContent='Camera Blocked';
-    document.getElementById('ovSub').textContent=e.name==='NotAllowedError'?
-      'Camera access denied.':'Camera error: '+e.name;
-    btn.textContent='Retry'; btn.disabled=false;
-    btn.onclick=()=>startCamera(); return;
-  }
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false});}
+  catch(e){document.getElementById('ovTitle').textContent='Camera Blocked';btn.textContent='Retry';btn.disabled=false;btn.onclick=()=>startCamera();return;}
   vid.srcObject=stream;
-  try{await vid.play();}catch(e){
-    btn.textContent='Retry'; btn.disabled=false; return;
-  }
+  try{await vid.play();}catch(e){btn.textContent='Retry';btn.disabled=false;return;}
   document.getElementById('ovTitle').textContent='Loading FaceMesh';
   document.getElementById('ovSub').textContent='Downloading tracking model…';
   try{
@@ -645,27 +663,13 @@ async function startCamera(){
     faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});
     faceMesh.onResults(onResults);
     await faceMesh.initialize();
-  }catch(e){
-    document.getElementById('ovTitle').textContent='MediaPipe Error';
-    btn.textContent='Retry'; btn.disabled=false;
-    btn.onclick=()=>startCamera(); setPhase('error'); return;
-  }
-  pumpActive=true;
-  setPhase('searching');
-  requestAnimationFrame(pump);
+  }catch(e){document.getElementById('ovTitle').textContent='MediaPipe Error';btn.textContent='Retry';btn.disabled=false;btn.onclick=()=>startCamera();return;}
+  pumpActive=true;setPhase('searching');requestAnimationFrame(pump);
 }
 
-// ══════════════════════════════════════════════════
-//  INIT
-// ══════════════════════════════════════════════════
-function init(){
-  setPhase('waiting');
-  renderer.render(scene,camera);
-}
-
+function init(){setPhase('waiting');renderer.render(scene,camera);}
 document.getElementById('startBtn').addEventListener('click',startCamera);
-document.getElementById('recalBtn').addEventListener('click',()=>{ if(phase==='live') startCalib(); });
-
+document.getElementById('recalBtn').addEventListener('click',()=>{if(phase==='live')startCalib();});
 init();
 </script>
 </body>
