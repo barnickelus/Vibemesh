@@ -98,15 +98,37 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 .btn.on{background:var(--accent);border-color:var(--accent);color:#0c0b09;font-weight:500}
 .btn-recal{border-color:var(--accent-dk);color:var(--accent-dk)}
 .btn-recal:hover{background:var(--accent-dk);color:var(--text)}
-.hint{position:relative;z-index:1;margin-top:14px;font-size:.50rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;text-align:center}
+.hint{position:relative;z-index:1;margin-top:14px;font-size:.50rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;text-align:center;max-width:700px}
+.voice-panel{border:1px solid var(--border);padding:11px 10px;background:var(--surface)}
+.wave-wrap{height:36px;border:1px solid var(--border);margin-bottom:8px;position:relative;overflow:hidden;background:rgba(0,0,0,.3)}
+#waveCanvas{display:block;width:100%;height:100%}
+.wave-lbl{position:absolute;bottom:2px;left:4px;font-size:.38rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.vrow{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.vdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.vlbl{font-size:.42rem;letter-spacing:.10em;color:var(--muted);text-transform:uppercase;min-width:22px}
+.vtrack{flex:1;height:3px;background:var(--border);position:relative}
+.vfill{height:100%;position:absolute;left:0;transition:width .06s}
+.vfill.f0{background:#c9a96e}
+.vfill.amp{background:#6a9e6a}
+.vfill.voic{background:#7a9ec9}
+.vfill.f1{background:#c97a6a}
+.vfill.f2{background:#9e6ac9}
+.vfill.f3{background:#6ac9a0}
+.vval{font-size:.40rem;color:var(--accent);min-width:32px;text-align:right}
+.synth-row{display:flex;align-items:center;gap:8px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+.synth-toggle{width:28px;height:14px;border-radius:7px;border:1px solid var(--border);cursor:pointer;position:relative;background:var(--border);transition:background .2s}
+.synth-toggle.on{background:var(--green);border-color:var(--green)}
+.synth-toggle::after{content:'';position:absolute;top:1px;left:1px;width:10px;height:10px;border-radius:50%;background:var(--text);transition:left .15s}
+.synth-toggle.on::after{left:15px}
+.synth-lbl{font-size:.42rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="eyebrow">Vibe Protocol · 3D Live v0.5</div>
+  <div class="eyebrow">Vibe Protocol · 3D Live v0.6</div>
   <h1 class="title">Your likeness. <em>Abstracted.</em></h1>
-  <div class="sub">Presence without video — snapshot + expression floats</div>
+  <div class="sub">Presence without video — snapshot + expression + vocal tract</div>
 </header>
 
 <div class="stage">
@@ -167,7 +189,25 @@ to build your avatar</div>
       <div class="srow"><div class="sw" id="sw_hair"></div><div class="slbl">Hair</div><div class="shex" id="sh_hair">—</div></div>
       <div class="srow"><div class="sw" id="sw_iris"></div><div class="slbl">Iris</div><div class="shex" id="sh_iris">—</div></div>
       <div class="srow"><div class="sw" id="sw_lip"></div><div class="slbl">Lip</div><div class="shex" id="sh_lip">—</div></div>
-      <div class="bwrow">Identity <span class="bwval" id="idSize">—</span> · Stream <span class="bwval" id="streamRate">32B/f</span></div>
+      <div class="bwrow">Identity <span class="bwval" id="idSize">—</span> · Stream <span class="bwval" id="streamRate">72B/f</span></div>
+    </div>
+    <div class="voice-panel">
+      <div class="phdr">Voice Tract <div class="pdot" id="vdot"></div></div>
+      <div class="wave-wrap">
+        <canvas id="waveCanvas" width="192" height="36"></canvas>
+        <div class="wave-lbl">Glottal source</div>
+      </div>
+      <div class="vrow"><div class="vdot" style="background:#c9a96e"></div><div class="vlbl">F0</div><div class="vtrack"><div class="vfill f0" id="vb_f0" style="width:0%"></div></div><div class="vval" id="vv_f0">—Hz</div></div>
+      <div class="vrow"><div class="vdot" style="background:#6a9e6a"></div><div class="vlbl">Amp</div><div class="vtrack"><div class="vfill amp" id="vb_amp" style="width:0%"></div></div><div class="vval" id="vv_amp">0.00</div></div>
+      <div class="vrow"><div class="vdot" style="background:#7a9ec9"></div><div class="vlbl">Voic</div><div class="vtrack"><div class="vfill voic" id="vb_voic" style="width:0%"></div></div><div class="vval" id="vv_voic">0.00</div></div>
+      <div class="vrow"><div class="vdot" style="background:#c97a6a"></div><div class="vlbl">F1</div><div class="vtrack"><div class="vfill f1" id="vb_f1" style="width:0%"></div></div><div class="vval" id="vv_f1">—Hz</div></div>
+      <div class="vrow"><div class="vdot" style="background:#9e6ac9"></div><div class="vlbl">F2</div><div class="vtrack"><div class="vfill f2" id="vb_f2" style="width:0%"></div></div><div class="vval" id="vv_f2">—Hz</div></div>
+      <div class="vrow"><div class="vdot" style="background:#6ac9a0"></div><div class="vlbl">F3</div><div class="vtrack"><div class="vfill f3" id="vb_f3" style="width:0%"></div></div><div class="vval" id="vv_f3">—Hz</div></div>
+      <div class="synth-row">
+        <div class="synth-toggle" id="synthToggle"></div>
+        <div class="synth-lbl">Synth output</div>
+        <div class="vval" id="vv_bw">— B/f</div>
+      </div>
     </div>
   </div>
 </div>
@@ -181,7 +221,7 @@ to build your avatar</div>
   </div>
   <button class="btn btn-recal" id="recalBtn" style="margin-left:14px">↺ Recalibrate</button>
 </div>
-<div class="hint">Camera tracks expression — avatar renders from snapshot + 8 floats · no video transmitted</div>
+<div class="hint">Face: snapshot + 8 expression floats · Voice: 6 vocal tract parameters · Total: 56 bytes/frame · ~13 kbps at 30fps</div>
 
 <canvas id="sampCanvas" width="640" height="480" style="position:absolute;left:-9999px;top:-9999px"></canvas>
 
@@ -280,6 +320,33 @@ const MOUTH_REGION_IDX=new Set([
 
 // Pose calibration baselines
 let poseBaseline={noseRatio:0.55, yawOffset:0};
+
+// ── Voice system state ──
+let audioCtx=null;
+let micAnalyser=null;         // AnalyserNode connected to mic input
+let micTimeBuf=null;          // Float32Array for time-domain analysis
+let micFreqBuf=null;          // Uint8Array for frequency domain (waveform viz)
+let synthEnabled=false;
+
+// Voice parameters (extracted from mic, transmitted in vibe packet)
+let voiceParams={
+  f0:0,          // fundamental frequency in Hz (0 = unvoiced)
+  amplitude:0,   // lung pressure / volume (0..1)
+  voicing:0,     // voiced vs breathy/noise (0..1)
+  f1:500,        // first formant (jaw open, 300-800Hz)
+  f2:1500,       // second formant (tongue front/back, 800-2500Hz)
+  f3:2500,       // third formant (lip rounding, 2000-3500Hz)
+};
+
+// Voice calibration
+let voiceCalib={
+  f0Min:999, f0Max:0,          // speaking pitch range
+  f0Mean:0, f0Count:0,         // running mean
+  ampMax:0,                    // peak amplitude for normalization
+};
+
+// Synthesizer nodes (Web Audio graph)
+let synthNodes=null;  // {glottal, noise, f1, f2, f3, masterGain, noiseGain, voicedGain}
 
 // Face oval landmark indices
 const FACE_OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
@@ -970,7 +1037,7 @@ function setPhase(p){
   }else if(p==='calibrating'){
     ov.classList.remove('gone');
     ot.textContent='Calibrating';
-    os.textContent='Sampling your likeness\nskin · hair · eyes · lips\nHold still — look straight ahead';
+    os.textContent='Sampling your likeness\nskin · hair · eyes · lips\nSpeak naturally — calibrating voice\nHold still — look straight ahead';
     ct.style.display='block';
     badge.className='pip-badge calibrating'; badge.textContent='Calibrating';
     pdot.className='pdot';
@@ -1001,6 +1068,7 @@ function startCalib(){
   calibLMOpen=null;
   mouthTriMask=null;
   poseBaseline={noseRatio:0.55,yawOffset:0};
+  voiceCalib={f0Min:999,f0Max:0,f0Mean:0,f0Count:0,ampMax:0};
   setPhase('calibrating');
 }
 
@@ -1078,6 +1146,9 @@ function onResults(results){
       }
     }
 
+    // Extract voice during calibration for voice range detection
+    extractVoiceParams(lm);
+
     tick();
     return;
   }
@@ -1099,6 +1170,10 @@ function onResults(results){
     vibe.eyeOpen   =smooth(vibe.eyeOpen,   nv.eyeOpen,  .16);
     vibe.cheekAmt  =smooth(vibe.cheekAmt,  nv.cheekAmt,  s);
   }
+
+  // Voice: extract parameters from mic + mouth landmarks
+  extractVoiceParams(lm);
+
   tick();
 }
 
@@ -1120,6 +1195,8 @@ function tick(){
     readGLPixels();
     applyChuckClose();
     updateVibeUI();
+    updateSynthesizer();
+    updateVoiceUI();
   });
 }
 
@@ -1156,6 +1233,369 @@ function updateVibeUI(){
 }
 
 // ══════════════════════════════════════════════════
+//  VOICE SYSTEM — VOCAL TRACT SYNTHESIZER
+//  Extracts voice parameters from mic input (sender side),
+//  reconstructs voice via formant synthesis (receiver side).
+//  Transmitted per frame: F0, amplitude, voicing, F1, F2, F3
+//  = 6 floats = 24 bytes. Total vibe packet = 72 bytes/frame.
+// ══════════════════════════════════════════════════
+
+// ── YIN-based pitch detection ──
+// Autocorrelation method: finds the fundamental period in a
+// time-domain audio buffer. Returns frequency in Hz or 0 if unvoiced.
+const YIN_THRESHOLD=0.15;
+function detectPitch(buf, sampleRate){
+  const N=buf.length;
+  const halfN=Math.floor(N/2);
+
+  // Step 1: squared difference function
+  const d=new Float32Array(halfN);
+  for(let tau=0;tau<halfN;tau++){
+    let sum=0;
+    for(let i=0;i<halfN;i++){
+      const diff=buf[i]-buf[i+tau];
+      sum+=diff*diff;
+    }
+    d[tau]=sum;
+  }
+
+  // Step 2: cumulative mean normalized difference
+  const dn=new Float32Array(halfN);
+  dn[0]=1;
+  let running=0;
+  for(let tau=1;tau<halfN;tau++){
+    running+=d[tau];
+    dn[tau]=d[tau]*tau/running;
+  }
+
+  // Step 3: absolute threshold — find first dip below threshold
+  // Start at tau corresponding to ~500Hz (skip impossibly high fundamentals)
+  const minTau=Math.floor(sampleRate/500);
+  const maxTau=Math.floor(sampleRate/60);  // down to 60Hz
+  let bestTau=-1;
+  for(let tau=minTau;tau<Math.min(maxTau,halfN);tau++){
+    if(dn[tau]<YIN_THRESHOLD){
+      // Walk to the local minimum
+      while(tau+1<halfN&&dn[tau+1]<dn[tau]) tau++;
+      bestTau=tau;
+      break;
+    }
+  }
+
+  if(bestTau<1) return 0; // unvoiced
+
+  // Step 4: parabolic interpolation for sub-sample accuracy
+  const s0=dn[bestTau-1]||dn[bestTau];
+  const s1=dn[bestTau];
+  const s2=dn[bestTau+1]||dn[bestTau];
+  const shift=(s0-s2)/(2*(s0-2*s1+s2));
+  const refinedTau=bestTau+(isFinite(shift)?shift:0);
+
+  return sampleRate/refinedTau;
+}
+
+// ── RMS amplitude ──
+function computeRMS(buf){
+  let sum=0;
+  for(let i=0;i<buf.length;i++) sum+=buf[i]*buf[i];
+  return Math.sqrt(sum/buf.length);
+}
+
+// ── Voicing amount (harmonicity) ──
+// Ratio of periodic energy to total energy. High = clean voice, low = noise/breath.
+function computeVoicing(buf, f0, sampleRate){
+  if(f0<60) return 0;
+  const period=Math.round(sampleRate/f0);
+  const N=buf.length;
+  if(period<2||period*2>N) return 0;
+  let corrSum=0, energySum=0;
+  const len=Math.min(N-period, period*4);
+  for(let i=0;i<len;i++){
+    corrSum+=buf[i]*buf[i+period];
+    energySum+=buf[i]*buf[i];
+  }
+  return energySum>0?clamp(corrSum/energySum,0,1):0;
+}
+
+// ── Formant estimation from mouth landmarks ──
+// Maps MediaPipe face geometry to F1/F2/F3 formant frequencies.
+// This is the "played like an instrument" part — the mouth shape
+// IS the vocal tract filter configuration.
+function estimateFormants(lm){
+  if(!lm) return {f1:500, f2:1500, f3:2500};
+
+  // Jaw openness → F1 (higher when mouth opens)
+  // Measured as distance between upper and lower lip landmarks
+  const mouthH=Math.abs(lm[13].y-lm[14].y);  // MOUTH_T to MOUTH_B
+  const faceH=Math.abs(lm[10].y-lm[152].y);   // TOP to CHIN
+  const jawOpen=faceH>0.01?mouthH/faceH:0;
+  // Map jaw openness (0..0.15) → F1 (300..800Hz)
+  const f1=300+clamp(jawOpen/0.12,0,1)*500;
+
+  // Mouth width / lip spread → F2 (higher when spread, lower when rounded)
+  const mouthW=Math.abs(lm[291].x-lm[61].x);  // MOUTH_R to MOUTH_L
+  const eyeW=Math.abs(lm[263].x-lm[33].x);    // eye span for normalization
+  const spread=eyeW>0.01?mouthW/eyeW:0.5;
+  // Map spread (0.3..0.8) → F2 (800..2500Hz)
+  const f2=800+clamp((spread-0.3)/0.5,0,1)*1700;
+
+  // Lip protrusion/rounding → F3 (lower when rounded)
+  // Approximate from ratio of mouth height to width
+  const roundness=mouthW>0.001?mouthH/mouthW:0.5;
+  // Map roundness (0.1..0.8) → F3 (2000..3500Hz)
+  const f3=3500-clamp((roundness-0.1)/0.7,0,1)*1500;
+
+  return {f1, f2, f3};
+}
+
+// ── Extract all voice parameters from mic buffer + landmarks ──
+function extractVoiceParams(lm){
+  if(!micAnalyser||!micTimeBuf) return;
+
+  micAnalyser.getFloatTimeDomainData(micTimeBuf);
+
+  const sr=audioCtx.sampleRate;
+  const rawF0=detectPitch(micTimeBuf, sr);
+  const rawAmp=computeRMS(micTimeBuf);
+  const rawVoicing=computeVoicing(micTimeBuf, rawF0, sr);
+  const formants=estimateFormants(lm);
+
+  // Normalize amplitude against calibrated peak
+  const normAmp=voiceCalib.ampMax>0.001?clamp(rawAmp/voiceCalib.ampMax,0,1):clamp(rawAmp*15,0,1);
+
+  // Gate: suppress output when amplitude is very low (silence)
+  const gate=normAmp>0.02?1:0;
+
+  // Smooth voice parameters
+  const vs=0.25;  // smoothing factor (voice needs faster response than face)
+  voiceParams.f0=smooth(voiceParams.f0, rawF0*gate, vs);
+  voiceParams.amplitude=smooth(voiceParams.amplitude, normAmp*gate, 0.18);
+  voiceParams.voicing=smooth(voiceParams.voicing, rawVoicing*gate, vs);
+  voiceParams.f1=smooth(voiceParams.f1, formants.f1, 0.15);
+  voiceParams.f2=smooth(voiceParams.f2, formants.f2, 0.15);
+  voiceParams.f3=smooth(voiceParams.f3, formants.f3, 0.15);
+
+  // Calibrate during calibration phase
+  if(phase==='calibrating'&&rawF0>60&&rawAmp>0.005){
+    voiceCalib.f0Min=Math.min(voiceCalib.f0Min, rawF0);
+    voiceCalib.f0Max=Math.max(voiceCalib.f0Max, rawF0);
+    voiceCalib.f0Mean=(voiceCalib.f0Mean*voiceCalib.f0Count+rawF0)/(voiceCalib.f0Count+1);
+    voiceCalib.f0Count++;
+    voiceCalib.ampMax=Math.max(voiceCalib.ampMax, rawAmp);
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  FORMANT SYNTHESIZER — Web Audio API
+//  Source-filter model:
+//    Source: glottal pulse train (periodic wave at F0)
+//           + white noise (for unvoiced/breathy sounds)
+//    Filter: 3 resonant bandpass filters at F1, F2, F3
+//    Output: amplitude envelope (lung pressure)
+//
+//  This runs ONLY from the extracted parameters — no mic audio
+//  passes through. The synthesizer IS the receiver's audio output.
+// ══════════════════════════════════════════════════
+function buildSynthesizer(){
+  if(!audioCtx) return;
+
+  // ── Glottal source: custom periodic wave ──
+  // Pulse-like waveform with harmonics that roll off like a real glottis
+  const nHarm=32;
+  const real=new Float32Array(nHarm+1);
+  const imag=new Float32Array(nHarm+1);
+  real[0]=0; imag[0]=0;
+  for(let h=1;h<=nHarm;h++){
+    real[h]=0;
+    // Glottal spectrum: each harmonic rolls off as 1/h²
+    imag[h]=(1/(h*h))*((h%2===0)?-1:1);
+  }
+  const glottalWave=audioCtx.createPeriodicWave(real,imag,{disableNormalization:false});
+  const glottal=audioCtx.createOscillator();
+  glottal.setPeriodicWave(glottalWave);
+  glottal.frequency.value=120;
+
+  // ── Noise source: white noise buffer ──
+  const noiseBufLen=audioCtx.sampleRate*2;
+  const noiseBuffer=audioCtx.createBuffer(1,noiseBufLen,audioCtx.sampleRate);
+  const noiseData=noiseBuffer.getChannelData(0);
+  for(let i=0;i<noiseBufLen;i++) noiseData[i]=Math.random()*2-1;
+  const noise=audioCtx.createBufferSource();
+  noise.buffer=noiseBuffer;
+  noise.loop=true;
+
+  // ── Gain nodes for source mixing ──
+  const voicedGain=audioCtx.createGain();
+  voicedGain.gain.value=0;
+  const noiseGain=audioCtx.createGain();
+  noiseGain.gain.value=0;
+
+  // ── Formant filters (resonant bandpass) ──
+  const makeFormant=(freq,q)=>{
+    const f=audioCtx.createBiquadFilter();
+    f.type='bandpass';
+    f.frequency.value=freq;
+    f.Q.value=q;
+    return f;
+  };
+  const f1=makeFormant(500, 8);
+  const f2=makeFormant(1500, 10);
+  const f3=makeFormant(2500, 12);
+
+  // ── Parallel formant routing ──
+  // Each source → each formant filter → sum at master gain
+  // Parallel routing sounds more natural than serial for speech
+  const f1Gain=audioCtx.createGain(); f1Gain.gain.value=1.0;
+  const f2Gain=audioCtx.createGain(); f2Gain.gain.value=0.7;
+  const f3Gain=audioCtx.createGain(); f3Gain.gain.value=0.4;
+
+  const masterGain=audioCtx.createGain();
+  masterGain.gain.value=0;
+
+  // Wire: glottal → voicedGain → each formant filter → formant gain → master
+  glottal.connect(voicedGain);
+  noise.connect(noiseGain);
+
+  [voicedGain,noiseGain].forEach(src=>{
+    const s1=src; // connect source to each formant
+    s1.connect(f1); s1.connect(f2); s1.connect(f3);
+  });
+
+  f1.connect(f1Gain); f1Gain.connect(masterGain);
+  f2.connect(f2Gain); f2Gain.connect(masterGain);
+  f3.connect(f3Gain); f3Gain.connect(masterGain);
+
+  // Final output limiter
+  const limiter=audioCtx.createDynamicsCompressor();
+  limiter.threshold.value=-12;
+  limiter.knee.value=6;
+  limiter.ratio.value=8;
+  masterGain.connect(limiter);
+  limiter.connect(audioCtx.destination);
+
+  // Start sources
+  glottal.start();
+  noise.start();
+
+  synthNodes={glottal, noise, voicedGain, noiseGain, f1, f2, f3, masterGain, f1Gain, f2Gain, f3Gain};
+}
+
+// ── Update synthesizer parameters from voice state ──
+function updateSynthesizer(){
+  if(!synthNodes||!synthEnabled) return;
+  const vp=voiceParams;
+  const t=audioCtx.currentTime;
+  const ramp=0.03; // 30ms ramp for click-free parameter changes
+
+  // F0 → oscillator frequency (clamped to musical range)
+  const targetF0=clamp(vp.f0, 60, 500);
+  if(targetF0>60&&vp.amplitude>0.01){
+    synthNodes.glottal.frequency.setTargetAtTime(targetF0, t, ramp);
+  }
+
+  // Voicing mix: voiced → glottal gain, unvoiced → noise gain
+  const vAmt=clamp(vp.voicing, 0, 1);
+  synthNodes.voicedGain.gain.setTargetAtTime(vAmt*0.35, t, ramp);
+  synthNodes.noiseGain.gain.setTargetAtTime((1-vAmt)*0.15, t, ramp);
+
+  // Formant frequencies
+  synthNodes.f1.frequency.setTargetAtTime(clamp(vp.f1, 200, 900), t, ramp);
+  synthNodes.f2.frequency.setTargetAtTime(clamp(vp.f2, 700, 2800), t, ramp);
+  synthNodes.f3.frequency.setTargetAtTime(clamp(vp.f3, 1800, 3800), t, ramp);
+
+  // Master amplitude (lung pressure)
+  const amp=clamp(vp.amplitude, 0, 1);
+  synthNodes.masterGain.gain.setTargetAtTime(amp*0.5, t, ramp);
+}
+
+// ── Mute synthesizer ──
+function muteSynth(){
+  if(!synthNodes) return;
+  const t=audioCtx.currentTime;
+  synthNodes.masterGain.gain.setTargetAtTime(0, t, 0.05);
+}
+
+// ── Waveform visualization ──
+const waveCanvas=document.getElementById('waveCanvas');
+const waveCtx=waveCanvas.getContext('2d');
+
+function drawWaveform(){
+  const w=waveCanvas.width, h=waveCanvas.height;
+  waveCtx.fillStyle='rgba(12,11,9,.4)';
+  waveCtx.fillRect(0,0,w,h);
+
+  if(!micAnalyser||!micFreqBuf) return;
+  micAnalyser.getByteTimeDomainData(micFreqBuf);
+
+  waveCtx.beginPath();
+  waveCtx.strokeStyle=voiceParams.amplitude>0.02?'#c9a96e':'#3a3428';
+  waveCtx.lineWidth=1;
+
+  const sliceW=w/micFreqBuf.length;
+  for(let i=0;i<micFreqBuf.length;i++){
+    const v=micFreqBuf[i]/128.0;
+    const y=(v*h/2);
+    if(i===0) waveCtx.moveTo(0,y);
+    else waveCtx.lineTo(i*sliceW,y);
+  }
+  waveCtx.stroke();
+}
+
+// ── Voice UI update ──
+function updateVoiceUI(){
+  const vp=voiceParams;
+  const f0Pct=clamp((vp.f0-60)/(400-60)*100,0,100);
+  document.getElementById('vb_f0').style.width=f0Pct+'%';
+  document.getElementById('vv_f0').textContent=vp.f0>60?Math.round(vp.f0)+'Hz':'—Hz';
+
+  document.getElementById('vb_amp').style.width=(vp.amplitude*100)+'%';
+  document.getElementById('vv_amp').textContent=vp.amplitude.toFixed(2);
+
+  document.getElementById('vb_voic').style.width=(vp.voicing*100)+'%';
+  document.getElementById('vv_voic').textContent=vp.voicing.toFixed(2);
+
+  document.getElementById('vb_f1').style.width=clamp((vp.f1-200)/700*100,0,100)+'%';
+  document.getElementById('vv_f1').textContent=Math.round(vp.f1)+'Hz';
+
+  document.getElementById('vb_f2').style.width=clamp((vp.f2-700)/2100*100,0,100)+'%';
+  document.getElementById('vv_f2').textContent=Math.round(vp.f2)+'Hz';
+
+  document.getElementById('vb_f3').style.width=clamp((vp.f3-1800)/2000*100,0,100)+'%';
+  document.getElementById('vv_f3').textContent=Math.round(vp.f3)+'Hz';
+
+  // Per-frame voice bytes: 6 floats × 4 bytes = 24 bytes
+  // Total vibe packet: 8 face floats + 6 voice floats = 56 bytes
+  document.getElementById('vv_bw').textContent='56 B/f';
+
+  const vdot=document.getElementById('vdot');
+  vdot.className=vp.amplitude>0.02?'pdot on':'pdot';
+
+  drawWaveform();
+}
+
+// ── Init audio from mic stream ──
+function initAudio(stream){
+  try{
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const source=audioCtx.createMediaStreamSource(stream);
+
+    micAnalyser=audioCtx.createAnalyser();
+    micAnalyser.fftSize=2048;
+    micAnalyser.smoothingTimeConstant=0.3;
+    source.connect(micAnalyser);
+    // Do NOT connect mic to destination — no passthrough
+
+    micTimeBuf=new Float32Array(micAnalyser.fftSize);
+    micFreqBuf=new Uint8Array(micAnalyser.fftSize);
+
+    buildSynthesizer();
+    console.log(`Audio initialized: ${audioCtx.sampleRate}Hz, buffer ${micAnalyser.fftSize}`);
+  }catch(e){
+    console.warn('Audio init failed:',e);
+  }
+}
+
+// ══════════════════════════════════════════════════
 //  FRAME PUMP
 // ══════════════════════════════════════════════════
 let pumpActive=false;
@@ -1177,7 +1617,7 @@ async function startCamera(){
   try{
     stream=await navigator.mediaDevices.getUserMedia({
       video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},
-      audio:false,
+      audio:true,
     });
   }catch(e){
     const msg=
@@ -1198,6 +1638,9 @@ async function startCamera(){
     btn.textContent='Retry'; btn.disabled=false;
     return;
   }
+
+  // Init audio system from the same stream
+  initAudio(stream);
   document.getElementById('ovTitle').textContent='Loading FaceMesh';
   document.getElementById('ovSub').textContent='Downloading face tracking model…\nThis may take a moment';
   try{
@@ -1245,6 +1688,15 @@ document.getElementById('tierBtns').addEventListener('click',e=>{
 
 document.getElementById('recalBtn').addEventListener('click',()=>{
   if(phase==='live') startCalib();
+});
+
+// Synth output toggle
+document.getElementById('synthToggle').addEventListener('click',function(){
+  synthEnabled=!synthEnabled;
+  this.classList.toggle('on',synthEnabled);
+  if(!synthEnabled) muteSynth();
+  // Resume AudioContext on user gesture (Chrome autoplay policy)
+  if(synthEnabled&&audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
 });
 
 init();
