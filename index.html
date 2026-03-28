@@ -194,17 +194,15 @@ to build your avatar</div>
       <div class="bwrow">Identity <span class="bwval" id="idSize">—</span> · Stream <span class="bwval" id="streamRate">72B/f</span></div>
     </div>
     <div class="voice-panel">
-      <div class="phdr">Voice Tract <div class="pdot" id="vdot"></div></div>
+      <div class="phdr">Vocal Notation <div class="pdot" id="vdot"></div></div>
       <div class="wave-wrap">
         <canvas id="waveCanvas" width="192" height="36"></canvas>
-        <div class="wave-lbl">Glottal source</div>
+        <div class="wave-lbl">Mic input</div>
       </div>
-      <div class="vrow"><div class="vdot" style="background:#c9a96e"></div><div class="vlbl">F0</div><div class="vtrack"><div class="vfill f0" id="vb_f0" style="width:0%"></div></div><div class="vval" id="vv_f0">—Hz</div></div>
-      <div class="vrow"><div class="vdot" style="background:#6a9e6a"></div><div class="vlbl">Amp</div><div class="vtrack"><div class="vfill amp" id="vb_amp" style="width:0%"></div></div><div class="vval" id="vv_amp">0.00</div></div>
+      <div class="vrow"><div class="vdot" style="background:#c9a96e"></div><div class="vlbl">Note</div><div class="vtrack"><div class="vfill f0" id="vb_f0" style="width:0%"></div></div><div class="vval" id="vv_f0">—</div></div>
+      <div class="vrow"><div class="vdot" style="background:#6a9e6a"></div><div class="vlbl">Dyn</div><div class="vtrack"><div class="vfill amp" id="vb_amp" style="width:0%"></div></div><div class="vval" id="vv_amp">—</div></div>
       <div class="vrow"><div class="vdot" style="background:#7a9ec9"></div><div class="vlbl">Voic</div><div class="vtrack"><div class="vfill voic" id="vb_voic" style="width:0%"></div></div><div class="vval" id="vv_voic">0.00</div></div>
-      <div class="vrow"><div class="vdot" style="background:#c97a6a"></div><div class="vlbl">F1</div><div class="vtrack"><div class="vfill f1" id="vb_f1" style="width:0%"></div></div><div class="vval" id="vv_f1">—Hz</div></div>
-      <div class="vrow"><div class="vdot" style="background:#9e6ac9"></div><div class="vlbl">F2</div><div class="vtrack"><div class="vfill f2" id="vb_f2" style="width:0%"></div></div><div class="vval" id="vv_f2">—Hz</div></div>
-      <div class="vrow"><div class="vdot" style="background:#6ac9a0"></div><div class="vlbl">F3</div><div class="vtrack"><div class="vfill f3" id="vb_f3" style="width:0%"></div></div><div class="vval" id="vv_f3">—Hz</div></div>
+      <div class="vrow"><div class="vdot" style="background:#c97a6a"></div><div class="vlbl">Phon</div><div class="vtrack" style="background:transparent"><span id="vv_phon" style="font-size:.52rem;color:var(--accent);font-weight:500">—</span></div><div class="vval" id="vv_phon_lbl">—</div></div>
       <div class="synth-row">
         <div class="synth-toggle" id="synthToggle"></div>
         <div class="synth-lbl">Synth</div>
@@ -327,33 +325,53 @@ let poseBaseline={noseRatio:0.55, yawOffset:0};
 
 // ── Voice system state ──
 let audioCtx=null;
-let micAnalyser=null;         // AnalyserNode connected to mic input
-let micTimeBuf=null;          // Float32Array for time-domain analysis
-let micFreqBuf=null;          // Uint8Array for frequency domain (waveform viz)
+let micAnalyser=null;
+let micTimeBuf=null;
+let micFreqBuf=null;          // for FFT spectral analysis
 let synthEnabled=false;
 
-// Voice parameters (extracted from mic, transmitted in vibe packet)
-let voiceParams={
-  f0:0,          // fundamental frequency in Hz (0 = unvoiced)
-  amplitude:0,   // lung pressure / volume (0..1)
-  voicing:0,     // voiced vs breathy/noise (0..1)
-  f1:500,        // first formant (jaw open, 300-800Hz)
-  f2:1500,       // second formant (tongue front/back, 800-2500Hz)
-  f3:2500,       // third formant (lip rounding, 2000-3500Hz)
+// ── PHONEME CHART ──
+// IPA-inspired vowel classes with known-good formant recipes.
+// These are the "notes" of the vocal notation system.
+// Each phoneme has F1/F2/F3 targets based on acoustic phonetics research.
+const PHONEMES={
+  //        F1   F2   F3    label
+  'aa': {f1:730, f2:1090, f3:2440, label:'ɑ'},  // "father"
+  'ae': {f1:660, f2:1720, f3:2410, label:'æ'},  // "cat"
+  'ah': {f1:520, f2:1190, f3:2390, label:'ʌ'},  // "but"
+  'eh': {f1:530, f2:1840, f3:2480, label:'ɛ'},  // "bed"
+  'ee': {f1:270, f2:2290, f3:3010, label:'i'},   // "see"
+  'ih': {f1:390, f2:1990, f3:2550, label:'ɪ'},  // "bit"
+  'oo': {f1:300, f2:870,  f3:2240, label:'u'},   // "boot"
+  'uh': {f1:440, f2:1020, f3:2240, label:'ʊ'},  // "book"
+  'oh': {f1:570, f2:840,  f3:2410, label:'ɔ'},   // "bought"
+  'er': {f1:490, f2:1350, f3:1690, label:'ɝ'},   // "bird"
+  'ax': {f1:500, f2:1500, f3:2500, label:'ə'},   // schwa "about"
+  'xx': {f1:0,   f2:0,    f3:0,    label:'—'},    // silence / unvoiced noise
+};
+const PHONEME_LIST=Object.keys(PHONEMES);
+
+// Vocal notation — the transmitted "score"
+let vocalNote={
+  phoneme:'xx',    // current phoneme class
+  pitch:0,         // MIDI-ish: 0=silence, 48=C3, 60=C4, etc.
+  cents:0,         // pitch bend in cents (-50..+50)
+  dynamic:0,       // amplitude 0..1
+  voicing:0,       // voiced amount 0..1
+  onset:false,     // true on new syllable attack
 };
 
 // Voice calibration
 let voiceCalib={
-  f0Min:999, f0Max:0,          // speaking pitch range
-  f0Mean:0, f0Count:0,         // running mean
-  ampMax:0,                    // peak amplitude for normalization
+  f0Min:999, f0Max:0, f0Mean:0, f0Count:0, ampMax:0.001,
 };
 
-// Synthesizer nodes (Web Audio graph)
+// Synth state
 let synthNodes=null;
+let synthFormants={f1:500, f2:1500, f3:2500}; // current interpolated formant targets
 
-// Recording/playback for prototyping
-let voiceRecording=[];       // array of {f0, amplitude, voicing, f1, f2, f3} snapshots
+// Recording/playback
+let voiceRecording=[];
 let isRecording=false;
 let isPlaying=false;
 let playbackIdx=0;
@@ -1243,23 +1261,34 @@ function updateVibeUI(){
   else{bpi.style.right='50%';bpi.style.left='auto';bpi.style.width=pp+'%';}
 }
 
+
 // ══════════════════════════════════════════════════
-//  VOICE SYSTEM — VOCAL TRACT SYNTHESIZER
-//  Extracts voice parameters from mic input (sender side),
-//  reconstructs voice via formant synthesis (receiver side).
-//  Transmitted per frame: F0, amplitude, voicing, F1, F2, F3
-//  = 6 floats = 24 bytes. Total vibe packet = 72 bytes/frame.
+//  VOICE SYSTEM — VOCAL NOTATION SYNTHESIZER
+//  Analyzes audio into discrete phonetic + musical notation,
+//  transmits symbolic representation, synthesizes from
+//  known-good formant recipes on the receiver end.
+//
+//  Notation per frame: phoneme(4bit) + pitch(7bit) + cents(7bit)
+//                    + dynamic(4bit) + voicing(4bit) = ~3.5 bytes
+//  Total vibe packet: ~36 bytes/frame
 // ══════════════════════════════════════════════════
 
-// ── YIN-based pitch detection ──
-// Autocorrelation method: finds the fundamental period in a
-// time-domain audio buffer. Returns frequency in Hz or 0 if unvoiced.
+// ── Musical note names ──
+const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+function hzToMidi(hz){ return hz>0?12*Math.log2(hz/440)+69:0; }
+function midiToHz(m){ return m>0?440*Math.pow(2,(m-69)/12):0; }
+function midiToName(m){
+  if(m<=0) return '—';
+  const note=NOTE_NAMES[Math.round(m)%12];
+  const oct=Math.floor(Math.round(m)/12)-1;
+  return note+oct;
+}
+
+// ── YIN pitch detection ──
 const YIN_THRESHOLD=0.15;
 function detectPitch(buf, sampleRate){
   const N=buf.length;
   const halfN=Math.floor(N/2);
-
-  // Step 1: squared difference function
   const d=new Float32Array(halfN);
   for(let tau=0;tau<halfN;tau++){
     let sum=0;
@@ -1269,8 +1298,6 @@ function detectPitch(buf, sampleRate){
     }
     d[tau]=sum;
   }
-
-  // Step 2: cumulative mean normalized difference
   const dn=new Float32Array(halfN);
   dn[0]=1;
   let running=0;
@@ -1278,42 +1305,29 @@ function detectPitch(buf, sampleRate){
     running+=d[tau];
     dn[tau]=d[tau]*tau/running;
   }
-
-  // Step 3: absolute threshold — find first dip below threshold
-  // Start at tau corresponding to ~500Hz (skip impossibly high fundamentals)
   const minTau=Math.floor(sampleRate/500);
-  const maxTau=Math.floor(sampleRate/60);  // down to 60Hz
+  const maxTau=Math.floor(sampleRate/60);
   let bestTau=-1;
   for(let tau=minTau;tau<Math.min(maxTau,halfN);tau++){
     if(dn[tau]<YIN_THRESHOLD){
-      // Walk to the local minimum
       while(tau+1<halfN&&dn[tau+1]<dn[tau]) tau++;
-      bestTau=tau;
-      break;
+      bestTau=tau; break;
     }
   }
-
-  if(bestTau<1) return 0; // unvoiced
-
-  // Step 4: parabolic interpolation for sub-sample accuracy
+  if(bestTau<1) return 0;
   const s0=dn[bestTau-1]||dn[bestTau];
   const s1=dn[bestTau];
   const s2=dn[bestTau+1]||dn[bestTau];
   const shift=(s0-s2)/(2*(s0-2*s1+s2));
-  const refinedTau=bestTau+(isFinite(shift)?shift:0);
-
-  return sampleRate/refinedTau;
+  return sampleRate/(bestTau+(isFinite(shift)?shift:0));
 }
 
-// ── RMS amplitude ──
 function computeRMS(buf){
   let sum=0;
   for(let i=0;i<buf.length;i++) sum+=buf[i]*buf[i];
   return Math.sqrt(sum/buf.length);
 }
 
-// ── Voicing amount (harmonicity) ──
-// Ratio of periodic energy to total energy. High = clean voice, low = noise/breath.
 function computeVoicing(buf, f0, sampleRate){
   if(f0<60) return 0;
   const period=Math.round(sampleRate/f0);
@@ -1328,117 +1342,130 @@ function computeVoicing(buf, f0, sampleRate){
   return energySum>0?clamp(corrSum/energySum,0,1):0;
 }
 
-// ── Formant estimation from mouth landmarks ──
-// Maps MediaPipe face geometry to F1/F2/F3 formant frequencies.
-// This is the "played like an instrument" part — the mouth shape
-// IS the vocal tract filter configuration.
-function estimateFormants(lm){
-  if(!lm) return {f1:500, f2:1500, f3:2500};
+// ── Phoneme classification from spectral peaks ──
+// Finds F1/F2 from the FFT spectrum and classifies against
+// the phoneme chart using minimum Euclidean distance.
+function classifyPhoneme(analyser){
+  if(!analyser) return 'xx';
+  const bins=analyser.frequencyBinCount;
+  const freqData=new Float32Array(bins);
+  analyser.getFloatFrequencyData(freqData);
 
-  // Jaw openness → F1 (higher when mouth opens)
-  // Measured as distance between upper and lower lip landmarks
-  const mouthH=Math.abs(lm[13].y-lm[14].y);  // MOUTH_T to MOUTH_B
-  const faceH=Math.abs(lm[10].y-lm[152].y);   // TOP to CHIN
-  const jawOpen=faceH>0.01?mouthH/faceH:0;
-  // Map jaw openness (0..0.15) → F1 (300..800Hz)
-  const f1=300+clamp(jawOpen/0.12,0,1)*500;
+  const sr=audioCtx.sampleRate;
+  const binHz=sr/analyser.fftSize;
 
-  // Mouth width / lip spread → F2 (higher when spread, lower when rounded)
-  const mouthW=Math.abs(lm[291].x-lm[61].x);  // MOUTH_R to MOUTH_L
-  const eyeW=Math.abs(lm[263].x-lm[33].x);    // eye span for normalization
-  const spread=eyeW>0.01?mouthW/eyeW:0.5;
-  // Map spread (0.3..0.8) → F2 (800..2500Hz)
-  const f2=800+clamp((spread-0.3)/0.5,0,1)*1700;
+  // Find peaks in F1 range (250-900Hz) and F2 range (800-2800Hz)
+  const f1Lo=Math.floor(250/binHz), f1Hi=Math.ceil(900/binHz);
+  const f2Lo=Math.floor(800/binHz), f2Hi=Math.ceil(2800/binHz);
 
-  // Lip protrusion/rounding → F3 (lower when rounded)
-  // Approximate from ratio of mouth height to width
-  const roundness=mouthW>0.001?mouthH/mouthW:0.5;
-  // Map roundness (0.1..0.8) → F3 (2000..3500Hz)
-  const f3=3500-clamp((roundness-0.1)/0.7,0,1)*1500;
+  let f1Peak=-Infinity, f1Freq=500;
+  for(let i=f1Lo;i<=Math.min(f1Hi,bins-1);i++){
+    if(freqData[i]>f1Peak){ f1Peak=freqData[i]; f1Freq=i*binHz; }
+  }
+  let f2Peak=-Infinity, f2Freq=1500;
+  for(let i=f2Lo;i<=Math.min(f2Hi,bins-1);i++){
+    if(freqData[i]>f2Peak){ f2Peak=freqData[i]; f2Freq=i*binHz; }
+  }
 
-  return {f1, f2, f3};
+  // Too quiet = silence
+  if(f1Peak<-60&&f2Peak<-60) return 'xx';
+
+  // Classify: find nearest phoneme by F1/F2 distance
+  let bestDist=Infinity, bestPhon='ax';
+  for(const key of PHONEME_LIST){
+    if(key==='xx') continue;
+    const p=PHONEMES[key];
+    const d1=(f1Freq-p.f1)/200;  // normalize by typical range
+    const d2=(f2Freq-p.f2)/400;
+    const dist=d1*d1+d2*d2;
+    if(dist<bestDist){ bestDist=dist; bestPhon=key; }
+  }
+  return bestPhon;
 }
 
-// ── Extract all voice parameters from mic buffer + landmarks ──
+// ── Extract vocal notation from mic ──
+let prevDynamic=0;
 function extractVoiceParams(lm){
   if(!micAnalyser||!micTimeBuf) return;
 
   micAnalyser.getFloatTimeDomainData(micTimeBuf);
-
   const sr=audioCtx.sampleRate;
+
+  // Pitch → musical note
   const rawF0=detectPitch(micTimeBuf, sr);
+  const midi=hzToMidi(rawF0);
+  const roundedMidi=Math.round(midi);
+  const cents=Math.round((midi-roundedMidi)*100);
+
+  // Amplitude → dynamics
   const rawAmp=computeRMS(micTimeBuf);
-  const rawVoicing=computeVoicing(micTimeBuf, rawF0, sr);
-  const formants=estimateFormants(lm);
-
-  // Normalize amplitude against calibrated peak
+  if(rawAmp>voiceCalib.ampMax) voiceCalib.ampMax=rawAmp;
   const normAmp=voiceCalib.ampMax>0.001?clamp(rawAmp/voiceCalib.ampMax,0,1):clamp(rawAmp*15,0,1);
+  const gate=normAmp>0.025?1:0;
 
-  // Gate: suppress output when amplitude is very low (silence)
-  const gate=normAmp>0.02?1:0;
+  // Voicing
+  const rawVoicing=computeVoicing(micTimeBuf, rawF0, sr);
 
-  // Smooth voice parameters
-  const vs=0.25;  // smoothing factor (voice needs faster response than face)
-  voiceParams.f0=smooth(voiceParams.f0, rawF0*gate, vs);
-  voiceParams.amplitude=smooth(voiceParams.amplitude, normAmp*gate, 0.18);
-  voiceParams.voicing=smooth(voiceParams.voicing, rawVoicing*gate, vs);
-  voiceParams.f1=smooth(voiceParams.f1, formants.f1, 0.15);
-  voiceParams.f2=smooth(voiceParams.f2, formants.f2, 0.15);
-  voiceParams.f3=smooth(voiceParams.f3, formants.f3, 0.15);
+  // Phoneme classification from spectrum
+  const phoneme=gate?classifyPhoneme(micAnalyser):'xx';
 
-  // Calibrate during calibration phase
+  // Onset detection: dynamic jump
+  const onset=normAmp>0.1&&prevDynamic<0.05;
+  prevDynamic=normAmp;
+
+  // Smooth and set
+  const vs=0.30;
+  vocalNote.pitch=smooth(vocalNote.pitch, gate?roundedMidi:0, vs);
+  vocalNote.cents=smooth(vocalNote.cents, cents, vs);
+  vocalNote.dynamic=smooth(vocalNote.dynamic, normAmp*gate, 0.22);
+  vocalNote.voicing=smooth(vocalNote.voicing, rawVoicing*gate, vs);
+  vocalNote.phoneme=phoneme;
+  vocalNote.onset=onset;
+
+  // Calibrate during calibration
   if(phase==='calibrating'&&rawF0>60&&rawAmp>0.005){
     voiceCalib.f0Min=Math.min(voiceCalib.f0Min, rawF0);
     voiceCalib.f0Max=Math.max(voiceCalib.f0Max, rawF0);
     voiceCalib.f0Mean=(voiceCalib.f0Mean*voiceCalib.f0Count+rawF0)/(voiceCalib.f0Count+1);
     voiceCalib.f0Count++;
-    voiceCalib.ampMax=Math.max(voiceCalib.ampMax, rawAmp);
   }
 
-  // Capture frame for recording
+  // Capture recording
   if(isRecording){
     voiceRecording.push({
-      f0:voiceParams.f0,
-      amplitude:voiceParams.amplitude,
-      voicing:voiceParams.voicing,
-      f1:voiceParams.f1,
-      f2:voiceParams.f2,
-      f3:voiceParams.f3,
+      phoneme:vocalNote.phoneme,
+      pitch:vocalNote.pitch,
+      cents:vocalNote.cents,
+      dynamic:vocalNote.dynamic,
+      voicing:vocalNote.voicing,
     });
   }
 }
 
 // ══════════════════════════════════════════════════
-//  FORMANT SYNTHESIZER — Web Audio API
-//  Source-filter model:
-//    Source: glottal pulse train (periodic wave at F0)
-//           + white noise (for unvoiced/breathy sounds)
-//    Filter: 3 resonant bandpass filters at F1, F2, F3
-//    Output: amplitude envelope (lung pressure)
-//
-//  This runs ONLY from the extracted parameters — no mic audio
-//  passes through. The synthesizer IS the receiver's audio output.
+//  FORMANT SYNTHESIZER — plays from notation
+//  Instead of raw F1/F2/F3 from geometry, looks up the
+//  phoneme's known-good formant recipe and interpolates
+//  smoothly between phoneme targets.
 // ══════════════════════════════════════════════════
 function buildSynthesizer(){
   if(!audioCtx) return;
 
-  // ── Glottal source: rich pulse-like periodic wave ──
-  // disableNormalization:true so we control the amplitude ourselves.
-  // Sawtooth-like spectrum with -6dB/octave rolloff (closer to real glottis)
+  // Glottal source — rich sawtooth-like pulse
   const nHarm=40;
   const real=new Float32Array(nHarm+1);
   const imag=new Float32Array(nHarm+1);
   real[0]=0; imag[0]=0;
   for(let h=1;h<=nHarm;h++){
     real[h]=0;
-    imag[h]=1.0/h;  // sawtooth harmonics, -6dB/octave
+    imag[h]=1.0/h;
   }
   const glottalWave=audioCtx.createPeriodicWave(real,imag,{disableNormalization:true});
   const glottal=audioCtx.createOscillator();
   glottal.setPeriodicWave(glottalWave);
   glottal.frequency.value=120;
 
-  // ── Noise source: white noise buffer ──
+  // Noise source
   const noiseBufLen=audioCtx.sampleRate*2;
   const noiseBuffer=audioCtx.createBuffer(1,noiseBufLen,audioCtx.sampleRate);
   const noiseData=noiseBuffer.getChannelData(0);
@@ -1447,15 +1474,11 @@ function buildSynthesizer(){
   noise.buffer=noiseBuffer;
   noise.loop=true;
 
-  // ── Source gain nodes — MUCH louder than before ──
-  const voicedGain=audioCtx.createGain();
-  voicedGain.gain.value=0;
-  const noiseGain=audioCtx.createGain();
-  noiseGain.gain.value=0;
+  // Source gains
+  const voicedGain=audioCtx.createGain(); voicedGain.gain.value=0;
+  const noiseGain=audioCtx.createGain();  noiseGain.gain.value=0;
 
-  // ── Formant filters — WIDER resonances for intelligible speech ──
-  // Lower Q = wider bandwidth = more natural vowels
-  // Real speech formants have bandwidths of 60-120Hz
+  // Formant filters — wide resonances
   const makeFormant=(freq,q)=>{
     const f=audioCtx.createBiquadFilter();
     f.type='bandpass';
@@ -1463,11 +1486,11 @@ function buildSynthesizer(){
     f.Q.value=q;
     return f;
   };
-  const f1=makeFormant(500, 3);   // F1: wide, carries vowel height
-  const f2=makeFormant(1500, 4);  // F2: medium, carries front/back
-  const f3=makeFormant(2500, 5);  // F3: tighter, adds brightness
+  const f1=makeFormant(500, 3);
+  const f2=makeFormant(1500, 4);
+  const f3=makeFormant(2500, 5);
 
-  // ── Parallel formant routing with boosted gains ──
+  // Formant output gains
   const f1Gain=audioCtx.createGain(); f1Gain.gain.value=1.2;
   const f2Gain=audioCtx.createGain(); f2Gain.gain.value=1.0;
   const f3Gain=audioCtx.createGain(); f3Gain.gain.value=0.6;
@@ -1475,29 +1498,24 @@ function buildSynthesizer(){
   const masterGain=audioCtx.createGain();
   masterGain.gain.value=0;
 
-  // Wire sources → formants → master
+  // Wire
   glottal.connect(voicedGain);
   noise.connect(noiseGain);
-
   [voicedGain,noiseGain].forEach(src=>{
     src.connect(f1); src.connect(f2); src.connect(f3);
   });
-
   f1.connect(f1Gain); f1Gain.connect(masterGain);
   f2.connect(f2Gain); f2Gain.connect(masterGain);
   f3.connect(f3Gain); f3Gain.connect(masterGain);
 
-  // Gentle limiter — don't crush the signal, just protect from clipping
+  // Limiter
   const limiter=audioCtx.createDynamicsCompressor();
-  limiter.threshold.value=-6;
-  limiter.knee.value=12;
-  limiter.ratio.value=4;
-  limiter.attack.value=0.003;
-  limiter.release.value=0.1;
+  limiter.threshold.value=-6; limiter.knee.value=12;
+  limiter.ratio.value=4; limiter.attack.value=0.003; limiter.release.value=0.1;
   masterGain.connect(limiter);
   limiter.connect(audioCtx.destination);
 
-  // Analyser on synth output for waveform visualization
+  // Analyser on synth output
   const synthAnalyser=audioCtx.createAnalyser();
   synthAnalyser.fftSize=512;
   limiter.connect(synthAnalyser);
@@ -1505,42 +1523,51 @@ function buildSynthesizer(){
   glottal.start();
   noise.start();
 
-  synthNodes={glottal, noise, voicedGain, noiseGain, f1, f2, f3, masterGain, f1Gain, f2Gain, f3Gain, synthAnalyser};
+  synthNodes={glottal, noise, voicedGain, noiseGain, f1, f2, f3,
+              masterGain, f1Gain, f2Gain, f3Gain, synthAnalyser};
 }
 
-// ── Update synthesizer parameters from voice state ──
+// ── Update synthesizer from vocal notation ──
 function updateSynthesizer(){
   if(!synthNodes||!synthEnabled) return;
-  const vp=voiceParams;
+  const vn=vocalNote;
   const t=audioCtx.currentTime;
-  const ramp=0.02; // 20ms ramp for click-free parameter changes
+  const ramp=0.02;
 
-  // F0 → oscillator frequency
-  const targetF0=clamp(vp.f0, 60, 500);
-  if(targetF0>60&&vp.amplitude>0.01){
-    synthNodes.glottal.frequency.setTargetAtTime(targetF0, t, ramp);
+  // Pitch from notation
+  const hz=midiToHz(vn.pitch);
+  if(hz>50&&vn.dynamic>0.01){
+    // Apply cents bend
+    const bendHz=hz*Math.pow(2, vn.cents/1200);
+    synthNodes.glottal.frequency.setTargetAtTime(clamp(bendHz,60,500), t, ramp);
   }
 
-  // Voicing mix — source gains need to be loud since bandpass attenuates heavily
-  const vAmt=clamp(vp.voicing, 0, 1);
+  // Voicing mix
+  const vAmt=clamp(vn.voicing, 0, 1);
   synthNodes.voicedGain.gain.setTargetAtTime(vAmt*1.5, t, ramp);
   synthNodes.noiseGain.gain.setTargetAtTime((1-vAmt*0.5)*0.8, t, ramp);
 
-  // Formant frequencies — update filter centers
-  synthNodes.f1.frequency.setTargetAtTime(clamp(vp.f1, 200, 900), t, ramp);
-  synthNodes.f2.frequency.setTargetAtTime(clamp(vp.f2, 700, 2800), t, ramp);
-  synthNodes.f3.frequency.setTargetAtTime(clamp(vp.f3, 1800, 3800), t, ramp);
+  // Formants from phoneme chart — smooth interpolation
+  const phon=PHONEMES[vn.phoneme]||PHONEMES.ax;
+  if(phon.f1>0){
+    const interpSpeed=0.12;
+    synthFormants.f1=smooth(synthFormants.f1, phon.f1, interpSpeed);
+    synthFormants.f2=smooth(synthFormants.f2, phon.f2, interpSpeed);
+    synthFormants.f3=smooth(synthFormants.f3, phon.f3, interpSpeed);
+  }
 
-  // Master amplitude (lung pressure) — full range
-  const amp=clamp(vp.amplitude, 0, 1);
+  synthNodes.f1.frequency.setTargetAtTime(clamp(synthFormants.f1,200,900), t, ramp);
+  synthNodes.f2.frequency.setTargetAtTime(clamp(synthFormants.f2,700,2800), t, ramp);
+  synthNodes.f3.frequency.setTargetAtTime(clamp(synthFormants.f3,1800,3800), t, ramp);
+
+  // Master amplitude
+  const amp=clamp(vn.dynamic, 0, 1);
   synthNodes.masterGain.gain.setTargetAtTime(amp*1.2, t, ramp);
 }
 
-// ── Mute synthesizer ──
 function muteSynth(){
   if(!synthNodes) return;
-  const t=audioCtx.currentTime;
-  synthNodes.masterGain.gain.setTargetAtTime(0, t, 0.05);
+  synthNodes.masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
 }
 
 // ── Waveform visualization ──
@@ -1551,25 +1578,17 @@ function drawWaveform(){
   const w=waveCanvas.width, h=waveCanvas.height;
   waveCtx.fillStyle='rgba(12,11,9,.4)';
   waveCtx.fillRect(0,0,w,h);
-
-  // Choose analyser: synth output when synth is on, mic input when not
   let analyser=null;
-  if(synthEnabled&&synthNodes&&synthNodes.synthAnalyser){
-    analyser=synthNodes.synthAnalyser;
-  } else if(micAnalyser){
-    analyser=micAnalyser;
-  }
+  if(synthEnabled&&synthNodes&&synthNodes.synthAnalyser) analyser=synthNodes.synthAnalyser;
+  else if(micAnalyser) analyser=micAnalyser;
   if(!analyser) return;
-
   const bufLen=analyser.frequencyBinCount;
   const buf=new Uint8Array(bufLen);
   analyser.getByteTimeDomainData(buf);
-
-  const isActive=voiceParams.amplitude>0.02||isPlaying;
+  const isActive=vocalNote.dynamic>0.02||isPlaying;
   waveCtx.beginPath();
   waveCtx.strokeStyle=isActive?'#c9a96e':'#3a3428';
   waveCtx.lineWidth=1.5;
-
   const sliceW=w/bufLen;
   for(let i=0;i<bufLen;i++){
     const v=buf[i]/128.0;
@@ -1582,34 +1601,31 @@ function drawWaveform(){
 
 // ── Voice UI update ──
 function updateVoiceUI(){
-  const vp=voiceParams;
-  const f0Pct=clamp((vp.f0-60)/(400-60)*100,0,100);
+  const vn=vocalNote;
+
+  // Note display
+  const f0Pct=clamp((vn.pitch-36)/(72-36)*100,0,100);
   document.getElementById('vb_f0').style.width=f0Pct+'%';
-  document.getElementById('vv_f0').textContent=vp.f0>60?Math.round(vp.f0)+'Hz':'—Hz';
+  document.getElementById('vv_f0').textContent=midiToName(vn.pitch);
 
-  document.getElementById('vb_amp').style.width=(vp.amplitude*100)+'%';
-  document.getElementById('vv_amp').textContent=vp.amplitude.toFixed(2);
+  // Dynamic
+  document.getElementById('vb_amp').style.width=(vn.dynamic*100)+'%';
+  const dynLabels=['—','pp','p','mp','mf','f','ff'];
+  const dynIdx=Math.min(Math.floor(vn.dynamic*6),5);
+  document.getElementById('vv_amp').textContent=vn.dynamic>0.02?dynLabels[dynIdx+1]:'—';
 
-  document.getElementById('vb_voic').style.width=(vp.voicing*100)+'%';
-  document.getElementById('vv_voic').textContent=vp.voicing.toFixed(2);
+  // Voicing
+  document.getElementById('vb_voic').style.width=(vn.voicing*100)+'%';
+  document.getElementById('vv_voic').textContent=vn.voicing.toFixed(2);
 
-  document.getElementById('vb_f1').style.width=clamp((vp.f1-200)/700*100,0,100)+'%';
-  document.getElementById('vv_f1').textContent=Math.round(vp.f1)+'Hz';
+  // Phoneme
+  const phon=PHONEMES[vn.phoneme]||PHONEMES.xx;
+  document.getElementById('vv_phon').textContent=phon.label;
+  document.getElementById('vv_phon_lbl').textContent=vn.phoneme==='xx'?'—':vn.phoneme;
 
-  document.getElementById('vb_f2').style.width=clamp((vp.f2-700)/2100*100,0,100)+'%';
-  document.getElementById('vv_f2').textContent=Math.round(vp.f2)+'Hz';
-
-  document.getElementById('vb_f3').style.width=clamp((vp.f3-1800)/2000*100,0,100)+'%';
-  document.getElementById('vv_f3').textContent=Math.round(vp.f3)+'Hz';
-
-  // Per-frame voice bytes: 6 floats × 4 bytes = 24 bytes
-  // Total vibe packet: 8 face floats + 6 voice floats = 56 bytes
-  document.getElementById('vv_bw').textContent='56 B/f';
-
+  // Dot
   const vdot=document.getElementById('vdot');
-  vdot.className=vp.amplitude>0.02||isPlaying?'pdot on':'pdot';
-
-  // Update waveform label
+  vdot.className=vn.dynamic>0.02||isPlaying?'pdot on':'pdot';
   const waveLbl=document.querySelector('.wave-lbl');
   if(waveLbl) waveLbl.textContent=synthEnabled?'Synth output':'Mic input';
 
@@ -1621,22 +1637,19 @@ function initAudio(stream){
   try{
     audioCtx=new (window.AudioContext||window.webkitAudioContext)();
     const source=audioCtx.createMediaStreamSource(stream);
-
     micAnalyser=audioCtx.createAnalyser();
     micAnalyser.fftSize=2048;
-    micAnalyser.smoothingTimeConstant=0.3;
+    micAnalyser.smoothingTimeConstant=0.4;
     source.connect(micAnalyser);
-    // Do NOT connect mic to destination — no passthrough
-
     micTimeBuf=new Float32Array(micAnalyser.fftSize);
     micFreqBuf=new Uint8Array(micAnalyser.fftSize);
-
     buildSynthesizer();
-    console.log(`Audio initialized: ${audioCtx.sampleRate}Hz, buffer ${micAnalyser.fftSize}`);
+    console.log('Audio initialized: '+audioCtx.sampleRate+'Hz');
   }catch(e){
     console.warn('Audio init failed:',e);
   }
 }
+
 
 // ══════════════════════════════════════════════════
 //  FRAME PUMP
@@ -1741,54 +1754,69 @@ document.getElementById('synthToggle').addEventListener('click',function(){
   if(synthEnabled&&audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
 });
 
-// ── Demo: generate a canned vowel/syllable sequence through the synth ──
-// Simulates a short phrase "ah-ee-oo-eh-oh" with pitch contour
+// ── Demo: notation-based speech sequence ──
+// Each segment specifies a phoneme, pitch (MIDI), duration, dynamics, voicing.
+// This IS the transmitted data — the notation IS the protocol.
 function generateDemo(){
   const seq=[];
-  const sr=30; // frames per second (matched to render loop)
 
-  // Each segment: [vowel, durationFrames, startPitch, endPitch, amp]
+  // "Hello world, testing" — as vocal notation
+  // Each entry: [phoneme, durationFrames, startMidi, endMidi, dynamic, voicing]
   const phrase=[
-    // "Hah"
-    {f1:750,f2:1200,f3:2600, dur:14, p0:140,p1:132, amp:0.9, voic:0.85},
-    // brief pause
-    {f1:500,f2:1500,f3:2500, dur:3,  p0:0,  p1:0,   amp:0,   voic:0},
-    // "lee"
-    {f1:320,f2:2300,f3:3000, dur:16, p0:150,p1:165, amp:0.95,voic:0.92},
-    // "oh"
-    {f1:450,f2:850, f3:2500, dur:18, p0:155,p1:125, amp:0.9, voic:0.88},
+    // "hh" aspirate
+    ['xx', 4, 0,  0,  0.5, 0.05],
+    // "eh" in hello
+    ['eh', 12, 55, 54, 0.85, 0.88],
+    // "l" — schwa-ish
+    ['ax', 6, 54, 53, 0.6, 0.75],
+    // "oh" in hello
+    ['oh', 14, 53, 50, 0.8, 0.85],
     // pause
-    {f1:500,f2:1500,f3:2500, dur:5,  p0:0,  p1:0,   amp:0,   voic:0},
-    // "world" — "wuh"
-    {f1:380,f2:750, f3:2200, dur:10, p0:125,p1:145, amp:0.85,voic:0.78},
-    // "erld"
-    {f1:520,f2:1400,f3:1650, dur:16, p0:140,p1:108, amp:0.8, voic:0.8},
-    // trail off
-    {f1:450,f2:1400,f3:2400, dur:12, p0:108,p1:82,  amp:0.4, voic:0.5},
-    // silence
-    {f1:500,f2:1500,f3:2500, dur:8,  p0:0,  p1:0,   amp:0,   voic:0},
-    // "Testing" — "T" burst
-    {f1:550,f2:1800,f3:2700, dur:5,  p0:0,  p1:0,   amp:0.7, voic:0.1},
-    // "eh"
-    {f1:550,f2:1900,f3:2700, dur:12, p0:155,p1:148, amp:0.95,voic:0.9},
+    ['xx', 5, 0, 0, 0, 0],
+    // "w" — rounded
+    ['oo', 6, 48, 50, 0.5, 0.7],
+    // "er" in world
+    ['er', 14, 50, 47, 0.75, 0.82],
+    // "l" + "d" trail
+    ['ax', 6, 47, 46, 0.4, 0.55],
+    // consonant noise
+    ['xx', 4, 0, 0, 0.35, 0.08],
+    // pause
+    ['xx', 8, 0, 0, 0, 0],
+    // "t" burst
+    ['xx', 3, 0, 0, 0.6, 0.05],
+    // "eh" in testing
+    ['eh', 10, 53, 52, 0.9, 0.9],
     // "ss" noise
-    {f1:500,f2:1600,f3:2500, dur:6,  p0:0,  p1:0,   amp:0.5, voic:0.05},
-    // "ting"
-    {f1:380,f2:1750,f3:2650, dur:10, p0:138,p1:115, amp:0.8, voic:0.82},
-    // final silence
-    {f1:500,f2:1500,f3:2500, dur:10, p0:0,  p1:0,   amp:0,   voic:0},
+    ['xx', 5, 0, 0, 0.45, 0.03],
+    // "t" burst
+    ['xx', 2, 0, 0, 0.5, 0.05],
+    // "ih" + "ng"
+    ['ih', 10, 52, 48, 0.7, 0.82],
+    // trail
+    ['ax', 8, 48, 44, 0.25, 0.45],
+    // silence
+    ['xx', 10, 0, 0, 0, 0],
+    // Bonus: sweep through vowels "ah-eh-ee-oh-oo"
+    ['aa', 12, 52, 53, 0.85, 0.9],
+    ['eh', 10, 53, 54, 0.8, 0.88],
+    ['ee', 12, 54, 56, 0.85, 0.92],
+    ['oh', 10, 53, 51, 0.75, 0.85],
+    ['oo', 12, 51, 48, 0.7, 0.82],
+    // fade out
+    ['ax', 10, 48, 45, 0.3, 0.5],
+    ['xx', 8, 0, 0, 0, 0],
   ];
 
-  for(const seg of phrase){
-    for(let i=0;i<seg.dur;i++){
-      const t=seg.dur>1?i/(seg.dur-1):0;
+  for(const[phon, dur, p0, p1, dyn, voic] of phrase){
+    for(let i=0;i<dur;i++){
+      const t=dur>1?i/(dur-1):0;
       seq.push({
-        f0:seg.p0+(seg.p1-seg.p0)*t,
-        amplitude:seg.amp*(0.9+Math.random()*0.2), // micro-variation
-        voicing:seg.voic,
-        f1:seg.f1+(Math.random()-0.5)*20,
-        f2:seg.f2+(Math.random()-0.5)*30,
-        f3:seg.f3+(Math.random()-0.5)*25,
+        phoneme:phon,
+        pitch:p0+(p1-p0)*t,
+        cents:(Math.random()-0.5)*15, // micro-variation
+        dynamic:dyn*(0.92+Math.random()*0.16),
+        voicing:voic,
       });
     }
   }
@@ -1807,13 +1835,11 @@ function stopPlayback(){
 
 function startPlayback(sequence, btn){
   if(!audioCtx){
-    // Create a minimal audio context if mic wasn't granted
     audioCtx=new (window.AudioContext||window.webkitAudioContext)();
     buildSynthesizer();
   }
   if(audioCtx.state==='suspended') audioCtx.resume();
 
-  // Force synth on
   synthEnabled=true;
   document.getElementById('synthToggle').classList.add('on');
 
@@ -1828,31 +1854,27 @@ function startPlayback(sequence, btn){
       return;
     }
     const frame=sequence[playbackIdx];
-    // Drive voice params directly (bypassing mic extraction)
-    voiceParams.f0=smooth(voiceParams.f0, frame.f0, 0.3);
-    voiceParams.amplitude=smooth(voiceParams.amplitude, frame.amplitude, 0.25);
-    voiceParams.voicing=smooth(voiceParams.voicing, frame.voicing, 0.3);
-    voiceParams.f1=smooth(voiceParams.f1, frame.f1, 0.2);
-    voiceParams.f2=smooth(voiceParams.f2, frame.f2, 0.2);
-    voiceParams.f3=smooth(voiceParams.f3, frame.f3, 0.2);
+    // Drive vocal notation directly
+    vocalNote.phoneme=frame.phoneme;
+    vocalNote.pitch=smooth(vocalNote.pitch, frame.pitch, 0.35);
+    vocalNote.cents=smooth(vocalNote.cents, frame.cents||0, 0.3);
+    vocalNote.dynamic=smooth(vocalNote.dynamic, frame.dynamic, 0.28);
+    vocalNote.voicing=smooth(vocalNote.voicing, frame.voicing, 0.35);
 
     updateSynthesizer();
     updateVoiceUI();
     playbackIdx++;
-  }, 1000/30); // 30fps playback
+  }, 1000/30);
 }
 
 // Demo button
 document.getElementById('demoBtn').addEventListener('click',function(){
-  if(isPlaying){
-    stopPlayback();
-    return;
-  }
+  if(isPlaying){ stopPlayback(); return; }
   this.textContent='■ Stop';
   startPlayback(generateDemo(), this);
 });
 
-// Record button — captures live voice params
+// Record button
 document.getElementById('recBtn').addEventListener('click',function(){
   if(isRecording){
     isRecording=false;
@@ -1871,12 +1893,9 @@ document.getElementById('recBtn').addEventListener('click',function(){
   document.getElementById('playBtn').disabled=true;
 });
 
-// Playback button — plays back recorded voice params through synth
+// Playback button
 document.getElementById('playBtn').addEventListener('click',function(){
-  if(isPlaying){
-    stopPlayback();
-    return;
-  }
+  if(isPlaying){ stopPlayback(); return; }
   if(voiceRecording.length===0) return;
   startPlayback(voiceRecording, this);
 });
