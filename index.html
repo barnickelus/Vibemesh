@@ -245,8 +245,8 @@ const splatVert=`
     vColor=splatColor;
     vOpacity=opacity;
     vec4 mvPos=modelViewMatrix*vec4(position,1.0);
-    gl_PointSize=size*(-300.0/mvPos.z);
-    gl_PointSize=clamp(gl_PointSize,1.0,64.0);
+    gl_PointSize=size*(-900.0/mvPos.z);
+    gl_PointSize=clamp(gl_PointSize,2.0,128.0);
     gl_Position=projectionMatrix*mvPos;
   }
 `;
@@ -257,8 +257,8 @@ const splatFrag=`
     // Gaussian falloff from center of point
     vec2 c=gl_PointCoord-0.5;
     float d=dot(c,c);
-    float g=exp(-d*8.0);  // sigma ~0.25 of point radius
-    if(g<0.02) discard;
+    float g=exp(-d*4.0);  // softer falloff — splats blend together
+    if(g<0.01) discard;
     gl_FragColor=vec4(vColor,g*vOpacity);
   }
 `;
@@ -306,12 +306,19 @@ function buildSplatCloud(lm, snapCanvas){
   const snapCtx=snapCanvas.getContext('2d',{willReadFrequently:true});
   const imgData=snapCtx.getImageData(0,0,VW,VH);
 
-  // Sample color from snapshot at normalized coords
+  // Sample color from snapshot at normalized coords with brightness correction
   function sampleColor(nx,ny){
     const px=clamp(Math.round(nx*VW),0,VW-1);
     const py=clamp(Math.round(ny*VH),0,VH-1);
     const i=(py*VW+px)*4;
-    return [imgData.data[i]/255, imgData.data[i+1]/255, imgData.data[i+2]/255];
+    let r=imgData.data[i]/255, g=imgData.data[i+1]/255, b=imgData.data[i+2]/255;
+    // Boost if underexposed (common with webcams)
+    const lum=r*0.299+g*0.587+b*0.114;
+    if(lum<0.35){
+      const boost=0.35/(lum+0.01);
+      r=Math.min(r*boost,1); g=Math.min(g*boost,1); b=Math.min(b*boost,1);
+    }
+    return [r,g,b];
   }
 
   // Compute face geometry for normalization
@@ -360,7 +367,7 @@ function buildSplatCloud(lm, snapCanvas){
     splats.push({
       x:p3.x, y:p3.y, z:p3.z,
       r:col[0], g:col[1], b:col[2],
-      size:0.035, opacity:0.85,
+      size:0.09, opacity:0.9,
       importance:importance+boost,
       region:region,
     });
@@ -374,22 +381,20 @@ function buildSplatCloud(lm, snapCanvas){
     const p3=lmTo3D({x:mx,y:my});
     const col=sampleColor(mx,my);
     splats.push({x:p3.x,y:p3.y,z:p3.z,r:col[0],g:col[1],b:col[2],
-      size:0.04,opacity:0.7,importance:0.3,region:R_NONE});
+      size:0.10,opacity:0.8,importance:0.3,region:R_NONE});
   }
 
-  // ── 3. Fill face interior with a grid of splats ──
-  const gridRes=28; // NxN grid over face bounding box
+  // ── 3. Fill face interior with a dense grid of splats ──
+  const gridRes=38; // NxN grid — denser for continuous coverage
   for(let gx=0;gx<gridRes;gx++){
     for(let gy=0;gy<gridRes;gy++){
       const nx=fcx-frw*1.1+((gx+0.5)/gridRes)*frw*2.2;
       const ny=fcy-frh*1.15+((gy+0.5)/gridRes)*frh*2.3;
-      // Skip if outside face oval (approximate)
       const dx=(nx-fcx)/frw, dy=(ny-fcy)/frh;
       const ellDist=dx*dx+dy*dy;
       if(ellDist>1.15) continue;
       const p3=lmTo3D({x:nx,y:ny});
       const col=sampleColor(nx,ny);
-      // Find nearest landmark for region tagging
       let minD=Infinity, nearIdx=0;
       for(let i=0;i<468;i++){
         const d=(lm[i].x-nx)**2+(lm[i].y-ny)**2;
@@ -398,14 +403,14 @@ function buildSplatCloud(lm, snapCanvas){
       const region=getRegion(nearIdx);
       const importance=clamp(1.0-ellDist*0.7,0.05,0.95)+(region>=R_MOUTH_U&&region<=R_EYE_L_R?0.15:0);
       splats.push({x:p3.x,y:p3.y,z:p3.z,r:col[0],g:col[1],b:col[2],
-        size:0.025+Math.random()*0.01,opacity:0.65+Math.random()*0.2,
+        size:0.07+Math.random()*0.025,opacity:0.75+Math.random()*0.2,
         importance:importance,region:region});
     }
   }
 
   // ── 4. Hair cap — dome of dark splats above and behind head ──
   const hairCol=[pal.hair[0]/255, pal.hair[1]/255, pal.hair[2]/255];
-  for(let i=0;i<300;i++){
+  for(let i=0;i<400;i++){
     const theta=Math.random()*Math.PI*2;
     const phi=Math.random()*Math.PI*0.55; // upper hemisphere
     const r=0.88+Math.random()*0.2;
@@ -417,7 +422,7 @@ function buildSplatCloud(lm, snapCanvas){
     const hv=0.85+Math.random()*0.3; // slight color variation
     splats.push({x,y,z,
       r:hairCol[0]*hv,g:hairCol[1]*hv,b:hairCol[2]*hv,
-      size:0.04+Math.random()*0.025,opacity:0.6+Math.random()*0.3,
+      size:0.08+Math.random()*0.05,opacity:0.7+Math.random()*0.25,
       importance:0.1+Math.random()*0.15,region:R_HAIR});
   }
 
@@ -430,7 +435,7 @@ function buildSplatCloud(lm, snapCanvas){
     const sv=0.85+Math.random()*0.2;
     splats.push({x:Math.cos(angle)*r,y:y,z:Math.sin(angle)*r*0.7,
       r:skinCol[0]*sv,g:skinCol[1]*sv,b:skinCol[2]*sv,
-      size:0.05,opacity:0.5,importance:0.05+Math.random()*0.05,region:R_NECK});
+      size:0.09,opacity:0.6,importance:0.05+Math.random()*0.05,region:R_NECK});
   }
 
   // ── Sort by importance (highest first = streamed first) ──
@@ -528,18 +533,18 @@ function deformSplats(){
 // ══════════════════════════════════════════════════
 function startProgressiveReveal(){
   if(revealTimer) clearInterval(revealTimer);
-  // Instant: show first 80 (coarse blob)
-  splatRevealed=Math.min(80,splatTotal);
+  // Instant: show first 200 (coarse blob — immediately recognizable)
+  splatRevealed=Math.min(200,splatTotal);
   updateSplatGeometry();
 
-  // Then add ~50 splats every 100ms until done
+  // Then add ~100 splats every 100ms until done
   revealTimer=setInterval(()=>{
     if(splatRevealed>=splatTotal){
       clearInterval(revealTimer);
       revealTimer=null;
       return;
     }
-    splatRevealed=Math.min(splatRevealed+50, splatTotal);
+    splatRevealed=Math.min(splatRevealed+100, splatTotal);
     updateSplatGeometry();
     updateProgressUI();
   },100);
