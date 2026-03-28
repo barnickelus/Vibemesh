@@ -195,7 +195,9 @@ const W=480, H=560, VW=640, VH=480;
 const FTW=1024, FTH=1024;
 const FCX=FTW/2, FCY=FTH*0.46;
 const FFW=260, FFH=330;
-const CALIB_FRAMES=55;
+const CALIB_NEUTRAL=45;   // Phase 1: neutral face — color + geometry + snapshot
+const CALIB_OPEN=30;      // Phase 2: mouth open — teeth/tongue snapshot
+const CALIB_TOTAL=CALIB_NEUTRAL+CALIB_OPEN;
 
 const TIERS=[
   {cs:28, gap:2, label:'Tier 01 · Low'},
@@ -256,6 +258,26 @@ let snapshotCanvas=null;   // captured neutral-face image from calibration
 let calibSourcePts=null;   // calibration landmarks in snapshot pixel coords [0..VW, 0..VH]
 let snapshotSize=0;        // JPEG byte size of identity payload
 
+// Open-mouth snapshot (Phase 2 of calibration)
+let snapshotOpen=null;     // captured open-mouth image
+let calibSourceOpen=null;  // open-mouth landmarks in snapshot pixel coords
+let calibLMOpen=null;      // EMA-averaged landmarks during open-mouth phase
+let mouthTriMask=null;     // per-triangle float [0..1]: 0=not mouth, 1=deep mouth region
+
+// Landmark indices in/around the mouth (inner + outer lips + surrounding)
+const MOUTH_REGION_IDX=new Set([
+  // Outer lip
+  61,185,40,39,37,0,267,269,270,409,291,
+  146,91,181,84,17,314,405,321,375,
+  // Inner lip
+  78,191,80,81,82,13,312,311,310,415,308,
+  95,88,178,87,14,317,402,318,324,
+  // Chin/surrounding
+  152,148,176,149,150,136,172,58,
+  // Nose base connection
+  2,326,327,
+]);
+
 // Pose calibration baselines
 let poseBaseline={noseRatio:0.55, yawOffset:0};
 
@@ -291,12 +313,58 @@ faceTex.minFilter=THREE.LinearFilter;
 faceTex.magFilter=THREE.LinearFilter;
 faceTex.generateMipmaps=false;
 
-const headGeo=new THREE.SphereGeometry(1,64,64);
+// ── Head geometry: cranial shape derived from deformed sphere ──
+// Instead of a generic sphere, deform vertices to approximate
+// actual skull proportions: broader forehead, narrower temples,
+// wider cheekbones, tapered jaw, flatter back.
+const headGeo=(function(){
+  const base=new THREE.SphereGeometry(1,64,64);
+  const pos=base.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    let x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
+
+    // Normalized height: -1 (chin) to +1 (crown)
+    const h=y;
+
+    // ── Width profile (x-axis) ──
+    // Narrow at chin, wide at cheekbones, slight taper at temples, moderate at crown
+    let wScale=1.0;
+    if(h<-0.5) wScale=0.72+0.28*(h+1);           // chin taper
+    else if(h<-0.1) wScale=0.86+0.14*(h+0.5)/0.4; // jaw → cheek widen
+    else if(h<0.2) wScale=1.0;                     // cheekbone zone (widest)
+    else if(h<0.55) wScale=1.0-0.06*(h-0.2)/0.35;  // slight temple narrow
+    else wScale=0.94-0.08*(h-0.55)/0.45;            // crown taper
+
+    // ── Depth profile (z-axis) ──
+    // Flatter back, prominent brow ridge, receding chin
+    let dScale=1.0;
+    if(z<0){
+      // Back of head: flatten
+      dScale=0.88;
+    } else {
+      // Front face: slight brow ridge, chin recession
+      if(h>0.25) dScale=1.0+0.04*Math.max(0,(h-0.25)/0.3);  // brow prominence
+      if(h<-0.4) dScale=1.0-0.12*Math.abs(h+0.4)/0.6;        // chin recession
+    }
+
+    // ── Vertical (y-axis) ──
+    // Elongate slightly — skulls are taller than wide
+    const vScale=1.12;
+
+    pos.setX(i, x*wScale);
+    pos.setY(i, y*vScale);
+    pos.setZ(i, z*dScale);
+  }
+  pos.needsUpdate=true;
+  base.computeVertexNormals();
+  return base;
+})();
+
 const headMat=new THREE.MeshStandardMaterial({
   map:faceTex, roughness:0.88, metalness:0.0,
 });
 const headMesh=new THREE.Mesh(headGeo,headMat);
-headMesh.scale.set(1.0,1.16,0.95);
+headMesh.scale.set(1.0,1.0,0.95);
 headMesh.rotation.order='YXZ';
 headMesh.rotation.y=-Math.PI/2;
 scene.add(headMesh);
@@ -409,21 +477,11 @@ function buildFaceMap(lm){
 }
 
 // ══════════════════════════════════════════════════
-//  DRAW FACE — SNAPSHOT + EXPRESSION DELTAS
-//  The honest protocol: warp a single calibration snapshot
-//  using expression-driven landmark offsets. No live video
-//  pixels enter the render path after calibration.
-//
-//  How it works:
-//  1. Source triangles = calibration landmarks on the snapshot image
-//  2. Dest triangles = live landmarks mapped to texture space
-//     (using the live frame's own face oval for normalization,
-//      which factors out translation/scale, keeping only expression)
-//  3. Affine-warp each triangle from snapshot → texture
-//
-//  The delta between calibration and live landmark positions IS
-//  the expression. Mouth opens → lower lip landmarks drop →
-//  snapshot's lip pixels get stretched apart → open mouth appears.
+//  DRAW FACE — DUAL-SNAPSHOT + EXPRESSION DELTAS
+//  Two calibration snapshots: neutral (mouth closed) and
+//  mouth-open. For triangles in the mouth region, blends
+//  between the two based on live mouth openness.
+//  No live video pixels enter the render path after calibration.
 // ══════════════════════════════════════════════════
 function drawFace(){
   const ctx=ftCtx;
@@ -459,9 +517,6 @@ function drawFace(){
   ctx.restore();
 
   // ── Compute expression-deformed destination positions ──
-  // Map live landmarks to texture space using the LIVE frame's face oval.
-  // Since calibration landmarks used the calibration oval, the difference
-  // between the two mappings isolates pure expression (rigid motion cancels).
   const lm=liveLM;
   const loxs=FACE_OVAL.map(i=>lm[i].x);
   const loys=FACE_OVAL.map(i=>lm[i].y);
@@ -470,7 +525,6 @@ function drawFace(){
   const lrw=(Math.max(...loxs)-Math.min(...loxs))*.5||.001;
   const lrh=(Math.max(...loys)-Math.min(...loys))*.5||.001;
 
-  // Live landmarks → texture pixel positions (same mapping formula as calibration)
   const liveTex=new Array(468);
   for(let i=0;i<468;i++){
     liveTex[i]={
@@ -479,15 +533,40 @@ function drawFace(){
     };
   }
 
-  // ── Warp snapshot from calibration source → expression-deformed dest ──
-  // Source: where each landmark sits on the snapshot (static, never changes)
-  // Dest: where that landmark should appear on the texture NOW (driven by expression)
+  // ── Pass 1: warp ALL triangles from neutral snapshot ──
   for(let t=0;t<faceTris.length;t++){
     const[i0,i1,i2]=faceTris[t];
     warpTriangle(ctx, snapshotCanvas,
       calibSourcePts[i0], calibSourcePts[i1], calibSourcePts[i2],
       liveTex[i0], liveTex[i1], liveTex[i2]
     );
+  }
+
+  // ── Pass 2: overlay mouth-region triangles from open-mouth snapshot ──
+  // Blend factor = mouthOpen (from expression tracking) × per-triangle mouth weight.
+  // When mouth is closed: alpha≈0, neutral snapshot shows through.
+  // When mouth is open: alpha→1, open-mouth snapshot (with teeth) shows.
+  const mo=vibe.mouthOpen||0;
+  const hasOpen=snapshotOpen&&calibSourceOpen&&mouthTriMask;
+  if(hasOpen&&mo>0.005){
+    // Normalize mouthOpen (range 0..0.12) to blend factor (0..1)
+    const blendBase=clamp(mo/0.06, 0, 1);
+
+    for(let t=0;t<faceTris.length;t++){
+      const mw=mouthTriMask[t];
+      if(mw<0.01) continue; // not a mouth triangle
+      const alpha=clamp(blendBase*mw, 0, 1);
+      if(alpha<0.02) continue;
+
+      const[i0,i1,i2]=faceTris[t];
+      ctx.save();
+      ctx.globalAlpha=alpha;
+      warpTriangle(ctx, snapshotOpen,
+        calibSourceOpen[i0], calibSourceOpen[i1], calibSourceOpen[i2],
+        liveTex[i0], liveTex[i1], liveTex[i2]
+      );
+      ctx.restore();
+    }
   }
 
   // Edge feathering — blend face boundary into hair
@@ -760,10 +839,7 @@ function buildPalette(){
     console.log(`Delaunay: ${faceTris.length} triangles from 468 landmarks`);
   }
 
-  // ─── SNAPSHOT CAPTURE ───
-  // This is the honest protocol: capture ONE neutral-face image,
-  // then never read camera pixels for rendering again.
-  // All subsequent rendering drives this snapshot with expression floats.
+  // ─── SNAPSHOT CAPTURE (Phase 1: neutral face) ───
   if(calibLM){
     snapshotCanvas=document.createElement('canvas');
     snapshotCanvas.width=VW; snapshotCanvas.height=VH;
@@ -772,19 +848,7 @@ function buildPalette(){
 
     // Store calibration landmarks in snapshot pixel coords (source for warp)
     calibSourcePts=calibLM.slice(0,468).map(p=>({x:p.x*VW, y:p.y*VH}));
-
-    // Compute actual JPEG size of identity payload
-    snapshotCanvas.toBlob(blob=>{
-      if(blob){
-        snapshotSize=blob.size;
-        const triBytes=faceTris.length*3*2;  // triangle indices
-        const lmBytes=468*2*2;               // landmark coords (float16)
-        const palBytes=5*3;                  // palette colors
-        const totalKB=((blob.size+triBytes+lmBytes+palBytes)/1024).toFixed(1);
-        document.getElementById('idSize').textContent=totalKB+'KB';
-        console.log(`Identity payload: snapshot=${(blob.size/1024).toFixed(1)}KB, tris=${(triBytes/1024).toFixed(1)}KB, total=${totalKB}KB`);
-      }
-    },'image/jpeg',0.85);
+    console.log('Neutral snapshot captured');
   }
 
   // Calibrate pose baselines from neutral-pose landmarks
@@ -807,6 +871,71 @@ function updateSwatches(){
     document.getElementById(sw).style.background=rgb(pal[k]);
     document.getElementById(sh).textContent=toHex(pal[k]);
   });
+}
+
+// ══════════════════════════════════════════════════
+//  CAPTURE OPEN-MOUTH SNAPSHOT (end of phase 2)
+//  Captures the mouth-open frame and computes per-triangle
+//  mouth proximity weights for blending.
+// ══════════════════════════════════════════════════
+function captureOpenMouth(){
+  if(!calibLMOpen||!faceTris||!calibLM) return;
+
+  // Capture open-mouth frame
+  snapshotOpen=document.createElement('canvas');
+  snapshotOpen.width=VW; snapshotOpen.height=VH;
+  const snapCtx=snapshotOpen.getContext('2d');
+  snapCtx.drawImage(vid,0,0,VW,VH);
+
+  // Store open-mouth landmarks in pixel coords
+  calibSourceOpen=calibLMOpen.slice(0,468).map(p=>({x:p.x*VW, y:p.y*VH}));
+
+  // ── Compute per-triangle mouth proximity mask ──
+  // For each triangle, compute how "mouth-region" it is (0..1).
+  // Uses distance from triangle centroid to the mouth center,
+  // plus a bonus if any vertex is a known mouth landmark.
+  const mouthCen={
+    x:(calibLM[13].x+calibLM[14].x)*.5,
+    y:(calibLM[13].y+calibLM[14].y)*.5,
+  };
+  // Mouth radius: approximate from lip corner distance
+  const mouthR=Math.abs(calibLM[291].x-calibLM[61].x)*.8;
+
+  mouthTriMask=new Float32Array(faceTris.length);
+  for(let t=0;t<faceTris.length;t++){
+    const[i0,i1,i2]=faceTris[t];
+    const cx=(calibLM[i0].x+calibLM[i1].x+calibLM[i2].x)/3;
+    const cy=(calibLM[i0].y+calibLM[i1].y+calibLM[i2].y)/3;
+    const d=Math.sqrt((cx-mouthCen.x)**2+(cy-mouthCen.y)**2);
+
+    // Distance-based weight: 1.0 at center, fades to 0 at mouthR
+    let w=clamp(1.0-d/mouthR, 0, 1);
+
+    // Boost if any vertex is a known mouth landmark
+    if(MOUTH_REGION_IDX.has(i0)||MOUTH_REGION_IDX.has(i1)||MOUTH_REGION_IDX.has(i2)){
+      w=Math.max(w, 0.7);
+    }
+
+    // Smooth falloff
+    mouthTriMask[t]=w*w;  // quadratic falloff for softer blend edge
+  }
+
+  // Update identity payload size (now includes both snapshots)
+  snapshotOpen.toBlob(openBlob=>{
+    if(!openBlob) return;
+    snapshotCanvas.toBlob(neutralBlob=>{
+      if(!neutralBlob) return;
+      const triBytes=faceTris.length*3*2;
+      const lmBytes=468*2*2*2;  // two sets of landmarks
+      const palBytes=5*3;
+      const total=neutralBlob.size+openBlob.size+triBytes+lmBytes+palBytes;
+      const totalKB=(total/1024).toFixed(1);
+      document.getElementById('idSize').textContent=totalKB+'KB';
+      console.log(`Identity payload: neutral=${(neutralBlob.size/1024).toFixed(1)}KB, open=${(openBlob.size/1024).toFixed(1)}KB, meta=${((triBytes+lmBytes+palBytes)/1024).toFixed(1)}KB, total=${totalKB}KB`);
+    },'image/jpeg',0.85);
+  },'image/jpeg',0.85);
+
+  console.log(`Mouth mask: ${mouthTriMask.filter(w=>w>0.01).length} mouth triangles of ${faceTris.length} total`);
 }
 
 // ══════════════════════════════════════════════════
@@ -867,6 +996,10 @@ function startCalib(){
   snapshotCanvas=null;
   calibSourcePts=null;
   snapshotSize=0;
+  snapshotOpen=null;
+  calibSourceOpen=null;
+  calibLMOpen=null;
+  mouthTriMask=null;
   poseBaseline={noseRatio:0.55,yawOffset:0};
   setPhase('calibrating');
 }
@@ -888,37 +1021,63 @@ function onResults(results){
   if(phase==='calibrating'){
     sampCtx.drawImage(vid,0,0,VW,VH);
     calibCount++;
-    document.getElementById('calibFill').style.width=(calibCount/CALIB_FRAMES*100)+'%';
+    document.getElementById('calibFill').style.width=(calibCount/CALIB_TOTAL*100)+'%';
 
-    accumulateLM(lm);
+    // ── PHASE 1: Neutral face (frames 1..CALIB_NEUTRAL) ──
+    if(calibCount<=CALIB_NEUTRAL){
+      accumulateLM(lm);
 
-    const skinSamples=[
-      sampleAt(lm[9].x,lm[9].y,6),
-      sampleAt(lm[116].x,lm[116].y,5),
-      sampleAt(lm[345].x,lm[345].y,5),
-      sampleAt(lm[6].x,lm[6].y,4),
-    ].filter(Boolean);
-    if(skinSamples.length>1){
-      skinSamples.sort((a,b)=>(a[0]+a[1]+a[2])-(b[0]+b[1]+b[2]));
-      const use=skinSamples.slice(1);
-      accPush(calibColors.skin,[0,1,2].map(i=>use.reduce((s,c)=>s+c[i],0)/use.length));
+      // Color sampling
+      const skinSamples=[
+        sampleAt(lm[9].x,lm[9].y,6),
+        sampleAt(lm[116].x,lm[116].y,5),
+        sampleAt(lm[345].x,lm[345].y,5),
+        sampleAt(lm[6].x,lm[6].y,4),
+      ].filter(Boolean);
+      if(skinSamples.length>1){
+        skinSamples.sort((a,b)=>(a[0]+a[1]+a[2])-(b[0]+b[1]+b[2]));
+        const use=skinSamples.slice(1);
+        accPush(calibColors.skin,[0,1,2].map(i=>use.reduce((s,c)=>s+c[i],0)/use.length));
+      }
+      const hL=sampleAt(clamp(lm[127].x-.05,.01,.99),lm[127].y,5);
+      const hR=sampleAt(clamp(lm[356].x+.05,.01,.99),lm[356].y,5);
+      if(hL&&hR) accPush(calibColors.hair,[(hL[0]+hR[0])*.5,(hL[1]+hR[1])*.5,(hL[2]+hR[2])*.5]);
+      else if(hL) accPush(calibColors.hair,hL);
+      else if(hR) accPush(calibColors.hair,hR);
+      accPush(calibColors.iris,sampleAt((lm[468]||lm[33]).x,(lm[468]||lm[33]).y,2));
+      accPush(calibColors.lip,sampleAt(lm[17].x,lm[17].y,5));
+      accPush(calibColors.brow,sampleAt((lm[105].x+lm[334].x)*.5,(lm[105].y+lm[334].y)*.5,4));
+
+      const bd=(lm[159].y+lm[386].y)*.5-(lm[105].y+lm[334].y)*.5;
+      browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;
+
+      // End of phase 1: build palette, capture neutral snapshot
+      if(calibCount===CALIB_NEUTRAL){
+        buildPalette();
+        // Prompt user for phase 2
+        document.getElementById('ovTitle').textContent='Open Your Mouth';
+        document.getElementById('ovSub').textContent='Open wide — capturing teeth\nfor expression rendering\nHold for a moment';
+      }
+
+    // ── PHASE 2: Mouth open (frames CALIB_NEUTRAL+1..CALIB_TOTAL) ──
+    } else {
+      // Accumulate open-mouth landmarks (separate EMA)
+      if(!calibLMOpen){
+        calibLMOpen=Array.from({length:468},(_,i)=>({x:lm[i].x,y:lm[i].y}));
+      } else {
+        for(let i=0;i<468;i++){
+          calibLMOpen[i].x=calibLMOpen[i].x*.80+lm[i].x*.20;
+          calibLMOpen[i].y=calibLMOpen[i].y*.80+lm[i].y*.20;
+        }
+      }
+
+      // End of phase 2: capture open-mouth snapshot, compute mouth mask
+      if(calibCount>=CALIB_TOTAL){
+        captureOpenMouth();
+        setPhase('live');
+      }
     }
-    const hL=sampleAt(clamp(lm[127].x-.05,.01,.99),lm[127].y,5);
-    const hR=sampleAt(clamp(lm[356].x+.05,.01,.99),lm[356].y,5);
-    if(hL&&hR) accPush(calibColors.hair,[(hL[0]+hR[0])*.5,(hL[1]+hR[1])*.5,(hL[2]+hR[2])*.5]);
-    else if(hL) accPush(calibColors.hair,hL);
-    else if(hR) accPush(calibColors.hair,hR);
-    accPush(calibColors.iris,sampleAt((lm[468]||lm[33]).x,(lm[468]||lm[33]).y,2));
-    accPush(calibColors.lip,sampleAt(lm[17].x,lm[17].y,5));
-    accPush(calibColors.brow,sampleAt((lm[105].x+lm[334].x)*.5,(lm[105].y+lm[334].y)*.5,4));
 
-    const bd=(lm[159].y+lm[386].y)*.5-(lm[105].y+lm[334].y)*.5;
-    browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;
-
-    if(calibCount>=CALIB_FRAMES){
-      buildPalette();
-      setPhase('live');
-    }
     tick();
     return;
   }
