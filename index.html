@@ -91,6 +91,12 @@ to build your avatar</div>
 </div>
 <div class="controls"><button class="btn" id="recalBtn">↺ Recalibrate</button></div>
 <script>
+window.onerror=function(msg,url,line,col,err){
+  document.getElementById('ovTitle').textContent='Script Error';
+  document.getElementById('ovSub').textContent=msg+'\nLine: '+line;
+  console.error('Error:',msg,'at line',line,col,err);
+  return false;
+};
 'use strict';
 const W=480,H=560,VW=640,VH=480,CALIB_FRAMES=45,NUM_LM=468;
 const LM={NOSE:1,CHIN:152,TOP:10,L_EYE_OUT:33,R_EYE_OUT:263,L_EYE_T:159,L_EYE_B:145,R_EYE_T:386,R_EYE_B:374,L_BROW:105,R_BROW:334,MOUTH_T:13,MOUTH_B:14,MOUTH_L:61,MOUTH_R:291};
@@ -373,9 +379,17 @@ let pumpOn=false;
 async function pump(){if(!pumpOn)return;if(vid.readyState>=2&&!vid.paused){try{await faceMesh.send({image:vid});}catch(e){}}requestAnimationFrame(pump);}
 async function startCamera(){const btn=document.getElementById('startBtn');btn.textContent='Starting…';btn.disabled=true;let stream;try{stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false});}catch(e){document.getElementById('ovTitle').textContent='Camera Blocked';btn.textContent='Retry';btn.disabled=false;btn.onclick=()=>startCamera();return;}vid.srcObject=stream;try{await vid.play();}catch(e){btn.textContent='Retry';btn.disabled=false;return;}document.getElementById('ovTitle').textContent='Loading FaceMesh';document.getElementById('ovSub').textContent='Downloading model…';try{faceMesh=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});faceMesh.onResults(onResults);await faceMesh.initialize();}catch(e){document.getElementById('ovTitle').textContent='Error';btn.textContent='Retry';btn.disabled=false;btn.onclick=()=>startCamera();return;}pumpOn=true;setPhase('searching');requestAnimationFrame(pump);}
 
-setPhase('waiting');renderer.render(scene,camera);
-document.getElementById('startBtn').addEventListener('click',startCamera);
-document.getElementById('recalBtn').addEventListener('click',()=>{if(phase==='live')startCalib();});
+try{
+  setPhase('waiting');
+  renderer.render(scene,camera);
+  document.getElementById('startBtn').addEventListener('click',startCamera);
+  document.getElementById('recalBtn').addEventListener('click',()=>{if(phase==='live')startCalib();});
+  console.log('Vibe Protocol initialized OK');
+}catch(e){
+  console.error('Init error:',e);
+  document.getElementById('ovTitle').textContent='Init Error';
+  document.getElementById('ovSub').textContent=e.message;
+}
 </script>
 </body>
 </html>
