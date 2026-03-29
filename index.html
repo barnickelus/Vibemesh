@@ -3,72 +3,68 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibe Protocol · Deformable Mesh</title>
+<title>Vibe Protocol · v2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0c0b09;--surface:#141210;--border:#282420;--text:#e8e2d8;--muted:#4e4840;--accent:#c9a96e;--accent-dk:#7a5c2e;--green:#6a9e6a;--amber:#c9a050}
-body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px 20px 40px}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:18px 16px 30px}
 body::before{content:'';position:fixed;inset:0;background-image:radial-gradient(circle,#2a2420 1px,transparent 1px);background-size:26px 26px;opacity:.35;pointer-events:none;z-index:0}
-header{position:relative;z-index:1;text-align:center;margin-bottom:20px}
-.eyebrow{font-size:.55rem;letter-spacing:.32em;color:var(--muted);text-transform:uppercase;margin-bottom:5px}
-.title{font-family:'Cormorant Garamond',serif;font-size:2.4rem;font-weight:500;letter-spacing:.06em;line-height:1}
+header{position:relative;z-index:1;text-align:center;margin-bottom:14px}
+.eyebrow{font-size:.5rem;letter-spacing:.32em;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.title{font-family:'Cormorant Garamond',serif;font-size:2.2rem;font-weight:500;letter-spacing:.06em;line-height:1}
 .title em{font-style:italic;color:var(--accent)}
-.sub{font-size:.53rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-top:7px}
-.stage{position:relative;z-index:1;display:flex;gap:18px;align-items:flex-start}
-.avatar-col{display:flex;flex-direction:column;gap:8px}
+.sub{font-size:.48rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin-top:5px}
+.stage{position:relative;z-index:1;display:flex;gap:14px;align-items:flex-start}
 .frame-wrap{position:relative}
-.frame-wrap::before,.frame-wrap::after{content:'';position:absolute;width:14px;height:14px;z-index:3;pointer-events:none}
+.frame-wrap::before,.frame-wrap::after{content:'';position:absolute;width:12px;height:12px;z-index:3;pointer-events:none}
 .frame-wrap::before{top:0;left:0;border-top:2px solid var(--accent-dk);border-left:2px solid var(--accent-dk)}
 .frame-wrap::after{bottom:0;right:0;border-bottom:2px solid var(--accent-dk);border-right:2px solid var(--accent-dk)}
 #display{display:block;border:1px solid var(--border);background:#000}
-#overlay{position:absolute;inset:0;background:rgba(12,11,9,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:5;transition:opacity .4s}
+#overlay{position:absolute;inset:0;background:rgba(12,11,9,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:5;transition:opacity .4s}
 #overlay.gone{opacity:0;pointer-events:none}
-.ov-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:var(--accent)}
-.ov-sub{font-size:.52rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;text-align:center;line-height:2;white-space:pre-line}
-.calib-track{width:180px;height:2px;background:var(--border);margin-top:4px}
+.ov-title{font-family:'Cormorant Garamond',serif;font-size:1.4rem;color:var(--accent)}
+.ov-sub{font-size:.48rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;text-align:center;line-height:2;white-space:pre-line}
+.calib-track{width:160px;height:2px;background:var(--border);margin-top:3px}
 #calibFill{height:100%;background:var(--accent);width:0%;transition:width .12s}
-#startBtn{font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;padding:11px 28px;margin-top:4px;cursor:pointer;background:var(--accent);border:none;color:#0c0b09;font-weight:500}
+#startBtn{font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;padding:9px 22px;margin-top:3px;cursor:pointer;background:var(--accent);border:none;color:#0c0b09;font-weight:500}
 #startBtn:hover{opacity:.80}
 #startBtn:disabled{opacity:.45;cursor:default}
-.statusbar{display:flex;justify-content:space-between;font-size:.52rem;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;padding:0 2px}
-.right-col{width:200px;display:flex;flex-direction:column;gap:10px;padding-top:2px}
+.statusbar{display:flex;justify-content:space-between;font-size:.48rem;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;padding:0 2px;margin-top:4px}
+.right-col{width:180px;display:flex;flex-direction:column;gap:8px}
 .pip-wrap{position:relative;border:1px solid var(--border);background:#000;overflow:hidden}
-#vid{display:block;width:200px;height:150px;object-fit:cover;transform:scaleX(-1)}
-.pip-badge{position:absolute;top:5px;right:5px;font-size:.44rem;letter-spacing:.14em;text-transform:uppercase;padding:2px 5px;border:1px solid;z-index:2}
+#vid{display:block;width:180px;height:135px;object-fit:cover;transform:scaleX(-1)}
+.pip-badge{position:absolute;top:4px;right:4px;font-size:.42rem;letter-spacing:.12em;text-transform:uppercase;padding:2px 4px;border:1px solid;z-index:2}
 .pip-badge.searching{color:var(--amber);border-color:var(--amber)}
 .pip-badge.calibrating{color:var(--accent);border-color:var(--accent)}
 .pip-badge.live{color:var(--green);border-color:var(--green)}
-.panel{border:1px solid var(--border);padding:10px;background:var(--surface)}
-.phdr{font-size:.46rem;letter-spacing:.26em;text-transform:uppercase;color:var(--accent-dk);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.panel{border:1px solid var(--border);padding:8px;background:var(--surface)}
+.phdr{font-size:.42rem;letter-spacing:.22em;text-transform:uppercase;color:var(--accent-dk);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
 .pdot{width:5px;height:5px;border-radius:50%;background:var(--border);transition:background .3s}
 .pdot.on{background:var(--green);animation:pulse 1.8s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.prow{margin-bottom:5px}
-.plbl{font-size:.43rem;letter-spacing:.13em;color:var(--muted);text-transform:uppercase;margin-bottom:2px;display:flex;justify-content:space-between}
-.pval{color:var(--accent);font-size:.43rem}
-.btrack{height:3px;background:var(--border);position:relative}
+.prow{margin-bottom:4px}
+.plbl{font-size:.40rem;letter-spacing:.11em;color:var(--muted);text-transform:uppercase;margin-bottom:1px;display:flex;justify-content:space-between}
+.pval{color:var(--accent);font-size:.40rem}
+.btrack{height:2px;background:var(--border);position:relative}
 .bfill{height:100%;background:var(--accent-dk);position:absolute;left:0;transition:width .06s}
-.accum-row{font-size:.42rem;color:var(--muted);letter-spacing:.10em;text-transform:uppercase;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+.accum-row{font-size:.38rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:5px;padding-top:5px;border-top:1px solid var(--border)}
 .accum-row span{color:var(--accent)}
-.controls{position:relative;z-index:1;margin-top:14px;display:flex;gap:10px;align-items:center}
-.btn{font-family:'JetBrains Mono',monospace;font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;padding:6px 11px;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .12s}
+.controls{position:relative;z-index:1;margin-top:10px}
+.btn{font-family:'JetBrains Mono',monospace;font-size:.50rem;letter-spacing:.1em;text-transform:uppercase;padding:5px 10px;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer}
 .btn:hover{border-color:var(--accent-dk);color:var(--text)}
-.hint{position:relative;z-index:1;margin-top:12px;font-size:.48rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;text-align:center;max-width:700px}
 </style>
 </head>
 <body>
-
 <header>
-  <div class="eyebrow">Vibe Protocol · v1.0</div>
+  <div class="eyebrow">Vibe Protocol · v2.0</div>
   <h1 class="title">Deformable <em>Presence</em></h1>
-  <div class="sub">468 landmarks = the blendshape rig · photo texture · progressive accumulation</div>
+  <div class="sub">Unified head · mirrored · environment · progressive accumulation</div>
 </header>
-
 <div class="stage">
-  <div class="avatar-col">
+  <div>
     <div class="frame-wrap">
       <canvas id="display" width="480" height="560"></canvas>
       <div id="overlay">
@@ -79,828 +75,302 @@ to build your avatar</div>
         <div class="calib-track" id="calibTrack" style="display:none"><div id="calibFill"></div></div>
       </div>
     </div>
-    <div class="statusbar">
-      <span id="sPhase">Waiting</span>
-      <span id="sVerts">0 verts</span>
-      <span id="sTex">0 textures</span>
-    </div>
+    <div class="statusbar"><span id="sPhase">Waiting</span><span id="sVerts">—</span><span id="sTex">—</span></div>
   </div>
-
   <div class="right-col">
-    <div class="pip-wrap">
-      <video id="vid" playsinline muted></video>
-      <div class="pip-badge searching" id="pipBadge">Waiting</div>
-    </div>
+    <div class="pip-wrap"><video id="vid" playsinline muted></video><div class="pip-badge searching" id="pipBadge">Waiting</div></div>
     <div class="panel">
       <div class="phdr">Expression <div class="pdot" id="pdot"></div></div>
-      <div class="prow"><div class="plbl">Mouth <span class="pval" id="v_mo">0.00</span></div><div class="btrack"><div class="bfill" id="b_mo" style="width:0%"></div></div></div>
-      <div class="prow"><div class="plbl">Smile <span class="pval" id="v_mc">0.00</span></div><div class="btrack"><div class="bfill" id="b_mc" style="width:0%"></div></div></div>
-      <div class="prow"><div class="plbl">Eyes <span class="pval" id="v_eo">1.00</span></div><div class="btrack"><div class="bfill" id="b_eo" style="width:0%"></div></div></div>
-      <div class="prow"><div class="plbl">Brows <span class="pval" id="v_bl">0.00</span></div><div class="btrack"><div class="bfill" id="b_bl" style="width:0%"></div></div></div>
-      <div class="prow"><div class="plbl">Yaw <span class="pval" id="v_ya">0.00</span></div><div class="btrack"><div class="bfill" id="b_ya" style="width:0%"></div></div></div>
-      <div class="accum-row">Accumulated: <span id="accumCount">1</span> texture(s) · <span id="accumBytes">0</span> KB</div>
+      <div class="prow"><div class="plbl">Mouth <span class="pval" id="v_mo">0.00</span></div><div class="btrack"><div class="bfill" id="b_mo"></div></div></div>
+      <div class="prow"><div class="plbl">Smile <span class="pval" id="v_mc">0.00</span></div><div class="btrack"><div class="bfill" id="b_mc"></div></div></div>
+      <div class="prow"><div class="plbl">Eyes <span class="pval" id="v_eo">1.00</span></div><div class="btrack"><div class="bfill" id="b_eo"></div></div></div>
+      <div class="prow"><div class="plbl">Yaw <span class="pval" id="v_ya">0.00</span></div><div class="btrack"><div class="bfill" id="b_ya"></div></div></div>
+      <div class="accum-row">Textures: <span id="accumCount">1</span> · <span id="accumKB">50</span> KB</div>
     </div>
   </div>
 </div>
-
-<div class="controls">
-  <button class="btn" id="recalBtn">↺ Recalibrate</button>
-</div>
-<div class="hint">Landmarks drive mesh deformation · snapshot texture warps with expression · additional textures captured automatically during conversation</div>
-
+<div class="controls"><button class="btn" id="recalBtn">↺ Recalibrate</button></div>
 <script>
 'use strict';
-
-const W=480, H=560, VW=640, VH=480;
-const CALIB_FRAMES=45;
-const NUM_LM=468; // MediaPipe landmarks (excluding iris refinements)
-
+const W=480,H=560,VW=640,VH=480,CALIB_FRAMES=45,NUM_LM=468;
 const LM={NOSE:1,CHIN:152,TOP:10,L_EYE_OUT:33,R_EYE_OUT:263,L_EYE_T:159,L_EYE_B:145,R_EYE_T:386,R_EYE_B:374,L_BROW:105,R_BROW:334,MOUTH_T:13,MOUTH_B:14,MOUTH_L:61,MOUTH_R:291};
 const FACE_OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
-
 const clamp=(v,lo,hi)=>v<lo?lo:v>hi?hi:v;
 const smooth=(c,n,s)=>c+(n-c)*s;
 
-// ══════════════════════════════════════════════════
-//  STATE
-// ══════════════════════════════════════════════════
-let phase='waiting';
+let phase='waiting',calibCount=0,calibLM=null,browBaseline=null;
 let vibe={mouthOpen:0,mouthCurve:0,browLift:0,eyeOpen:1.0};
 let pose={yaw:0,pitch:0,roll:0};
 let poseBaseline={noseRatio:0.55,yawOffset:0};
-let calibCount=0, calibLM=null, browBaseline=null;
-let pal={skin:[180,140,110],hair:[40,30,22],iris:[80,110,140]};
+let pal={skin:[170,135,110],hair:[50,38,28],bg:[40,35,30]};
+let headGroup=null,faceMeshObj=null,calibPositions=null,calibUVs=null;
+let liveDisp=null,smoothDisp=null,interpMap=null,totalVerts=0;
+let neutralTex=null,exprTextures=[],lastCapTime=0;
 
-// ── Mesh data ──
-let faceMeshObj=null;
-let calibPositions=null;
-let calibUVs=null;
-let triIndices=null;
-let liveDisplacements=null;
-let interpMap=null;
-let totalVertCount=0;
-let smoothedDisplacements=null;  // temporal EMA of displacements
-let torsoMesh=null;              // neck + shoulders
-
-// ── Textures ──
-let neutralTex=null;
-let expressionTextures=[];
-let lastCaptureTime=0;
-const CAPTURE_INTERVAL=1500;  // capture every 1.5s
-const MAX_TEXTURES=12;  // more expression coverage
-
-// ══════════════════════════════════════════════════
-//  THREE.JS
-// ══════════════════════════════════════════════════
+// Three.js
 const display=document.getElementById('display');
 const renderer=new THREE.WebGLRenderer({canvas:display,antialias:true,alpha:false});
-renderer.setSize(W,H,false);
-renderer.setClearColor(0x0c0b09,1);
-renderer.shadowMap.enabled=false;
-
+renderer.setSize(W,H,false);renderer.setClearColor(0x0c0b09,1);
 const scene=new THREE.Scene();
-// Gradient background — dark warm atmosphere
-const bgCanvas=document.createElement('canvas');
-bgCanvas.width=2;bgCanvas.height=256;
-const bgCtx=bgCanvas.getContext('2d');
-const bgGrad=bgCtx.createLinearGradient(0,0,0,256);
-bgGrad.addColorStop(0,'#1a1612');
-bgGrad.addColorStop(0.4,'#141210');
-bgGrad.addColorStop(0.7,'#100e0c');
-bgGrad.addColorStop(1,'#0a0908');
-bgCtx.fillStyle=bgGrad;bgCtx.fillRect(0,0,2,256);
-const bgTex=new THREE.CanvasTexture(bgCanvas);
-scene.background=bgTex;
+const camera=new THREE.PerspectiveCamera(28,W/H,0.1,100);
+camera.position.set(0,-0.05,4.0);
+scene.add(new THREE.AmbientLight(0xffe8d6,0.5));
+const kL=new THREE.DirectionalLight(0xfff0e0,0.45);kL.position.set(-2,2,3);scene.add(kL);
+const fL=new THREE.DirectionalLight(0xd0e0ff,0.18);fL.position.set(2,0.5,2);scene.add(fL);
+const rL=new THREE.DirectionalLight(0xffd0a0,0.12);rL.position.set(0,1,-2);scene.add(rL);
 
-const camera=new THREE.PerspectiveCamera(30,W/H,0.1,100);
-camera.position.set(0,-0.15,4.2);  // pulled back, slightly below for portrait framing
+const fVert=`
+attribute vec3 displacement;
+varying vec2 vUv; varying float vMask; varying vec3 vNorm;
+void main(){
+  vUv=uv; vec3 pos=position+displacement;
+  float cx=uv.x-0.5,cy=uv.y-0.47;
+  float ov=cx*cx/0.22+cy*cy/0.27;
+  vMask=1.0-smoothstep(0.55,1.0,ov);
+  vNorm=normalize(normalMatrix*normal);
+  gl_Position=projectionMatrix*modelViewMatrix*vec4(pos,1.0);
+}`;
+const fFrag=`
+uniform sampler2D faceTex;
+varying vec2 vUv; varying float vMask; varying vec3 vNorm;
+void main(){
+  if(vMask<0.005) discard;
+  vec4 col=texture2D(faceTex,vUv);
+  float l=0.82+0.18*dot(vNorm,normalize(vec3(-0.2,0.3,1.0)));
+  col.rgb*=l; col.a=smoothstep(0.0,0.15,vMask);
+  gl_FragColor=col;
+}`;
 
-// Warm three-point lighting
-scene.add(new THREE.AmbientLight(0xffe8d6,0.55));
-const keyLight=new THREE.DirectionalLight(0xfff0e0,0.50);
-keyLight.position.set(-2,2,3);
-scene.add(keyLight);
-const fillLight=new THREE.DirectionalLight(0xd0e0ff,0.20);
-fillLight.position.set(2,0.5,2);
-scene.add(fillLight);
-const rimLight=new THREE.DirectionalLight(0xffd0a0,0.15);
-rimLight.position.set(0,1,-2);
-scene.add(rimLight);
-
-// ══════════════════════════════════════════════════
-//  SHADER — landmark-driven deformable mesh
-//  Vertex positions = calibration + live displacement
-//  UVs map to the snapshot texture
-// ══════════════════════════════════════════════════
-const meshVert=`
-  attribute vec3 displacement;
-  varying vec2 vUv;
-  varying float vMask;
-  varying vec3 vNormal;
-  void main(){
-    vUv=uv;
-    vec3 pos=position+displacement;
-    float cx=uv.x-0.5, cy=uv.y-0.48;
-    float oval=cx*cx/0.24+cy*cy/0.28;
-    vMask=1.0-smoothstep(0.6,1.05,oval);
-    vNormal=normalize(normalMatrix*normal);
-    gl_Position=projectionMatrix*modelViewMatrix*vec4(pos,1.0);
-  }
-`;
-const meshFrag=`
-  uniform sampler2D faceTex;
-  varying vec2 vUv;
-  varying float vMask;
-  varying vec3 vNormal;
-  void main(){
-    if(vMask<0.01) discard;
-    vec4 col=texture2D(faceTex,vUv);
-    float light=0.85+0.15*dot(vNormal,normalize(vec3(-0.3,0.4,1.0)));
-    col.rgb*=light;
-    col.a=vMask;
-    gl_FragColor=col;
-  }
-`;
-
-// ══════════════════════════════════════════════════
-//  DELAUNAY TRIANGULATION
-// ══════════════════════════════════════════════════
-function delaunay(points){
-  const n=points.length;
-  if(n<3) return [];
+// Delaunay
+function delaunay(pts){
+  const n=pts.length;if(n<3)return[];
   let mnx=Infinity,mny=Infinity,mxx=-Infinity,mxy=-Infinity;
-  for(let i=0;i<n;i++){
-    if(points[i].x<mnx)mnx=points[i].x;if(points[i].y<mny)mny=points[i].y;
-    if(points[i].x>mxx)mxx=points[i].x;if(points[i].y>mxy)mxy=points[i].y;
-  }
-  const dx=mxx-mnx||1,dy=mxy-mny||1,dm=Math.max(dx,dy)*10;
-  const sp=[{x:mnx-dm,y:mny-dm},{x:mnx+dm*3,y:mny-dm},{x:mnx+dx*.5,y:mny+dm*3}];
-  const all=points.concat(sp);
-  function makeTri(a,b,c){
-    const ax=all[a].x,ay=all[a].y,bx=all[b].x,by=all[b].y,cx=all[c].x,cy=all[c].y;
-    const D=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));
-    if(Math.abs(D)<1e-12)return{v:[a,b,c],cx:0,cy:0,r2:-1};
-    const ux=((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/D;
-    const uy=((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/D;
-    return{v:[a,b,c],cx:ux,cy:uy,r2:(ax-ux)**2+(ay-uy)**2};
-  }
-  let tris=[makeTri(n,n+1,n+2)];
-  for(let i=0;i<n;i++){
-    const px=points[i].x,py=points[i].y;
-    const bad=[],good=[];
-    for(const t of tris){if(t.r2>=0&&(px-t.cx)**2+(py-t.cy)**2<t.r2*1.000001)bad.push(t);else good.push(t);}
-    const edges=[];
-    for(let j=0;j<bad.length;j++){
-      const v=bad[j].v;
-      for(let e=0;e<3;e++){
-        const a=v[e],b=v[(e+1)%3];
-        let shared=false;
-        for(let k=0;k<bad.length;k++){if(k===j)continue;const ov=bad[k].v;if((ov[0]===a||ov[1]===a||ov[2]===a)&&(ov[0]===b||ov[1]===b||ov[2]===b)){shared=true;break;}}
-        if(!shared)edges.push([a,b]);
-      }
-    }
-    tris=good;
-    for(const[a,b]of edges)tris.push(makeTri(i,a,b));
-  }
-  return tris.filter(t=>t.v[0]<n&&t.v[1]<n&&t.v[2]<n&&t.r2>=0).map(t=>t.v);
+  for(let i=0;i<n;i++){if(pts[i].x<mnx)mnx=pts[i].x;if(pts[i].y<mny)mny=pts[i].y;if(pts[i].x>mxx)mxx=pts[i].x;if(pts[i].y>mxy)mxy=pts[i].y;}
+  const dm=Math.max(mxx-mnx||1,mxy-mny||1)*10;
+  const sp=[{x:mnx-dm,y:mny-dm},{x:mnx+dm*3,y:mny-dm},{x:mnx+(mxx-mnx)*.5,y:mny+dm*3}];
+  const all=pts.concat(sp);
+  function mk(a,b,c){const ax=all[a].x,ay=all[a].y,bx=all[b].x,by=all[b].y,cx=all[c].x,cy=all[c].y;const D=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));if(Math.abs(D)<1e-12)return{v:[a,b,c],cx:0,cy:0,r2:-1};const ux=((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/D;const uy=((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/D;return{v:[a,b,c],cx:ux,cy:uy,r2:(ax-ux)**2+(ay-uy)**2};}
+  let ts=[mk(n,n+1,n+2)];
+  for(let i=0;i<n;i++){const px=pts[i].x,py=pts[i].y;const bad=[],good=[];for(const t of ts){if(t.r2>=0&&(px-t.cx)**2+(py-t.cy)**2<t.r2*1.000001)bad.push(t);else good.push(t);}const edges=[];for(let j=0;j<bad.length;j++){const v=bad[j].v;for(let e=0;e<3;e++){const a=v[e],b=v[(e+1)%3];let sh=false;for(let k=0;k<bad.length;k++){if(k===j)continue;const ov=bad[k].v;if((ov[0]===a||ov[1]===a||ov[2]===a)&&(ov[0]===b||ov[1]===b||ov[2]===b)){sh=true;break;}}if(!sh)edges.push([a,b]);}}ts=good;for(const[a,b]of edges)ts.push(mk(i,a,b));}
+  return ts.filter(t=>t.v[0]<n&&t.v[1]<n&&t.v[2]<n&&t.r2>=0).map(t=>t.v);
 }
 
-// ══════════════════════════════════════════════════
-//  BUILD FACE MESH from calibration landmarks
-//  - Projects 468 landmarks to 3D using z-values
-//  - Triangulates with Delaunay
-//  - UV-maps to snapshot
-//  - Creates THREE.Mesh with displacement attribute
-// ══════════════════════════════════════════════════
-function buildFaceMesh(lm, snapshot){
-  if(faceMeshObj){scene.remove(faceMeshObj);faceMeshObj.geometry.dispose();}
+// Skull ellipsoid parameters
+const SKX=0.60,SKY=0.74,SKZ=0.56,HCY=0.15;
 
-  // Face bounding box
+function skullProject(nx,ny,nzHint){
+  const sx=nx*SKX, sy=ny*SKY+HCY;
+  const r2=(sx/SKX)**2+((sy-HCY)/SKY)**2;
+  let sz=r2<1?SKZ*Math.sqrt(1-clamp(r2,0,0.99)):0.01;
+  sz=sz*0.55+nzHint*SKZ*0.45;
+  return{x:sx,y:sy,z:sz};
+}
+
+function buildHead(lm,snapshot){
+  if(headGroup)scene.remove(headGroup);
+  headGroup=new THREE.Group();headGroup.rotation.order='YXZ';
+
   const oxs=FACE_OVAL.map(i=>lm[i].x),oys=FACE_OVAL.map(i=>lm[i].y);
-  const fcx=(Math.min(...oxs)+Math.max(...oxs))*.5;
-  const fcy=(Math.min(...oys)+Math.max(...oys))*.5;
-  const frw=(Math.max(...oxs)-Math.min(...oxs))*.5||.001;
-  const frh=(Math.max(...oys)-Math.min(...oys))*.5||.001;
-
-  // Z-range
+  const fcx=(Math.min(...oxs)+Math.max(...oxs))*.5,fcy=(Math.min(...oys)+Math.max(...oys))*.5;
+  const frw=(Math.max(...oxs)-Math.min(...oxs))*.5||.001,frh=(Math.max(...oys)-Math.min(...oys))*.5||.001;
   let zMin=Infinity,zMax=-Infinity;
   for(let i=0;i<NUM_LM;i++){const z=lm[i].z||0;if(z<zMin)zMin=z;if(z>zMax)zMax=z;}
-  const zRange=zMax-zMin||0.001;
+  const zR=zMax-zMin||0.001;
 
-  // ── Build 3D positions ──
-  // Landmarks → 3D: X,Y normalized to face oval, Z from MediaPipe depth
-  calibPositions=new Float32Array(NUM_LM*3);
-  calibUVs=new Float32Array(NUM_LM*2);
-
+  // Face vertices on ellipsoid
+  const bP=new Float32Array(NUM_LM*3),bU=new Float32Array(NUM_LM*2);
   for(let i=0;i<NUM_LM;i++){
-    const nx=(lm[i].x-fcx)/frw;    // -1..1
-    const ny=-(lm[i].y-fcy)/frh;   // -1..1, flip Y
-    // Z: nose forward (positive), ears back (negative)
-    // MediaPipe z is typically negative-forward, so invert
-    const nz=((lm[i].z||0)-zMin)/zRange; // 0..1
-    const depth=(1-nz)*0.5;  // nose=0.5 forward, ears=0
-
-    calibPositions[i*3]=nx*0.65;
-    calibPositions[i*3+1]=ny*0.78+0.15;  // shift up to leave torso room
-    calibPositions[i*3+2]=depth;
-
-    // UV: map landmark's video position to snapshot texture
-    // Expand slightly beyond face oval for coverage
-    const u=clamp((lm[i].x-fcx)/(frw*2.4)+0.5,0,1);
-    const v=clamp((lm[i].y-fcy)/(frh*2.6)+0.5,0,1);
-    calibUVs[i*2]=u;
-    calibUVs[i*2+1]=1-v; // flip V for OpenGL
+    const nx=(lm[i].x-fcx)/frw,ny=-(lm[i].y-fcy)/frh;
+    const nz=1.0-((lm[i].z||0)-zMin)/zR;
+    const p=skullProject(nx*0.90,ny*0.86,nz);
+    bP[i*3]=p.x;bP[i*3+1]=p.y;bP[i*3+2]=p.z;
+    bU[i*2]=clamp((lm[i].x-fcx)/(frw*2.3)+0.5,0,1);
+    bU[i*2+1]=1-clamp((lm[i].y-fcy)/(frh*2.5)+0.5,0,1);
   }
 
-  // ── Add interpolated midpoints between nearby landmarks ──
-  // This doubles vertex density for smoother deformation
-  const allPts=[]; // {x,y,z,u,v,isInterp,parentA,parentB}
-  for(let i=0;i<NUM_LM;i++){
-    allPts.push({x:calibPositions[i*3],y:calibPositions[i*3+1],z:calibPositions[i*3+2],
-      u:calibUVs[i*2],v:calibUVs[i*2+1],isInterp:false,idx:i});
-  }
-
-  // Find nearby landmark pairs and add midpoints
-  const interpSet=new Set();
-  const threshold=0.12; // distance threshold for adding midpoints
+  // Interpolate midpoints
+  const allV=[];
+  for(let i=0;i<NUM_LM;i++) allV.push({x:bP[i*3],y:bP[i*3+1],z:bP[i*3+2],u:bU[i*2],v:bU[i*2+1],isI:false,pA:-1,pB:-1});
+  const seen=new Set();
   for(let i=0;i<NUM_LM;i++){
     for(let j=i+1;j<NUM_LM;j++){
-      const dx=calibPositions[i*3]-calibPositions[j*3];
-      const dy=calibPositions[i*3+1]-calibPositions[j*3+1];
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<threshold&&dist>0.01){
-        const key=i<j?i+'_'+j:j+'_'+i;
-        if(!interpSet.has(key)){
-          interpSet.add(key);
-          allPts.push({
-            x:(calibPositions[i*3]+calibPositions[j*3])*.5,
-            y:(calibPositions[i*3+1]+calibPositions[j*3+1])*.5,
-            z:(calibPositions[i*3+2]+calibPositions[j*3+2])*.5,
-            u:(calibUVs[i*2]+calibUVs[j*2])*.5,
-            v:(calibUVs[i*2+1]+calibUVs[j*2+1])*.5,
-            isInterp:true,parentA:i,parentB:j,idx:allPts.length
-          });
-        }
-      }
+      const dx=bP[i*3]-bP[j*3],dy=bP[i*3+1]-bP[j*3+1],d=Math.sqrt(dx*dx+dy*dy);
+      if(d>0.006&&d<0.09){const k=i+'_'+j;if(!seen.has(k)){seen.add(k);
+        allV.push({x:(bP[i*3]+bP[j*3])*.5,y:(bP[i*3+1]+bP[j*3+1])*.5,z:(bP[i*3+2]+bP[j*3+2])*.5,u:(bU[i*2]+bU[j*2])*.5,v:(bU[i*2+1]+bU[j*2+1])*.5,isI:true,pA:i,pB:j});
+      }}
     }
   }
+  totalVerts=allV.length;interpMap=allV;
+  calibPositions=new Float32Array(totalVerts*3);calibUVs=new Float32Array(totalVerts*2);
+  for(let i=0;i<totalVerts;i++){calibPositions[i*3]=allV[i].x;calibPositions[i*3+1]=allV[i].y;calibPositions[i*3+2]=allV[i].z;calibUVs[i*2]=allV[i].u;calibUVs[i*2+1]=allV[i].v;}
 
-  const totalVerts=allPts.length;
-  // Rebuild calibPositions/UVs with interpolated points
-  const newPos=new Float32Array(totalVerts*3);
-  const newUVs=new Float32Array(totalVerts*2);
-  for(let i=0;i<totalVerts;i++){
-    newPos[i*3]=allPts[i].x; newPos[i*3+1]=allPts[i].y; newPos[i*3+2]=allPts[i].z;
-    newUVs[i*2]=allPts[i].u; newUVs[i*2+1]=allPts[i].v;
-  }
-  calibPositions=newPos; calibUVs=newUVs;
-  totalVertCount=totalVerts;
+  // Delaunay on UV
+  const p2=[];for(let i=0;i<totalVerts;i++)p2.push({x:calibUVs[i*2]+((i*7919)%100-50)*1e-9,y:calibUVs[i*2+1]+((i*6271)%100-50)*1e-9});
+  let tris=delaunay(p2);
+  tris=tris.filter(([a,b,c])=>{const ax=p2[a].x,ay=p2[a].y,bx=p2[b].x,by=p2[b].y,cx=p2[c].x,cy=p2[c].y;return Math.abs((bx-ax)*(cy-ay)-(cx-ax)*(by-ay))*.5<0.006;});
 
-  // ── Triangulate all points (Delaunay on 2D UV projection) ──
-  const pts2d=[];
-  for(let i=0;i<totalVerts;i++){
-    pts2d.push({x:newUVs[i*2]+((i*7919)%100-50)*1e-9, y:newUVs[i*2+1]+((i*6271)%100-50)*1e-9});
-  }
-  let tris=delaunay(pts2d);
-  // Filter oversized triangles
-  tris=tris.filter(([a,b,c])=>{
-    const ax=pts2d[a].x,ay=pts2d[a].y,bx=pts2d[b].x,by=pts2d[b].y,cx=pts2d[c].x,cy=pts2d[c].y;
-    return Math.abs((bx-ax)*(cy-ay)-(cx-ax)*(by-ay))*.5<0.008;
-  });
-  triIndices=new Uint16Array(tris.length*3);
-  for(let i=0;i<tris.length;i++){
-    triIndices[i*3]=tris[i][0]; triIndices[i*3+1]=tris[i][1]; triIndices[i*3+2]=tris[i][2];
-  }
+  liveDisp=new Float32Array(totalVerts*3);smoothDisp=new Float32Array(totalVerts*3);
 
-  // ── Displacement arrays sized for all vertices (including interpolated) ──
-  liveDisplacements=new Float32Array(totalVerts*3);
-  smoothedDisplacements=new Float32Array(totalVerts*3);
-  interpMap=allPts; // save for displacement interpolation
+  // Texture
+  const pad=1.25,crx=Math.max(0,(fcx-frw*pad)*VW),cry=Math.max(0,(fcy-frh*pad)*VH);
+  const crw=Math.min(frw*pad*2*VW,VW-crx),crh=Math.min(frh*pad*2*VH,VH-cry);
+  const tc=document.createElement('canvas');tc.width=512;tc.height=512;
+  tc.getContext('2d').drawImage(snapshot,crx,cry,crw,crh,0,0,512,512);
+  neutralTex=new THREE.CanvasTexture(tc);neutralTex.minFilter=THREE.LinearFilter;neutralTex.magFilter=THREE.LinearFilter;
 
-  // ── Snapshot texture ──
-  // Crop face from snapshot with padding
-  const pad=1.3;
-  const cx=Math.max(0,(fcx-frw*pad)*VW);
-  const cy=Math.max(0,(fcy-frh*pad)*VH);
-  const cw=Math.min(frw*pad*2*VW,VW-cx);
-  const ch=Math.min(frh*pad*2*VH,VH-cy);
-  const texCanvas=document.createElement('canvas');
-  texCanvas.width=512;texCanvas.height=512;
-  texCanvas.getContext('2d').drawImage(snapshot,cx,cy,cw,ch,0,0,512,512);
-
-  neutralTex=new THREE.CanvasTexture(texCanvas);
-  neutralTex.minFilter=THREE.LinearFilter;
-  neutralTex.magFilter=THREE.LinearFilter;
-
-  // ── Create THREE.Mesh ──
+  // Face mesh
   const geo=new THREE.BufferGeometry();
   geo.setAttribute('position',new THREE.BufferAttribute(calibPositions.slice(),3));
   geo.setAttribute('uv',new THREE.BufferAttribute(calibUVs.slice(),2));
-  geo.setAttribute('displacement',new THREE.BufferAttribute(liveDisplacements,3));
-  geo.setIndex(new THREE.BufferAttribute(triIndices,1));
+  geo.setAttribute('displacement',new THREE.BufferAttribute(liveDisp,3));
+  geo.setIndex(new THREE.BufferAttribute(new Uint16Array(tris.flatMap(t=>t)),1));
   geo.computeVertexNormals();
+  const mat=new THREE.ShaderMaterial({uniforms:{faceTex:{value:neutralTex}},vertexShader:fVert,fragmentShader:fFrag,transparent:true,side:THREE.FrontSide,depthWrite:true});
+  faceMeshObj=new THREE.Mesh(geo,mat);faceMeshObj.renderOrder=2;
+  headGroup.add(faceMeshObj);
 
-  const mat=new THREE.ShaderMaterial({
-    uniforms:{faceTex:{value:neutralTex}},
-    vertexShader:meshVert,
-    fragmentShader:meshFrag,
-    transparent:true,
-    side:THREE.DoubleSide,
-    depthWrite:true,
-  });
-
-  faceMeshObj=new THREE.Mesh(geo,mat);
-  faceMeshObj.rotation.order='YXZ';
-  scene.add(faceMeshObj);
-
-  document.getElementById('sVerts').textContent=totalVertCount+' verts';
-  document.getElementById('sTex').textContent='1 texture';
-  console.log(`Face mesh: ${totalVertCount} vertices (${NUM_LM}+${totalVertCount-NUM_LM} interp), ${tris.length} triangles`);
-}
-
-// ══════════════════════════════════════════════════
-//  TORSO — neck + shoulders geometry
-//  Procedural, colored from skin palette, follows
-//  head rotation with reduced gain (natural neck flex)
-// ══════════════════════════════════════════════════
-function buildTorso(){
-  if(torsoMesh){scene.remove(torsoMesh);torsoMesh.geometry.dispose();}
-
-  const group=new THREE.Group();
+  // Skull — back of same ellipsoid, clipped at front
   const sR=pal.skin[0]/255,sG=pal.skin[1]/255,sB=pal.skin[2]/255;
-  const skinCol=new THREE.Color(sR*0.75,sG*0.75,sB*0.75);
-  const hairCol=new THREE.Color(pal.hair[0]/255*0.6,pal.hair[1]/255*0.6,pal.hair[2]/255*0.6);
-  const clothCol=new THREE.Color(0.10,0.09,0.08);
-  const clothHi=new THREE.Color(0.14,0.13,0.12);
-  const sm=(c)=>new THREE.MeshStandardMaterial({color:c,roughness:0.85,metalness:0,flatShading:false});
+  const hR=pal.hair[0]/255,hG=pal.hair[1]/255,hB=pal.hair[2]/255;
+  const skinC=new THREE.Color(sR*.70,sG*.70,sB*.70);
+  const hairC=new THREE.Color(hR*.50,hG*.50,hB*.50);
+  const sm=c=>new THREE.MeshStandardMaterial({color:c,roughness:0.88,metalness:0});
 
-  // ── CRANIUM — back/top of head, behind the face mesh ──
-  // Flattened sphere, hair-colored, positioned to wrap around behind face
-  const craniumGeo=new THREE.SphereGeometry(0.68,32,24,0,Math.PI*2,0,Math.PI*0.85);
-  const cranium=new THREE.Mesh(craniumGeo,sm(hairCol));
-  cranium.position.set(0,0.15,-0.18); // center of head, behind face plane
-  cranium.scale.set(0.95,1.05,0.85);  // taller than wide, flattened front-to-back
-  group.add(cranium);
-
-  // ── EARS — small spheres on sides ──
-  for(const side of[-1,1]){
-    const earGeo=new THREE.SphereGeometry(0.08,12,8);
-    const ear=new THREE.Mesh(earGeo,sm(skinCol));
-    ear.position.set(side*0.62,-0.05,-0.05);
-    ear.scale.set(0.6,1.1,0.8);
-    group.add(ear);
+  const skG=new THREE.SphereGeometry(1,48,32);
+  const skP=skG.attributes.position,skI=skG.index.array;
+  const keep=[];
+  for(let i=0;i<skI.length;i+=3){
+    const az=skP.getZ(skI[i]),bz=skP.getZ(skI[i+1]),cz=skP.getZ(skI[i+2]);
+    const ay=skP.getY(skI[i]),by=skP.getY(skI[i+1]),cy2=skP.getY(skI[i+2]);
+    const avgZ=(az+bz+cz)/3,avgY=(ay+by+cy2)/3;
+    if(!(avgZ>0.25&&Math.abs(avgY)<0.7))keep.push(skI[i],skI[i+1],skI[i+2]);
   }
+  skG.setIndex(keep);skG.computeVertexNormals();
+  const skull=new THREE.Mesh(skG,sm(hairC));
+  skull.scale.set(SKX,SKY,SKZ);skull.position.set(0,HCY,-0.02);skull.renderOrder=1;
+  headGroup.add(skull);
 
-  // ── NECK ──
-  const neckGeo=new THREE.CylinderGeometry(0.12,0.17,0.30,24);
-  const neck=new THREE.Mesh(neckGeo,sm(skinCol));
-  neck.position.set(0,-0.78,0.02);
-  group.add(neck);
+  // Ears
+  for(const side of[-1,1]){const eG=new THREE.SphereGeometry(0.065,12,8);const ear=new THREE.Mesh(eG,sm(skinC));ear.position.set(side*SKX*0.97,-0.02+HCY,0);ear.scale.set(0.5,1.0,0.65);headGroup.add(ear);}
 
-  // ── COLLAR ──
-  const collarGeo=new THREE.TorusGeometry(0.19,0.022,8,24);
-  const collar=new THREE.Mesh(collarGeo,sm(clothHi));
-  collar.position.set(0,-0.95,0.01);
-  collar.rotation.x=Math.PI/2;
-  collar.scale.set(1,0.6,1);
-  group.add(collar);
+  // Neck
+  const nG=new THREE.CylinderGeometry(0.10,0.15,0.26,24);
+  headGroup.add(Object.assign(new THREE.Mesh(nG,sm(skinC)),{position:new THREE.Vector3(0,HCY-SKY-0.11,0.01)}));
 
-  // ── SHOULDERS — half-sphere dome, inverted ──
-  const shGeo=new THREE.SphereGeometry(0.62,24,12,0,Math.PI*2,0,Math.PI*0.5);
-  const sh=new THREE.Mesh(shGeo,sm(clothCol));
-  sh.position.set(0,-0.98,-0.02);
-  sh.scale.set(1,0.42,0.52);
-  sh.rotation.x=Math.PI;
-  group.add(sh);
+  // Shoulders + body
+  const clothC=new THREE.Color(0.10,0.09,0.08);
+  const shG=new THREE.SphereGeometry(0.56,24,12,0,Math.PI*2,0,Math.PI*0.5);
+  const sh=new THREE.Mesh(shG,sm(clothC));sh.position.set(0,HCY-SKY-0.26,-0.02);sh.scale.set(1,0.38,0.48);sh.rotation.x=Math.PI;headGroup.add(sh);
+  for(const s of[-1,1]){const dG=new THREE.SphereGeometry(0.11,16,8);const d=new THREE.Mesh(dG,sm(clothC));d.position.set(s*0.50,HCY-SKY-0.28,0);d.scale.set(1,1.1,0.65);headGroup.add(d);}
+  const bG=new THREE.CylinderGeometry(0.44,0.40,0.5,24);const bd=new THREE.Mesh(bG,sm(clothC));bd.position.set(0,HCY-SKY-0.56,0);bd.scale.set(1,1,0.40);headGroup.add(bd);
 
-  // ── DELTOIDS ──
-  for(const side of[-1,1]){
-    const dGeo=new THREE.SphereGeometry(0.13,16,8);
-    const d=new THREE.Mesh(dGeo,sm(clothCol));
-    d.position.set(side*0.55,-1.02,0);
-    d.scale.set(1,1.2,0.75);
-    group.add(d);
-  }
-
-  // ── UPPER BODY ──
-  const bodyGeo=new THREE.CylinderGeometry(0.50,0.44,0.6,24);
-  const body=new THREE.Mesh(bodyGeo,sm(clothCol));
-  body.position.set(0,-1.38,0);
-  body.scale.set(1,1,0.45);
-  group.add(body);
-
-  torsoMesh=group;
-  scene.add(torsoMesh);
+  scene.add(headGroup);
+  document.getElementById('sVerts').textContent=totalVerts+' verts';
+  document.getElementById('sTex').textContent='1 texture';
 }
 
-// ══════════════════════════════════════════════════
-//  EXPRESSION-DRIVEN DEFORMATION
-//  The core: compute displacement between live landmarks
-//  and calibration landmarks. This IS the puppetry.
-// ══════════════════════════════════════════════════
+function buildEnv(snapshot){
+  try{const sc=document.createElement('canvas');sc.width=VW;sc.height=VH;const sx=sc.getContext('2d');sx.drawImage(snapshot,0,0);
+  const pts=[[10,10],[VW-10,10],[10,VH-10],[VW-10,VH-10],[VW/2,10],[VW/2,VH-10]];
+  let ar=0,ag=0,ab=0;for(const[px,py]of pts){const d=sx.getImageData(px,py,5,5).data;for(let i=0;i<d.length;i+=4){ar+=d[i];ag+=d[i+1];ab+=d[i+2];}}
+  const n=pts.length*25;pal.bg=[ar/n,ag/n,ab/n];}catch(e){}
+  const bc=document.createElement('canvas');bc.width=4;bc.height=256;const bx=bc.getContext('2d');
+  const g=bx.createLinearGradient(0,0,0,256);const r=pal.bg[0],gv=pal.bg[1],b=pal.bg[2];
+  g.addColorStop(0,`rgb(${r*.18|0},${gv*.18|0},${b*.18|0})`);
+  g.addColorStop(0.35,`rgb(${r*.12|0},${gv*.12|0},${b*.12|0})`);
+  g.addColorStop(0.7,`rgb(${r*.07|0},${gv*.07|0},${b*.07|0})`);
+  g.addColorStop(1,`rgb(${r*.04|0},${gv*.04|0},${b*.04|0})`);
+  bx.fillStyle=g;bx.fillRect(0,0,4,256);scene.background=new THREE.CanvasTexture(bc);
+}
+
 function updateDisplacements(liveLM){
-  if(!calibPositions||!liveDisplacements||!calibLM) return;
-
-  // Face bounding box (live)
+  if(!calibPositions||!calibLM||!faceMeshObj)return;
   const oxs=FACE_OVAL.map(i=>liveLM[i].x),oys=FACE_OVAL.map(i=>liveLM[i].y);
-  const lfcx=(Math.min(...oxs)+Math.max(...oxs))*.5;
-  const lfcy=(Math.min(...oys)+Math.max(...oys))*.5;
-  const lfrw=(Math.max(...oxs)-Math.min(...oxs))*.5||.001;
-  const lfrh=(Math.max(...oys)-Math.min(...oys))*.5||.001;
-
-  // Calibration bounding box
-  const coxs=FACE_OVAL.map(i=>calibLM[i].x),coys=FACE_OVAL.map(i=>calibLM[i].y);
-  const cfcx=(Math.min(...coxs)+Math.max(...coxs))*.5;
-  const cfcy=(Math.min(...coys)+Math.max(...coys))*.5;
-  const cfrw=(Math.max(...coxs)-Math.min(...coxs))*.5||.001;
-  const cfrh=(Math.max(...coys)-Math.min(...coys))*.5||.001;
-
+  const lfx=(Math.min(...oxs)+Math.max(...oxs))*.5,lfy=(Math.min(...oys)+Math.max(...oys))*.5;
+  const cox=FACE_OVAL.map(i=>calibLM[i].x),coy=FACE_OVAL.map(i=>calibLM[i].y);
+  const cfx=(Math.min(...cox)+Math.max(...cox))*.5,cfy=(Math.min(...coy)+Math.max(...coy))*.5;
+  const cfw=(Math.max(...cox)-Math.min(...cox))*.5||.001,cfh=(Math.max(...coy)-Math.min(...coy))*.5||.001;
   for(let i=0;i<NUM_LM;i++){
-    // Center on respective face centers (removes translation)
-    // Scale BOTH by calibration metrics (prevents scale mismatch from head rotation)
-    const liveNX=(liveLM[i].x-lfcx)/cfrw;
-    const liveNY=-(liveLM[i].y-lfcy)/cfrh;
-    const calNX=(calibLM[i].x-cfcx)/cfrw;
-    const calNY=-(calibLM[i].y-cfcy)/cfrh;
-
-    // Displacement = expression-only movement (pose factored out by centering)
-    const dx=(liveNX-calNX)*0.65;
-    const dy=(liveNY-calNY)*0.78;
-
-    liveDisplacements[i*3]=dx;
-    liveDisplacements[i*3+1]=dy;
-    liveDisplacements[i*3+2]=0;
+    liveDisp[i*3]=((liveLM[i].x-lfx)/cfw-(calibLM[i].x-cfx)/cfw)*0.55;
+    liveDisp[i*3+1]=(-(liveLM[i].y-lfy)/cfh+(calibLM[i].y-cfy)/cfh)*0.68;
+    liveDisp[i*3+2]=0;
   }
-
-  // Interpolated vertices: average their parents' displacements
-  if(interpMap){
-    for(let i=NUM_LM;i<totalVertCount;i++){
-      const pt=interpMap[i];
-      if(pt&&pt.isInterp){
-        const a=pt.parentA,b=pt.parentB;
-        liveDisplacements[i*3]=(liveDisplacements[a*3]+liveDisplacements[b*3])*.5;
-        liveDisplacements[i*3+1]=(liveDisplacements[a*3+1]+liveDisplacements[b*3+1])*.5;
-        liveDisplacements[i*3+2]=0;
-      }
-    }
-  }
-
-  // Temporal EMA smoothing
-  const ema=0.22;
-  const n=totalVertCount||NUM_LM;
-  for(let i=0;i<n*3;i++){
-    smoothedDisplacements[i]+=(liveDisplacements[i]-smoothedDisplacements[i])*ema;
-  }
-
-  const dispAttr=faceMeshObj.geometry.getAttribute('displacement');
-  dispAttr.array.set(smoothedDisplacements);
-  dispAttr.needsUpdate=true;
+  for(let i=NUM_LM;i<totalVerts;i++){const p=interpMap[i];if(p&&p.isI){liveDisp[i*3]=(liveDisp[p.pA*3]+liveDisp[p.pB*3])*.5;liveDisp[i*3+1]=(liveDisp[p.pA*3+1]+liveDisp[p.pB*3+1])*.5;liveDisp[i*3+2]=0;}}
+  for(let i=0;i<totalVerts*3;i++)smoothDisp[i]+=(liveDisp[i]-smoothDisp[i])*0.18;
+  const da=faceMeshObj.geometry.getAttribute('displacement');da.array.set(smoothDisp);da.needsUpdate=true;
   faceMeshObj.geometry.computeVertexNormals();
 }
 
-// ══════════════════════════════════════════════════
-//  PROGRESSIVE TEXTURE ACCUMULATION
-//  As the call persists, capture new expression snapshots.
-//  These could be blended in the shader for better fidelity
-//  at different expressions (mouth open shows teeth, etc.)
-// ══════════════════════════════════════════════════
-function tryAccumulateTexture(liveLM){
-  if(!neutralTex||!calibLM) return;
-  const now=Date.now();
-  if(now-lastCaptureTime<CAPTURE_INTERVAL) return;
-  if(expressionTextures.length>=MAX_TEXTURES) return;
-
-  // Only capture if expression differs significantly from neutral
-  const mOpen=vibe.mouthOpen;
-  const mCurve=vibe.mouthCurve;
-  const eo=vibe.eyeOpen;
-
-  // Check if this expression is sufficiently different from existing captures
-  const isDifferent=expressionTextures.every(et=>{
-    const dmo=Math.abs(et.mouthOpen-mOpen);
-    const dmc=Math.abs(et.mouthCurve-mCurve);
-    const deo=Math.abs(et.eyeOpen-eo);
-    return dmo>0.015||dmc>0.15||deo>0.2;
-  });
-
-  // Must have some notable expression (not just neutral)
-  const isExpressive=mOpen>0.025||Math.abs(mCurve)>0.15||eo<0.7||eo>1.1||Math.abs(pose.yaw)>0.2;
-
-  if(isDifferent&&isExpressive){
-    // Crop from LIVE face position (not calibration position)
-    const loxs=FACE_OVAL.map(i=>liveLM[i].x),loys=FACE_OVAL.map(i=>liveLM[i].y);
-    const lfx=(Math.min(...loxs)+Math.max(...loxs))*.5;
-    const lfy=(Math.min(...loys)+Math.max(...loys))*.5;
-    const lfw=(Math.max(...loxs)-Math.min(...loxs))*.5||.001;
-    const lfh=(Math.max(...loys)-Math.min(...loys))*.5||.001;
-
-    const pad=1.3;
-    const cx=Math.max(0,(lfx-lfw*pad)*VW);
-    const cy=Math.max(0,(lfy-lfh*pad)*VH);
-    const cw=Math.min(lfw*pad*2*VW,VW-cx);
-    const ch=Math.min(lfh*pad*2*VH,VH-cy);
-    const texCanvas=document.createElement('canvas');
-    texCanvas.width=512;texCanvas.height=512;
-    texCanvas.getContext('2d').drawImage(vid,cx,cy,cw,ch,0,0,512,512);
-
-    const tex=new THREE.CanvasTexture(texCanvas);
-    tex.minFilter=THREE.LinearFilter;
-    tex.magFilter=THREE.LinearFilter;
-
-    expressionTextures.push({tex, mouthOpen:mOpen, mouthCurve:mCurve, eyeOpen:eo, yaw:pose.yaw});
-    lastCaptureTime=now;
-
-    // Update status
-    const total=1+expressionTextures.length;
-    document.getElementById('sTex').textContent=total+' textures';
-    document.getElementById('accumCount').textContent=total;
-    document.getElementById('accumBytes').textContent=((total*50)/1).toFixed(0);
-    console.log(`Accumulated texture #${total}: mO=${mOpen.toFixed(2)} mC=${mCurve.toFixed(2)} eO=${eo.toFixed(2)}`);
-
-    // Select best texture for current expression
-    selectBestTexture();
-  }
+function tryCapture(liveLM){
+  if(!neutralTex||!calibLM)return;const now=Date.now();if(now-lastCapTime<1200||exprTextures.length>=14)return;
+  const mo=vibe.mouthOpen,mc=vibe.mouthCurve,eo=vibe.eyeOpen,ya=pose.yaw;
+  const isDiff=exprTextures.every(e=>Math.abs(e.mo-mo)>0.012||Math.abs(e.mc-mc)>0.12||Math.abs(e.eo-eo)>0.18||Math.abs(e.ya-ya)>0.15);
+  if(!isDiff||!(mo>0.02||Math.abs(mc)>0.12||eo<0.72||eo>1.1||Math.abs(ya)>0.18))return;
+  const lox=FACE_OVAL.map(i=>liveLM[i].x),loy=FACE_OVAL.map(i=>liveLM[i].y);
+  const fx=(Math.min(...lox)+Math.max(...lox))*.5,fy=(Math.min(...loy)+Math.max(...loy))*.5;
+  const fw=(Math.max(...lox)-Math.min(...lox))*.5||.001,fh=(Math.max(...loy)-Math.min(...loy))*.5||.001;
+  const p=1.25,x=Math.max(0,(fx-fw*p)*VW),y=Math.max(0,(fy-fh*p)*VH),w=Math.min(fw*p*2*VW,VW-x),h=Math.min(fh*p*2*VH,VH-y);
+  const c=document.createElement('canvas');c.width=512;c.height=512;c.getContext('2d').drawImage(vid,x,y,w,h,0,0,512,512);
+  const t=new THREE.CanvasTexture(c);t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;
+  exprTextures.push({tex:t,mo,mc,eo,ya});lastCapTime=now;
+  const tot=1+exprTextures.length;document.getElementById('sTex').textContent=tot+' textures';document.getElementById('accumCount').textContent=tot;document.getElementById('accumKB').textContent=tot*50;
+}
+function selectTex(){
+  if(!faceMeshObj||!exprTextures.length)return;
+  let best=neutralTex,bd=vibe.mouthOpen*10+Math.abs(vibe.mouthCurve)+Math.abs(1-vibe.eyeOpen)+Math.abs(pose.yaw)*.5;
+  for(const e of exprTextures){const d=Math.abs(e.mo-vibe.mouthOpen)*10+Math.abs(e.mc-vibe.mouthCurve)+Math.abs(e.eo-vibe.eyeOpen)+Math.abs(e.ya-pose.yaw)*.5;if(d<bd){bd=d;best=e.tex;}}
+  faceMeshObj.material.uniforms.faceTex.value=best;
 }
 
-function selectBestTexture(){
-  if(!faceMeshObj||expressionTextures.length===0) return;
+function dz(v,t){if(Math.abs(v)<t)return 0;return(v>0?1:-1)*(Math.abs(v)-t)/(1-t);}
+function extractPose(lm){const n=lm[LM.NOSE],le=lm[LM.L_EYE_OUT],re=lm[LM.R_EYE_OUT],ch=lm[LM.CHIN];const emx=(le.x+re.x)*.5,es=Math.abs(re.x-le.x);const ry=es>.01?(n.x-emx)/es:0;const yaw=dz(ry-poseBaseline.yawOffset,0.03)*Math.PI*0.72;const emy=(le.y+re.y)*.5,fh=ch.y-emy;const nr=fh>.01?(n.y-emy)/fh:0.55;const pitch=dz(nr-poseBaseline.noseRatio,0.012)*Math.PI*1.2;const dx=re.x-le.x,dy=re.y-le.y;const roll=dz(-Math.atan2(dy,dx),0.015)*0.65;return{yaw:clamp(yaw,-0.9,0.9),pitch:clamp(pitch,-0.65,0.65),roll:clamp(roll,-0.4,0.4)};}
+function extractVibe(lm){const fH=Math.sqrt((lm[LM.TOP].x-lm[LM.CHIN].x)**2+(lm[LM.TOP].y-lm[LM.CHIN].y)**2);if(fH<.01)return null;const mO=Math.sqrt((lm[LM.MOUTH_T].x-lm[LM.MOUTH_B].x)**2+(lm[LM.MOUTH_T].y-lm[LM.MOUTH_B].y)**2)/fH;const cY=(lm[LM.MOUTH_L].y+lm[LM.MOUTH_R].y)*.5,mY=(lm[LM.MOUTH_T].y+lm[LM.MOUTH_B].y)*.5;const mC=clamp((mY-cY)/(fH*.055),-1,1);const bY=(lm[LM.L_BROW].y+lm[LM.R_BROW].y)*.5,eY=(lm[LM.L_EYE_T].y+lm[LM.R_EYE_T].y)*.5,bd=eY-bY;let bl=0;if(browBaseline!==null)bl=clamp((bd-browBaseline)/(fH*.16)*.058,-0.055,0.075);const lE=Math.abs(lm[LM.L_EYE_T].y-lm[LM.L_EYE_B].y),rE=Math.abs(lm[LM.R_EYE_T].y-lm[LM.R_EYE_B].y);const eo=clamp((lE+rE)/(fH*.095),0,1.35);return{mouthOpen:clamp(mO*1.85-.04,0,.12),mouthCurve:mC,browLift:bl,eyeOpen:eo};}
 
-  let bestDist=Infinity, bestTex=neutralTex;
-  const mo=vibe.mouthOpen, mc=vibe.mouthCurve, eo=vibe.eyeOpen, ya=pose.yaw;
-
-  // Neutral is candidate — distance is how expressive we are
-  let neutralDist=mo*8+Math.abs(mc)*1.0+Math.abs(1-eo)*0.8+Math.abs(ya)*0.3;
-  bestDist=neutralDist;
-
-  for(const et of expressionTextures){
-    const d=Math.abs(et.mouthOpen-mo)*8
-           +Math.abs(et.mouthCurve-mc)*1.0
-           +Math.abs(et.eyeOpen-eo)*0.8
-           +Math.abs((et.yaw||0)-ya)*0.3;
-    if(d<bestDist){bestDist=d;bestTex=et.tex;}
-  }
-
-  faceMeshObj.material.uniforms.faceTex.value=bestTex;
-}
-
-// ══════════════════════════════════════════════════
-//  POSE & EXPRESSION EXTRACTION
-// ══════════════════════════════════════════════════
-function deadZone(v,t){if(Math.abs(v)<t)return 0;return(v>0?1:-1)*(Math.abs(v)-t)/(1-t);}
-
-function extractPose(lm){
-  const nose=lm[LM.NOSE],lEy=lm[LM.L_EYE_OUT],rEy=lm[LM.R_EYE_OUT],chin=lm[LM.CHIN];
-  const eyeMidX=(lEy.x+rEy.x)*.5,eyeSpan=Math.abs(rEy.x-lEy.x);
-  const rawYaw=eyeSpan>.01?(nose.x-eyeMidX)/eyeSpan:0;
-  const yaw=deadZone(rawYaw-poseBaseline.yawOffset,0.03)*Math.PI*0.72;
-  const eyeMidY=(lEy.y+rEy.y)*.5,faceH=chin.y-eyeMidY;
-  const noseRatio=faceH>.01?(nose.y-eyeMidY)/faceH:0.55;
-  const pitch=deadZone(noseRatio-poseBaseline.noseRatio,0.012)*Math.PI*1.2;
-  const dx=rEy.x-lEy.x,dy=rEy.y-lEy.y;
-  const roll=deadZone(-Math.atan2(dy,dx),0.015)*0.65;
-  return{yaw:clamp(yaw,-0.9,0.9),pitch:clamp(pitch,-0.65,0.65),roll:clamp(roll,-0.4,0.4)};
-}
-
-function extractVibe(lm){
-  const fH=Math.sqrt((lm[LM.TOP].x-lm[LM.CHIN].x)**2+(lm[LM.TOP].y-lm[LM.CHIN].y)**2);
-  if(fH<.01)return null;
-  const mO=Math.sqrt((lm[LM.MOUTH_T].x-lm[LM.MOUTH_B].x)**2+(lm[LM.MOUTH_T].y-lm[LM.MOUTH_B].y)**2)/fH;
-  const cornerY=(lm[LM.MOUTH_L].y+lm[LM.MOUTH_R].y)*.5;
-  const centerY=(lm[LM.MOUTH_T].y+lm[LM.MOUTH_B].y)*.5;
-  const mC=clamp((centerY-cornerY)/(fH*.055),-1,1);
-  const browY=(lm[LM.L_BROW].y+lm[LM.R_BROW].y)*.5;
-  const eyeTopY=(lm[LM.L_EYE_T].y+lm[LM.R_EYE_T].y)*.5;
-  const bd=eyeTopY-browY;
-  let bl=0;
-  if(browBaseline!==null)bl=clamp((bd-browBaseline)/(fH*.16)*.058,-0.055,0.075);
-  const lEH=Math.abs(lm[LM.L_EYE_T].y-lm[LM.L_EYE_B].y);
-  const rEH=Math.abs(lm[LM.R_EYE_T].y-lm[LM.R_EYE_B].y);
-  const eo=clamp((lEH+rEH)/(fH*.095),0,1.35);
-  return{mouthOpen:clamp(mO*1.85-.04,0,.12),mouthCurve:mC,browLift:bl,eyeOpen:eo};
-}
-
-// ══════════════════════════════════════════════════
-//  CALIBRATION
-// ══════════════════════════════════════════════════
 const vid=document.getElementById('vid');
+function accLM(lm){if(!calibLM)calibLM=lm.map(p=>({x:p.x,y:p.y,z:p.z||0}));else lm.forEach((p,i)=>{calibLM[i].x=calibLM[i].x*.82+p.x*.18;calibLM[i].y=calibLM[i].y*.82+p.y*.18;calibLM[i].z=calibLM[i].z*.82+(p.z||0)*.18;});}
 
-let palSamples=0;
-function accumulateLM(lm){
-  if(!calibLM){calibLM=lm.map(p=>({x:p.x,y:p.y,z:p.z||0}));}
-  else{lm.forEach((p,i)=>{calibLM[i].x=calibLM[i].x*.82+p.x*.18;calibLM[i].y=calibLM[i].y*.82+p.y*.18;calibLM[i].z=calibLM[i].z*.82+(p.z||0)*.18;});}
-}
-
-function finishCalibration(){
+function finishCalib(){
   if(!calibLM)return;
-  const snap=document.createElement('canvas');
-  snap.width=VW;snap.height=VH;
-  snap.getContext('2d').drawImage(vid,0,0,VW,VH);
-
-  // ── Background from webcam: capture, blur heavily, darken ──
-  try{
-    const bgCvs=document.createElement('canvas');
-    bgCvs.width=W;bgCvs.height=H;
-    const bgCtx=bgCvs.getContext('2d');
-    bgCtx.filter='blur(30px) brightness(0.3) saturate(0.5)';
-    bgCtx.drawImage(vid,0,0,W,H);
-    bgCtx.filter='none';
-    // Dark gradient overlay
-    const grd=bgCtx.createLinearGradient(0,0,0,H);
-    grd.addColorStop(0,'rgba(12,11,9,0.5)');
-    grd.addColorStop(0.5,'rgba(12,11,9,0.3)');
-    grd.addColorStop(1,'rgba(12,11,9,0.7)');
-    bgCtx.fillStyle=grd;
-    bgCtx.fillRect(0,0,W,H);
-    scene.background=new THREE.CanvasTexture(bgCvs);
-  }catch(e){console.warn('BG capture failed:',e);}
-
-  buildFaceMesh(calibLM,snap);
-
-  const nose=calibLM[LM.NOSE],lEy=calibLM[LM.L_EYE_OUT],rEy=calibLM[LM.R_EYE_OUT],chin=calibLM[LM.CHIN];
-  const eyeSpan=Math.abs(rEy.x-lEy.x);
-  poseBaseline.yawOffset=eyeSpan>.01?(nose.x-(lEy.x+rEy.x)*.5)/eyeSpan:0;
-  const eyeMidY=(lEy.y+rEy.y)*.5;
-  poseBaseline.noseRatio=(chin.y-eyeMidY)>.01?(nose.y-eyeMidY)/(chin.y-eyeMidY):0.55;
-
-  expressionTextures=[];
-  lastCaptureTime=Date.now();
-
-  // Build torso
-  buildTorso();
+  const snap=document.createElement('canvas');snap.width=VW;snap.height=VH;snap.getContext('2d').drawImage(vid,0,0,VW,VH);
+  try{const sc=document.createElement('canvas');sc.width=VW;sc.height=VH;const sx=sc.getContext('2d');sx.drawImage(vid,0,0,VW,VH);
+  const sp=sx.getImageData(clamp(Math.round(calibLM[116].x*VW)-3,0,VW),clamp(Math.round(calibLM[116].y*VH)-3,0,VH),7,7).data;let sr=0,sg=0,sb=0,sn=0;for(let i=0;i<sp.length;i+=4){sr+=sp[i];sg+=sp[i+1];sb+=sp[i+2];sn++;}if(sn>0)pal.skin=[sr/sn,sg/sn,sb/sn];
+  const hp=sx.getImageData(clamp(Math.round(calibLM[10].x*VW)-4,0,VW),clamp(Math.round((calibLM[10].y-0.04)*VH)-4,0,VH),9,9).data;let hr=0,hg=0,hb=0,hn=0;for(let i=0;i<hp.length;i+=4){hr+=hp[i];hg+=hp[i+1];hb+=hp[i+2];hn++;}if(hn>0)pal.hair=[hr/hn,hg/hn,hb/hn];
+  }catch(e){}
+  buildEnv(snap);buildHead(calibLM,snap);
+  const n=calibLM[LM.NOSE],le=calibLM[LM.L_EYE_OUT],re=calibLM[LM.R_EYE_OUT],ch=calibLM[LM.CHIN];const es=Math.abs(re.x-le.x);poseBaseline.yawOffset=es>.01?(n.x-(le.x+re.x)*.5)/es:0;const emy=(le.y+re.y)*.5;poseBaseline.noseRatio=(ch.y-emy)>.01?(n.y-emy)/(ch.y-emy):0.55;
+  exprTextures=[];lastCapTime=Date.now();
 }
 
-// ══════════════════════════════════════════════════
-//  PHASE MACHINE
-// ══════════════════════════════════════════════════
-function setPhase(p){
-  phase=p;
-  const ov=document.getElementById('overlay'),ot=document.getElementById('ovTitle'),os=document.getElementById('ovSub');
-  const ct=document.getElementById('calibTrack'),btn=document.getElementById('startBtn'),badge=document.getElementById('pipBadge');
-  document.getElementById('sPhase').textContent=p.charAt(0).toUpperCase()+p.slice(1);
-  btn.style.display=(p==='waiting')?'':'none';
-  if(p==='waiting'){ov.classList.remove('gone');ot.textContent='Vibe Protocol';os.textContent='Camera access needed\nto build your avatar';ct.style.display='none';badge.className='pip-badge searching';badge.textContent='Waiting';}
-  else if(p==='searching'){ov.classList.remove('gone');ot.textContent='No Face Detected';os.textContent='Position your face\nin the camera view';ct.style.display='none';badge.className='pip-badge searching';badge.textContent='Searching';}
-  else if(p==='calibrating'){ov.classList.remove('gone');ot.textContent='Calibrating';os.textContent='Building your face mesh\nHold still — look straight ahead';ct.style.display='block';badge.className='pip-badge calibrating';badge.textContent='Calibrating';}
-  else if(p==='live'){ov.classList.add('gone');badge.className='pip-badge live';badge.textContent='Tracking';document.getElementById('pdot').className='pdot on';}
-}
+function setPhase(p){phase=p;const ov=document.getElementById('overlay'),ot=document.getElementById('ovTitle'),os=document.getElementById('ovSub'),ct=document.getElementById('calibTrack'),btn=document.getElementById('startBtn'),badge=document.getElementById('pipBadge');document.getElementById('sPhase').textContent=p.charAt(0).toUpperCase()+p.slice(1);btn.style.display=p==='waiting'?'':'none';if(p==='waiting'){ov.classList.remove('gone');ot.textContent='Vibe Protocol';os.textContent='Camera access needed\nto build your avatar';ct.style.display='none';badge.className='pip-badge searching';badge.textContent='Waiting';}else if(p==='searching'){ov.classList.remove('gone');ot.textContent='Searching';os.textContent='Position your face';ct.style.display='none';badge.className='pip-badge searching';badge.textContent='Searching';}else if(p==='calibrating'){ov.classList.remove('gone');ot.textContent='Calibrating';os.textContent='Building mesh\nHold still';ct.style.display='block';badge.className='pip-badge calibrating';badge.textContent='Calibrating';}else if(p==='live'){ov.classList.add('gone');badge.className='pip-badge live';badge.textContent='Tracking';document.getElementById('pdot').className='pdot on';}}
+function startCalib(){calibCount=0;calibLM=null;browBaseline=null;poseBaseline={noseRatio:0.55,yawOffset:0};exprTextures=[];setPhase('calibrating');}
 
-function startCalib(){
-  calibCount=0;calibLM=null;browBaseline=null;
-  poseBaseline={noseRatio:0.55,yawOffset:0};
-  expressionTextures=[];
-  setPhase('calibrating');
-}
-
-// ══════════════════════════════════════════════════
-//  MEDIAPIPE
-// ══════════════════════════════════════════════════
 let faceMesh;
 function onResults(results){
   if(!results.multiFaceLandmarks?.length){if(phase!=='waiting'&&phase!=='calibrating')setPhase('searching');return;}
   const lm=results.multiFaceLandmarks[0];
   if(phase==='searching'||phase==='waiting')startCalib();
-
-  if(phase==='calibrating'){
-    calibCount++;
-    document.getElementById('calibFill').style.width=(calibCount/CALIB_FRAMES*100)+'%';
-    accumulateLM(lm);
-    const bd=(lm[159].y+lm[386].y)*.5-(lm[105].y+lm[334].y)*.5;
-    browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;
-
-    // Sample skin color from cheek area
-    if(calibCount>10){
-      const sampCvs=document.createElement('canvas');
-      sampCvs.width=VW;sampCvs.height=VH;
-      const sctx=sampCvs.getContext('2d');
-      sctx.drawImage(vid,0,0,VW,VH);
-      try{
-        // Sample skin from cheek
-        const px=Math.round(lm[116].x*VW),py=Math.round(lm[116].y*VH);
-        const d=sctx.getImageData(clamp(px-3,0,VW),clamp(py-3,0,VH),7,7).data;
-        let r=0,g=0,b=0,n=0;
-        for(let i=0;i<d.length;i+=4){r+=d[i];g+=d[i+1];b+=d[i+2];n++;}
-        if(n>0)pal.skin=pal.skin.map((v,j)=>v*.85+[r/n,g/n,b/n][j]*.15);
-        // Sample hair from forehead edge
-        const hx=Math.round(lm[10].x*VW),hy=Math.round(clamp(lm[10].y-0.04,0,1)*VH);
-        const hd=sctx.getImageData(clamp(hx-4,0,VW),clamp(hy-4,0,VH),9,9).data;
-        let hr=0,hg=0,hb=0,hn=0;
-        for(let i=0;i<hd.length;i+=4){hr+=hd[i];hg+=hd[i+1];hb+=hd[i+2];hn++;}
-        if(hn>0)pal.hair=pal.hair.map((v,j)=>v*.85+[hr/hn,hg/hn,hb/hn][j]*.15);
-      }catch(e){}
-    }
-
-    if(calibCount>=CALIB_FRAMES){
-      try{finishCalibration();setPhase('live');}
-      catch(e){console.error('Calibration error:',e);setPhase('live');}
-    }
-    return;
-  }
-
-  // ── LIVE ──
-  const p3=extractPose(lm);
-  pose.yaw=smooth(pose.yaw,p3.yaw,.08);
-  pose.pitch=smooth(pose.pitch,p3.pitch,.07);
-  pose.roll=smooth(pose.roll,p3.roll,.08);
-
-  const nv=extractVibe(lm);
-  if(nv){
-    vibe.mouthOpen=smooth(vibe.mouthOpen,nv.mouthOpen,.20);
-    vibe.mouthCurve=smooth(vibe.mouthCurve,nv.mouthCurve,.20);
-    vibe.browLift=smooth(vibe.browLift,nv.browLift,.20);
-    vibe.eyeOpen=smooth(vibe.eyeOpen,nv.eyeOpen,.16);
-  }
-
-  // Update mesh deformation from live landmarks
-  updateDisplacements(lm);
-
-  // Try to accumulate a new expression texture
-  tryAccumulateTexture(lm);
-
-  // Select best texture for current expression
-  if(expressionTextures.length>0) selectBestTexture();
-
-  tick();
+  if(phase==='calibrating'){calibCount++;document.getElementById('calibFill').style.width=(calibCount/CALIB_FRAMES*100)+'%';accLM(lm);const bd=(lm[159].y+lm[386].y)*.5-(lm[105].y+lm[334].y)*.5;browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;if(calibCount>=CALIB_FRAMES){try{finishCalib();setPhase('live');}catch(e){console.error(e);setPhase('live');}}return;}
+  const p3=extractPose(lm);pose.yaw=smooth(pose.yaw,p3.yaw,.07);pose.pitch=smooth(pose.pitch,p3.pitch,.06);pose.roll=smooth(pose.roll,p3.roll,.07);
+  const nv=extractVibe(lm);if(nv){vibe.mouthOpen=smooth(vibe.mouthOpen,nv.mouthOpen,.18);vibe.mouthCurve=smooth(vibe.mouthCurve,nv.mouthCurve,.18);vibe.browLift=smooth(vibe.browLift,nv.browLift,.18);vibe.eyeOpen=smooth(vibe.eyeOpen,nv.eyeOpen,.14);}
+  updateDisplacements(lm);tryCapture(lm);if(exprTextures.length>0)selectTex();tick();
 }
 
-// ══════════════════════════════════════════════════
-//  RENDER
-// ══════════════════════════════════════════════════
-let tickQueued=false;
-function tick(){
-  if(tickQueued)return;
-  tickQueued=true;
-  requestAnimationFrame(()=>{
-    tickQueued=false;
-    if(faceMeshObj){
-      faceMeshObj.rotation.y=-pose.yaw;  // mirrored — looks like a mirror
-      faceMeshObj.rotation.x=pose.pitch;
-      faceMeshObj.rotation.z=pose.roll;
-    }
-    // Torso + cranium follows head
-    if(torsoMesh){
-      // Cranium (first child) tracks head closely
-      if(torsoMesh.children[0]){
-        torsoMesh.children[0].rotation.y=-pose.yaw*0.9;
-        torsoMesh.children[0].rotation.x=pose.pitch*0.9;
-        torsoMesh.children[0].rotation.z=pose.roll*0.9;
-      }
-      // Ears track head
-      if(torsoMesh.children[1])torsoMesh.children[1].rotation.y=-pose.yaw*0.85;
-      if(torsoMesh.children[2])torsoMesh.children[2].rotation.y=-pose.yaw*0.85;
-      // Rest of body: reduced
-      torsoMesh.rotation.y=-pose.yaw*0.2;
-      torsoMesh.rotation.x=pose.pitch*0.12;
-      torsoMesh.rotation.z=pose.roll*0.25;
-    }
-    renderer.render(scene,camera);
-    updateUI();
-  });
-}
+let tQ=false;
+function tick(){if(tQ)return;tQ=true;requestAnimationFrame(()=>{tQ=false;if(headGroup){headGroup.rotation.y=-pose.yaw;headGroup.rotation.x=pose.pitch;headGroup.rotation.z=pose.roll;}renderer.render(scene,camera);
+  const f=v=>(v>=0?'+':'')+v.toFixed(2),p=(v,lo,hi)=>clamp((v-lo)/(hi-lo)*100,0,100)+'%';
+  document.getElementById('v_mo').textContent=vibe.mouthOpen.toFixed(2);document.getElementById('b_mo').style.width=p(vibe.mouthOpen,0,.12);
+  document.getElementById('v_mc').textContent=f(vibe.mouthCurve);document.getElementById('b_mc').style.width=clamp(Math.abs(vibe.mouthCurve)*50,0,100)+'%';
+  document.getElementById('v_eo').textContent=vibe.eyeOpen.toFixed(2);document.getElementById('b_eo').style.width=p(vibe.eyeOpen,0,1.35);
+  document.getElementById('v_ya').textContent=f(pose.yaw);document.getElementById('b_ya').style.width=clamp(Math.abs(pose.yaw)/1.5*100,0,100)+'%';
+});}
 
-function updateUI(){
-  const fmt=v=>(v>=0?'+':'')+v.toFixed(2);
-  const pct=(v,lo,hi)=>clamp((v-lo)/(hi-lo)*100,0,100);
-  document.getElementById('v_mo').textContent=vibe.mouthOpen.toFixed(2);
-  document.getElementById('b_mo').style.width=pct(vibe.mouthOpen,0,.12)+'%';
-  document.getElementById('v_mc').textContent=fmt(vibe.mouthCurve);
-  document.getElementById('b_mc').style.width=clamp(Math.abs(vibe.mouthCurve)*50,0,100)+'%';
-  document.getElementById('v_eo').textContent=vibe.eyeOpen.toFixed(2);
-  document.getElementById('b_eo').style.width=pct(vibe.eyeOpen,0,1.35)+'%';
-  document.getElementById('v_bl').textContent=fmt(vibe.browLift);
-  document.getElementById('b_bl').style.width=clamp(Math.abs(vibe.browLift)/.075*50,0,50)+'%';
-  document.getElementById('v_ya').textContent=fmt(pose.yaw);
-  document.getElementById('b_ya').style.width=clamp(Math.abs(pose.yaw)/1.5*100,0,100)+'%';
-}
+let pumpOn=false;
+async function pump(){if(!pumpOn)return;if(vid.readyState>=2&&!vid.paused){try{await faceMesh.send({image:vid});}catch(e){}}requestAnimationFrame(pump);}
+async function startCamera(){const btn=document.getElementById('startBtn');btn.textContent='Starting…';btn.disabled=true;let stream;try{stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false});}catch(e){document.getElementById('ovTitle').textContent='Camera Blocked';btn.textContent='Retry';btn.disabled=false;btn.onclick=()=>startCamera();return;}vid.srcObject=stream;try{await vid.play();}catch(e){btn.textContent='Retry';btn.disabled=false;return;}document.getElementById('ovTitle').textContent='Loading FaceMesh';document.getElementById('ovSub').textContent='Downloading model…';try{faceMesh=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});faceMesh.onResults(onResults);await faceMesh.initialize();}catch(e){document.getElementById('ovTitle').textContent='Error';btn.textContent='Retry';btn.disabled=false;btn.onclick=()=>startCamera();return;}pumpOn=true;setPhase('searching');requestAnimationFrame(pump);}
 
-// ══════════════════════════════════════════════════
-//  CAMERA + PUMP
-// ══════════════════════════════════════════════════
-let pumpActive=false;
-async function pump(){if(!pumpActive)return;if(vid.readyState>=2&&!vid.paused){try{await faceMesh.send({image:vid});}catch(e){}}requestAnimationFrame(pump);}
-
-async function startCamera(){
-  const btn=document.getElementById('startBtn');
-  btn.textContent='Starting…';btn.disabled=true;
-  let stream;
-  try{stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false});}
-  catch(e){document.getElementById('ovTitle').textContent='Camera Blocked';btn.textContent='Retry';btn.disabled=false;btn.onclick=()=>startCamera();return;}
-  vid.srcObject=stream;
-  try{await vid.play();}catch(e){btn.textContent='Retry';btn.disabled=false;return;}
-  document.getElementById('ovTitle').textContent='Loading FaceMesh';
-  document.getElementById('ovSub').textContent='Downloading tracking model…';
-  try{
-    faceMesh=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
-    faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});
-    faceMesh.onResults(onResults);
-    await faceMesh.initialize();
-  }catch(e){document.getElementById('ovTitle').textContent='MediaPipe Error';btn.textContent='Retry';btn.disabled=false;btn.onclick=()=>startCamera();return;}
-  pumpActive=true;setPhase('searching');requestAnimationFrame(pump);
-}
-
-function init(){setPhase('waiting');renderer.render(scene,camera);}
+setPhase('waiting');renderer.render(scene,camera);
 document.getElementById('startBtn').addEventListener('click',startCamera);
 document.getElementById('recalBtn').addEventListener('click',()=>{if(phase==='live')startCalib();});
-init();
 </script>
 </body>
 </html>
