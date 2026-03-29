@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibe Protocol · 3D Live</title>
+<title>Vibe Protocol · Gaussian Splat v2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
@@ -18,39 +18,39 @@ body{
   background:var(--bg);color:var(--text);
   font-family:'JetBrains Mono',monospace;
   min-height:100vh;display:flex;flex-direction:column;
-  align-items:center;padding:32px 20px 56px;
+  align-items:center;padding:20px 16px 32px;
 }
 body::before{
   content:'';position:fixed;inset:0;
   background-image:radial-gradient(circle,#2a2420 1px,transparent 1px);
-  background-size:26px 26px;opacity:.35;pointer-events:none;z-index:0;
+  background-size:26px 26px;opacity:.3;pointer-events:none;z-index:0;
 }
-header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
-.eyebrow{font-size:.55rem;letter-spacing:.32em;color:var(--muted);text-transform:uppercase;margin-bottom:5px}
-.title{font-family:'Cormorant Garamond',serif;font-size:2.6rem;font-weight:500;letter-spacing:.06em;line-height:1}
+header{position:relative;z-index:1;text-align:center;margin-bottom:16px}
+.eyebrow{font-size:.5rem;letter-spacing:.32em;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.title{font-family:'Cormorant Garamond',serif;font-size:2.2rem;font-weight:500;letter-spacing:.06em;line-height:1}
 .title em{font-style:italic;color:var(--accent)}
-.sub{font-size:.53rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-top:7px}
-.stage{position:relative;z-index:1;display:flex;gap:18px;align-items:flex-start}
-.avatar-col{display:flex;flex-direction:column;gap:8px}
+.sub{font-size:.48rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-top:5px}
+.stage{position:relative;z-index:1;display:flex;gap:14px;align-items:flex-start}
+.avatar-col{display:flex;flex-direction:column;gap:6px}
 .frame-wrap{position:relative}
 .frame-wrap::before,.frame-wrap::after{content:'';position:absolute;width:14px;height:14px;z-index:3;pointer-events:none}
 .frame-wrap::before{top:0;left:0;border-top:2px solid var(--accent-dk);border-left:2px solid var(--accent-dk)}
 .frame-wrap::after{bottom:0;right:0;border-bottom:2px solid var(--accent-dk);border-right:2px solid var(--accent-dk)}
-#display{display:block;border:1px solid var(--border)}
+#display{display:block;border:1px solid var(--border);background:#000}
 #overlay{
   position:absolute;inset:0;
   background:rgba(12,11,9,.88);
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:12px;z-index:5;transition:opacity .4s;
+  gap:10px;z-index:5;transition:opacity .5s;
 }
 #overlay.gone{opacity:0;pointer-events:none}
-.ov-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:var(--accent)}
-.ov-sub{font-size:.52rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;text-align:center;line-height:2;white-space:pre-line}
+.ov-title{font-family:'Cormorant Garamond',serif;font-size:1.4rem;color:var(--accent)}
+.ov-sub{font-size:.48rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;text-align:center;line-height:2;white-space:pre-line}
 .calib-track{width:180px;height:2px;background:var(--border);margin-top:4px}
 #calibFill{height:100%;background:var(--accent);width:0%;transition:width .12s}
 #startBtn{
-  font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.18em;
-  text-transform:uppercase;padding:11px 28px;margin-top:4px;cursor:pointer;
+  font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.18em;
+  text-transform:uppercase;padding:10px 24px;margin-top:4px;cursor:pointer;
   background:var(--accent);border:none;color:#0c0b09;font-weight:500;
   transition:opacity .15s;
 }
@@ -58,85 +58,62 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 #startBtn:disabled{opacity:.45;cursor:default}
 .statusbar{
   display:flex;justify-content:space-between;
-  font-size:.52rem;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;padding:0 2px;
+  font-size:.48rem;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;padding:0 2px;
 }
-.right-col{width:192px;display:flex;flex-direction:column;gap:13px;padding-top:2px}
+.right-col{width:180px;display:flex;flex-direction:column;gap:8px;padding-top:2px}
 .pip-wrap{position:relative;border:1px solid var(--border);background:#000;overflow:hidden}
-.pip-wrap::before,.pip-wrap::after{content:'';position:absolute;width:9px;height:9px;z-index:2}
+.pip-wrap::before,.pip-wrap::after{content:'';position:absolute;width:8px;height:8px;z-index:2}
 .pip-wrap::before{top:-1px;left:-1px;border-top:1px solid var(--accent-dk);border-left:1px solid var(--accent-dk)}
 .pip-wrap::after{bottom:-1px;right:-1px;border-bottom:1px solid var(--accent-dk);border-right:1px solid var(--accent-dk)}
-#vid{display:block;width:192px;height:144px;object-fit:cover;transform:scaleX(-1)}
-.pip-badge{position:absolute;top:5px;right:5px;font-size:.44rem;letter-spacing:.14em;text-transform:uppercase;padding:2px 5px;border:1px solid;z-index:2}
+#vid{display:block;width:180px;height:135px;object-fit:cover;transform:scaleX(-1)}
+.pip-badge{position:absolute;top:4px;right:4px;font-size:.40rem;letter-spacing:.12em;text-transform:uppercase;padding:2px 5px;border:1px solid;z-index:2}
 .pip-badge.searching{color:var(--amber);border-color:var(--amber)}
 .pip-badge.calibrating{color:var(--accent);border-color:var(--accent)}
 .pip-badge.live{color:var(--green);border-color:var(--green)}
-.pip-lbl{position:absolute;bottom:5px;left:6px;font-size:.45rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);z-index:2}
-.panel{border:1px solid var(--border);padding:11px 10px;background:var(--surface)}
-.phdr{font-size:.46rem;letter-spacing:.26em;text-transform:uppercase;color:var(--accent-dk);
-  margin-bottom:9px;padding-bottom:5px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.pip-lbl{position:absolute;bottom:4px;left:5px;font-size:.40rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);z-index:2}
+.panel{border:1px solid var(--border);padding:8px;background:var(--surface)}
+.phdr{font-size:.42rem;letter-spacing:.22em;text-transform:uppercase;color:var(--accent-dk);
+  margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
 .pdot{width:5px;height:5px;border-radius:50%;background:var(--border);transition:background .3s}
 .pdot.on{background:var(--green);animation:pulse 1.8s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.prow{margin-bottom:6px}
-.plbl{font-size:.43rem;letter-spacing:.13em;color:var(--muted);text-transform:uppercase;margin-bottom:2px;display:flex;justify-content:space-between}
-.pval{color:var(--accent);font-size:.43rem}
+.prow{margin-bottom:4px}
+.plbl{font-size:.40rem;letter-spacing:.11em;color:var(--muted);text-transform:uppercase;margin-bottom:2px;display:flex;justify-content:space-between}
+.pval{color:var(--accent);font-size:.40rem}
 .btrack{height:3px;background:var(--border);position:relative}
-.bfill{height:100%;background:var(--accent-dk);position:absolute;left:0;transition:width .08s}
-.bcent{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--border)}
-.srow{display:flex;align-items:center;gap:6px;margin-bottom:4px}
-.sw{width:12px;height:12px;border:1px solid var(--border)}
-.slbl{font-size:.42rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
-.shex{font-size:.42rem;color:var(--text);margin-left:auto}
-.bwrow{font-size:.43rem;letter-spacing:.12em;color:var(--muted);margin-top:5px;padding-top:5px;border-top:1px solid var(--border)}
-.bwval{color:var(--text)}
-.controls{position:relative;z-index:1;margin-top:18px;display:flex;gap:10px;align-items:center}
-.clbl{font-size:.52rem;letter-spacing:.2em;color:var(--muted);text-transform:uppercase}
-.btns{display:flex;gap:4px}
-.btn{font-family:'JetBrains Mono',monospace;font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;
-  padding:6px 11px;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .12s}
+.bfill{height:100%;background:var(--accent-dk);position:absolute;left:0;transition:width .06s}
+.prog-bar{height:4px;background:var(--border);margin-top:4px;position:relative;overflow:hidden}
+.prog-fill{height:100%;transition:width .3s;width:0%}
+.prog-lbl{font-size:.38rem;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-top:2px;display:flex;justify-content:space-between}
+.lod-layers{display:flex;gap:2px;margin-top:5px}
+.lod-layer{flex:1;height:6px;border:1px solid var(--border);position:relative;overflow:hidden}
+.lod-fill{height:100%;width:0%;transition:width .2s}
+.lod-lbl{font-size:.34rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:2px;display:flex;justify-content:space-between}
+.srow{display:flex;align-items:center;gap:5px;margin-bottom:3px}
+.sw{width:10px;height:10px;border:1px solid var(--border)}
+.slbl{font-size:.38rem;letter-spacing:.10em;color:var(--muted);text-transform:uppercase}
+.shex{font-size:.38rem;color:var(--text);margin-left:auto}
+.controls{position:relative;z-index:1;margin-top:10px;display:flex;gap:8px;align-items:center}
+.btn{font-family:'JetBrains Mono',monospace;font-size:.50rem;letter-spacing:.1em;text-transform:uppercase;
+  padding:5px 10px;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .12s}
 .btn:hover{border-color:var(--accent-dk);color:var(--text)}
-.btn.on{background:var(--accent);border-color:var(--accent);color:#0c0b09;font-weight:500}
 .btn-recal{border-color:var(--accent-dk);color:var(--accent-dk)}
 .btn-recal:hover{background:var(--accent-dk);color:var(--text)}
-.hint{position:relative;z-index:1;margin-top:14px;font-size:.50rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;text-align:center;max-width:700px}
-.voice-panel{border:1px solid var(--border);padding:11px 10px;background:var(--surface)}
-.wave-wrap{height:36px;border:1px solid var(--border);margin-bottom:8px;position:relative;overflow:hidden;background:rgba(0,0,0,.3)}
-#waveCanvas{display:block;width:100%;height:100%}
-.wave-lbl{position:absolute;bottom:2px;left:4px;font-size:.38rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
-.vrow{display:flex;align-items:center;gap:6px;margin-bottom:4px}
-.vdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
-.vlbl{font-size:.42rem;letter-spacing:.10em;color:var(--muted);text-transform:uppercase;min-width:22px}
-.vtrack{flex:1;height:3px;background:var(--border);position:relative}
-.vfill{height:100%;position:absolute;left:0;transition:width .06s}
-.vfill.f0{background:#c9a96e}
-.vfill.amp{background:#6a9e6a}
-.vfill.voic{background:#7a9ec9}
-.vfill.f1{background:#c97a6a}
-.vfill.f2{background:#9e6ac9}
-.vfill.f3{background:#6ac9a0}
-.vval{font-size:.40rem;color:var(--accent);min-width:32px;text-align:right}
-.synth-row{display:flex;align-items:center;gap:8px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
-.synth-toggle{width:28px;height:14px;border-radius:7px;border:1px solid var(--border);cursor:pointer;position:relative;background:var(--border);transition:background .2s}
-.synth-toggle.on{background:var(--green);border-color:var(--green)}
-.synth-toggle::after{content:'';position:absolute;top:1px;left:1px;width:10px;height:10px;border-radius:50%;background:var(--text);transition:left .15s}
-.synth-toggle.on::after{left:15px}
-.synth-lbl{font-size:.42rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
-.btn.recording{background:var(--accent);color:#0c0b09;border-color:var(--accent);animation:pulse 1s infinite}
-.btn.playing{background:var(--green);color:#0c0b09;border-color:var(--green)}
+.hint{position:relative;z-index:1;margin-top:10px;font-size:.42rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;text-align:center;max-width:680px}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="eyebrow">Vibe Protocol · 3D Live v0.6</div>
-  <h1 class="title">Your likeness. <em>Abstracted.</em></h1>
-  <div class="sub">Presence without video — snapshot + expression + vocal tract</div>
+  <div class="eyebrow">Vibe Protocol · Gaussian Splat v2</div>
+  <h1 class="title">Progressive <em>Presence</em></h1>
+  <div class="sub">Multi-scale LOD · depth-sorted · lit · proximity-deformed</div>
 </header>
 
 <div class="stage">
   <div class="avatar-col">
     <div class="frame-wrap">
-      <canvas id="display" width="480" height="560"></canvas>
+      <canvas id="display" width="480" height="580"></canvas>
       <div id="overlay">
         <div class="ov-title" id="ovTitle">Vibe Protocol</div>
         <div class="ov-sub" id="ovSub">Camera access needed
@@ -146,9 +123,9 @@ to build your avatar</div>
       </div>
     </div>
     <div class="statusbar">
-      <span id="sTier">Tier 02 · Mid</span>
       <span id="sPhase">Waiting</span>
-      <span id="sCells">— cells</span>
+      <span id="sSplats">0 splats</span>
+      <span id="sBytes">0 KB</span>
     </div>
   </div>
 
@@ -158,74 +135,63 @@ to build your avatar</div>
       <div class="pip-badge searching" id="pipBadge">Waiting</div>
       <div class="pip-lbl">Source</div>
     </div>
+
     <div class="panel">
-      <div class="phdr">Vibe Packet <div class="pdot" id="pdot"></div></div>
+      <div class="phdr">LOD Stream <div class="pdot" id="pdot"></div></div>
+      <div class="lod-layers">
+        <div class="lod-layer"><div class="lod-fill" id="lod0" style="background:#c9a96e"></div></div>
+        <div class="lod-layer"><div class="lod-fill" id="lod1" style="background:#9a8050"></div></div>
+        <div class="lod-layer"><div class="lod-fill" id="lod2" style="background:#6a5a3a"></div></div>
+        <div class="lod-layer"><div class="lod-fill" id="lod3" style="background:#4a3a24"></div></div>
+      </div>
+      <div class="lod-lbl"><span>L0 shape</span><span>L1 feat</span><span>L2 tex</span><span>L3 hd</span></div>
+      <div class="prog-bar"><div class="prog-fill" id="progFill" style="background:linear-gradient(90deg,var(--accent),var(--accent-dk))"></div></div>
+      <div class="prog-lbl">
+        <span id="progCount">0 splats</span>
+        <span id="progKB">0 KB</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="phdr">Expression</div>
       <div class="prow">
-        <div class="plbl">Mouth Open <span class="pval" id="v_mo">0.00</span></div>
+        <div class="plbl">Mouth <span class="pval" id="v_mo">0.00</span></div>
         <div class="btrack"><div class="bfill" id="b_mo" style="width:0%"></div></div>
       </div>
       <div class="prow">
-        <div class="plbl">Mouth Curve <span class="pval" id="v_mc">+0.00</span></div>
-        <div class="btrack"><div class="bcent"></div><div class="bfill" id="b_mc" style="width:0%;left:50%"></div></div>
+        <div class="plbl">Smile <span class="pval" id="v_mc">+0.00</span></div>
+        <div class="btrack"><div class="bfill" id="b_mc" style="width:0%"></div></div>
       </div>
       <div class="prow">
-        <div class="plbl">Brow Lift <span class="pval" id="v_bl">+0.00</span></div>
-        <div class="btrack"><div class="bcent"></div><div class="bfill" id="b_bl" style="width:0%;left:50%"></div></div>
+        <div class="plbl">Eyes <span class="pval" id="v_eo">1.00</span></div>
+        <div class="btrack"><div class="bfill" id="b_eo" style="width:0%"></div></div>
       </div>
       <div class="prow">
-        <div class="plbl">Eye Open <span class="pval" id="v_eo">1.00</span></div>
-        <div class="btrack"><div class="bfill" id="b_eo" style="width:77%"></div></div>
+        <div class="plbl">Brows <span class="pval" id="v_bl">+0.00</span></div>
+        <div class="btrack"><div class="bfill" id="b_bl" style="width:0%"></div></div>
       </div>
       <div class="prow">
         <div class="plbl">Yaw <span class="pval" id="v_ya">0.00</span></div>
-        <div class="btrack"><div class="bcent"></div><div class="bfill" id="b_ya" style="width:0%;left:50%"></div></div>
-      </div>
-      <div class="prow">
-        <div class="plbl">Pitch <span class="pval" id="v_pi">0.00</span></div>
-        <div class="btrack"><div class="bcent"></div><div class="bfill" id="b_pi" style="width:0%;left:50%"></div></div>
+        <div class="btrack"><div class="bfill" id="b_ya" style="width:0%"></div></div>
       </div>
     </div>
+
     <div class="panel">
-      <div class="phdr">Likeness Palette</div>
+      <div class="phdr">Likeness</div>
       <div class="srow"><div class="sw" id="sw_skin"></div><div class="slbl">Skin</div><div class="shex" id="sh_skin">—</div></div>
       <div class="srow"><div class="sw" id="sw_hair"></div><div class="slbl">Hair</div><div class="shex" id="sh_hair">—</div></div>
       <div class="srow"><div class="sw" id="sw_iris"></div><div class="slbl">Iris</div><div class="shex" id="sh_iris">—</div></div>
       <div class="srow"><div class="sw" id="sw_lip"></div><div class="slbl">Lip</div><div class="shex" id="sh_lip">—</div></div>
-      <div class="bwrow">Identity <span class="bwval" id="idSize">—</span> · Stream <span class="bwval" id="streamRate">72B/f</span></div>
-    </div>
-    <div class="voice-panel">
-      <div class="phdr">Vocal Notation <div class="pdot" id="vdot"></div></div>
-      <div class="wave-wrap">
-        <canvas id="waveCanvas" width="192" height="36"></canvas>
-        <div class="wave-lbl">Mic input</div>
-      </div>
-      <div class="vrow"><div class="vdot" style="background:#c9a96e"></div><div class="vlbl">Note</div><div class="vtrack"><div class="vfill f0" id="vb_f0" style="width:0%"></div></div><div class="vval" id="vv_f0">—</div></div>
-      <div class="vrow"><div class="vdot" style="background:#6a9e6a"></div><div class="vlbl">Dyn</div><div class="vtrack"><div class="vfill amp" id="vb_amp" style="width:0%"></div></div><div class="vval" id="vv_amp">—</div></div>
-      <div class="vrow"><div class="vdot" style="background:#7a9ec9"></div><div class="vlbl">Voic</div><div class="vtrack"><div class="vfill voic" id="vb_voic" style="width:0%"></div></div><div class="vval" id="vv_voic">0.00</div></div>
-      <div class="vrow"><div class="vdot" style="background:#c97a6a"></div><div class="vlbl">Phon</div><div class="vtrack" style="background:transparent"><span id="vv_phon" style="font-size:.52rem;color:var(--accent);font-weight:500">—</span></div><div class="vval" id="vv_phon_lbl">—</div></div>
-      <div class="synth-row">
-        <div class="synth-toggle" id="synthToggle"></div>
-        <div class="synth-lbl">Synth</div>
-        <button class="btn" id="demoBtn" style="font-size:.4rem;padding:3px 7px;margin-left:auto">▶ Demo</button>
-        <button class="btn" id="recBtn" style="font-size:.4rem;padding:3px 7px">● Rec</button>
-        <button class="btn" id="playBtn" style="font-size:.4rem;padding:3px 7px" disabled>⟳ Play</button>
-      </div>
     </div>
   </div>
 </div>
 
 <div class="controls">
-  <div class="clbl">Tier</div>
-  <div class="btns" id="tierBtns">
-    <button class="btn" data-tier="0">01</button>
-    <button class="btn on" data-tier="1">02</button>
-    <button class="btn" data-tier="2">03</button>
-  </div>
-  <button class="btn btn-recal" id="recalBtn" style="margin-left:14px">↺ Recalibrate</button>
+  <button class="btn btn-recal" id="recalBtn">↺ Recalibrate</button>
 </div>
-<div class="hint">Face: snapshot + 8 expression floats · Voice: 6 vocal tract parameters · Total: 56 bytes/frame · ~13 kbps at 30fps</div>
+<div class="hint">L0: 40 splats instant presence · L1: 300 features · L2: 1200 texture · L3: 2500+ HD detail · 36 bytes/frame expression stream</div>
 
-<canvas id="sampCanvas" width="640" height="480" style="position:absolute;left:-9999px;top:-9999px"></canvas>
+<canvas id="sampCanvas" width="640" height="480" style="position:absolute;left:-9999px"></canvas>
 
 <script>
 'use strict';
@@ -233,612 +199,686 @@ to build your avatar</div>
 // ══════════════════════════════════════════════════
 //  CONSTANTS
 // ══════════════════════════════════════════════════
-const W=480, H=560, VW=640, VH=480;
-const FTW=1024, FTH=1024;
-const FCX=FTW/2, FCY=FTH*0.46;
-const FFW=260, FFH=330;
-const CALIB_NEUTRAL=45;   // Phase 1: neutral face — color + geometry + snapshot
-const CALIB_OPEN=30;      // Phase 2: mouth open — teeth/tongue snapshot
-const CALIB_TOTAL=CALIB_NEUTRAL+CALIB_OPEN;
-
-const TIERS=[
-  {cs:28, gap:2, label:'Tier 01 · Low'},
-  {cs:14, gap:1, label:'Tier 02 · Mid'},
-  {cs:7,  gap:1, label:'Tier 03 · High'},
-];
+const W=480, H=580, VW=640, VH=480;
+const CALIB_FRAMES=55;
+const PI=Math.PI, TAU=PI*2;
 
 const LM={
-  NOSE:1, CHIN:152, TOP:10,
-  L_EYE_OUT:33, R_EYE_OUT:263,
-  L_EYE_T:159, L_EYE_B:145,
-  R_EYE_T:386, R_EYE_B:374,
-  L_BROW:105, R_BROW:334,
-  MOUTH_T:13, MOUTH_B:14, MOUTH_L:61, MOUTH_R:291,
-  LIP_BOT:17,
-  L_CHEEK:116, R_CHEEK:345,
-  L_TEMPLE:127, R_TEMPLE:356,
+  NOSE:1,CHIN:152,TOP:10,
+  L_EYE_OUT:33,R_EYE_OUT:263,
+  L_EYE_T:159,L_EYE_B:145,R_EYE_T:386,R_EYE_B:374,
+  L_BROW:105,R_BROW:334,
+  MOUTH_T:13,MOUTH_B:14,MOUTH_L:61,MOUTH_R:291,
+  L_PUPIL:468,R_PUPIL:473,
 };
 
-// ══════════════════════════════════════════════════
-//  MATH
-// ══════════════════════════════════════════════════
+const FACE_OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+
+// Expression landmark groups — used for proximity weighting
+const EXPR_GROUPS={
+  mouthUpper:[61,185,40,39,37,0,267,269,270,409,291,78,191,80,81,82,13,312,311,310,415,308],
+  mouthLower:[61,146,91,181,84,17,314,405,321,375,291,78,95,88,178,87,14,317,402,318,324,308],
+  eyeUpperL:[33,246,161,160,159,158,157,173,133],
+  eyeUpperR:[263,466,388,387,386,385,384,398,362],
+  eyeLowerL:[33,7,163,144,145,153,154,155,133],
+  eyeLowerR:[263,249,390,373,374,380,381,382,362],
+  browL:[46,53,52,65,55,107,66,105,63,70],
+  browR:[276,283,282,295,285,336,296,334,293,300],
+};
+
 const clamp=(v,lo,hi)=>v<lo?lo:v>hi?hi:v;
-const rand=s=>{let x=Math.sin(s+1)*43758.5453;return x-Math.floor(x);};
-const dist2=(a,b)=>Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2);
-const toHex=([r,g,b])=>'#'+[r,g,b].map(v=>(v|0).toString(16).padStart(2,'0')).join('');
-const dim=(c,f)=>c.map(v=>clamp(v*f,0,255));
-const bright=(c,f)=>c.map(v=>clamp(v*f,0,255));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=(c,n,s)=>c+(n-c)*s;
 const rgb=c=>`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
-const rgba=(c,a)=>`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
-const smooth=(curr,next,s)=>curr+(next-curr)*s;
+const toHex=([r,g,b])=>'#'+[r,g,b].map(v=>(v|0).toString(16).padStart(2,'0')).join('');
 
 // ══════════════════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════════════════
-let tierIdx=1, phase='waiting';
+let phase='waiting';
+let vibe={mouthOpen:0,mouthCurve:0,browLift:0,eyeOpen:1.0,cheekPuff:0};
+let pose={yaw:0,pitch:0,roll:0};
+let poseBaseline={noseRatio:0.55,yawOffset:0};
 
-let pal={
-  skin:[212,172,130], shadow:[148,108,82], highlight:[242,210,170],
-  cheek:[195,130,115], lip:[172,90,80],
-  iris:[62,102,142], brow:[48,36,28], hair:[36,26,20],
-};
+let calibCount=0, calibLM=null, browBaseline=null;
+let pal={skin:[185,145,115],hair:[45,32,24],iris:[85,115,145],lip:[165,100,95]};
 
-let vibe={mouthOpen:0, mouthCurve:0, browLift:0, cheekAmt:.08, eyeOpen:1.0};
-let pose={yaw:0, pitch:0, roll:0};
+let splatCloud=null;
+let splatRevealed=0;
+let splatTotal=0;
+let revealTimer=null;
+let snapshotCanvas=null;
+let birthTimes=null; // per-splat reveal timestamp for fade-in
+const FADE_DUR=400; // ms fade-in per splat
 
-let calibCount=0;
-let calibColors={skin:[[],[],[]], hair:[[],[],[]], iris:[[],[],[]], lip:[[],[],[]], brow:[[],[],[]]};
-let calibLM=null;
-let browBaseline=null;
-
-let faceMap=null;       // calibration landmarks → texture pixel positions
-let faceTris=null;      // Delaunay triangle indices [[i0,i1,i2], ...]
-let liveLM=null;        // current-frame raw landmarks from MediaPipe
-
-// Snapshot-based rendering (honest protocol — no live video in render path)
-let snapshotCanvas=null;   // captured neutral-face image from calibration
-let calibSourcePts=null;   // calibration landmarks in snapshot pixel coords [0..VW, 0..VH]
-let snapshotSize=0;        // JPEG byte size of identity payload
-
-// Open-mouth snapshot (Phase 2 of calibration)
-let snapshotOpen=null;     // captured open-mouth image
-let calibSourceOpen=null;  // open-mouth landmarks in snapshot pixel coords
-let calibLMOpen=null;      // EMA-averaged landmarks during open-mouth phase
-let mouthTriMask=null;     // per-triangle float [0..1]: 0=not mouth, 1=deep mouth region
-
-// Landmark indices in/around the mouth (inner + outer lips + surrounding)
-const MOUTH_REGION_IDX=new Set([
-  // Outer lip
-  61,185,40,39,37,0,267,269,270,409,291,
-  146,91,181,84,17,314,405,321,375,
-  // Inner lip
-  78,191,80,81,82,13,312,311,310,415,308,
-  95,88,178,87,14,317,402,318,324,
-  // Chin/surrounding
-  152,148,176,149,150,136,172,58,
-  // Nose base connection
-  2,326,327,
-]);
-
-// Pose calibration baselines
-let poseBaseline={noseRatio:0.55, yawOffset:0};
-
-// ── Voice system state ──
-let audioCtx=null;
-let micAnalyser=null;
-let micTimeBuf=null;
-let micFreqBuf=null;          // for FFT spectral analysis
-let synthEnabled=false;
-
-// ── PHONEME CHART ──
-// IPA-inspired vowel classes with known-good formant recipes.
-// These are the "notes" of the vocal notation system.
-// Each phoneme has F1/F2/F3 targets based on acoustic phonetics research.
-const PHONEMES={
-  //        F1   F2   F3    label
-  'aa': {f1:730, f2:1090, f3:2440, label:'ɑ'},  // "father"
-  'ae': {f1:660, f2:1720, f3:2410, label:'æ'},  // "cat"
-  'ah': {f1:520, f2:1190, f3:2390, label:'ʌ'},  // "but"
-  'eh': {f1:530, f2:1840, f3:2480, label:'ɛ'},  // "bed"
-  'ee': {f1:270, f2:2290, f3:3010, label:'i'},   // "see"
-  'ih': {f1:390, f2:1990, f3:2550, label:'ɪ'},  // "bit"
-  'oo': {f1:300, f2:870,  f3:2240, label:'u'},   // "boot"
-  'uh': {f1:440, f2:1020, f3:2240, label:'ʊ'},  // "book"
-  'oh': {f1:570, f2:840,  f3:2410, label:'ɔ'},   // "bought"
-  'er': {f1:490, f2:1350, f3:1690, label:'ɝ'},   // "bird"
-  'ax': {f1:500, f2:1500, f3:2500, label:'ə'},   // schwa "about"
-  'xx': {f1:0,   f2:0,    f3:0,    label:'—'},    // silence / unvoiced noise
-};
-const PHONEME_LIST=Object.keys(PHONEMES);
-
-// Vocal notation — the transmitted "score"
-let vocalNote={
-  phoneme:'xx',    // current phoneme class
-  pitch:0,         // MIDI-ish: 0=silence, 48=C3, 60=C4, etc.
-  cents:0,         // pitch bend in cents (-50..+50)
-  dynamic:0,       // amplitude 0..1
-  voicing:0,       // voiced amount 0..1
-  onset:false,     // true on new syllable attack
-};
-
-// Voice calibration
-let voiceCalib={
-  f0Min:999, f0Max:0, f0Mean:0, f0Count:0, ampMax:0.001,
-};
-
-// Synth state
-let synthNodes=null;
-let synthFormants={f1:500, f2:1500, f3:2500}; // current interpolated formant targets
-
-// Recording/playback
-let voiceRecording=[];
-let isRecording=false;
-let isPlaying=false;
-let playbackIdx=0;
-let playbackTimer=null;
-
-// Face oval landmark indices
-const FACE_OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+// LOD layer boundaries
+let lodBounds=[0,0,0,0]; // [l0end, l1end, l2end, l3end]
 
 // ══════════════════════════════════════════════════
 //  THREE.JS SETUP
 // ══════════════════════════════════════════════════
-const ftCanvas=document.createElement('canvas');
-ftCanvas.width=FTW; ftCanvas.height=FTH;
-const ftCtx=ftCanvas.getContext('2d');
-
-const renderer=new THREE.WebGLRenderer({
-  canvas:document.createElement('canvas'),
-  antialias:true, alpha:false, preserveDrawingBuffer:true,
-});
-renderer.domElement.width=W; renderer.domElement.height=H;
+const display=document.getElementById('display');
+const renderer=new THREE.WebGLRenderer({canvas:display,antialias:true,alpha:false});
 renderer.setSize(W,H,false);
-renderer.setClearColor(0x000000,0);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setClearColor(0x0c0b09,1);
 
 const scene=new THREE.Scene();
-const cam3=new THREE.PerspectiveCamera(26,W/H,0.1,100);
-cam3.position.set(0,0,4.2);
+const camera=new THREE.PerspectiveCamera(32,W/H,0.1,100);
+camera.position.set(0,-0.15,4.5);
 
-scene.add(new THREE.AmbientLight(0xffffff,0.92));
-const dirLight=new THREE.DirectionalLight(0xfff8f0,0.30);
-dirLight.position.set(-1,1.5,3);
-scene.add(dirLight);
-
-const faceTex=new THREE.CanvasTexture(ftCanvas);
-faceTex.minFilter=THREE.LinearFilter;
-faceTex.magFilter=THREE.LinearFilter;
-faceTex.generateMipmaps=false;
-
-// ── Head geometry: cranial shape derived from deformed sphere ──
-// Instead of a generic sphere, deform vertices to approximate
-// actual skull proportions: broader forehead, narrower temples,
-// wider cheekbones, tapered jaw, flatter back.
-const headGeo=(function(){
-  const base=new THREE.SphereGeometry(1,64,64);
-  const pos=base.attributes.position;
-  for(let i=0;i<pos.count;i++){
-    let x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
-
-    // Normalized height: -1 (chin) to +1 (crown)
-    const h=y;
-
-    // ── Width profile (x-axis) ──
-    // Narrow at chin, wide at cheekbones, slight taper at temples, moderate at crown
-    let wScale=1.0;
-    if(h<-0.5) wScale=0.72+0.28*(h+1);           // chin taper
-    else if(h<-0.1) wScale=0.86+0.14*(h+0.5)/0.4; // jaw → cheek widen
-    else if(h<0.2) wScale=1.0;                     // cheekbone zone (widest)
-    else if(h<0.55) wScale=1.0-0.06*(h-0.2)/0.35;  // slight temple narrow
-    else wScale=0.94-0.08*(h-0.55)/0.45;            // crown taper
-
-    // ── Depth profile (z-axis) ──
-    // Flatter back, prominent brow ridge, receding chin
-    let dScale=1.0;
-    if(z<0){
-      // Back of head: flatten
-      dScale=0.88;
-    } else {
-      // Front face: slight brow ridge, chin recession
-      if(h>0.25) dScale=1.0+0.04*Math.max(0,(h-0.25)/0.3);  // brow prominence
-      if(h<-0.4) dScale=1.0-0.12*Math.abs(h+0.4)/0.6;        // chin recession
+// Background gradient plane
+const bgGeo=new THREE.PlaneGeometry(12,12);
+const bgMat=new THREE.ShaderMaterial({
+  depthWrite:false,
+  uniforms:{},
+  vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  fragmentShader:`
+    varying vec2 vUv;
+    void main(){
+      vec2 c=vUv-0.5;
+      float d=length(c);
+      vec3 warm=mix(vec3(0.09,0.07,0.05),vec3(0.06,0.04,0.03),d*1.5);
+      // subtle radial vignette with warm center
+      warm+=vec3(0.025,0.018,0.008)*exp(-d*d*4.0);
+      gl_FragColor=vec4(warm,1.0);
     }
-
-    // ── Vertical (y-axis) ──
-    // Elongate slightly — skulls are taller than wide
-    const vScale=1.12;
-
-    pos.setX(i, x*wScale);
-    pos.setY(i, y*vScale);
-    pos.setZ(i, z*dScale);
-  }
-  pos.needsUpdate=true;
-  base.computeVertexNormals();
-  return base;
-})();
-
-const headMat=new THREE.MeshStandardMaterial({
-  map:faceTex, roughness:0.88, metalness:0.0,
+  `,
 });
-const headMesh=new THREE.Mesh(headGeo,headMat);
-headMesh.scale.set(1.0,1.0,0.95);
-headMesh.rotation.order='YXZ';
-headMesh.rotation.y=-Math.PI/2;
-scene.add(headMesh);
-
-const gl=renderer.getContext();
+const bgMesh=new THREE.Mesh(bgGeo,bgMat);
+bgMesh.position.z=-3;
+scene.add(bgMesh);
 
 // ══════════════════════════════════════════════════
-//  DELAUNAY TRIANGULATION (Bowyer-Watson)
-//  Runs once after calibration on the 468 face landmarks.
-//  Produces ~800-900 triangles that tessellate the face.
+//  SPLAT SHADERS — with per-splat lighting + fade-in
 // ══════════════════════════════════════════════════
-function delaunay(points){
-  const n=points.length;
-  if(n<3) return [];
-  let mnx=Infinity,mny=Infinity,mxx=-Infinity,mxy=-Infinity;
-  for(let i=0;i<n;i++){
-    if(points[i].x<mnx)mnx=points[i].x;
-    if(points[i].y<mny)mny=points[i].y;
-    if(points[i].x>mxx)mxx=points[i].x;
-    if(points[i].y>mxy)mxy=points[i].y;
-  }
-  const dx=mxx-mnx||1, dy=mxy-mny||1, dm=Math.max(dx,dy)*10;
-  const sp=[{x:mnx-dm,y:mny-dm},{x:mnx+dm*3,y:mny-dm},{x:mnx+dx*.5,y:mny+dm*3}];
-  const all=points.concat(sp);
+const splatVert=`
+  attribute float size;
+  attribute float opacity;
+  attribute vec3 splatColor;
+  attribute vec3 splatNormal;
+  attribute float birth;  // 0..1 fade progress
 
-  function makeTri(a,b,c){
-    const ax=all[a].x,ay=all[a].y,bx=all[b].x,by=all[b].y,cx=all[c].x,cy=all[c].y;
-    const D=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));
-    if(Math.abs(D)<1e-12) return{v:[a,b,c],cx:0,cy:0,r2:-1};
-    const ux=((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/D;
-    const uy=((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/D;
-    return{v:[a,b,c],cx:ux,cy:uy,r2:(ax-ux)**2+(ay-uy)**2};
-  }
+  uniform float uTime;
+  uniform vec3 uLightDir;
+  uniform vec3 uLightDir2;
 
-  let tris=[makeTri(n,n+1,n+2)];
-  for(let i=0;i<n;i++){
-    const px=points[i].x, py=points[i].y;
-    const bad=[], good=[];
-    for(let j=0;j<tris.length;j++){
-      const t=tris[j];
-      if(t.r2>=0&&(px-t.cx)**2+(py-t.cy)**2<t.r2*1.000001) bad.push(t);
-      else good.push(t);
+  varying vec3 vColor;
+  varying float vOpacity;
+
+  void main(){
+    // Fade in
+    float fade=clamp(birth,0.0,1.0);
+
+    // Lighting — 3 point
+    vec3 n=normalize(normalMatrix*splatNormal);
+    float key=max(dot(n,normalize(uLightDir)),0.0);
+    float fill=max(dot(n,normalize(uLightDir2)),0.0)*0.35;
+    float rim=pow(1.0-max(dot(n,vec3(0.0,0.0,1.0)),0.0),3.0)*0.4;
+    float light=0.45+key*0.4+fill+rim;
+
+    vColor=splatColor*light;
+    vOpacity=opacity*fade;
+
+    vec4 mvPos=modelViewMatrix*vec4(position,1.0);
+    // Size scales with fade for gentle pop-in
+    float s=size*mix(0.5,1.0,fade);
+    gl_PointSize=s*(-3000.0/mvPos.z);
+    gl_PointSize=clamp(gl_PointSize,2.0,220.0);
+    gl_Position=projectionMatrix*mvPos;
+  }
+`;
+const splatFrag=`
+  varying vec3 vColor;
+  varying float vOpacity;
+  void main(){
+    vec2 c=gl_PointCoord-0.5;
+    float r2=dot(c,c);
+    // Wide soft Gaussian — splats merge into continuous surface
+    float alpha=exp(-r2*5.0);
+    if(alpha<0.08) discard;  // higher threshold — solid cores write depth, soft edges don't
+    // Subtle warm tint at edges
+    vec3 col=mix(vColor,vColor*vec3(1.02,0.98,0.94),r2*2.0);
+    gl_FragColor=vec4(col,alpha*vOpacity);
+  }
+`;
+
+let splatMesh=null;
+let splatUniforms={
+  uTime:{value:0},
+  uLightDir:{value:new THREE.Vector3(0.6,0.8,0.9)},
+  uLightDir2:{value:new THREE.Vector3(-0.5,0.3,0.7)},
+};
+
+function initSplatRenderer(count){
+  if(splatMesh){scene.remove(splatMesh);splatMesh.geometry.dispose();}
+
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(count*3),3));
+  geo.setAttribute('splatColor',new THREE.Float32BufferAttribute(new Float32Array(count*3),3));
+  geo.setAttribute('splatNormal',new THREE.Float32BufferAttribute(new Float32Array(count*3),3));
+  geo.setAttribute('size',new THREE.Float32BufferAttribute(new Float32Array(count),1));
+  geo.setAttribute('opacity',new THREE.Float32BufferAttribute(new Float32Array(count),1));
+  geo.setAttribute('birth',new THREE.Float32BufferAttribute(new Float32Array(count),1));
+
+  const mat=new THREE.ShaderMaterial({
+    vertexShader:splatVert,
+    fragmentShader:splatFrag,
+    transparent:true,
+    depthWrite:true,
+    depthTest:true,
+    blending:THREE.NormalBlending,
+    uniforms:splatUniforms,
+  });
+
+  splatMesh=new THREE.Points(geo,mat);
+  splatMesh.rotation.order='YXZ';
+  splatMesh.frustumCulled=false;
+  scene.add(splatMesh);
+}
+
+// ══════════════════════════════════════════════════
+//  MULTI-SCALE CLOUD BUILDER
+//  4 LOD layers with decreasing size + increasing count:
+//  L0: ~40  huge splats  — head shape blob (instant)
+//  L1: ~300 medium       — facial features (0.5s)
+//  L2: ~1200 small       — texture detail (2s)
+//  L3: ~1500+ tiny       — HD refinement (5s)
+// ══════════════════════════════════════════════════
+function buildSplatCloud(lm,snapCanvas){
+  const snapCtx=snapCanvas.getContext('2d',{willReadFrequently:true});
+  const imgData=snapCtx.getImageData(0,0,VW,VH);
+
+  // Face oval bounds
+  const oxs=FACE_OVAL.map(i=>lm[i].x), oys=FACE_OVAL.map(i=>lm[i].y);
+  const fcx=(Math.min(...oxs)+Math.max(...oxs))*.5;
+  const fcy=(Math.min(...oys)+Math.max(...oys))*.5;
+  const frw=(Math.max(...oxs)-Math.min(...oxs))*.5||.001;
+  const frh=(Math.max(...oys)-Math.min(...oys))*.5||.001;
+
+  function sampleColor(nx,ny){
+    // Check if outside face oval — use skin color fallback
+    const fdx=(nx-fcx)/frw, fdy=(ny-fcy)/frh;
+    if(fdx*fdx+fdy*fdy>1.2){
+      return [pal.skin[0]/255*0.8, pal.skin[1]/255*0.8, pal.skin[2]/255*0.8];
     }
-    const edges=[];
-    for(let j=0;j<bad.length;j++){
-      const v=bad[j].v;
-      for(let e=0;e<3;e++){
-        const a=v[e],b=v[(e+1)%3];
-        let shared=false;
-        for(let k=0;k<bad.length;k++){
-          if(k===j) continue;
-          const ov=bad[k].v;
-          if((ov[0]===a||ov[1]===a||ov[2]===a)&&(ov[0]===b||ov[1]===b||ov[2]===b)){shared=true;break;}
-        }
-        if(!shared) edges.push([a,b]);
+    let rr=0,gg=0,bb=0,n=0;
+    for(let oy=-2;oy<=2;oy++){
+      for(let ox=-2;ox<=2;ox++){
+        const px=clamp(Math.round(nx*VW)+ox,0,VW-1);
+        const py=clamp(Math.round(ny*VH)+oy,0,VH-1);
+        const i=(py*VW+px)*4;
+        rr+=imgData.data[i]; gg+=imgData.data[i+1]; bb+=imgData.data[i+2]; n++;
       }
     }
-    tris=good;
-    for(const[a,b]of edges) tris.push(makeTri(i,a,b));
-  }
-  return tris.filter(t=>t.v[0]<n&&t.v[1]<n&&t.v[2]<n&&t.r2>=0).map(t=>t.v);
-}
-
-// ══════════════════════════════════════════════════
-//  TRIANGLE WARP
-//  Maps a source triangle in the video to a destination
-//  triangle on the texture canvas via affine transform.
-// ══════════════════════════════════════════════════
-function warpTriangle(ctx, img, s0, s1, s2, d0, d1, d2){
-  const area=Math.abs((d1.x-d0.x)*(d2.y-d0.y)-(d2.x-d0.x)*(d1.y-d0.y));
-  if(area<0.5) return;
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(d0.x,d0.y);
-  ctx.lineTo(d1.x,d1.y);
-  ctx.lineTo(d2.x,d2.y);
-  ctx.closePath();
-  ctx.clip();
-
-  const sa=s1.x-s0.x, sb=s2.x-s0.x;
-  const sc=s1.y-s0.y, sd=s2.y-s0.y;
-  const det=sa*sd-sb*sc;
-  if(Math.abs(det)<0.01){ctx.restore();return;}
-  const idet=1/det;
-  const ia=sd*idet, ib=-sb*idet, ic=-sc*idet, id=sa*idet;
-  const A=d1.x-d0.x, B=d2.x-d0.x;
-  const C=d1.y-d0.y, D=d2.y-d0.y;
-  const ma=A*ia+B*ic, mb=A*ib+B*id;
-  const mc=C*ia+D*ic, md=C*ib+D*id;
-  const me=d0.x-ma*s0.x-mb*s0.y;
-  const mf=d0.y-mc*s0.x-md*s0.y;
-
-  ctx.setTransform(ma,mc,mb,md,me,mf);
-  ctx.drawImage(img,0,0);
-  ctx.restore();
-}
-
-// ══════════════════════════════════════════════════
-//  FACE MAP BUILDER
-// ══════════════════════════════════════════════════
-function buildFaceMap(lm){
-  const oxs=FACE_OVAL.map(i=>lm[i].x), oys=FACE_OVAL.map(i=>lm[i].y);
-  const minX=Math.min(...oxs), maxX=Math.max(...oxs);
-  const minY=Math.min(...oys), maxY=Math.max(...oys);
-  const cX=(minX+maxX)*.5, cY=(minY+maxY)*.5;
-  const rW=(maxX-minX)*.5, rH=(maxY-minY)*.5;
-  const tx=p=>FCX+((p.x-cX)/rW)*FFW;
-  const ty=p=>FCY+((p.y-cY)/rH)*FFH;
-  return{all:lm.map(p=>({x:tx(p),y:ty(p)})), cX, cY, rW, rH};
-}
-
-// ══════════════════════════════════════════════════
-//  DRAW FACE — DUAL-SNAPSHOT + EXPRESSION DELTAS
-//  Two calibration snapshots: neutral (mouth closed) and
-//  mouth-open. For triangles in the mouth region, blends
-//  between the two based on live mouth openness.
-//  No live video pixels enter the render path after calibration.
-// ══════════════════════════════════════════════════
-function drawFace(){
-  const ctx=ftCtx;
-  if(!faceMap||!faceTris||!liveLM||!snapshotCanvas||!calibSourcePts){
-    drawFaceDefault();
-    return;
+    let r=rr/n/255, g=gg/n/255, b=bb/n/255;
+    const lum=r*0.299+g*0.587+b*0.114;
+    if(lum<0.15){
+      // Very dark sample — likely background or deep shadow, blend with skin
+      r=lerp(r,pal.skin[0]/255,0.5);
+      g=lerp(g,pal.skin[1]/255,0.5);
+      b=lerp(b,pal.skin[2]/255,0.5);
+    }
+    return [r,g,b];
   }
 
-  // Hair/background fill
-  const hg=ctx.createRadialGradient(FCX,FCY-FFH*.9,FFW*.06,FCX,FCY-FFH*.1,FFW*1.8);
-  hg.addColorStop(0,rgba(bright(pal.hair,1.18),.98));
-  hg.addColorStop(.45,rgba(pal.hair,1));
-  hg.addColorStop(.80,rgba(dim(pal.hair,.65),1));
-  hg.addColorStop(1,rgba(dim(pal.hair,.30),1));
-  ctx.fillStyle=hg;
-  ctx.fillRect(0,0,FTW,FTH);
+  // Enhanced 3D projection — compact head that fills the view
+  function lmTo3D(p,idx){
+    const nx=(p.x-fcx)/frw;   // -1..1
+    const ny=-(p.y-fcy)/frh;  // -1..1 (flip Y)
+    // Use hemisphere projection for z — MediaPipe z is too noisy
+    const r2=clamp(nx*nx+ny*ny,0,1.5);
+    const nz=r2<1?Math.sqrt(Math.max(0,1-r2))*0.55:0;
+    // Keep face compact — scale down to ~0.7 unit radius
+    return {x:nx*0.7, y:ny*0.82, z:nz};
+  }
+
+  // Compute per-splat normal from position on the head ellipsoid
+  function computeNormal(x,y,z){
+    const len=Math.sqrt(x*x+y*y+z*z)||1;
+    return {x:x/len, y:y/len, z:z/len};
+  }
+
+  // Compute proximity weights to expression groups
+  // Returns: {mouthU, mouthL, eyeUL, eyeUR, eyeLL, eyeLR, browL, browR, jaw}
+  function computeProximity(nx,ny){
+    function groupCenter(indices){
+      let sx=0,sy=0;
+      indices.forEach(i=>{sx+=lm[i].x;sy+=lm[i].y;});
+      return {x:sx/indices.length,y:sy/indices.length};
+    }
+    function weight(cx,cy,sigma){
+      const dx=(nx-cx)/frw, dy=(ny-cy)/frh;
+      return Math.exp(-(dx*dx+dy*dy)/(2*sigma*sigma));
+    }
+    const w={};
+    for(const[name,indices] of Object.entries(EXPR_GROUPS)){
+      const c=groupCenter(indices);
+      w[name]=weight(c.x,c.y, name.includes('mouth')?0.25:0.2);
+    }
+    // Jaw: below mouth center
+    const mbc=groupCenter(EXPR_GROUPS.mouthLower);
+    const jawDist=clamp((ny-mbc.y)/(frh*0.5),0,1);
+    w.jaw=jawDist*jawDist;
+    return w;
+  }
+
+  // ── Build layers ──
+  const layers=[[],[],[],[]]; // L0..L3
+
+  // ── L0: SHAPE — large splats at key structural landmarks ──
+  const structuralLM=[1,10,152,33,263,61,291,13,14,105,334,127,356,93,323,
+    234,454,58,288,172,397,162,389,21,251,54,284,103,332,67,297,109,338,
+    159,386,145,374,
+    468,473]; // pupils
+  for(const idx of structuralLM){
+    if(idx>=lm.length) continue;
+    const p3=lmTo3D(lm[idx],idx);
+    const col=sampleColor(lm[idx].x,lm[idx].y);
+    const n=computeNormal(p3.x,p3.y,p3.z);
+    const prox=computeProximity(lm[idx].x,lm[idx].y);
+    layers[0].push({...p3,r:col[0],g:col[1],b:col[2],
+      nx:n.x,ny:n.y,nz:n.z,
+      size:0.38,opacity:0.9,prox,lod:0});
+  }
+
+  // ── L1: FEATURES — all 468 landmarks ──
+  for(let i=0;i<Math.min(lm.length,468);i++){
+    if(structuralLM.includes(i)) continue; // skip dupes
+    const p3=lmTo3D(lm[i],i);
+    const col=sampleColor(lm[i].x,lm[i].y);
+    const n=computeNormal(p3.x,p3.y,p3.z);
+    const prox=computeProximity(lm[i].x,lm[i].y);
+    layers[1].push({...p3,r:col[0],g:col[1],b:col[2],
+      nx:n.x,ny:n.y,nz:n.z,
+      size:0.20,opacity:0.85,prox,lod:1});
+  }
+
+  // ── L1 extra: eye detail — iris + sclera ──
+  const irisCol=[pal.iris[0]/255,pal.iris[1]/255,pal.iris[2]/255];
+  const scleraCol=[0.92,0.90,0.88];
+  for(const[pupilIdx,outerIdx] of [[468,33],[473,263]]){
+    if(pupilIdx>=lm.length) continue;
+    const pc=lm[pupilIdx];
+    // Ring of sclera
+    for(let a=0;a<8;a++){
+      const ang=a/8*TAU;
+      const r=0.012;
+      const ex=pc.x+Math.cos(ang)*r, ey=pc.y+Math.sin(ang)*r*0.7;
+      const p3=lmTo3D({x:ex,y:ey},pupilIdx);
+      const n=computeNormal(p3.x,p3.y,p3.z);
+      layers[1].push({...p3,r:scleraCol[0],g:scleraCol[1],b:scleraCol[2],
+        nx:n.x,ny:n.y,nz:n.z,size:0.13,opacity:0.92,
+        prox:computeProximity(ex,ey),lod:1});
+    }
+    // Iris center
+    const ip3=lmTo3D(pc,pupilIdx);
+    ip3.z+=0.02; // slightly forward
+    const in_=computeNormal(ip3.x,ip3.y,ip3.z);
+    layers[1].push({...ip3,r:irisCol[0],g:irisCol[1],b:irisCol[2],
+      nx:in_.x,ny:in_.y,nz:in_.z,size:0.11,opacity:0.95,
+      prox:computeProximity(pc.x,pc.y),lod:1});
+    // Pupil
+    const pp3={...ip3,z:ip3.z+0.01};
+    layers[1].push({...pp3,r:0.05,g:0.03,b:0.02,
+      nx:in_.x,ny:in_.y,nz:in_.z,size:0.06,opacity:0.97,
+      prox:computeProximity(pc.x,pc.y),lod:1});
+  }
+
+  // ── L1 extra: lip tint ──
+  const lipCol=[pal.lip[0]/255,pal.lip[1]/255,pal.lip[2]/255];
+  for(const idx of EXPR_GROUPS.mouthUpper.concat(EXPR_GROUPS.mouthLower)){
+    const p3=lmTo3D(lm[idx],idx);
+    p3.z+=0.015;
+    const n=computeNormal(p3.x,p3.y,p3.z);
+    const sc=sampleColor(lm[idx].x,lm[idx].y);
+    // Blend sampled color with lip tint
+    layers[1].push({...p3,
+      r:lerp(sc[0],lipCol[0],0.35),g:lerp(sc[1],lipCol[1],0.35),b:lerp(sc[2],lipCol[2],0.35),
+      nx:n.x,ny:n.y,nz:n.z,size:0.10,opacity:0.8,
+      prox:computeProximity(lm[idx].x,lm[idx].y),lod:1});
+  }
+
+  // ── L2: TEXTURE — dense face grid ──
+  const gridRes=42;
+  for(let gx=0;gx<gridRes;gx++){
+    for(let gy=0;gy<gridRes;gy++){
+      const nx=fcx-frw*1.08+((gx+0.5)/gridRes)*frw*2.16;
+      const ny=fcy-frh*1.12+((gy+0.5)/gridRes)*frh*2.24;
+      const dx_=(nx-fcx)/frw, dy_=(ny-fcy)/frh;
+      const eDist=dx_*dx_+dy_*dy_;
+      if(eDist>1.1) continue;
+      // Jitter for organic feel
+      const jx=nx+(Math.random()-0.5)*frw*0.02;
+      const jy=ny+(Math.random()-0.5)*frh*0.02;
+      // Find nearest landmark for z-depth interpolation
+      let minD=Infinity,nearIdx=0;
+      for(let i=0;i<468;i++){
+        const d=(lm[i].x-jx)**2+(lm[i].y-jy)**2;
+        if(d<minD){minD=d;nearIdx=i;}
+      }
+      const p3=lmTo3D({x:jx,y:jy},nearIdx);
+      const col=sampleColor(jx,jy);
+      const n=computeNormal(p3.x,p3.y,p3.z);
+      const prox=computeProximity(jx,jy);
+      // Edge splats are more transparent
+      const edgeFade=clamp(1.0-eDist*0.7,0.2,1.0);
+      layers[2].push({...p3,r:col[0],g:col[1],b:col[2],
+        nx:n.x,ny:n.y,nz:n.z,
+        size:0.12+Math.random()*0.03,
+        opacity:0.7*edgeFade,prox,lod:2});
+    }
+  }
+
+  // ── L3: HD — even denser detail + hair + neck + shoulders ──
+  // Face HD pass
+  const hdRes=56;
+  for(let gx=0;gx<hdRes;gx++){
+    for(let gy=0;gy<hdRes;gy++){
+      const nx=fcx-frw*1.05+((gx+0.5)/hdRes)*frw*2.1;
+      const ny=fcy-frh*1.08+((gy+0.5)/hdRes)*frh*2.16;
+      const dx_=(nx-fcx)/frw, dy_=(ny-fcy)/frh;
+      const eDist=dx_*dx_+dy_*dy_;
+      if(eDist>1.05) continue;
+      // Only add where L2 didn't cover well — stochastic
+      if(Math.random()>0.45) continue;
+      const jx=nx+(Math.random()-0.5)*frw*0.015;
+      const jy=ny+(Math.random()-0.5)*frh*0.015;
+      let minD=Infinity,nearIdx=0;
+      for(let i=0;i<468;i++){
+        const d=(lm[i].x-jx)**2+(lm[i].y-jy)**2;
+        if(d<minD){minD=d;nearIdx=i;}
+      }
+      const p3=lmTo3D({x:jx,y:jy},nearIdx);
+      const col=sampleColor(jx,jy);
+      const n=computeNormal(p3.x,p3.y,p3.z);
+      layers[3].push({...p3,r:col[0],g:col[1],b:col[2],
+        nx:n.x,ny:n.y,nz:n.z,
+        size:0.08+Math.random()*0.03,
+        opacity:0.55+Math.random()*0.15,
+        prox:computeProximity(jx,jy),lod:3});
+    }
+  }
+
+  // Hair dome
+  const hc=[pal.hair[0]/255,pal.hair[1]/255,pal.hair[2]/255];
+  for(let i=0;i<500;i++){
+    const theta=Math.random()*TAU;
+    const phi=Math.random()*PI*0.52;
+    const r=0.72+Math.random()*0.18;
+    const x=Math.sin(phi)*Math.cos(theta)*r*0.72;
+    const y=Math.cos(phi)*r*0.9+0.12;
+    // Push hair BEHIND head — z always negative or near zero
+    let z=Math.sin(phi)*Math.sin(theta)*r*0.6;
+    z=Math.min(z, -0.05); // force behind face surface
+    if(y<0.05) continue;
+    const hv=0.8+Math.random()*0.4;
+    const n=computeNormal(x,y,z);
+    const lod=i<80?2:3;
+    layers[lod].push({x,y,z,r:hc[0]*hv,g:hc[1]*hv,b:hc[2]*hv,
+      nx:n.x,ny:n.y,nz:n.z,
+      size:lod===2?0.16:0.10+Math.random()*0.04,
+      opacity:0.65+Math.random()*0.3,
+      prox:{mouthUpper:0,mouthLower:0,eyeUpperL:0,eyeUpperR:0,
+            eyeLowerL:0,eyeLowerR:0,browL:0,browR:0,jaw:0},lod});
+  }
 
   // Neck
-  const chinTex=faceMap.all[152];
-  const nkHW=FFW*.38;
-  ctx.save();
-  const nkg=ctx.createLinearGradient(FCX-nkHW*1.2,0,FCX+nkHW*1.2,0);
-  nkg.addColorStop(0,rgba(pal.shadow,.92));
-  nkg.addColorStop(.5,rgba(pal.skin,.85));
-  nkg.addColorStop(1,rgba(pal.shadow,.92));
-  ctx.beginPath();
-  ctx.moveTo(FCX-nkHW,chinTex.y+4);
-  ctx.lineTo(FCX+nkHW,chinTex.y+4);
-  ctx.lineTo(FCX+nkHW*1.6,FTH*.96);
-  ctx.lineTo(FCX-nkHW*1.6,FTH*.96);
-  ctx.closePath();
-  ctx.fillStyle=nkg; ctx.fill();
-  ctx.restore();
-
-  // ── Compute expression-deformed destination positions ──
-  const lm=liveLM;
-  const loxs=FACE_OVAL.map(i=>lm[i].x);
-  const loys=FACE_OVAL.map(i=>lm[i].y);
-  const lcx=(Math.min(...loxs)+Math.max(...loxs))*.5;
-  const lcy=(Math.min(...loys)+Math.max(...loys))*.5;
-  const lrw=(Math.max(...loxs)-Math.min(...loxs))*.5||.001;
-  const lrh=(Math.max(...loys)-Math.min(...loys))*.5||.001;
-
-  const liveTex=new Array(468);
-  for(let i=0;i<468;i++){
-    liveTex[i]={
-      x:FCX+((lm[i].x-lcx)/lrw)*FFW,
-      y:FCY+((lm[i].y-lcy)/lrh)*FFH,
-    };
+  const sc=[pal.skin[0]/255,pal.skin[1]/255,pal.skin[2]/255];
+  for(let i=0;i<80;i++){
+    const a=Math.random()*TAU;
+    const r=0.18+Math.random()*0.1;
+    const y=-0.85-Math.random()*0.4;
+    const sv=0.82+Math.random()*0.2;
+    const x=Math.cos(a)*r, z=Math.sin(a)*r*0.6;
+    const n=computeNormal(x,0,z);
+    layers[3].push({x,y,z,r:sc[0]*sv,g:sc[1]*sv,b:sc[2]*sv,
+      nx:n.x,ny:n.y,nz:n.z,
+      size:0.16,opacity:0.6,
+      prox:{mouthUpper:0,mouthLower:0,eyeUpperL:0,eyeUpperR:0,
+            eyeLowerL:0,eyeLowerR:0,browL:0,browR:0,jaw:0},lod:3});
   }
 
-  // ── Pass 1: warp ALL triangles from neutral snapshot ──
-  for(let t=0;t<faceTris.length;t++){
-    const[i0,i1,i2]=faceTris[t];
-    warpTriangle(ctx, snapshotCanvas,
-      calibSourcePts[i0], calibSourcePts[i1], calibSourcePts[i2],
-      liveTex[i0], liveTex[i1], liveTex[i2]
-    );
+  // Shoulders — large, soft, very low importance
+  for(let i=0;i<50;i++){
+    const side=i<25?-1:1;
+    const sx=side*(0.4+Math.random()*0.55);
+    const sy=-1.2-Math.random()*0.35;
+    const sz=-0.1+Math.random()*0.15;
+    const sv=0.75+Math.random()*0.15;
+    const n=computeNormal(sx,0,0.5);
+    layers[3].push({x:sx,y:sy,z:sz,
+      r:sc[0]*sv*0.7,g:sc[1]*sv*0.7,b:sc[2]*sv*0.7,
+      nx:n.x,ny:n.y,nz:n.z,
+      size:0.25+Math.random()*0.12,opacity:0.4,
+      prox:{mouthUpper:0,mouthLower:0,eyeUpperL:0,eyeUpperR:0,
+            eyeLowerL:0,eyeLowerR:0,browL:0,browR:0,jaw:0},lod:3});
   }
 
-  // ── Pass 2: overlay mouth-region triangles from open-mouth snapshot ──
-  // Blend factor = mouthOpen (from expression tracking) × per-triangle mouth weight.
-  // When mouth is closed: alpha≈0, neutral snapshot shows through.
-  // When mouth is open: alpha→1, open-mouth snapshot (with teeth) shows.
-  const mo=vibe.mouthOpen||0;
-  const hasOpen=snapshotOpen&&calibSourceOpen&&mouthTriMask;
-  if(hasOpen&&mo>0.005){
-    // Normalize mouthOpen (range 0..0.12) to blend factor (0..1)
-    const blendBase=clamp(mo/0.06, 0, 1);
+  // ── Flatten layers into single sorted array ──
+  const all=[];
+  lodBounds[0]=layers[0].length;
+  lodBounds[1]=lodBounds[0]+layers[1].length;
+  lodBounds[2]=lodBounds[1]+layers[2].length;
+  for(const layer of layers) all.push(...layer);
+  lodBounds[3]=all.length;
 
-    for(let t=0;t<faceTris.length;t++){
-      const mw=mouthTriMask[t];
-      if(mw<0.01) continue; // not a mouth triangle
-      const alpha=clamp(blendBase*mw, 0, 1);
-      if(alpha<0.02) continue;
+  // Pack into typed arrays
+  const n_=all.length;
+  const cloud={
+    count:n_,
+    basePositions:new Float32Array(n_*3),
+    positions:new Float32Array(n_*3),
+    colors:new Float32Array(n_*3),
+    normals:new Float32Array(n_*3),
+    sizes:new Float32Array(n_),
+    opacities:new Float32Array(n_),
+    // Proximity weights — packed per splat (9 floats per splat is expensive, use 4 key ones)
+    proxMouthU:new Float32Array(n_),
+    proxMouthL:new Float32Array(n_),
+    proxEyeU:new Float32Array(n_),   // max of L and R
+    proxBrow:new Float32Array(n_),    // max of L and R
+    proxJaw:new Float32Array(n_),
+  };
 
-      const[i0,i1,i2]=faceTris[t];
-      ctx.save();
-      ctx.globalAlpha=alpha;
-      warpTriangle(ctx, snapshotOpen,
-        calibSourceOpen[i0], calibSourceOpen[i1], calibSourceOpen[i2],
-        liveTex[i0], liveTex[i1], liveTex[i2]
-      );
-      ctx.restore();
+  for(let i=0;i<n_;i++){
+    const s=all[i];
+    cloud.basePositions[i*3]=s.x;
+    cloud.basePositions[i*3+1]=s.y;
+    cloud.basePositions[i*3+2]=s.z;
+    cloud.positions[i*3]=s.x;
+    cloud.positions[i*3+1]=s.y;
+    cloud.positions[i*3+2]=s.z;
+    cloud.colors[i*3]=s.r;
+    cloud.colors[i*3+1]=s.g;
+    cloud.colors[i*3+2]=s.b;
+    cloud.normals[i*3]=s.nx;
+    cloud.normals[i*3+1]=s.ny;
+    cloud.normals[i*3+2]=s.nz;
+    cloud.sizes[i]=s.size;
+    cloud.opacities[i]=s.opacity;
+    cloud.proxMouthU[i]=s.prox.mouthUpper||0;
+    cloud.proxMouthL[i]=s.prox.mouthLower||0;
+    cloud.proxEyeU[i]=Math.max(s.prox.eyeUpperL||0,s.prox.eyeUpperR||0);
+    cloud.proxBrow[i]=Math.max(s.prox.browL||0,s.prox.browR||0);
+    cloud.proxJaw[i]=s.prox.jaw||0;
+  }
+
+  birthTimes=new Float32Array(n_); // all zero — will be set during reveal
+
+  return cloud;
+}
+
+// ══════════════════════════════════════════════════
+//  PROXIMITY-WEIGHTED EXPRESSION DEFORMATION
+//  Each splat is influenced by ALL expression groups
+//  weighted by its proximity — no hard region boundaries
+// ══════════════════════════════════════════════════
+function deformSplats(){
+  if(!splatCloud) return;
+  const c=splatCloud;
+  const mo=vibe.mouthOpen;
+  const mc=vibe.mouthCurve;
+  const bl=vibe.browLift;
+  const eo=vibe.eyeOpen;
+
+  for(let i=0;i<splatRevealed;i++){
+    const bx=c.basePositions[i*3];
+    const by=c.basePositions[i*3+1];
+    const bz=c.basePositions[i*3+2];
+
+    // Proximity-weighted continuous deformation
+    const pmu=c.proxMouthU[i];
+    const pml=c.proxMouthL[i];
+    const peu=c.proxEyeU[i];
+    const pbr=c.proxBrow[i];
+    const pjw=c.proxJaw[i];
+
+    let dx=0, dy=0, dz=0;
+
+    // Mouth open: upper lip up slightly, lower jaw drops strongly
+    dy += pmu * mo * 0.8;    // upper lip lifts
+    dy -= pml * mo * 2.5;    // lower jaw drops — big movement
+    dy -= pjw * mo * 1.5;    // jaw drags down
+
+    // Smile: corners lift, slight cheek puff
+    const side=bx>0?1:-1;
+    dy += (pmu+pml)*0.5 * mc * 0.4;  // corners lift
+    dx += (pmu+pml)*0.5 * mc * 0.08 * side; // widen
+
+    // Brow lift
+    dy += pbr * bl * 1.5;
+
+    // Eye open/close — subtle upper lid
+    dy += peu * (eo-1.0) * 0.3;
+
+    // Mouth open: slight forward push (jaw protrudes)
+    dz -= pml * mo * 0.3;
+
+    c.positions[i*3]=bx+dx;
+    c.positions[i*3+1]=by+dy;
+    c.positions[i*3+2]=bz+dz;
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  PROGRESSIVE REVEAL — 4 LOD phases
+// ══════════════════════════════════════════════════
+let revealPhase=0;
+let revealIdx=0;
+
+function startProgressiveReveal(){
+  if(revealTimer) clearInterval(revealTimer);
+  const now=performance.now();
+  revealPhase=0;
+  revealIdx=0;
+
+  // L0: instant
+  splatRevealed=lodBounds[0];
+  for(let i=0;i<splatRevealed;i++) birthTimes[i]=now;
+  updateSplatGeometry();
+  updateLODUI();
+
+  // Progressive timer for L1, L2, L3
+  revealTimer=setInterval(()=>{
+    const t=performance.now();
+    const batchSize=revealPhase<2?40:80;
+    const end=lodBounds[Math.min(revealPhase+1,3)];
+
+    if(splatRevealed<end){
+      const next=Math.min(splatRevealed+batchSize,end);
+      for(let i=splatRevealed;i<next;i++) birthTimes[i]=t;
+      splatRevealed=next;
     }
-  }
 
-  // Edge feathering — blend face boundary into hair
-  const fm=faceMap.all;
-  const ov=FACE_OVAL.map(i=>fm[i]);
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(ov[0].x,ov[0].y);
-  ov.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.closePath();
-  ctx.clip();
-  const vig=ctx.createRadialGradient(FCX,FCY,FFW*.62,FCX,FCY,FFW*1.12);
-  vig.addColorStop(0,'rgba(0,0,0,0)');
-  vig.addColorStop(1,rgba(pal.hair,.50));
-  ctx.fillStyle=vig;
-  ctx.fillRect(0,0,FTW,FTH);
-  ctx.restore();
-
-  // Hairline blend
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(ov[0].x,ov[0].y);
-  ov.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.closePath();
-  ctx.clip();
-  const hlg=ctx.createLinearGradient(0,fm[10].y-8,0,fm[10].y+FFH*.22);
-  hlg.addColorStop(0,rgba(pal.hair,.80));
-  hlg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=hlg;
-  ctx.fillRect(0,fm[10].y-12,FTW,FFH*.30);
-  ctx.restore();
-}
-
-function drawFaceDefault(){
-  const ctx=ftCtx;
-  const hg=ctx.createRadialGradient(FCX,FCY-FFH*.5,FFW*.04,FCX,FCY,FFW*1.4);
-  hg.addColorStop(0,rgba(bright(pal.hair,1.1),1));
-  hg.addColorStop(1,rgba(dim(pal.hair,.4),1));
-  ctx.fillStyle=hg; ctx.fillRect(0,0,FTW,FTH);
-  ctx.beginPath(); ctx.ellipse(FCX,FCY,FFW,FFH,0,0,Math.PI*2);
-  ctx.fillStyle=rgba(pal.skin,.6); ctx.fill();
-}
-
-// ══════════════════════════════════════════════════
-//  CHUCK CLOSE POST-PROCESS
-// ══════════════════════════════════════════════════
-const display=document.getElementById('display');
-const dCtx=display.getContext('2d');
-let glPixels=new Uint8Array(W*H*4);
-
-function readGLPixels(){
-  gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,glPixels);
-}
-
-function getPixel(x,y){
-  const xi=Math.max(0,Math.min(W-1,x|0));
-  const yi=Math.max(0,Math.min(H-1,y|0));
-  const fy=H-1-yi;
-  const i=(fy*W+xi)*4;
-  if(glPixels[i+3]<15) return null;
-  return[glPixels[i],glPixels[i+1],glPixels[i+2]];
-}
-
-function drawCCMark(cx,cy,sz,c0,c1,c2,seed){
-  const h=sz*.5;
-  const r0=rand(seed),r1=rand(seed+5.13),r2=rand(seed+11.37);
-  const pat=Math.floor(r0*4);
-  const cs0=rgb(c0),cs1=rgb(c1),cs2=rgb(c2);
-  dCtx.save(); dCtx.translate(cx,cy);
-  dCtx.beginPath(); dCtx.rect(-h,-h,sz,sz); dCtx.clip();
-  switch(pat){
-    case 0:{
-      const jx=(r1-.5)*sz*.28,jy=(r2-.5)*sz*.28;
-      dCtx.fillStyle=cs0; dCtx.fillRect(-h,-h,sz,sz);
-      dCtx.beginPath(); dCtx.arc(jx,jy,h*.74,0,Math.PI*2); dCtx.fillStyle=cs1; dCtx.fill();
-      dCtx.beginPath(); dCtx.arc(jx*.32,jy*.32,h*.40,0,Math.PI*2); dCtx.fillStyle=cs2; dCtx.fill();
-      dCtx.beginPath(); dCtx.arc(0,0,h*.15,0,Math.PI*2); dCtx.fillStyle=cs0; dCtx.fill();
-      break;}
-    case 1:{
-      dCtx.rotate((r1-.5)*.44);
-      dCtx.fillStyle=cs0; dCtx.fillRect(-h,-h,h,h);
-      dCtx.fillStyle=cs1; dCtx.fillRect(0,-h,h,h);
-      dCtx.fillStyle=cs2; dCtx.fillRect(-h,0,h,h);
-      dCtx.fillStyle=cs1; dCtx.fillRect(0,0,h,h);
-      dCtx.beginPath(); dCtx.arc(0,0,h*.50,0,Math.PI*2); dCtx.fillStyle=cs2; dCtx.fill();
-      break;}
-    case 2:{
-      dCtx.rotate((r1-.5)*.88);
-      for(let i=0;i<4;i++){
-        const a=i*Math.PI*.5;
-        dCtx.beginPath(); dCtx.moveTo(0,0); dCtx.arc(0,0,h*1.5,a,a+Math.PI*.5); dCtx.closePath();
-        dCtx.fillStyle=i%2===0?cs0:cs1; dCtx.fill();
+    if(splatRevealed>=end){
+      revealPhase++;
+      if(revealPhase>=3&&splatRevealed>=splatTotal){
+        clearInterval(revealTimer);
+        revealTimer=null;
       }
-      dCtx.beginPath(); dCtx.arc(0,0,h*.44,0,Math.PI*2); dCtx.fillStyle=cs2; dCtx.fill();
-      break;}
-    case 3:{
-      dCtx.fillStyle=cs0; dCtx.fillRect(-h,-h,sz,sz);
-      dCtx.beginPath();
-      dCtx.moveTo(0,-h*.78); dCtx.lineTo(h*.78,0); dCtx.lineTo(0,h*.78); dCtx.lineTo(-h*.78,0);
-      dCtx.closePath(); dCtx.fillStyle=cs1; dCtx.fill();
-      dCtx.beginPath(); dCtx.arc(0,0,h*.38,0,Math.PI*2); dCtx.fillStyle=cs2; dCtx.fill();
-      break;}
-  }
-  dCtx.restore();
-}
-
-function applyChuckClose(){
-  const{cs,gap,label}=TIERS[tierIdx];
-  const step=cs+gap;
-  dCtx.fillStyle='#0c0b09'; dCtx.fillRect(0,0,W,H);
-  let cells=0;
-  const offsets=[[0,0],[cs*.30,0],[0,cs*.28],[-cs*.22,cs*.24]];
-  for(let cx=step*.5;cx<W;cx+=step){
-    for(let cy=step*.5;cy<H;cy+=step){
-      const c0=getPixel(cx,cy); if(!c0)continue;
-      const c1=getPixel(cx+offsets[1][0],cy+offsets[1][1])||c0;
-      const c2=getPixel(cx+offsets[2][0],cy+offsets[2][1])||c0;
-      drawCCMark(cx,cy,cs,c0,c1,c2,Math.round(cx*997+cy*11));
-      cells++;
     }
+
+    updateLODUI();
+  },60);
+}
+
+function updateLODUI(){
+  for(let i=0;i<4;i++){
+    const start=i===0?0:lodBounds[i-1];
+    const end=lodBounds[i];
+    const total=end-start;
+    const revealed=clamp(splatRevealed-start,0,total);
+    const pct=total>0?(revealed/total*100):0;
+    document.getElementById('lod'+i).style.width=pct+'%';
   }
-  document.getElementById('sTier').textContent=label;
-  document.getElementById('sCells').textContent=`${cells} cells`;
+  const pct=splatTotal>0?(splatRevealed/splatTotal*100):0;
+  document.getElementById('progFill').style.width=pct+'%';
+  document.getElementById('progCount').textContent=splatRevealed+' splats';
+  document.getElementById('progKB').textContent=((splatRevealed*28)/1024).toFixed(1)+' KB';
+  document.getElementById('sSplats').textContent=splatRevealed+' / '+splatTotal;
+  document.getElementById('sBytes').textContent=((splatRevealed*28)/1024).toFixed(1)+' KB';
+}
+
+function updateSplatGeometry(){
+  if(!splatMesh||!splatCloud) return;
+  const geo=splatMesh.geometry;
+  const n=splatRevealed;
+  const now=performance.now();
+
+  geo.getAttribute('position').array.set(splatCloud.positions.subarray(0,n*3));
+  geo.getAttribute('position').needsUpdate=true;
+
+  geo.getAttribute('splatColor').array.set(splatCloud.colors.subarray(0,n*3));
+  geo.getAttribute('splatColor').needsUpdate=true;
+
+  geo.getAttribute('splatNormal').array.set(splatCloud.normals.subarray(0,n*3));
+  geo.getAttribute('splatNormal').needsUpdate=true;
+
+  geo.getAttribute('size').array.set(splatCloud.sizes.subarray(0,n));
+  geo.getAttribute('size').needsUpdate=true;
+
+  geo.getAttribute('opacity').array.set(splatCloud.opacities.subarray(0,n));
+  geo.getAttribute('opacity').needsUpdate=true;
+
+  // Compute birth fade progress
+  const birthAttr=geo.getAttribute('birth');
+  for(let i=0;i<n;i++){
+    birthAttr.array[i]=clamp((now-birthTimes[i])/FADE_DUR,0,1);
+  }
+  birthAttr.needsUpdate=true;
+
+  geo.setDrawRange(0,n);
 }
 
 // ══════════════════════════════════════════════════
-//  HEAD POSE — 2D GEOMETRIC, MIRRORED
-//  Yaw sign flipped so avatar mirrors user (turn left → avatar turns left).
-//  Dead zones suppress micro-jitter near neutral.
-//  Reduced gain + clamped range for stable, natural movement.
+//  POSE & EXPRESSION EXTRACTION
 // ══════════════════════════════════════════════════
-function deadZone(v, threshold){
-  if(Math.abs(v)<threshold) return 0;
-  const sign=v>0?1:-1;
-  return sign*(Math.abs(v)-threshold)/(1-threshold);
+function deadZone(v,t){
+  if(Math.abs(v)<t) return 0;
+  const s=v>0?1:-1;
+  return s*(Math.abs(v)-t)/(1-t);
 }
 
 function extractPose(lm){
-  const nose=lm[LM.NOSE];
-  const lEy=lm[LM.L_EYE_OUT], rEy=lm[LM.R_EYE_OUT];
-  const chin=lm[LM.CHIN];
-
-  // ── YAW (mirrored: sign flipped for mirror-image behavior) ──
+  const nose=lm[LM.NOSE],lEy=lm[LM.L_EYE_OUT],rEy=lm[LM.R_EYE_OUT],chin=lm[LM.CHIN];
   const eyeMidX=(lEy.x+rEy.x)*.5;
   const eyeSpan=Math.abs(rEy.x-lEy.x);
-  const rawYaw=eyeSpan>.01?(nose.x-eyeMidX)/eyeSpan:0;  // positive sign = mirror
-  const yawCalib=rawYaw-poseBaseline.yawOffset;
-  const yaw=deadZone(yawCalib,0.03)*Math.PI*0.72;
-
-  // ── PITCH ──
+  const rawYaw=eyeSpan>.01?(nose.x-eyeMidX)/eyeSpan:0;
+  const yaw=deadZone(rawYaw-poseBaseline.yawOffset,0.03)*PI*0.72;
   const eyeMidY=(lEy.y+rEy.y)*.5;
   const faceH=chin.y-eyeMidY;
   const noseRatio=faceH>.01?(nose.y-eyeMidY)/faceH:0.55;
-  const pitchDelta=noseRatio-poseBaseline.noseRatio;
-  const pitch=deadZone(pitchDelta,0.012)*Math.PI*1.2;
-
-  // ── ROLL ──
-  const dx=rEy.x-lEy.x, dy=rEy.y-lEy.y;
-  const rawRoll=-Math.atan2(dy,dx);
-  const roll=deadZone(rawRoll,0.015)*0.65;
-
-  // Clamp all axes to reasonable range
-  return{
-    yaw:  clamp(yaw,  -0.9, 0.9),
-    pitch:clamp(pitch,-0.65,0.65),
-    roll: clamp(roll, -0.4, 0.4),
-  };
+  const pitch=deadZone(noseRatio-poseBaseline.noseRatio,0.012)*PI*1.2;
+  const dx_=rEy.x-lEy.x, dy_=rEy.y-lEy.y;
+  const roll=deadZone(-Math.atan2(dy_,dx_),0.015)*0.65;
+  return{yaw:clamp(yaw,-0.9,0.9),pitch:clamp(pitch,-0.65,0.65),roll:clamp(roll,-0.4,0.4)};
 }
 
-// ══════════════════════════════════════════════════
-//  EXPRESSION EXTRACTION
-// ══════════════════════════════════════════════════
 function extractVibe(lm){
-  const fH=dist2(lm[LM.TOP],lm[LM.CHIN]);
+  const fH=Math.sqrt((lm[LM.TOP].x-lm[LM.CHIN].x)**2+(lm[LM.TOP].y-lm[LM.CHIN].y)**2);
   if(fH<.01) return null;
-  const mO=dist2(lm[LM.MOUTH_T],lm[LM.MOUTH_B])/fH;
+  const mO=Math.sqrt((lm[LM.MOUTH_T].x-lm[LM.MOUTH_B].x)**2+(lm[LM.MOUTH_T].y-lm[LM.MOUTH_B].y)**2)/fH;
   const cornerY=(lm[LM.MOUTH_L].y+lm[LM.MOUTH_R].y)*.5;
   const centerY=(lm[LM.MOUTH_T].y+lm[LM.MOUTH_B].y)*.5;
   const mC=clamp((centerY-cornerY)/(fH*.055),-1,1);
@@ -846,15 +886,11 @@ function extractVibe(lm){
   const eyeTopY=(lm[LM.L_EYE_T].y+lm[LM.R_EYE_T].y)*.5;
   const bd=eyeTopY-browY;
   let bl=0;
-  if(browBaseline!==null) bl=clamp((bd-browBaseline)/(fH*.16)*.058,-0.055,0.075);
+  if(browBaseline!==null) bl=clamp((bd-browBaseline)/(fH*.16)*.058,-0.06,0.08);
   const lEH=Math.abs(lm[LM.L_EYE_T].y-lm[LM.L_EYE_B].y);
   const rEH=Math.abs(lm[LM.R_EYE_T].y-lm[LM.R_EYE_B].y);
   const eo=clamp((lEH+rEH)/(fH*.095),0,1.35);
-  const ca=clamp(mC*.26+.06,.02,.36);
-  return{
-    mouthOpen:clamp(mO*1.85-.04,0,.12),
-    mouthCurve:mC, browLift:bl, eyeOpen:eo, cheekAmt:ca,
-  };
+  return{mouthOpen:clamp(mO*1.85-.04,0,.12),mouthCurve:mC,browLift:bl,eyeOpen:eo};
 }
 
 // ══════════════════════════════════════════════════
@@ -867,7 +903,7 @@ const vid=document.getElementById('vid');
 function sampleAt(x,y,r=5){
   const px=clamp(Math.round(x*VW)-r,0,VW-1);
   const py=clamp(Math.round(y*VH)-r,0,VH-1);
-  const pw=Math.min(r*2+1,VW-px), ph=Math.min(r*2+1,VH-py);
+  const pw=Math.min(r*2+1,VW-px),ph=Math.min(r*2+1,VH-py);
   if(pw<=0||ph<=0) return null;
   try{
     const d=sampCtx.getImageData(px,py,pw,ph).data;
@@ -877,161 +913,50 @@ function sampleAt(x,y,r=5){
   }catch{return null;}
 }
 
-function accPush(acc,v){if(!v)return;acc[0].push(v[0]);acc[1].push(v[1]);acc[2].push(v[2]);}
-function accMean(acc){
-  if(!acc[0].length) return null;
-  const m=ch=>ch.reduce((s,v)=>s+v,0)/ch.length;
-  return[m(acc[0]),m(acc[1]),m(acc[2])];
-}
-
 function accumulateLM(lm){
-  if(!calibLM){
-    calibLM=lm.map(p=>({x:p.x,y:p.y,z:p.z||0}));
-  }else{
-    lm.forEach((p,i)=>{
-      calibLM[i].x=calibLM[i].x*.82+p.x*.18;
-      calibLM[i].y=calibLM[i].y*.82+p.y*.18;
-    });
-  }
-}
-
-function buildPalette(){
-  let skin=accMean(calibColors.skin)||pal.skin;
-  const hair=accMean(calibColors.hair)||pal.hair;
-  const iris=accMean(calibColors.iris)||pal.iris;
-  const lip=accMean(calibColors.lip)||pal.lip;
-  const brow=accMean(calibColors.brow)||pal.brow;
-
-  const skinMax=Math.max(...skin), skinMin=Math.min(...skin);
-  const skinSat=(skinMax-skinMin)/Math.max(1,skinMax);
-  if(skinSat<0.08){
-    const lum=(skin[0]+skin[1]+skin[2])/3;
-    skin=[clamp(lum*1.14+10,0,255),clamp(lum*.95,0,255),clamp(lum*.87,0,255)];
-  }
-  const shadow=[clamp(skin[0]*.56-4,0,255),clamp(skin[1]*.48-6,0,255),clamp(skin[2]*.44-6,0,255)];
-  const highlight=[clamp(skin[0]*1.26+22,0,255),clamp(skin[1]*1.22+18,0,255),clamp(skin[2]*1.20+14,0,255)];
-  const cheek=[clamp(skin[0]+20,0,255),clamp(skin[1]-5,0,255),clamp(skin[2]-8,0,255)];
-  const lipAdj=[clamp(skin[0]*.96+8,0,255),clamp(skin[1]*.80,0,255),clamp(skin[2]*.76,0,255)];
-
-  pal={skin,shadow,highlight,cheek,lip:lipAdj,iris,brow,hair};
-  updateSwatches();
-
-  // Build face map
-  if(calibLM) faceMap=buildFaceMap(calibLM);
-
-  // Compute Delaunay triangulation (first 468 landmarks only — no iris overlap)
-  if(calibLM){
-    const pts=calibLM.slice(0,468).map((p,i)=>({
-      x:p.x+((i*7919)%100-50)*1e-8,
-      y:p.y+((i*6271)%100-50)*1e-8,
-    }));
-    faceTris=delaunay(pts);
-    // Remove spurious hull triangles (too large = outside face region)
-    const maxArea=0.003;
-    faceTris=faceTris.filter(([a,b,c])=>{
-      const pa=calibLM[a],pb=calibLM[b],pc=calibLM[c];
-      return Math.abs((pb.x-pa.x)*(pc.y-pa.y)-(pc.x-pa.x)*(pb.y-pa.y))*.5<maxArea;
-    });
-    console.log(`Delaunay: ${faceTris.length} triangles from 468 landmarks`);
-  }
-
-  // ─── SNAPSHOT CAPTURE (Phase 1: neutral face) ───
-  if(calibLM){
-    snapshotCanvas=document.createElement('canvas');
-    snapshotCanvas.width=VW; snapshotCanvas.height=VH;
-    const snapCtx=snapshotCanvas.getContext('2d');
-    snapCtx.drawImage(vid,0,0,VW,VH);
-
-    // Store calibration landmarks in snapshot pixel coords (source for warp)
-    calibSourcePts=calibLM.slice(0,468).map(p=>({x:p.x*VW, y:p.y*VH}));
-    console.log('Neutral snapshot captured');
-  }
-
-  // Calibrate pose baselines from neutral-pose landmarks
-  if(calibLM){
-    const nose=calibLM[LM.NOSE];
-    const lEy=calibLM[LM.L_EYE_OUT], rEy=calibLM[LM.R_EYE_OUT];
-    const chin=calibLM[LM.CHIN];
-    const eyeMidX=(lEy.x+rEy.x)*.5;
-    const eyeSpan=Math.abs(rEy.x-lEy.x);
-    poseBaseline.yawOffset=eyeSpan>.01?(nose.x-eyeMidX)/eyeSpan:0;
-    const eyeMidY=(lEy.y+rEy.y)*.5;
-    poseBaseline.noseRatio=(chin.y-eyeMidY)>.01?(nose.y-eyeMidY)/(chin.y-eyeMidY):0.55;
-    console.log(`Pose baseline: noseRatio=${poseBaseline.noseRatio.toFixed(3)}, yawOffset=${poseBaseline.yawOffset.toFixed(4)}`);
-  }
-}
-
-function updateSwatches(){
-  [['skin','sw_skin','sh_skin'],['hair','sw_hair','sh_hair'],['iris','sw_iris','sh_iris'],['lip','sw_lip','sh_lip']]
-  .forEach(([k,sw,sh])=>{
-    document.getElementById(sw).style.background=rgb(pal[k]);
-    document.getElementById(sh).textContent=toHex(pal[k]);
+  if(!calibLM) calibLM=lm.map(p=>({x:p.x,y:p.y,z:p.z||0}));
+  else lm.forEach((p,i)=>{
+    calibLM[i].x=calibLM[i].x*.82+p.x*.18;
+    calibLM[i].y=calibLM[i].y*.82+p.y*.18;
+    calibLM[i].z=(calibLM[i].z||0)*.82+(p.z||0)*.18;
   });
 }
 
 // ══════════════════════════════════════════════════
-//  CAPTURE OPEN-MOUTH SNAPSHOT (end of phase 2)
-//  Captures the mouth-open frame and computes per-triangle
-//  mouth proximity weights for blending.
+//  CALIBRATION → BUILD
 // ══════════════════════════════════════════════════
-function captureOpenMouth(){
-  if(!calibLMOpen||!faceTris||!calibLM) return;
+function finishCalibration(){
+  if(!calibLM) return;
+  snapshotCanvas=document.createElement('canvas');
+  snapshotCanvas.width=VW;snapshotCanvas.height=VH;
+  snapshotCanvas.getContext('2d').drawImage(vid,0,0,VW,VH);
 
-  // Capture open-mouth frame
-  snapshotOpen=document.createElement('canvas');
-  snapshotOpen.width=VW; snapshotOpen.height=VH;
-  const snapCtx=snapshotOpen.getContext('2d');
-  snapCtx.drawImage(vid,0,0,VW,VH);
+  const nose=calibLM[LM.NOSE],lEy=calibLM[LM.L_EYE_OUT],rEy=calibLM[LM.R_EYE_OUT],chin=calibLM[LM.CHIN];
+  const eyeSpan=Math.abs(rEy.x-lEy.x);
+  poseBaseline.yawOffset=eyeSpan>.01?(nose.x-(lEy.x+rEy.x)*.5)/eyeSpan:0;
+  const eyeMidY=(lEy.y+rEy.y)*.5;
+  poseBaseline.noseRatio=(chin.y-eyeMidY)>.01?(nose.y-eyeMidY)/(chin.y-eyeMidY):0.55;
 
-  // Store open-mouth landmarks in pixel coords
-  calibSourceOpen=calibLMOpen.slice(0,468).map(p=>({x:p.x*VW, y:p.y*VH}));
+  // Sample lip color
+  const lipS=sampleAt(calibLM[LM.MOUTH_T].x,calibLM[LM.MOUTH_T].y,4);
+  if(lipS) pal.lip=pal.lip.map((v,i)=>v*.7+lipS[i]*.3);
 
-  // ── Compute per-triangle mouth proximity mask ──
-  // For each triangle, compute how "mouth-region" it is (0..1).
-  // Uses distance from triangle centroid to the mouth center,
-  // plus a bonus if any vertex is a known mouth landmark.
-  const mouthCen={
-    x:(calibLM[13].x+calibLM[14].x)*.5,
-    y:(calibLM[13].y+calibLM[14].y)*.5,
-  };
-  // Mouth radius: approximate from lip corner distance
-  const mouthR=Math.abs(calibLM[291].x-calibLM[61].x)*.8;
+  splatCloud=buildSplatCloud(calibLM,snapshotCanvas);
+  splatTotal=splatCloud.count;
+  splatRevealed=0;
+  initSplatRenderer(splatTotal);
+  updateSwatches();
+  startProgressiveReveal();
+  console.log(`Built ${splatTotal} Gaussians across 4 LOD layers: ${lodBounds.join(', ')}`);
+}
 
-  mouthTriMask=new Float32Array(faceTris.length);
-  for(let t=0;t<faceTris.length;t++){
-    const[i0,i1,i2]=faceTris[t];
-    const cx=(calibLM[i0].x+calibLM[i1].x+calibLM[i2].x)/3;
-    const cy=(calibLM[i0].y+calibLM[i1].y+calibLM[i2].y)/3;
-    const d=Math.sqrt((cx-mouthCen.x)**2+(cy-mouthCen.y)**2);
-
-    // Distance-based weight: 1.0 at center, fades to 0 at mouthR
-    let w=clamp(1.0-d/mouthR, 0, 1);
-
-    // Boost if any vertex is a known mouth landmark
-    if(MOUTH_REGION_IDX.has(i0)||MOUTH_REGION_IDX.has(i1)||MOUTH_REGION_IDX.has(i2)){
-      w=Math.max(w, 0.7);
-    }
-
-    // Smooth falloff
-    mouthTriMask[t]=w*w;  // quadratic falloff for softer blend edge
-  }
-
-  // Update identity payload size (now includes both snapshots)
-  snapshotOpen.toBlob(openBlob=>{
-    if(!openBlob) return;
-    snapshotCanvas.toBlob(neutralBlob=>{
-      if(!neutralBlob) return;
-      const triBytes=faceTris.length*3*2;
-      const lmBytes=468*2*2*2;  // two sets of landmarks
-      const palBytes=5*3;
-      const total=neutralBlob.size+openBlob.size+triBytes+lmBytes+palBytes;
-      const totalKB=(total/1024).toFixed(1);
-      document.getElementById('idSize').textContent=totalKB+'KB';
-      console.log(`Identity payload: neutral=${(neutralBlob.size/1024).toFixed(1)}KB, open=${(openBlob.size/1024).toFixed(1)}KB, meta=${((triBytes+lmBytes+palBytes)/1024).toFixed(1)}KB, total=${totalKB}KB`);
-    },'image/jpeg',0.85);
-  },'image/jpeg',0.85);
-
-  console.log(`Mouth mask: ${mouthTriMask.filter(w=>w>0.01).length} mouth triangles of ${faceTris.length} total`);
+function updateSwatches(){
+  [['skin','sw_skin','sh_skin'],['hair','sw_hair','sh_hair'],
+   ['iris','sw_iris','sh_iris'],['lip','sw_lip','sh_lip']]
+  .forEach(([k,sw,sh])=>{
+    document.getElementById(sw).style.background=rgb(pal[k]);
+    document.getElementById(sh).textContent=toHex(pal[k]);
+  });
 }
 
 // ══════════════════════════════════════════════════
@@ -1045,59 +970,33 @@ function setPhase(p){
   const ct=document.getElementById('calibTrack');
   const btn=document.getElementById('startBtn');
   const badge=document.getElementById('pipBadge');
-  const pdot=document.getElementById('pdot');
   document.getElementById('sPhase').textContent=p.charAt(0).toUpperCase()+p.slice(1);
   btn.style.display=(p==='waiting')?'':'none';
 
   if(p==='waiting'){
     ov.classList.remove('gone');
-    ot.textContent='Vibe Protocol';
-    os.textContent='Camera access needed\nto build your avatar';
-    ct.style.display='none';
-    badge.className='pip-badge searching'; badge.textContent='Waiting';
-    pdot.className='pdot';
+    ot.textContent='Vibe Protocol';os.textContent='Camera access needed\nto build your avatar';
+    ct.style.display='none';badge.className='pip-badge searching';badge.textContent='Waiting';
   }else if(p==='searching'){
     ov.classList.remove('gone');
-    ot.textContent='No Face Detected';
-    os.textContent='Position your face\nin the camera view';
-    ct.style.display='none';
-    badge.className='pip-badge searching'; badge.textContent='Searching';
-    pdot.className='pdot';
+    ot.textContent='Searching';os.textContent='Position your face\nin the camera view';
+    ct.style.display='none';badge.className='pip-badge searching';badge.textContent='Searching';
   }else if(p==='calibrating'){
     ov.classList.remove('gone');
-    ot.textContent='Calibrating';
-    os.textContent='Sampling your likeness\nskin · hair · eyes · lips\nSpeak naturally — calibrating voice\nHold still — look straight ahead';
-    ct.style.display='block';
-    badge.className='pip-badge calibrating'; badge.textContent='Calibrating';
-    pdot.className='pdot';
+    ot.textContent='Calibrating';os.textContent='Sampling your likeness\nHold still — look ahead';
+    ct.style.display='block';badge.className='pip-badge calibrating';badge.textContent='Calibrating';
   }else if(p==='live'){
     ov.classList.add('gone');
-    badge.className='pip-badge live'; badge.textContent='Tracking';
-    pdot.className='pdot on';
-  }else if(p==='error'){
-    ov.classList.remove('gone');
-    badge.className='pip-badge searching'; badge.textContent='Error';
-    pdot.className='pdot';
+    badge.className='pip-badge live';badge.textContent='Tracking';
+    document.getElementById('pdot').className='pdot on';
   }
 }
 
 function startCalib(){
-  calibCount=0;
-  calibColors={skin:[[],[],[]], hair:[[],[],[]], iris:[[],[],[]], lip:[[],[],[]], brow:[[],[],[]]};
-  browBaseline=null;
-  calibLM=null;
-  faceMap=null;
-  faceTris=null;
-  liveLM=null;
-  snapshotCanvas=null;
-  calibSourcePts=null;
-  snapshotSize=0;
-  snapshotOpen=null;
-  calibSourceOpen=null;
-  calibLMOpen=null;
-  mouthTriMask=null;
+  calibCount=0;calibLM=null;browBaseline=null;
+  splatCloud=null;splatRevealed=0;splatTotal=0;
+  if(revealTimer){clearInterval(revealTimer);revealTimer=null;}
   poseBaseline={noseRatio:0.55,yawOffset:0};
-  voiceCalib={f0Min:999,f0Max:0,f0Mean:0,f0Count:0,ampMax:0};
   setPhase('calibrating');
 }
 
@@ -1112,559 +1011,81 @@ function onResults(results){
     return;
   }
   const lm=results.multiFaceLandmarks[0];
-
   if(phase==='searching'||phase==='waiting') startCalib();
 
   if(phase==='calibrating'){
     sampCtx.drawImage(vid,0,0,VW,VH);
     calibCount++;
-    document.getElementById('calibFill').style.width=(calibCount/CALIB_TOTAL*100)+'%';
-
-    // ── PHASE 1: Neutral face (frames 1..CALIB_NEUTRAL) ──
-    if(calibCount<=CALIB_NEUTRAL){
-      accumulateLM(lm);
-
-      // Color sampling
-      const skinSamples=[
-        sampleAt(lm[9].x,lm[9].y,6),
-        sampleAt(lm[116].x,lm[116].y,5),
-        sampleAt(lm[345].x,lm[345].y,5),
-        sampleAt(lm[6].x,lm[6].y,4),
-      ].filter(Boolean);
-      if(skinSamples.length>1){
-        skinSamples.sort((a,b)=>(a[0]+a[1]+a[2])-(b[0]+b[1]+b[2]));
-        const use=skinSamples.slice(1);
-        accPush(calibColors.skin,[0,1,2].map(i=>use.reduce((s,c)=>s+c[i],0)/use.length));
-      }
-      const hL=sampleAt(clamp(lm[127].x-.05,.01,.99),lm[127].y,5);
-      const hR=sampleAt(clamp(lm[356].x+.05,.01,.99),lm[356].y,5);
-      if(hL&&hR) accPush(calibColors.hair,[(hL[0]+hR[0])*.5,(hL[1]+hR[1])*.5,(hL[2]+hR[2])*.5]);
-      else if(hL) accPush(calibColors.hair,hL);
-      else if(hR) accPush(calibColors.hair,hR);
-      accPush(calibColors.iris,sampleAt((lm[468]||lm[33]).x,(lm[468]||lm[33]).y,2));
-      accPush(calibColors.lip,sampleAt(lm[17].x,lm[17].y,5));
-      accPush(calibColors.brow,sampleAt((lm[105].x+lm[334].x)*.5,(lm[105].y+lm[334].y)*.5,4));
-
-      const bd=(lm[159].y+lm[386].y)*.5-(lm[105].y+lm[334].y)*.5;
-      browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;
-
-      // End of phase 1: build palette, capture neutral snapshot
-      if(calibCount===CALIB_NEUTRAL){
-        buildPalette();
-        // Prompt user for phase 2
-        document.getElementById('ovTitle').textContent='Open Your Mouth';
-        document.getElementById('ovSub').textContent='Open wide — capturing teeth\nfor expression rendering\nHold for a moment';
-      }
-
-    // ── PHASE 2: Mouth open (frames CALIB_NEUTRAL+1..CALIB_TOTAL) ──
-    } else {
-      // Accumulate open-mouth landmarks (separate EMA)
-      if(!calibLMOpen){
-        calibLMOpen=Array.from({length:468},(_,i)=>({x:lm[i].x,y:lm[i].y}));
-      } else {
-        for(let i=0;i<468;i++){
-          calibLMOpen[i].x=calibLMOpen[i].x*.80+lm[i].x*.20;
-          calibLMOpen[i].y=calibLMOpen[i].y*.80+lm[i].y*.20;
-        }
-      }
-
-      // End of phase 2: capture open-mouth snapshot, compute mouth mask
-      if(calibCount>=CALIB_TOTAL){
-        captureOpenMouth();
-        setPhase('live');
-      }
-    }
-
-    // Extract voice during calibration for voice range detection
-    extractVoiceParams(lm);
-
-    tick();
+    document.getElementById('calibFill').style.width=(calibCount/CALIB_FRAMES*100)+'%';
+    accumulateLM(lm);
+    const skinS=sampleAt(lm[116].x,lm[116].y,6)||sampleAt(lm[345].x,lm[345].y,6);
+    if(skinS) pal.skin=pal.skin.map((v,i)=>v*.9+skinS[i]*.1);
+    const hairS=sampleAt(clamp(lm[127].x-.05,.01,.99),lm[127].y,5);
+    if(hairS) pal.hair=pal.hair.map((v,i)=>v*.9+hairS[i]*.1);
+    const irisS=sampleAt((lm[468]||lm[33]).x,(lm[468]||lm[33]).y,2);
+    if(irisS) pal.iris=pal.iris.map((v,i)=>v*.9+irisS[i]*.1);
+    const lipS=sampleAt(lm[13].x,lm[13].y,3);
+    if(lipS) pal.lip=pal.lip.map((v,i)=>v*.9+lipS[i]*.1);
+    const bd=(lm[159].y+lm[386].y)*.5-(lm[105].y+lm[334].y)*.5;
+    browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;
+    if(calibCount>=CALIB_FRAMES){finishCalibration();setPhase('live');}
     return;
   }
 
-  // ── LIVE ──
-  liveLM=lm;
-
+  // LIVE
   const p3=extractPose(lm);
-  pose.yaw  =smooth(pose.yaw,  p3.yaw,  .08);
-  pose.pitch=smooth(pose.pitch,p3.pitch,.07);
-  pose.roll =smooth(pose.roll, p3.roll, .08);
+  pose.yaw  =smooth(pose.yaw,  p3.yaw,  .09);
+  pose.pitch=smooth(pose.pitch,p3.pitch,.08);
+  pose.roll =smooth(pose.roll, p3.roll, .09);
 
   const nv=extractVibe(lm);
   if(nv){
-    const s=.20;
-    vibe.mouthOpen =smooth(vibe.mouthOpen, nv.mouthOpen, s);
-    vibe.mouthCurve=smooth(vibe.mouthCurve,nv.mouthCurve,s);
-    vibe.browLift  =smooth(vibe.browLift,  nv.browLift,  s);
-    vibe.eyeOpen   =smooth(vibe.eyeOpen,   nv.eyeOpen,  .16);
-    vibe.cheekAmt  =smooth(vibe.cheekAmt,  nv.cheekAmt,  s);
+    vibe.mouthOpen =smooth(vibe.mouthOpen, nv.mouthOpen, .22);
+    vibe.mouthCurve=smooth(vibe.mouthCurve,nv.mouthCurve,.22);
+    vibe.browLift  =smooth(vibe.browLift,  nv.browLift,  .22);
+    vibe.eyeOpen   =smooth(vibe.eyeOpen,   nv.eyeOpen,   .18);
   }
-
-  // Voice: extract parameters from mic + mouth landmarks
-  extractVoiceParams(lm);
-
   tick();
 }
 
 // ══════════════════════════════════════════════════
 //  RENDER TICK
 // ══════════════════════════════════════════════════
-let tickQueued=false;
+let tickQ=false;
 function tick(){
-  if(tickQueued) return;
-  tickQueued=true;
+  if(tickQ) return;
+  tickQ=true;
   requestAnimationFrame(()=>{
-    tickQueued=false;
-    drawFace();
-    faceTex.needsUpdate=true;
-    headMesh.rotation.x=pose.pitch;
-    headMesh.rotation.y=-Math.PI/2+pose.yaw;
-    headMesh.rotation.z=pose.roll;
-    renderer.render(scene,cam3);
-    readGLPixels();
-    applyChuckClose();
+    tickQ=false;
+    deformSplats();
+    updateSplatGeometry();
+    if(splatMesh){
+      splatMesh.rotation.y=pose.yaw;
+      splatMesh.rotation.x=pose.pitch;
+      splatMesh.rotation.z=pose.roll;
+    }
+    renderer.render(scene,camera);
     updateVibeUI();
-    updateSynthesizer();
-    updateVoiceUI();
   });
 }
 
 function updateVibeUI(){
   const fmt=v=>(v>=0?'+':'')+v.toFixed(2);
   const pct=(v,lo,hi)=>clamp((v-lo)/(hi-lo)*100,0,100);
-  document.getElementById('v_mo').textContent=vibe.mouthOpen.toFixed(2);
+  document.getElementById('v_mo').textContent=vibe.mouthOpen.toFixed(3);
   document.getElementById('b_mo').style.width=pct(vibe.mouthOpen,0,.12)+'%';
-  const mc=vibe.mouthCurve;
-  document.getElementById('v_mc').textContent=fmt(mc);
-  const bmc=document.getElementById('b_mc');
-  if(mc>=0){bmc.style.left='50%';bmc.style.right='auto';bmc.style.width=(mc*50)+'%';}
-  else{bmc.style.right='50%';bmc.style.left='auto';bmc.style.width=(-mc*50)+'%';}
-  const bl=vibe.browLift;
-  document.getElementById('v_bl').textContent=fmt(bl);
-  const bbl=document.getElementById('b_bl');
-  const bp=clamp(Math.abs(bl)/.075*50,0,50);
-  if(bl>=0){bbl.style.left='50%';bbl.style.right='auto';bbl.style.width=bp+'%';}
-  else{bbl.style.right='50%';bbl.style.left='auto';bbl.style.width=bp+'%';}
+  document.getElementById('v_mc').textContent=fmt(vibe.mouthCurve);
+  document.getElementById('b_mc').style.width=clamp(Math.abs(vibe.mouthCurve)*50,0,100)+'%';
   document.getElementById('v_eo').textContent=vibe.eyeOpen.toFixed(2);
   document.getElementById('b_eo').style.width=pct(vibe.eyeOpen,0,1.35)+'%';
-  const ya=pose.yaw;
-  document.getElementById('v_ya').textContent=fmt(ya);
-  const bya=document.getElementById('b_ya');
-  const yp=clamp(Math.abs(ya)/1.5*50,0,50);
-  if(ya>=0){bya.style.left='50%';bya.style.right='auto';bya.style.width=yp+'%';}
-  else{bya.style.right='50%';bya.style.left='auto';bya.style.width=yp+'%';}
-  const pi=pose.pitch;
-  document.getElementById('v_pi').textContent=fmt(pi);
-  const bpi=document.getElementById('b_pi');
-  const pp=clamp(Math.abs(pi)/1.0*50,0,50);
-  if(pi>=0){bpi.style.left='50%';bpi.style.right='auto';bpi.style.width=pp+'%';}
-  else{bpi.style.right='50%';bpi.style.left='auto';bpi.style.width=pp+'%';}
-}
-
-
-// ══════════════════════════════════════════════════
-//  VOICE SYSTEM — VOCAL NOTATION SYNTHESIZER
-//  Analyzes audio into discrete phonetic + musical notation,
-//  transmits symbolic representation, synthesizes from
-//  known-good formant recipes on the receiver end.
-//
-//  Notation per frame: phoneme(4bit) + pitch(7bit) + cents(7bit)
-//                    + dynamic(4bit) + voicing(4bit) = ~3.5 bytes
-//  Total vibe packet: ~36 bytes/frame
-// ══════════════════════════════════════════════════
-
-// ── Musical note names ──
-const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-function hzToMidi(hz){ return hz>0?12*Math.log2(hz/440)+69:0; }
-function midiToHz(m){ return m>0?440*Math.pow(2,(m-69)/12):0; }
-function midiToName(m){
-  if(m<=0) return '—';
-  const note=NOTE_NAMES[Math.round(m)%12];
-  const oct=Math.floor(Math.round(m)/12)-1;
-  return note+oct;
-}
-
-// ── YIN pitch detection ──
-const YIN_THRESHOLD=0.15;
-function detectPitch(buf, sampleRate){
-  const N=buf.length;
-  const halfN=Math.floor(N/2);
-  const d=new Float32Array(halfN);
-  for(let tau=0;tau<halfN;tau++){
-    let sum=0;
-    for(let i=0;i<halfN;i++){
-      const diff=buf[i]-buf[i+tau];
-      sum+=diff*diff;
-    }
-    d[tau]=sum;
-  }
-  const dn=new Float32Array(halfN);
-  dn[0]=1;
-  let running=0;
-  for(let tau=1;tau<halfN;tau++){
-    running+=d[tau];
-    dn[tau]=d[tau]*tau/running;
-  }
-  const minTau=Math.floor(sampleRate/500);
-  const maxTau=Math.floor(sampleRate/60);
-  let bestTau=-1;
-  for(let tau=minTau;tau<Math.min(maxTau,halfN);tau++){
-    if(dn[tau]<YIN_THRESHOLD){
-      while(tau+1<halfN&&dn[tau+1]<dn[tau]) tau++;
-      bestTau=tau; break;
-    }
-  }
-  if(bestTau<1) return 0;
-  const s0=dn[bestTau-1]||dn[bestTau];
-  const s1=dn[bestTau];
-  const s2=dn[bestTau+1]||dn[bestTau];
-  const shift=(s0-s2)/(2*(s0-2*s1+s2));
-  return sampleRate/(bestTau+(isFinite(shift)?shift:0));
-}
-
-function computeRMS(buf){
-  let sum=0;
-  for(let i=0;i<buf.length;i++) sum+=buf[i]*buf[i];
-  return Math.sqrt(sum/buf.length);
-}
-
-function computeVoicing(buf, f0, sampleRate){
-  if(f0<60) return 0;
-  const period=Math.round(sampleRate/f0);
-  const N=buf.length;
-  if(period<2||period*2>N) return 0;
-  let corrSum=0, energySum=0;
-  const len=Math.min(N-period, period*4);
-  for(let i=0;i<len;i++){
-    corrSum+=buf[i]*buf[i+period];
-    energySum+=buf[i]*buf[i];
-  }
-  return energySum>0?clamp(corrSum/energySum,0,1):0;
-}
-
-// ── Phoneme classification from spectral peaks ──
-// Finds F1/F2 from the FFT spectrum and classifies against
-// the phoneme chart using minimum Euclidean distance.
-function classifyPhoneme(analyser){
-  if(!analyser) return 'xx';
-  const bins=analyser.frequencyBinCount;
-  const freqData=new Float32Array(bins);
-  analyser.getFloatFrequencyData(freqData);
-
-  const sr=audioCtx.sampleRate;
-  const binHz=sr/analyser.fftSize;
-
-  // Find peaks in F1 range (250-900Hz) and F2 range (800-2800Hz)
-  const f1Lo=Math.floor(250/binHz), f1Hi=Math.ceil(900/binHz);
-  const f2Lo=Math.floor(800/binHz), f2Hi=Math.ceil(2800/binHz);
-
-  let f1Peak=-Infinity, f1Freq=500;
-  for(let i=f1Lo;i<=Math.min(f1Hi,bins-1);i++){
-    if(freqData[i]>f1Peak){ f1Peak=freqData[i]; f1Freq=i*binHz; }
-  }
-  let f2Peak=-Infinity, f2Freq=1500;
-  for(let i=f2Lo;i<=Math.min(f2Hi,bins-1);i++){
-    if(freqData[i]>f2Peak){ f2Peak=freqData[i]; f2Freq=i*binHz; }
-  }
-
-  // Too quiet = silence
-  if(f1Peak<-60&&f2Peak<-60) return 'xx';
-
-  // Classify: find nearest phoneme by F1/F2 distance
-  let bestDist=Infinity, bestPhon='ax';
-  for(const key of PHONEME_LIST){
-    if(key==='xx') continue;
-    const p=PHONEMES[key];
-    const d1=(f1Freq-p.f1)/200;  // normalize by typical range
-    const d2=(f2Freq-p.f2)/400;
-    const dist=d1*d1+d2*d2;
-    if(dist<bestDist){ bestDist=dist; bestPhon=key; }
-  }
-  return bestPhon;
-}
-
-// ── Extract vocal notation from mic ──
-let prevDynamic=0;
-function extractVoiceParams(lm){
-  if(!micAnalyser||!micTimeBuf) return;
-
-  micAnalyser.getFloatTimeDomainData(micTimeBuf);
-  const sr=audioCtx.sampleRate;
-
-  // Pitch → musical note
-  const rawF0=detectPitch(micTimeBuf, sr);
-  const midi=hzToMidi(rawF0);
-  const roundedMidi=Math.round(midi);
-  const cents=Math.round((midi-roundedMidi)*100);
-
-  // Amplitude → dynamics
-  const rawAmp=computeRMS(micTimeBuf);
-  if(rawAmp>voiceCalib.ampMax) voiceCalib.ampMax=rawAmp;
-  const normAmp=voiceCalib.ampMax>0.001?clamp(rawAmp/voiceCalib.ampMax,0,1):clamp(rawAmp*15,0,1);
-  const gate=normAmp>0.025?1:0;
-
-  // Voicing
-  const rawVoicing=computeVoicing(micTimeBuf, rawF0, sr);
-
-  // Phoneme classification from spectrum
-  const phoneme=gate?classifyPhoneme(micAnalyser):'xx';
-
-  // Onset detection: dynamic jump
-  const onset=normAmp>0.1&&prevDynamic<0.05;
-  prevDynamic=normAmp;
-
-  // Smooth and set
-  const vs=0.30;
-  vocalNote.pitch=smooth(vocalNote.pitch, gate?roundedMidi:0, vs);
-  vocalNote.cents=smooth(vocalNote.cents, cents, vs);
-  vocalNote.dynamic=smooth(vocalNote.dynamic, normAmp*gate, 0.22);
-  vocalNote.voicing=smooth(vocalNote.voicing, rawVoicing*gate, vs);
-  vocalNote.phoneme=phoneme;
-  vocalNote.onset=onset;
-
-  // Calibrate during calibration
-  if(phase==='calibrating'&&rawF0>60&&rawAmp>0.005){
-    voiceCalib.f0Min=Math.min(voiceCalib.f0Min, rawF0);
-    voiceCalib.f0Max=Math.max(voiceCalib.f0Max, rawF0);
-    voiceCalib.f0Mean=(voiceCalib.f0Mean*voiceCalib.f0Count+rawF0)/(voiceCalib.f0Count+1);
-    voiceCalib.f0Count++;
-  }
-
-  // Capture recording
-  if(isRecording){
-    voiceRecording.push({
-      phoneme:vocalNote.phoneme,
-      pitch:vocalNote.pitch,
-      cents:vocalNote.cents,
-      dynamic:vocalNote.dynamic,
-      voicing:vocalNote.voicing,
-    });
-  }
+  document.getElementById('v_bl').textContent=fmt(vibe.browLift);
+  document.getElementById('b_bl').style.width=clamp(Math.abs(vibe.browLift)*500,0,100)+'%';
+  document.getElementById('v_ya').textContent=fmt(pose.yaw);
+  document.getElementById('b_ya').style.width=clamp(Math.abs(pose.yaw)/1.5*100,0,100)+'%';
 }
 
 // ══════════════════════════════════════════════════
-//  FORMANT SYNTHESIZER — plays from notation
-//  Instead of raw F1/F2/F3 from geometry, looks up the
-//  phoneme's known-good formant recipe and interpolates
-//  smoothly between phoneme targets.
-// ══════════════════════════════════════════════════
-function buildSynthesizer(){
-  if(!audioCtx) return;
-
-  // Glottal source — soft, warm, breathy
-  // Rolloff as 1/h³ gives a much gentler, rounder tone than sawtooth
-  const nHarm=20;
-  const real=new Float32Array(nHarm+1);
-  const imag=new Float32Array(nHarm+1);
-  real[0]=0; imag[0]=0;
-  for(let h=1;h<=nHarm;h++){
-    real[h]=0;
-    imag[h]=1.0/(h*h*h);  // cubic rolloff — warm, not buzzy
-  }
-  const glottalWave=audioCtx.createPeriodicWave(real,imag,{disableNormalization:true});
-  const glottal=audioCtx.createOscillator();
-  glottal.setPeriodicWave(glottalWave);
-  glottal.frequency.value=120;
-
-  // Noise source — filtered pink-ish noise (less harsh than white)
-  const noiseBufLen=audioCtx.sampleRate*2;
-  const noiseBuffer=audioCtx.createBuffer(1,noiseBufLen,audioCtx.sampleRate);
-  const noiseData=noiseBuffer.getChannelData(0);
-  // Simple pink-ish: low-pass the random signal
-  let prev=0;
-  for(let i=0;i<noiseBufLen;i++){
-    const white=Math.random()*2-1;
-    prev=prev*0.7+white*0.3;
-    noiseData[i]=prev;
-  }
-  const noise=audioCtx.createBufferSource();
-  noise.buffer=noiseBuffer;
-  noise.loop=true;
-
-  // Source gains
-  const voicedGain=audioCtx.createGain(); voicedGain.gain.value=0;
-  const noiseGain=audioCtx.createGain();  noiseGain.gain.value=0;
-
-  // Warmth filter: tame anything above 4kHz before it hits the formants
-  const warmth=audioCtx.createBiquadFilter();
-  warmth.type='lowpass';
-  warmth.frequency.value=4200;
-  warmth.Q.value=0.5;
-
-  // Formant filters — wider Q for more natural resonance
-  const makeFormant=(freq,q)=>{
-    const f=audioCtx.createBiquadFilter();
-    f.type='bandpass';
-    f.frequency.value=freq;
-    f.Q.value=q;
-    return f;
-  };
-  const f1=makeFormant(500, 2.5);   // very wide — natural vowel body
-  const f2=makeFormant(1500, 3.5);
-  const f3=makeFormant(2500, 4);
-
-  // Formant output gains — F1 dominant, F3 subtle
-  const f1Gain=audioCtx.createGain(); f1Gain.gain.value=1.0;
-  const f2Gain=audioCtx.createGain(); f2Gain.gain.value=0.65;
-  const f3Gain=audioCtx.createGain(); f3Gain.gain.value=0.3;
-
-  const masterGain=audioCtx.createGain();
-  masterGain.gain.value=0;
-
-  // Wire: sources → warmth → formants → master
-  glottal.connect(voicedGain);
-  noise.connect(noiseGain);
-  voicedGain.connect(warmth);
-  noiseGain.connect(warmth);
-  warmth.connect(f1); warmth.connect(f2); warmth.connect(f3);
-
-  f1.connect(f1Gain); f1Gain.connect(masterGain);
-  f2.connect(f2Gain); f2Gain.connect(masterGain);
-  f3.connect(f3Gain); f3Gain.connect(masterGain);
-
-  // Soft limiter
-  const limiter=audioCtx.createDynamicsCompressor();
-  limiter.threshold.value=-8; limiter.knee.value=20;
-  limiter.ratio.value=3; limiter.attack.value=0.01; limiter.release.value=0.15;
-  masterGain.connect(limiter);
-  limiter.connect(audioCtx.destination);
-
-  // Analyser on synth output
-  const synthAnalyser=audioCtx.createAnalyser();
-  synthAnalyser.fftSize=512;
-  limiter.connect(synthAnalyser);
-
-  glottal.start();
-  noise.start();
-
-  synthNodes={glottal, noise, voicedGain, noiseGain, f1, f2, f3,
-              masterGain, f1Gain, f2Gain, f3Gain, synthAnalyser, warmth};
-}
-
-// ── Update synthesizer from vocal notation ──
-function updateSynthesizer(){
-  if(!synthNodes||!synthEnabled) return;
-  const vn=vocalNote;
-  const t=audioCtx.currentTime;
-  const ramp=0.025;
-
-  // Pitch from notation
-  const hz=midiToHz(vn.pitch);
-  if(hz>50&&vn.dynamic>0.01){
-    const bendHz=hz*Math.pow(2, vn.cents/1200);
-    synthNodes.glottal.frequency.setTargetAtTime(clamp(bendHz,60,500), t, ramp);
-  }
-
-  // Voicing mix — softer gains
-  const vAmt=clamp(vn.voicing, 0, 1);
-  synthNodes.voicedGain.gain.setTargetAtTime(vAmt*1.0, t, ramp);
-  synthNodes.noiseGain.gain.setTargetAtTime((1-vAmt*0.6)*0.4, t, ramp);
-
-  // Formants from phoneme chart — smooth interpolation
-  const phon=PHONEMES[vn.phoneme]||PHONEMES.ax;
-  if(phon.f1>0){
-    synthFormants.f1=smooth(synthFormants.f1, phon.f1, 0.10);
-    synthFormants.f2=smooth(synthFormants.f2, phon.f2, 0.10);
-    synthFormants.f3=smooth(synthFormants.f3, phon.f3, 0.10);
-  }
-
-  synthNodes.f1.frequency.setTargetAtTime(clamp(synthFormants.f1,200,900), t, ramp);
-  synthNodes.f2.frequency.setTargetAtTime(clamp(synthFormants.f2,700,2800), t, ramp);
-  synthNodes.f3.frequency.setTargetAtTime(clamp(synthFormants.f3,1800,3800), t, ramp);
-
-  // Master amplitude — gentle
-  const amp=clamp(vn.dynamic, 0, 1);
-  synthNodes.masterGain.gain.setTargetAtTime(amp*0.8, t, ramp);
-}
-
-function muteSynth(){
-  if(!synthNodes) return;
-  synthNodes.masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
-}
-
-// ── Waveform visualization ──
-const waveCanvas=document.getElementById('waveCanvas');
-const waveCtx=waveCanvas.getContext('2d');
-
-function drawWaveform(){
-  const w=waveCanvas.width, h=waveCanvas.height;
-  waveCtx.fillStyle='rgba(12,11,9,.4)';
-  waveCtx.fillRect(0,0,w,h);
-  let analyser=null;
-  if(synthEnabled&&synthNodes&&synthNodes.synthAnalyser) analyser=synthNodes.synthAnalyser;
-  else if(micAnalyser) analyser=micAnalyser;
-  if(!analyser) return;
-  const bufLen=analyser.frequencyBinCount;
-  const buf=new Uint8Array(bufLen);
-  analyser.getByteTimeDomainData(buf);
-  const isActive=vocalNote.dynamic>0.02||isPlaying;
-  waveCtx.beginPath();
-  waveCtx.strokeStyle=isActive?'#c9a96e':'#3a3428';
-  waveCtx.lineWidth=1.5;
-  const sliceW=w/bufLen;
-  for(let i=0;i<bufLen;i++){
-    const v=buf[i]/128.0;
-    const y=(v*h/2);
-    if(i===0) waveCtx.moveTo(0,y);
-    else waveCtx.lineTo(i*sliceW,y);
-  }
-  waveCtx.stroke();
-}
-
-// ── Voice UI update ──
-function updateVoiceUI(){
-  const vn=vocalNote;
-
-  // Note display
-  const f0Pct=clamp((vn.pitch-36)/(72-36)*100,0,100);
-  document.getElementById('vb_f0').style.width=f0Pct+'%';
-  document.getElementById('vv_f0').textContent=midiToName(vn.pitch);
-
-  // Dynamic
-  document.getElementById('vb_amp').style.width=(vn.dynamic*100)+'%';
-  const dynLabels=['—','pp','p','mp','mf','f','ff'];
-  const dynIdx=Math.min(Math.floor(vn.dynamic*6),5);
-  document.getElementById('vv_amp').textContent=vn.dynamic>0.02?dynLabels[dynIdx+1]:'—';
-
-  // Voicing
-  document.getElementById('vb_voic').style.width=(vn.voicing*100)+'%';
-  document.getElementById('vv_voic').textContent=vn.voicing.toFixed(2);
-
-  // Phoneme
-  const phon=PHONEMES[vn.phoneme]||PHONEMES.xx;
-  document.getElementById('vv_phon').textContent=phon.label;
-  document.getElementById('vv_phon_lbl').textContent=vn.phoneme==='xx'?'—':vn.phoneme;
-
-  // Dot
-  const vdot=document.getElementById('vdot');
-  vdot.className=vn.dynamic>0.02||isPlaying?'pdot on':'pdot';
-  const waveLbl=document.querySelector('.wave-lbl');
-  if(waveLbl) waveLbl.textContent=synthEnabled?'Synth output':'Mic input';
-
-  drawWaveform();
-}
-
-// ── Init audio from mic stream ──
-function initAudio(stream){
-  try{
-    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-    const source=audioCtx.createMediaStreamSource(stream);
-    micAnalyser=audioCtx.createAnalyser();
-    micAnalyser.fftSize=2048;
-    micAnalyser.smoothingTimeConstant=0.4;
-    source.connect(micAnalyser);
-    micTimeBuf=new Float32Array(micAnalyser.fftSize);
-    micFreqBuf=new Uint8Array(micAnalyser.fftSize);
-    buildSynthesizer();
-    console.log('Audio initialized: '+audioCtx.sampleRate+'Hz');
-  }catch(e){
-    console.warn('Audio init failed:',e);
-  }
-}
-
-
-// ══════════════════════════════════════════════════
-//  FRAME PUMP
+//  CAMERA + PUMP
 // ══════════════════════════════════════════════════
 let pumpActive=false;
 async function pump(){
@@ -1675,58 +1096,35 @@ async function pump(){
   requestAnimationFrame(pump);
 }
 
-// ══════════════════════════════════════════════════
-//  CAMERA BOOT
-// ══════════════════════════════════════════════════
 async function startCamera(){
   const btn=document.getElementById('startBtn');
-  btn.textContent='Starting…'; btn.disabled=true;
+  btn.textContent='Starting…';btn.disabled=true;
   let stream;
   try{
     stream=await navigator.mediaDevices.getUserMedia({
-      video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},
-      audio:true,
-    });
+      video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false});
   }catch(e){
-    const msg=
-      e.name==='NotAllowedError'?'Camera access denied.\nClick the camera icon\nin your address bar to allow.'
-      :e.name==='NotFoundError'?'No camera found.'
-      :`Camera error:\n${e.name}`;
     document.getElementById('ovTitle').textContent='Camera Blocked';
-    document.getElementById('ovSub').textContent=msg;
-    btn.textContent='Retry'; btn.disabled=false;
-    btn.onclick=()=>startCamera();
-    return;
+    document.getElementById('ovSub').textContent=e.name==='NotAllowedError'?
+      'Camera access denied.\nAllow camera to continue.':'Camera error:\n'+e.name;
+    btn.textContent='Retry';btn.disabled=false;btn.onclick=()=>startCamera();return;
   }
   vid.srcObject=stream;
-  try{await vid.play();}
-  catch(e){
+  try{await vid.play();}catch(e){
     document.getElementById('ovTitle').textContent='Video Error';
-    document.getElementById('ovSub').textContent=e.message;
-    btn.textContent='Retry'; btn.disabled=false;
-    return;
+    btn.textContent='Retry';btn.disabled=false;return;
   }
-
-  // Init audio system from the same stream
-  initAudio(stream);
   document.getElementById('ovTitle').textContent='Loading FaceMesh';
-  document.getElementById('ovSub').textContent='Downloading face tracking model…\nThis may take a moment';
+  document.getElementById('ovSub').textContent='Downloading tracking model…';
   try{
-    faceMesh=new FaceMesh({
-      locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
-    });
-    faceMesh.setOptions({
-      maxNumFaces:1, refineLandmarks:true,
-      minDetectionConfidence:.5, minTrackingConfidence:.5,
-    });
+    faceMesh=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
+    faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});
     faceMesh.onResults(onResults);
     await faceMesh.initialize();
   }catch(e){
     document.getElementById('ovTitle').textContent='MediaPipe Error';
-    document.getElementById('ovSub').textContent='Could not load face tracking.\nCheck network connection.';
-    btn.textContent='Retry'; btn.disabled=false;
-    btn.onclick=()=>startCamera();
-    setPhase('error'); return;
+    document.getElementById('ovSub').textContent='Could not load tracking.';
+    btn.textContent='Retry';btn.disabled=false;btn.onclick=()=>startCamera();return;
   }
   pumpActive=true;
   setPhase('searching');
@@ -1734,225 +1132,30 @@ async function startCamera(){
 }
 
 // ══════════════════════════════════════════════════
+//  CONTINUOUS RENDER LOOP (for fade-in animation)
+// ══════════════════════════════════════════════════
+function animLoop(){
+  requestAnimationFrame(animLoop);
+  if(phase==='live'&&splatCloud){
+    // Update fade-in even when no new tracking frame
+    updateSplatGeometry();
+    if(splatMesh){
+      splatMesh.rotation.y=pose.yaw;
+      splatMesh.rotation.x=pose.pitch;
+      splatMesh.rotation.z=pose.roll;
+    }
+    renderer.render(scene,camera);
+  }
+}
+
+// ══════════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════════
-function init(){
-  setPhase('waiting');
-  drawFace();
-  faceTex.needsUpdate=true;
-  renderer.render(scene,cam3);
-  readGLPixels();
-  applyChuckClose();
-}
-
+setPhase('waiting');
+renderer.render(scene,camera);
 document.getElementById('startBtn').addEventListener('click',startCamera);
-
-document.getElementById('tierBtns').addEventListener('click',e=>{
-  const b=e.target.closest('[data-tier]'); if(!b) return;
-  tierIdx=+b.dataset.tier;
-  document.querySelectorAll('[data-tier]').forEach(x=>x.classList.toggle('on',x===b));
-  tick();
-});
-
-document.getElementById('recalBtn').addEventListener('click',()=>{
-  if(phase==='live') startCalib();
-});
-
-// Synth output toggle
-document.getElementById('synthToggle').addEventListener('click',function(){
-  synthEnabled=!synthEnabled;
-  this.classList.toggle('on',synthEnabled);
-  if(!synthEnabled) muteSynth();
-  if(synthEnabled&&audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
-});
-
-// ── Demo: notation-based speech sequence ──
-// Each segment specifies a phoneme, pitch (MIDI), duration, dynamics, voicing.
-// This IS the transmitted data — the notation IS the protocol.
-function generateDemo(){
-  const seq=[];
-
-  // "Hello world, testing" — as vocal notation
-  // Each entry: [phoneme, durationFrames, startMidi, endMidi, dynamic, voicing]
-  const phrase=[
-    // "hh" aspirate
-    ['xx', 4, 0,  0,  0.5, 0.05],
-    // "eh" in hello
-    ['eh', 12, 55, 54, 0.85, 0.88],
-    // "l" — schwa-ish
-    ['ax', 6, 54, 53, 0.6, 0.75],
-    // "oh" in hello
-    ['oh', 14, 53, 50, 0.8, 0.85],
-    // pause
-    ['xx', 5, 0, 0, 0, 0],
-    // "w" — rounded
-    ['oo', 6, 48, 50, 0.5, 0.7],
-    // "er" in world
-    ['er', 14, 50, 47, 0.75, 0.82],
-    // "l" + "d" trail
-    ['ax', 6, 47, 46, 0.4, 0.55],
-    // consonant noise
-    ['xx', 4, 0, 0, 0.35, 0.08],
-    // pause
-    ['xx', 8, 0, 0, 0, 0],
-    // "t" burst
-    ['xx', 3, 0, 0, 0.6, 0.05],
-    // "eh" in testing
-    ['eh', 10, 53, 52, 0.9, 0.9],
-    // "ss" noise
-    ['xx', 5, 0, 0, 0.45, 0.03],
-    // "t" burst
-    ['xx', 2, 0, 0, 0.5, 0.05],
-    // "ih" + "ng"
-    ['ih', 10, 52, 48, 0.7, 0.82],
-    // trail
-    ['ax', 8, 48, 44, 0.25, 0.45],
-    // silence
-    ['xx', 10, 0, 0, 0, 0],
-    // Bonus: sweep through vowels "ah-eh-ee-oh-oo"
-    ['aa', 12, 52, 53, 0.85, 0.9],
-    ['eh', 10, 53, 54, 0.8, 0.88],
-    ['ee', 12, 54, 56, 0.85, 0.92],
-    ['oh', 10, 53, 51, 0.75, 0.85],
-    ['oo', 12, 51, 48, 0.7, 0.82],
-    // fade out
-    ['ax', 10, 48, 45, 0.3, 0.5],
-    ['xx', 8, 0, 0, 0, 0],
-  ];
-
-  for(const[phon, dur, p0, p1, dyn, voic] of phrase){
-    for(let i=0;i<dur;i++){
-      const t=dur>1?i/(dur-1):0;
-      seq.push({
-        phoneme:phon,
-        pitch:p0+(p1-p0)*t,
-        cents:(Math.random()-0.5)*15, // micro-variation
-        dynamic:dyn*(0.92+Math.random()*0.16),
-        voicing:voic,
-      });
-    }
-  }
-  return seq;
-}
-
-function stopPlayback(){
-  if(playbackTimer) clearInterval(playbackTimer);
-  playbackTimer=null;
-  isPlaying=false;
-  muteSynth();
-  document.getElementById('playBtn').classList.remove('playing');
-  document.getElementById('demoBtn').classList.remove('playing');
-  document.getElementById('demoBtn').textContent='▶ Demo';
-}
-
-function startPlayback(sequence, btn){
-  if(!audioCtx){
-    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-    buildSynthesizer();
-  }
-  if(audioCtx.state==='suspended') audioCtx.resume();
-
-  synthEnabled=true;
-  document.getElementById('synthToggle').classList.add('on');
-
-  stopPlayback();
-  isPlaying=true;
-  playbackIdx=0;
-  btn.classList.add('playing');
-
-  playbackTimer=setInterval(()=>{
-    if(playbackIdx>=sequence.length){
-      stopPlayback();
-      return;
-    }
-    const frame=sequence[playbackIdx];
-    // Drive vocal notation directly
-    vocalNote.phoneme=frame.phoneme;
-    vocalNote.pitch=smooth(vocalNote.pitch, frame.pitch, 0.35);
-    vocalNote.cents=smooth(vocalNote.cents, frame.cents||0, 0.3);
-    vocalNote.dynamic=smooth(vocalNote.dynamic, frame.dynamic, 0.28);
-    vocalNote.voicing=smooth(vocalNote.voicing, frame.voicing, 0.35);
-
-    updateSynthesizer();
-    updateVoiceUI();
-    playbackIdx++;
-  }, 1000/30);
-}
-
-// Demo button
-document.getElementById('demoBtn').addEventListener('click',function(){
-  if(isPlaying){ stopPlayback(); return; }
-  this.textContent='■ Stop';
-  startPlayback(generateDemo(), this);
-});
-
-// ── Standalone voice analysis loop for recording ──
-// Runs independently of face tracking so you can record without camera
-let voiceAnalysisTimer=null;
-function voiceAnalysisTick(){
-  if(!micAnalyser||!micTimeBuf) return;
-  extractVoiceParams(null); // null landmarks — phoneme classification from audio only
-  updateVoiceUI();
-}
-
-// Record button — gets mic, runs standalone analysis, captures notation
-document.getElementById('recBtn').addEventListener('click',async function(){
-  if(isRecording){
-    // Stop recording
-    isRecording=false;
-    if(voiceAnalysisTimer){ clearInterval(voiceAnalysisTimer); voiceAnalysisTimer=null; }
-    this.classList.remove('recording');
-    this.textContent='● Rec';
-    if(voiceRecording.length>0){
-      document.getElementById('playBtn').disabled=false;
-      const dur=(voiceRecording.length/30).toFixed(1);
-      document.getElementById('playBtn').textContent=`⟳ Play (${dur}s)`;
-    }
-    return;
-  }
-
-  // Ensure mic + audio is initialized
-  if(!audioCtx||!micAnalyser){
-    try{
-      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-      if(!audioCtx){
-        audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-        buildSynthesizer();
-      }
-      const source=audioCtx.createMediaStreamSource(stream);
-      micAnalyser=audioCtx.createAnalyser();
-      micAnalyser.fftSize=2048;
-      micAnalyser.smoothingTimeConstant=0.4;
-      source.connect(micAnalyser);
-      micTimeBuf=new Float32Array(micAnalyser.fftSize);
-      micFreqBuf=new Uint8Array(micAnalyser.fftSize);
-      console.log('Mic initialized for recording');
-    }catch(e){
-      console.warn('Mic access denied:',e);
-      return;
-    }
-  }
-  if(audioCtx.state==='suspended') await audioCtx.resume();
-
-  // Start recording
-  voiceRecording=[];
-  isRecording=true;
-  this.classList.add('recording');
-  this.textContent='■ Stop';
-  document.getElementById('playBtn').disabled=true;
-
-  // Run voice analysis at 30fps independent of face tracking
-  voiceAnalysisTimer=setInterval(voiceAnalysisTick, 1000/30);
-});
-
-// Playback button
-document.getElementById('playBtn').addEventListener('click',function(){
-  if(isPlaying){ stopPlayback(); return; }
-  if(voiceRecording.length===0) return;
-  startPlayback(voiceRecording, this);
-});
-
-init();
+document.getElementById('recalBtn').addEventListener('click',()=>{if(phase==='live') startCalib();});
+animLoop();
 </script>
 </body>
 </html>
