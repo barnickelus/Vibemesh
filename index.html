@@ -137,6 +137,8 @@ let calibPositions=null;
 let calibUVs=null;
 let triIndices=null;
 let liveDisplacements=null;
+let interpMap=null;
+let totalVertCount=0;
 let smoothedDisplacements=null;  // temporal EMA of displacements
 let torsoMesh=null;              // neck + shoulders
 
@@ -310,27 +312,70 @@ function buildFaceMesh(lm, snapshot){
     calibUVs[i*2+1]=1-v; // flip V for OpenGL
   }
 
-  // ── Triangulate (Delaunay on 2D projection) ──
-  const pts2d=[];
+  // ── Add interpolated midpoints between nearby landmarks ──
+  // This doubles vertex density for smoother deformation
+  const allPts=[]; // {x,y,z,u,v,isInterp,parentA,parentB}
   for(let i=0;i<NUM_LM;i++){
-    pts2d.push({x:lm[i].x+((i*7919)%100-50)*1e-8, y:lm[i].y+((i*6271)%100-50)*1e-8});
+    allPts.push({x:calibPositions[i*3],y:calibPositions[i*3+1],z:calibPositions[i*3+2],
+      u:calibUVs[i*2],v:calibUVs[i*2+1],isInterp:false,idx:i});
+  }
+
+  // Find nearby landmark pairs and add midpoints
+  const interpSet=new Set();
+  const threshold=0.12; // distance threshold for adding midpoints
+  for(let i=0;i<NUM_LM;i++){
+    for(let j=i+1;j<NUM_LM;j++){
+      const dx=calibPositions[i*3]-calibPositions[j*3];
+      const dy=calibPositions[i*3+1]-calibPositions[j*3+1];
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<threshold&&dist>0.01){
+        const key=i<j?i+'_'+j:j+'_'+i;
+        if(!interpSet.has(key)){
+          interpSet.add(key);
+          allPts.push({
+            x:(calibPositions[i*3]+calibPositions[j*3])*.5,
+            y:(calibPositions[i*3+1]+calibPositions[j*3+1])*.5,
+            z:(calibPositions[i*3+2]+calibPositions[j*3+2])*.5,
+            u:(calibUVs[i*2]+calibUVs[j*2])*.5,
+            v:(calibUVs[i*2+1]+calibUVs[j*2+1])*.5,
+            isInterp:true,parentA:i,parentB:j,idx:allPts.length
+          });
+        }
+      }
+    }
+  }
+
+  const totalVerts=allPts.length;
+  // Rebuild calibPositions/UVs with interpolated points
+  const newPos=new Float32Array(totalVerts*3);
+  const newUVs=new Float32Array(totalVerts*2);
+  for(let i=0;i<totalVerts;i++){
+    newPos[i*3]=allPts[i].x; newPos[i*3+1]=allPts[i].y; newPos[i*3+2]=allPts[i].z;
+    newUVs[i*2]=allPts[i].u; newUVs[i*2+1]=allPts[i].v;
+  }
+  calibPositions=newPos; calibUVs=newUVs;
+  totalVertCount=totalVerts;
+
+  // ── Triangulate all points (Delaunay on 2D UV projection) ──
+  const pts2d=[];
+  for(let i=0;i<totalVerts;i++){
+    pts2d.push({x:newUVs[i*2]+((i*7919)%100-50)*1e-9, y:newUVs[i*2+1]+((i*6271)%100-50)*1e-9});
   }
   let tris=delaunay(pts2d);
-  // Filter oversized triangles (hull artifacts)
+  // Filter oversized triangles
   tris=tris.filter(([a,b,c])=>{
-    const pa=lm[a],pb=lm[b],pc=lm[c];
-    return Math.abs((pb.x-pa.x)*(pc.y-pa.y)-(pc.x-pa.x)*(pb.y-pa.y))*.5<0.003;
+    const ax=pts2d[a].x,ay=pts2d[a].y,bx=pts2d[b].x,by=pts2d[b].y,cx=pts2d[c].x,cy=pts2d[c].y;
+    return Math.abs((bx-ax)*(cy-ay)-(cx-ax)*(by-ay))*.5<0.008;
   });
   triIndices=new Uint16Array(tris.length*3);
   for(let i=0;i<tris.length;i++){
-    triIndices[i*3]=tris[i][0];
-    triIndices[i*3+1]=tris[i][1];
-    triIndices[i*3+2]=tris[i][2];
+    triIndices[i*3]=tris[i][0]; triIndices[i*3+1]=tris[i][1]; triIndices[i*3+2]=tris[i][2];
   }
 
-  // ── Displacement attribute (starts at zero) ──
-  liveDisplacements=new Float32Array(NUM_LM*3);
-  smoothedDisplacements=new Float32Array(NUM_LM*3);
+  // ── Displacement arrays sized for all vertices (including interpolated) ──
+  liveDisplacements=new Float32Array(totalVerts*3);
+  smoothedDisplacements=new Float32Array(totalVerts*3);
+  interpMap=allPts; // save for displacement interpolation
 
   // ── Snapshot texture ──
   // Crop face from snapshot with padding
@@ -349,8 +394,8 @@ function buildFaceMesh(lm, snapshot){
 
   // ── Create THREE.Mesh ──
   const geo=new THREE.BufferGeometry();
-  geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(calibPositions),3));
-  geo.setAttribute('uv',new THREE.BufferAttribute(new Float32Array(calibUVs),2));
+  geo.setAttribute('position',new THREE.BufferAttribute(calibPositions.slice(),3));
+  geo.setAttribute('uv',new THREE.BufferAttribute(calibUVs.slice(),2));
   geo.setAttribute('displacement',new THREE.BufferAttribute(liveDisplacements,3));
   geo.setIndex(new THREE.BufferAttribute(triIndices,1));
   geo.computeVertexNormals();
@@ -368,9 +413,9 @@ function buildFaceMesh(lm, snapshot){
   faceMeshObj.rotation.order='YXZ';
   scene.add(faceMeshObj);
 
-  document.getElementById('sVerts').textContent=NUM_LM+' verts';
+  document.getElementById('sVerts').textContent=totalVertCount+' verts';
   document.getElementById('sTex').textContent='1 texture';
-  console.log(`Face mesh: ${NUM_LM} vertices, ${tris.length} triangles`);
+  console.log(`Face mesh: ${totalVertCount} vertices (${NUM_LM}+${totalVertCount-NUM_LM} interp), ${tris.length} triangles`);
 }
 
 // ══════════════════════════════════════════════════
@@ -382,51 +427,67 @@ function buildTorso(){
   if(torsoMesh){scene.remove(torsoMesh);torsoMesh.geometry.dispose();}
 
   const group=new THREE.Group();
-  const skinR=pal.skin[0]/255,skinG=pal.skin[1]/255,skinB=pal.skin[2]/255;
-  const skinColor=new THREE.Color(skinR*0.78,skinG*0.78,skinB*0.78);
-  const skinShadow=new THREE.Color(skinR*0.55,skinG*0.55,skinB*0.55);
-  const clothColor=new THREE.Color(0.10,0.09,0.08);
+  const sR=pal.skin[0]/255,sG=pal.skin[1]/255,sB=pal.skin[2]/255;
+  const skinCol=new THREE.Color(sR*0.75,sG*0.75,sB*0.75);
+  const hairCol=new THREE.Color(pal.hair[0]/255*0.6,pal.hair[1]/255*0.6,pal.hair[2]/255*0.6);
+  const clothCol=new THREE.Color(0.10,0.09,0.08);
   const clothHi=new THREE.Color(0.14,0.13,0.12);
+  const sm=(c)=>new THREE.MeshStandardMaterial({color:c,roughness:0.85,metalness:0,flatShading:false});
 
-  const smoothMat=(c)=>new THREE.MeshStandardMaterial({color:c,roughness:0.85,metalness:0,flatShading:false});
+  // ── CRANIUM — back/top of head, behind the face mesh ──
+  // Flattened sphere, hair-colored, positioned to wrap around behind face
+  const craniumGeo=new THREE.SphereGeometry(0.68,32,24,0,Math.PI*2,0,Math.PI*0.85);
+  const cranium=new THREE.Mesh(craniumGeo,sm(hairCol));
+  cranium.position.set(0,0.15,-0.18); // center of head, behind face plane
+  cranium.scale.set(0.95,1.05,0.85);  // taller than wide, flattened front-to-back
+  group.add(cranium);
 
-  // Neck: tapered, slightly forward
-  const neckGeo=new THREE.CylinderGeometry(0.12,0.17,0.28,24);
-  const neck=new THREE.Mesh(neckGeo,smoothMat(skinColor));
-  neck.position.set(0,-0.76,0.04);
+  // ── EARS — small spheres on sides ──
+  for(const side of[-1,1]){
+    const earGeo=new THREE.SphereGeometry(0.08,12,8);
+    const ear=new THREE.Mesh(earGeo,sm(skinCol));
+    ear.position.set(side*0.62,-0.05,-0.05);
+    ear.scale.set(0.6,1.1,0.8);
+    group.add(ear);
+  }
+
+  // ── NECK ──
+  const neckGeo=new THREE.CylinderGeometry(0.12,0.17,0.30,24);
+  const neck=new THREE.Mesh(neckGeo,sm(skinCol));
+  neck.position.set(0,-0.78,0.02);
   group.add(neck);
 
-  // Collar/neckline: ring where shirt meets skin
-  const collarGeo=new THREE.TorusGeometry(0.19,0.025,8,24);
-  const collar=new THREE.Mesh(collarGeo,smoothMat(clothHi));
-  collar.position.set(0,-0.92,0.02);
-  collar.rotation.x=Math.PI/2*0.95;
-  collar.scale.set(1,0.7,1);
+  // ── COLLAR ──
+  const collarGeo=new THREE.TorusGeometry(0.19,0.022,8,24);
+  const collar=new THREE.Mesh(collarGeo,sm(clothHi));
+  collar.position.set(0,-0.95,0.01);
+  collar.rotation.x=Math.PI/2;
+  collar.scale.set(1,0.6,1);
   group.add(collar);
 
-  // Shoulders: smooth rounded shape using a deformed sphere
-  const shoulderGeo=new THREE.SphereGeometry(0.65,24,12,0,Math.PI*2,0,Math.PI*0.5);
-  const shoulders=new THREE.Mesh(shoulderGeo,smoothMat(clothColor));
-  shoulders.position.set(0,-0.95,-0.02);
-  shoulders.scale.set(1,0.45,0.55);
-  shoulders.rotation.x=Math.PI;
-  group.add(shoulders);
+  // ── SHOULDERS — half-sphere dome, inverted ──
+  const shGeo=new THREE.SphereGeometry(0.62,24,12,0,Math.PI*2,0,Math.PI*0.5);
+  const sh=new THREE.Mesh(shGeo,sm(clothCol));
+  sh.position.set(0,-0.98,-0.02);
+  sh.scale.set(1,0.42,0.52);
+  sh.rotation.x=Math.PI;
+  group.add(sh);
 
-  // Upper body: wider cylinder fading down
-  const bodyGeo=new THREE.CylinderGeometry(0.52,0.46,0.65,24);
-  const body=new THREE.Mesh(bodyGeo,smoothMat(clothColor));
-  body.position.set(0,-1.40,0);
-  body.scale.set(1,1,0.48);
-  group.add(body);
-
-  // Shoulder caps (deltoids)
+  // ── DELTOIDS ──
   for(const side of[-1,1]){
-    const capGeo=new THREE.SphereGeometry(0.14,16,8);
-    const cap=new THREE.Mesh(capGeo,smoothMat(clothColor));
-    cap.position.set(side*0.58,-1.0,0);
-    cap.scale.set(1,1.2,0.8);
-    group.add(cap);
+    const dGeo=new THREE.SphereGeometry(0.13,16,8);
+    const d=new THREE.Mesh(dGeo,sm(clothCol));
+    d.position.set(side*0.55,-1.02,0);
+    d.scale.set(1,1.2,0.75);
+    group.add(d);
   }
+
+  // ── UPPER BODY ──
+  const bodyGeo=new THREE.CylinderGeometry(0.50,0.44,0.6,24);
+  const body=new THREE.Mesh(bodyGeo,sm(clothCol));
+  body.position.set(0,-1.38,0);
+  body.scale.set(1,1,0.45);
+  group.add(body);
 
   torsoMesh=group;
   scene.add(torsoMesh);
@@ -471,15 +532,30 @@ function updateDisplacements(liveLM){
     liveDisplacements[i*3+2]=0;
   }
 
-  // Temporal EMA smoothing — reduces jitter dramatically
-  const ema=0.25; // lower = smoother, less jitter
-  for(let i=0;i<NUM_LM*3;i++){
+  // Interpolated vertices: average their parents' displacements
+  if(interpMap){
+    for(let i=NUM_LM;i<totalVertCount;i++){
+      const pt=interpMap[i];
+      if(pt&&pt.isInterp){
+        const a=pt.parentA,b=pt.parentB;
+        liveDisplacements[i*3]=(liveDisplacements[a*3]+liveDisplacements[b*3])*.5;
+        liveDisplacements[i*3+1]=(liveDisplacements[a*3+1]+liveDisplacements[b*3+1])*.5;
+        liveDisplacements[i*3+2]=0;
+      }
+    }
+  }
+
+  // Temporal EMA smoothing
+  const ema=0.22;
+  const n=totalVertCount||NUM_LM;
+  for(let i=0;i<n*3;i++){
     smoothedDisplacements[i]+=(liveDisplacements[i]-smoothedDisplacements[i])*ema;
   }
 
   const dispAttr=faceMeshObj.geometry.getAttribute('displacement');
   dispAttr.array.set(smoothedDisplacements);
   dispAttr.needsUpdate=true;
+  faceMeshObj.geometry.computeVertexNormals();
 }
 
 // ══════════════════════════════════════════════════
@@ -620,6 +696,24 @@ function finishCalibration(){
   snap.width=VW;snap.height=VH;
   snap.getContext('2d').drawImage(vid,0,0,VW,VH);
 
+  // ── Background from webcam: capture, blur heavily, darken ──
+  try{
+    const bgCvs=document.createElement('canvas');
+    bgCvs.width=W;bgCvs.height=H;
+    const bgCtx=bgCvs.getContext('2d');
+    bgCtx.filter='blur(30px) brightness(0.3) saturate(0.5)';
+    bgCtx.drawImage(vid,0,0,W,H);
+    bgCtx.filter='none';
+    // Dark gradient overlay
+    const grd=bgCtx.createLinearGradient(0,0,0,H);
+    grd.addColorStop(0,'rgba(12,11,9,0.5)');
+    grd.addColorStop(0.5,'rgba(12,11,9,0.3)');
+    grd.addColorStop(1,'rgba(12,11,9,0.7)');
+    bgCtx.fillStyle=grd;
+    bgCtx.fillRect(0,0,W,H);
+    scene.background=new THREE.CanvasTexture(bgCvs);
+  }catch(e){console.warn('BG capture failed:',e);}
+
   buildFaceMesh(calibLM,snap);
 
   const nose=calibLM[LM.NOSE],lEy=calibLM[LM.L_EYE_OUT],rEy=calibLM[LM.R_EYE_OUT],chin=calibLM[LM.CHIN];
@@ -680,11 +774,18 @@ function onResults(results){
       const sctx=sampCvs.getContext('2d');
       sctx.drawImage(vid,0,0,VW,VH);
       try{
+        // Sample skin from cheek
         const px=Math.round(lm[116].x*VW),py=Math.round(lm[116].y*VH);
         const d=sctx.getImageData(clamp(px-3,0,VW),clamp(py-3,0,VH),7,7).data;
         let r=0,g=0,b=0,n=0;
         for(let i=0;i<d.length;i+=4){r+=d[i];g+=d[i+1];b+=d[i+2];n++;}
         if(n>0)pal.skin=pal.skin.map((v,j)=>v*.85+[r/n,g/n,b/n][j]*.15);
+        // Sample hair from forehead edge
+        const hx=Math.round(lm[10].x*VW),hy=Math.round(clamp(lm[10].y-0.04,0,1)*VH);
+        const hd=sctx.getImageData(clamp(hx-4,0,VW),clamp(hy-4,0,VH),9,9).data;
+        let hr=0,hg=0,hb=0,hn=0;
+        for(let i=0;i<hd.length;i+=4){hr+=hd[i];hg+=hd[i+1];hb+=hd[i+2];hn++;}
+        if(hn>0)pal.hair=pal.hair.map((v,j)=>v*.85+[hr/hn,hg/hn,hb/hn][j]*.15);
       }catch(e){}
     }
 
@@ -731,15 +832,25 @@ function tick(){
   requestAnimationFrame(()=>{
     tickQueued=false;
     if(faceMeshObj){
-      faceMeshObj.rotation.y=pose.yaw;
+      faceMeshObj.rotation.y=-pose.yaw;  // mirrored — looks like a mirror
       faceMeshObj.rotation.x=pose.pitch;
       faceMeshObj.rotation.z=pose.roll;
     }
-    // Torso follows head with reduced rotation (natural neck flex)
+    // Torso + cranium follows head
     if(torsoMesh){
-      torsoMesh.rotation.y=pose.yaw*0.25;
-      torsoMesh.rotation.x=pose.pitch*0.15;
-      torsoMesh.rotation.z=pose.roll*0.3;
+      // Cranium (first child) tracks head closely
+      if(torsoMesh.children[0]){
+        torsoMesh.children[0].rotation.y=-pose.yaw*0.9;
+        torsoMesh.children[0].rotation.x=pose.pitch*0.9;
+        torsoMesh.children[0].rotation.z=pose.roll*0.9;
+      }
+      // Ears track head
+      if(torsoMesh.children[1])torsoMesh.children[1].rotation.y=-pose.yaw*0.85;
+      if(torsoMesh.children[2])torsoMesh.children[2].rotation.y=-pose.yaw*0.85;
+      // Rest of body: reduced
+      torsoMesh.rotation.y=-pose.yaw*0.2;
+      torsoMesh.rotation.x=pose.pitch*0.12;
+      torsoMesh.rotation.z=pose.roll*0.25;
     }
     renderer.render(scene,camera);
     updateUI();
