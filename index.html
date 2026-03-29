@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibe Protocol  .  3D Live</title>
+<title>Vibe Protocol · 3D Live</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
@@ -99,52 +99,14 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 .btn-recal{border-color:var(--accent-dk);color:var(--accent-dk)}
 .btn-recal:hover{background:var(--accent-dk);color:var(--text)}
 .hint{position:relative;z-index:1;margin-top:14px;font-size:.50rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;text-align:center}
-/* -- VISEME SYSTEM -- */
-.vsm-panel{border:1px solid var(--border);padding:11px 10px;background:var(--surface)}
-.vsm-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin-top:8px}
-.vsm-cell{
-  aspect-ratio:1;border:1px solid var(--border);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  cursor:pointer;transition:all .15s;position:relative;overflow:hidden;
-}
-.vsm-cell:hover{border-color:var(--accent-dk)}
-.vsm-cell.captured{border-color:var(--green);background:rgba(106,158,106,.12)}
-.vsm-cell.active{border-color:var(--accent);background:rgba(201,169,110,.18);animation:vsmPulse .6s ease infinite}
-.vsm-cell.best{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-dk)}
-@keyframes vsmPulse{0%,100%{opacity:1}50%{opacity:.6}}
-.vsm-lbl{font-size:.38rem;letter-spacing:.10em;color:var(--muted);text-transform:uppercase;line-height:1}
-.vsm-sym{font-size:.72rem;color:var(--text);line-height:1;margin-bottom:1px}
-.vsm-cell.captured .vsm-sym{color:var(--green)}
-.vsm-cell.captured .vsm-lbl{color:var(--green)}
-.vsm-bar{position:absolute;bottom:0;left:0;height:2px;background:var(--accent-dk);width:0%;transition:width .1s}
-.vsm-cell.captured .vsm-bar{background:var(--green)}
-.vsm-status{display:flex;justify-content:space-between;align-items:center;margin-top:7px;padding-top:6px;border-top:1px solid var(--border)}
-.vsm-count{font-size:.44rem;letter-spacing:.12em;color:var(--muted)}
-.vsm-count span{color:var(--accent)}
-.vsm-mic{width:7px;height:7px;border-radius:50%;background:var(--border);transition:background .2s}
-.vsm-mic.on{background:#b04040;animation:vsmPulse .8s infinite}
-.vsm-mic.voiced{background:var(--green)}
-.audio-bar{height:2px;background:var(--border);margin-top:5px;position:relative;overflow:hidden}
-.audio-fill{position:absolute;left:0;top:0;height:100%;background:var(--accent-dk);width:0%;transition:width .06s}
-.eye-grid{display:flex;gap:3px;margin-top:6px}
-.eye-cell{
-  flex:1;padding:4px 3px;border:1px solid var(--border);
-  display:flex;flex-direction:column;align-items:center;gap:2px;
-  cursor:pointer;transition:all .15s;
-}
-.eye-cell.captured{border-color:var(--green);background:rgba(106,158,106,.10)}
-.eye-cell.active{border-color:var(--accent)}
-.eye-sym{font-size:.65rem;line-height:1}
-.eye-lbl{font-size:.36rem;letter-spacing:.10em;color:var(--muted);text-transform:uppercase}
-.eye-cell.captured .eye-lbl{color:var(--green)}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="eyebrow">Vibe Protocol  .  3D Live v0.4</div>
+  <div class="eyebrow">Vibe Protocol · 3D Live v0.4</div>
   <h1 class="title">Your likeness. <em>Abstracted.</em></h1>
-  <div class="sub">3D presence -- derived from your face</div>
+  <div class="sub">3D presence — derived from your face</div>
 </header>
 
 <div class="stage">
@@ -154,14 +116,14 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
       <div id="overlay">
         <div class="ov-title" id="ovTitle">Vibe Protocol</div>
         <div class="ov-sub" id="ovSub">Camera access needed\nto build your avatar</div>
-        <button id="startBtn">Enable Camera -></button>
+        <button id="startBtn">Enable Camera →</button>
         <div class="calib-track" id="calibTrack" style="display:none"><div id="calibFill"></div></div>
       </div>
     </div>
     <div class="statusbar">
-      <span id="sTier">Tier 02  .  Mid</span>
+      <span id="sTier">Tier 02 · Mid</span>
       <span id="sPhase">Waiting</span>
-      <span id="sCells">-- cells</span>
+      <span id="sCells">— cells</span>
     </div>
   </div>
 
@@ -196,31 +158,11 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
     </div>
     <div class="panel">
       <div class="phdr">Likeness Palette</div>
-      <div class="srow"><div class="sw" id="sw_skin"></div><div class="slbl">Skin</div><div class="shex" id="sh_skin">--</div></div>
-      <div class="srow"><div class="sw" id="sw_hair"></div><div class="slbl">Hair</div><div class="shex" id="sh_hair">--</div></div>
-      <div class="srow"><div class="sw" id="sw_iris"></div><div class="slbl">Iris</div><div class="shex" id="sh_iris">--</div></div>
-      <div class="srow"><div class="sw" id="sw_lip"></div><div class="slbl">Lip</div><div class="shex" id="sh_lip">--</div></div>
-      <div class="bwrow">~<span class="bwval" id="bwVal">--</span> bytes  .  <span class="bwval" id="cellVal">--</span> cells</div>
-    </div>
-
-    <!-- Viseme Library -->
-    <div class="vsm-panel">
-      <div class="phdr" style="margin-bottom:5px">
-        Viseme Library
-        <div class="vsm-mic" id="vsmMic"></div>
-      </div>
-      <div class="audio-bar"><div class="audio-fill" id="audioFill"></div></div>
-      <div class="vsm-grid" id="vsmGrid"></div>
-      <div class="vsm-status">
-        <div class="vsm-count"><span id="vsmCount">0</span>/18 captured</div>
-        <div class="vsm-count" id="vsmActive" style="color:var(--muted)">listening...</div>
-      </div>
-    </div>
-
-    <!-- Eye States -->
-    <div class="vsm-panel" style="margin-top:0">
-      <div class="phdr" style="margin-bottom:5px">Eye States</div>
-      <div class="eye-grid" id="eyeGrid"></div>
+      <div class="srow"><div class="sw" id="sw_skin"></div><div class="slbl">Skin</div><div class="shex" id="sh_skin">—</div></div>
+      <div class="srow"><div class="sw" id="sw_hair"></div><div class="slbl">Hair</div><div class="shex" id="sh_hair">—</div></div>
+      <div class="srow"><div class="sw" id="sw_iris"></div><div class="slbl">Iris</div><div class="shex" id="sh_iris">—</div></div>
+      <div class="srow"><div class="sw" id="sw_lip"></div><div class="slbl">Lip</div><div class="shex" id="sh_lip">—</div></div>
+      <div class="bwrow">~<span class="bwval" id="bwVal">—</span> bytes · <span class="bwval" id="cellVal">—</span> cells</div>
     </div>
   </div>
 </div>
@@ -232,9 +174,9 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
     <button class="btn on" data-tier="1">02</button>
     <button class="btn" data-tier="2">03</button>
   </div>
-  <button class="btn btn-recal" id="recalBtn" style="margin-left:14px">R Recalibrate</button>
+  <button class="btn btn-recal" id="recalBtn" style="margin-left:14px">↺ Recalibrate</button>
 </div>
-<div class="hint">Turn your head -- the avatar turns  .  step back to resolve the face</div>
+<div class="hint">Turn your head — the avatar turns · step back to resolve the face</div>
 
 <!-- Hidden workbench canvases -->
 <canvas id="glCanvas" width="480" height="560" style="position:absolute;left:-9999px;top:-9999px"></canvas>
@@ -243,27 +185,9 @@ header{position:relative;z-index:1;text-align:center;margin-bottom:24px}
 <script>
 'use strict';
 
-// Catch ALL errors and show them visibly in the overlay
-window.onerror = function(msg, src, line, col, err) {
-  var ot = document.getElementById('ovTitle');
-  var os = document.getElementById('ovSub');
-  var btn = document.getElementById('startBtn');
-  if(ot) ot.textContent = 'JS Error';
-  if(os) os.textContent = (err ? err.message : msg) + '\nLine: ' + line;
-  if(btn) { btn.textContent = 'Reload'; btn.disabled = false; btn.onclick = function(){ location.reload(); }; }
-  return false;
-};
-window.addEventListener('unhandledrejection', function(e){
-  var ot = document.getElementById('ovTitle');
-  var os = document.getElementById('ovSub');
-  if(ot) ot.textContent = 'Promise Error';
-  if(os) os.textContent = e.reason ? (e.reason.message || String(e.reason)) : 'Unknown';
-});
-
-
-// ==================================================
+// ══════════════════════════════════════════════════
 //  CONSTANTS
-// ==================================================
+// ══════════════════════════════════════════════════
 const W=480, H=560, VW=640, VH=480;
 const FTW=1024, FTH=1024;
 const FCX=FTW/2, FCY=FTH*0.46;
@@ -271,9 +195,9 @@ const FFW=260, FFH=330;
 const CALIB_FRAMES=55;
 
 const TIERS=[
-  {cs:28, gap:2, label:'Tier 01  .  Low'},
-  {cs:14, gap:1, label:'Tier 02  .  Mid'},
-  {cs:7,  gap:1, label:'Tier 03  .  High'},
+  {cs:28, gap:2, label:'Tier 01 · Low'},
+  {cs:14, gap:1, label:'Tier 02 · Mid'},
+  {cs:7,  gap:1, label:'Tier 03 · High'},
 ];
 
 const LM={
@@ -290,9 +214,9 @@ const LM={
   L_TEMPLE:127, R_TEMPLE:356,
 };
 
-// ==================================================
+// ══════════════════════════════════════════════════
 //  MATH
-// ==================================================
+// ══════════════════════════════════════════════════
 const clamp=(v,lo,hi)=>v<lo?lo:v>hi?hi:v;
 const lerp=(a,b,t)=>a+(b-a)*clamp(t,0,1);
 const rand=s=>{let x=Math.sin(s+1)*43758.5453;return x-Math.floor(x);};
@@ -304,9 +228,9 @@ const rgb=c=>`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
 const rgba=(c,a)=>`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
 const smooth=(curr,next,s)=>curr+(next-curr)*s;
 
-// ==================================================
+// ══════════════════════════════════════════════════
 //  STATE
-// ==================================================
+// ══════════════════════════════════════════════════
 let tierIdx=1, phase='waiting';
 
 let pal={
@@ -315,9 +239,9 @@ let pal={
   iris:[62,102,142], brow:[48,36,28], hair:[36,26,20],
 };
 
-// ==================================================
-//  STATE -- landmark-projection model
-// ==================================================
+// ══════════════════════════════════════════════════
+//  STATE — landmark-projection model
+// ══════════════════════════════════════════════════
 let vibe={mouthOpen:0, mouthCurve:0, browLift:0, cheekAmt:.08, eyeOpen:1.0};
 let pose={yaw:0, pitch:0, roll:0};
 
@@ -332,7 +256,7 @@ let faceMap=null;
 
 
 
-// -- Landmark index groups (MediaPipe FaceMesh 468) --
+// ── Landmark index groups (MediaPipe FaceMesh 468) ──
 const FACE_OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
 const L_EYE_UPPER=[33,246,161,160,159,158,157,173,133];
 const L_EYE_LOWER=[133,155,154,153,145,144,163,7,33];
@@ -351,61 +275,10 @@ const LIP_LOWER_OUT=[61,146,91,181,84,17,314,405,321,375,291];
 const LIP_UPPER_IN=[78,191,80,81,82,13,312,311,310,415,308];
 const LIP_LOWER_IN=[78,95,88,178,87,14,317,402,318,324,308];
 
-// ==================================================
-//  THREE.JS SETUP
-// ==================================================
-const glCanvas=document.getElementById('glCanvas');
-let renderer, scene, cam3, ftCvs, ftCtx, faceTex, headMesh;
-let webglOK = false;
-
-try {
-  renderer=new THREE.WebGLRenderer({
-    canvas:glCanvas, antialias:true, preserveDrawingBuffer:true, alpha:false,
-  });
-  renderer.setSize(W,H);
-  renderer.setClearColor(0x0c0b09,1);
-
-  scene=new THREE.Scene();
-  cam3=new THREE.PerspectiveCamera(40,W/H,0.1,100);
-  cam3.position.z=3.5;
-
-  ftCvs=document.createElement('canvas');
-  ftCvs.width=FTW; ftCvs.height=FTH;
-  ftCtx=ftCvs.getContext('2d');
-  faceTex=new THREE.CanvasTexture(ftCvs);
-
-  const headGeo=new THREE.SphereGeometry(1.0,64,48);
-  const headMat=new THREE.MeshPhongMaterial({
-    map:faceTex, shininess:20,
-    specular:new THREE.Color(.06,.05,.04),
-  });
-  headMesh=new THREE.Mesh(headGeo,headMat);
-  headMesh.scale.set(1.0,1.22,0.90);
-  headMesh.rotation.y=-Math.PI/2;
-  scene.add(headMesh);
-
-  scene.add(new THREE.AmbientLight(0xfff5e8,.42));
-  const keyL=new THREE.DirectionalLight(0xfffaf0,.88);
-  keyL.position.set(1.2,1.8,2.5); scene.add(keyL);
-  const rimL=new THREE.DirectionalLight(0x6688bb,.30);
-  rimL.position.set(-2.5,.5,-2.0); scene.add(rimL);
-  const fillL=new THREE.DirectionalLight(0xfff0e0,.20);
-  fillL.position.set(-1.0,-1.0,1.5); scene.add(fillL);
-
-  webglOK = true;
-} catch(e) {
-  console.error('Three.js setup failed:', e.message);
-  // Create fallback canvas context for 2D-only mode
-  ftCvs=document.createElement('canvas');
-  ftCvs.width=FTW; ftCvs.height=FTH;
-  ftCtx=ftCvs.getContext('2d');
-}
-
-
-// ==================================================
+// ══════════════════════════════════════════════════
 //  FACE MAP BUILDER
-//  Maps averaged calibration landmarks -> texture coords
-// ==================================================
+//  Maps averaged calibration landmarks → texture coords
+// ══════════════════════════════════════════════════
 function buildFaceMap(lm) {
   // Compute face bounding box from face oval landmarks
   const oxs=FACE_OVAL.map(i=>lm[i].x), oys=FACE_OVAL.map(i=>lm[i].y);
@@ -414,8 +287,8 @@ function buildFaceMap(lm) {
   const cX=(minX+maxX)*.5, cY=(minY+maxY)*.5;
   const rW=(maxX-minX)*.5, rH=(maxY-minY)*.5;
 
-  // Map landmark -> texture pixel
-  // We fit the face oval to FFWxFFH centered at FCX,FCY
+  // Map landmark → texture pixel
+  // We fit the face oval to FFW×FFH centered at FCX,FCY
   const tx=p=>FCX+((p.x-cX)/rW)*FFW;
   const ty=p=>FCY+((p.y-cY)/rH)*FFH;
   const tp=p=>({x:tx(p),y:ty(p)});
@@ -453,9 +326,9 @@ function buildFaceMap(lm) {
   };
 }
 
-// ==================================================
-//  DRAW FACE -- direct from landmark positions
-// ==================================================
+// ══════════════════════════════════════════════════
+//  DRAW FACE — direct from landmark positions
+// ══════════════════════════════════════════════════
 function drawFace(){
   const ctx=ftCtx;
   const pa=pal, vi=vibe;
@@ -474,9 +347,9 @@ function drawFace(){
   const shad=pa.shadow, hi=pa.highlight, sss=pa.skin.map((v,i)=>clamp(v+(i===0?20:i===1?-5:-8),0,255));
   const cool=pa.skin.map((v,i)=>clamp(v+(i===0?-10:i===1?-5:12),0,255));
 
-  // -----------------------------------------
+  // ─────────────────────────────────────────
   //  1. HAIR BACKGROUND
-  // -----------------------------------------
+  // ─────────────────────────────────────────
   const hg=ctx.createRadialGradient(FCX,FCY-FFH*.9,FFW*.06,FCX,FCY-FFH*.1,FFW*1.8);
   hg.addColorStop(0,rgba(bright(pa.hair,1.18),.98));
   hg.addColorStop(.45,rgba(pa.hair,1));
@@ -484,9 +357,9 @@ function drawFace(){
   hg.addColorStop(1,rgba(dim(pa.hair,.30),1));
   ctx.fillStyle=hg; ctx.fillRect(0,0,FTW,FTH);
 
-  // -----------------------------------------
+  // ─────────────────────────────────────────
   //  2. NECK
-  // -----------------------------------------
+  // ─────────────────────────────────────────
   ctx.save();
   const chinY=lm[152].y, nkHW=FFW*.38;
   const nkg=ctx.createLinearGradient(FCX-nkHW*1.2,0,FCX+nkHW*1.2,0);
@@ -498,9 +371,9 @@ function drawFace(){
   ctx.closePath(); ctx.fillStyle=nkg; ctx.fill();
   ctx.restore();
 
-  // -----------------------------------------
-  //  3. FACE SKIN -- clipped to actual face oval
-  // -----------------------------------------
+  // ─────────────────────────────────────────
+  //  3. FACE SKIN — clipped to actual face oval
+  // ─────────────────────────────────────────
   ctx.save();
   // Build face oval path from face oval landmarks
   ctx.beginPath();
@@ -509,7 +382,7 @@ function drawFace(){
   ov.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
   ctx.closePath(); ctx.clip();
 
-  // Skin gradient -- key light from upper-left
+  // Skin gradient — key light from upper-left
   const sg=ctx.createRadialGradient(FCX-20,FCY-FFH*.38,FFW*.05,FCX+10,FCY+FFH*.10,FFW*1.55);
   sg.addColorStop(0,rgba(hi,1)); sg.addColorStop(.20,rgba(pa.skin,1));
   sg.addColorStop(.60,rgba(pa.skin,1)); sg.addColorStop(.84,rgba(shad,1)); sg.addColorStop(1,rgba(dim(shad,.72),1));
@@ -523,7 +396,7 @@ function drawFace(){
     ctx.fillStyle=tg; ctx.fillRect(0,0,FTW,FTH);
   });
 
-  // Cheek SSS flush -- positioned at actual cheek landmarks
+  // Cheek SSS flush — positioned at actual cheek landmarks
   [[lm[116],lm[123]],[lm[345],lm[352]]].forEach(([a,b])=>{
     const cx=(a.x+b.x)*.5, cy=(a.y+b.y)*.5;
     const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,FFW*.52);
@@ -551,9 +424,9 @@ function drawFace(){
   ctx.fillStyle=hlg; ctx.fillRect(0,lm[10].y-8,FTW,FFH*.45);
   ctx.restore();
 
-  // -----------------------------------------
+  // ─────────────────────────────────────────
   //  4. BEARD (if hair is dark and chin area dark)
-  // -----------------------------------------
+  // ─────────────────────────────────────────
   ctx.save();
   ctx.beginPath(); ctx.moveTo(ov[0].x,ov[0].y); ov.slice(1).forEach(p=>ctx.lineTo(p.x,p.y)); ctx.closePath(); ctx.clip();
   const beardY=fm.mouthBot.y + FFH*.04 + mOpen*.5;
@@ -567,9 +440,9 @@ function drawFace(){
   ctx.fillStyle=mustG; ctx.fillRect(FCX-mustHW,mustY-FFH*.04,mustHW*2,FFH*.048);
   ctx.restore();
 
-  // -----------------------------------------
-  //  5. NOSE -- from actual landmark positions
-  // -----------------------------------------
+  // ─────────────────────────────────────────
+  //  5. NOSE — from actual landmark positions
+  // ─────────────────────────────────────────
   ctx.save();
   const ntX=fm.noseTip.x, ntY=fm.noseTip.y;
   const nbX=fm.noseBase.x, nbY=fm.noseBase.y;
@@ -577,7 +450,7 @@ function drawFace(){
   const noseHW=(rnX-lnX)*.5;
   const bridgeTopY=lm[168].y;
 
-  // Bridge shadow planes -- narrow, subtle
+  // Bridge shadow planes — narrow, subtle
   [-1,1].forEach(side=>{
     const bw=noseHW*.28;
     const bg=ctx.createLinearGradient(ntX+side*bw*.5,bridgeTopY,ntX+side*bw,bridgeTopY);
@@ -585,7 +458,7 @@ function drawFace(){
     ctx.fillStyle=bg; ctx.fillRect(ntX+side*bw*.2,bridgeTopY,bw,ntY-bridgeTopY+10);
   });
 
-  // Tip sphere -- sized to actual nose width
+  // Tip sphere — sized to actual nose width
   const tipR=noseHW*.52;
   const tipg=ctx.createRadialGradient(ntX-tipR*.18,ntY-tipR*.20,tipR*.04,ntX+tipR*.06,ntY+tipR*.06,tipR*.72);
   tipg.addColorStop(0,rgba(hi,.65)); tipg.addColorStop(.42,rgba(pa.skin,.55));
@@ -618,9 +491,9 @@ function drawFace(){
   });
   ctx.restore();
 
-  // -----------------------------------------
-  //  6. EYEBROWS -- from actual brow landmarks
-  // -----------------------------------------
+  // ─────────────────────────────────────────
+  //  6. EYEBROWS — from actual brow landmarks
+  // ─────────────────────────────────────────
   [[L_BROW,'L'],[R_BROW,'R']].forEach(([idxs,side])=>{
     const pts=idxs.map(i=>({x:lm[i].x, y:lm[i].y+bLiftPx}));
     const x0=pts[0].x, x1=pts[pts.length-1].x;
@@ -636,7 +509,7 @@ function drawFace(){
     ctx.bezierCurveTo(x1,pts[pts.length-1].y-bh*.6,x0,pts[0].y-bh*.4,x0,pts[0].y+bh*2.0);
     ctx.fillStyle=rgba(shad,.20); ctx.fill();
 
-    // Brow body -- drawn through actual landmark positions
+    // Brow body — drawn through actual landmark positions
     ctx.beginPath(); ctx.moveTo(x0,pts[0].y+bh*.5);
     // Upper edge through points
     for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y+(isAngry&&side==='L'?i*.8:-i*.4)*bh*.12);
@@ -657,9 +530,9 @@ function drawFace(){
     ctx.restore();
   });
 
-  // -----------------------------------------
-  //  7. EYES -- drawn to actual eye contour shape
-  // -----------------------------------------
+  // ─────────────────────────────────────────
+  //  7. EYES — drawn to actual eye contour shape
+  // ─────────────────────────────────────────
   [[L_EYE_UPPER,L_EYE_LOWER,L_IRIS_IDX,fm.lEyeCen,'L'],
    [R_EYE_UPPER,R_EYE_LOWER,R_IRIS_IDX,fm.rEyeCen,'R']].forEach(([upIdx,loIdx,irisIdx,cen,side])=>{
     // Build eye contour points (upper lid applies eye-open scale)
@@ -683,7 +556,7 @@ function drawFace(){
     ctx.beginPath(); ctx.ellipse(cen.x,cen.y+eyeH*.15,eyeW*.68,eyeH*1.15,0,0,Math.PI*2);
     ctx.fillStyle=rgba(shad,.26); ctx.fill();
 
-    // Sclera -- actual eye contour shape
+    // Sclera — actual eye contour shape
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(upPts[0].x,upPts[0].y);
@@ -703,7 +576,7 @@ function drawFace(){
     ulsg.addColorStop(0,rgba(shad,.55)); ulsg.addColorStop(1,'rgba(0,0,0,0)');
     ctx.fillStyle=ulsg; ctx.fillRect(eyeMinX,eyeMinY,eyeW,eyeH*.5);
 
-    // Iris -- sized to ~33% of eye width (realistic)
+    // Iris — sized to ~33% of eye width (realistic)
     const ir=Math.min(eyeW*.38, eyeH*.72);
     ctx.beginPath(); ctx.arc(cen.x,cen.y+eyeH*.04,ir,0,Math.PI*2);
     const ig=ctx.createRadialGradient(cen.x-ir*.24,cen.y-ir*.20,ir*.06,cen.x,cen.y,ir*1.04);
@@ -754,9 +627,9 @@ function drawFace(){
     ctx.restore();
   });
 
-  // -----------------------------------------
-  //  8. LIPS -- from actual lip landmark positions
-  // -----------------------------------------
+  // ─────────────────────────────────────────
+  //  8. LIPS — from actual lip landmark positions
+  // ─────────────────────────────────────────
   ctx.save();
   const ulOut=LIP_UPPER_OUT.map(i=>({x:lm[i].x,y:lm[i].y-mOpen*.38+mCurve*(lm[i].x-FCX)*.006}));
   const llOut=LIP_LOWER_OUT.map(i=>({x:lm[i].x,y:lm[i].y+mOpen*.45+mCurve*(lm[i].x-FCX)*.005}));
@@ -791,7 +664,7 @@ function drawFace(){
     ctx.restore();
   }
 
-  // Upper lip -- drawn through actual landmark positions
+  // Upper lip — drawn through actual landmark positions
   ctx.beginPath(); ctx.moveTo(ulOut[0].x,ulOut[0].y);
   ulOut.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
   llOut.slice(0).reverse().forEach(p=>ctx.lineTo(p.x,p.y));
@@ -818,9 +691,9 @@ function drawFace(){
   });
   ctx.restore();
 
-  // -----------------------------------------
+  // ─────────────────────────────────────────
   //  9. NASOLABIAL FOLDS + VIGNETTE
-  // -----------------------------------------
+  // ─────────────────────────────────────────
   const foldStr=clamp((vi.cheekAmt||.08)-.02,0,.30);
   if(foldStr>.02){
     [-1,1].forEach(side=>{
@@ -843,9 +716,9 @@ function drawFace(){
   ctx.restore();
 }
 
-// ==================================================
+// ══════════════════════════════════════════════════
 //  DEFAULT DRAW (pre-calibration)
-// ==================================================
+// ══════════════════════════════════════════════════
 function drawFaceDefault(){
   const ctx=ftCtx, pa=pal;
   const hg=ctx.createRadialGradient(FCX,FCY-FFH*.5,FFW*.04,FCX,FCY,FFW*1.4);
@@ -854,17 +727,16 @@ function drawFaceDefault(){
   ctx.beginPath(); ctx.ellipse(FCX,FCY,FFW,FFH,0,0,Math.PI*2);
   ctx.fillStyle=rgba(pa.skin,.6); ctx.fill();
 }
-// ==================================================
+// ══════════════════════════════════════════════════
 //  CHUCK CLOSE POST-PROCESS
-// ==================================================
+// ══════════════════════════════════════════════════
 const display=document.getElementById('display');
 const dCtx=display.getContext('2d');
 let glPixels=new Uint8Array(W*H*4);
-const gl=webglOK ? renderer.getContext() : null;
+const gl=renderer.getContext();
 
 function readGLPixels(){
-  if(!webglOK || !gl) return;
-  try{ gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,glPixels); }catch(e){}
+  gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,glPixels);
 }
 
 function getPixel(x,y){
@@ -940,10 +812,10 @@ function applyChuckClose(){
   document.getElementById('bwVal').textContent='~24B';
 }
 
-// ==================================================
+// ══════════════════════════════════════════════════
 //  HEAD POSE EXTRACTION
-//  FIX: pitch sign corrected -- was inverted (up/down flipped)
-// ==================================================
+//  FIX: pitch sign corrected — was inverted (up/down flipped)
+// ══════════════════════════════════════════════════
 function extractPose(lm){
   const nose=lm[LM.NOSE];
   const lEy=lm[LM.L_EYE_OUT], rEy=lm[LM.R_EYE_OUT];
@@ -954,10 +826,10 @@ function extractPose(lm){
   const nOff=eyeSpan>.01?(nose.x-eyeMidX)/eyeSpan:0;
   const yaw=nOff*Math.PI*-0.95;
 
-  // Pitch: FIXED -- was (topZ-chinZ), should be (chinZ-topZ)
+  // Pitch: FIXED — was (topZ-chinZ), should be (chinZ-topZ)
   // When you look up: chin moves closer (chinZ decreases/more negative),
-  // top moves away (topZ increases). chinZ-topZ -> negative -> negative
-  // rotation.x -> Three.js head tilts up. Correct.
+  // top moves away (topZ increases). chinZ-topZ → negative → negative
+  // rotation.x → Three.js head tilts up. Correct.
   const topZ=lm[LM.TOP].z, chinZ=lm[LM.CHIN].z;
   const fH=lm[LM.CHIN].y-lm[LM.TOP].y;
   const pitch=fH>.04 ? (chinZ-topZ)*3.2 : 0;
@@ -969,9 +841,9 @@ function extractPose(lm){
   return {yaw, pitch, roll};
 }
 
-// ==================================================
+// ══════════════════════════════════════════════════
 //  EXPRESSION EXTRACTION
-// ==================================================
+// ══════════════════════════════════════════════════
 function extractVibe(lm){
   const fH=dist2(lm[LM.TOP],lm[LM.CHIN]);
   if(fH<.01) return null;
@@ -994,12 +866,12 @@ function extractVibe(lm){
   };
 }
 
-// ==================================================
+// ══════════════════════════════════════════════════
 //  FACE PROPORTION EXTRACTION
-// ==================================================
-// ==================================================
+// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════════
 //  COLOR SAMPLING
-// ==================================================
+// ══════════════════════════════════════════════════
 const sampCvs=document.getElementById('sampCanvas');
 const sampCtx=sampCvs.getContext('2d');
 const vid=document.getElementById('vid');
@@ -1072,9 +944,9 @@ function updateSwatches(){
   });
 }
 
-// ==================================================
+// ══════════════════════════════════════════════════
 //  PHASE MACHINE
-// ==================================================
+// ══════════════════════════════════════════════════
 function setPhase(p){
   phase=p;
   const ov=document.getElementById('overlay');
@@ -1085,8 +957,6 @@ function setPhase(p){
   const badge=document.getElementById('pipBadge');
   const pdot=document.getElementById('pdot');
   document.getElementById('sPhase').textContent=p.charAt(0).toUpperCase()+p.slice(1);
-  // Reset viseme mic indicator on phase change
-  if(p!=='live'){ const m=document.getElementById('vsmMic'); if(m) m.className='vsm-mic'; }
 
   // Hide button unless waiting
   btn.style.display=(p==='waiting')?'':'none';
@@ -1106,7 +976,7 @@ function setPhase(p){
   }else if(p==='calibrating'){
     ov.classList.remove('gone');
     ot.textContent='Calibrating';
-    os.textContent='Sampling your likeness\nskin  .  hair  .  eyes  .  lips\nHold still';
+    os.textContent='Sampling your likeness\nskin · hair · eyes · lips\nHold still';
     ct.style.display='block';
     badge.className='pip-badge calibrating'; badge.textContent='Calibrating';
     pdot.className='pdot';
@@ -1128,11 +998,10 @@ function startCalib(){
   setPhase('calibrating');
 }
 
-// ==================================================
+// ══════════════════════════════════════════════════
 //  MEDIAPIPE RESULTS
-// ==================================================
+// ══════════════════════════════════════════════════
 let faceMesh;
-let micStream=null;
 
 function onResults(results){
   if(!results.multiFaceLandmarks?.length){
@@ -1150,10 +1019,10 @@ function onResults(results){
     calibCount++;
     document.getElementById('calibFill').style.width=(calibCount/CALIB_FRAMES*100)+'%';
 
-    // -- Accumulate landmark positions (EMA average) --
+    // ── Accumulate landmark positions (EMA average) ──
     accumulateLM(lm);
 
-    // -- Color sampling -- multiple well-lit skin points --
+    // ── Color sampling — multiple well-lit skin points ──
     const skinSamples=[
       sampleAt(lm[9].x,  lm[9].y,  6),   // forehead
       sampleAt(lm[116].x,lm[116].y,5),   // left cheek
@@ -1166,7 +1035,7 @@ function onResults(results){
       accPush(calibColors.skin,[0,1,2].map(i=>use.reduce((s,c)=>s+c[i],0)/use.length));
     }
 
-    // Hair: sample beside temples -- NOT above head (sky)
+    // Hair: sample beside temples — NOT above head (sky)
     const hL=sampleAt(clamp(lm[127].x-.05,.01,.99),lm[127].y,5);
     const hR=sampleAt(clamp(lm[356].x+.05,.01,.99),lm[356].y,5);
     if(hL&&hR) accPush(calibColors.hair,[(hL[0]+hR[0])*.5,(hL[1]+hR[1])*.5,(hL[2]+hR[2])*.5]);
@@ -1187,7 +1056,7 @@ function onResults(results){
     const bd=(lm[159].y+lm[386].y)*.5-(lm[105].y+lm[334].y)*.5;
     browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;
 
-    if(calibCount>=CALIB_FRAMES){ buildPalette(); setPhase('live'); initViseme(); }
+    if(calibCount>=CALIB_FRAMES){ buildPalette(); setPhase('live'); }
     tick(); return;
   }
 
@@ -1209,23 +1078,20 @@ function onResults(results){
   tick();
 }
 
-// ==================================================
+// ══════════════════════════════════════════════════
 //  RENDER TICK
-// ==================================================
+// ══════════════════════════════════════════════════
 let tickQueued=false;
 function tick(){
   if(tickQueued) return;
   tickQueued=true;
   requestAnimationFrame(()=>{
     tickQueued=false;
-    if(ftCtx){ drawFace(); }
-    if(webglOK && faceTex){ faceTex.needsUpdate=true; }
-    if(webglOK && headMesh){
-      headMesh.rotation.x=pose.pitch;
-      headMesh.rotation.y=-Math.PI/2+pose.yaw;
-      headMesh.rotation.z=pose.roll;
-      renderer.render(scene,cam3);
-    }
+    drawFace(); faceTex.needsUpdate=true;
+    headMesh.rotation.x=pose.pitch;
+    headMesh.rotation.y=-Math.PI/2+pose.yaw;
+    headMesh.rotation.z=pose.roll;
+    renderer.render(scene,cam3);
     readGLPixels(); applyChuckClose();
     updateVibeUI();
   });
@@ -1257,9 +1123,9 @@ function updateVibeUI(){
   else{bya.style.right='50%';bya.style.left='auto';bya.style.width=yp+'%';}
 }
 
-// ==================================================
-//  FRAME PUMP -- drives MediaPipe via rAF, no Camera util
-// ==================================================
+// ══════════════════════════════════════════════════
+//  FRAME PUMP — drives MediaPipe via rAF, no Camera util
+// ══════════════════════════════════════════════════
 let pumpActive=false;
 async function pump(){
   if(!pumpActive) return;
@@ -1269,22 +1135,20 @@ async function pump(){
   requestAnimationFrame(pump);
 }
 
-// ==================================================
-//  CAMERA BOOT -- triggered by button click (user gesture)
-// ==================================================
+// ══════════════════════════════════════════════════
+//  CAMERA BOOT — triggered by button click (user gesture)
+// ══════════════════════════════════════════════════
 async function startCamera(){
   const btn=document.getElementById('startBtn');
-  btn.textContent='Starting...'; btn.disabled=true;
+  btn.textContent='Starting…'; btn.disabled=true;
 
   // Must happen inside user gesture for permission prompt to fire
   let stream;
   try{
     stream=await navigator.mediaDevices.getUserMedia({
       video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},
-      audio:true,   // needed for viseme audio analysis
+      audio:false,
     });
-    // Split audio track for viseme analysis
-    micStream=stream;
   }catch(e){
     const msg=
       e.name==='NotAllowedError' ? 'Camera access denied.\nClick the camera icon\nin your address bar to allow.'
@@ -1324,27 +1188,20 @@ async function startCamera(){
     setPhase('error'); return;
   }
 
-  // Start audio analysis for viseme system
-  try{ await initAudio(); }catch(e){ console.warn('audio init failed',e); }
-
   // Start frame pump
   pumpActive=true;
   setPhase('searching');
   requestAnimationFrame(pump);
 }
 
-// ==================================================
+// ══════════════════════════════════════════════════
 //  INIT + UI WIRING
-// ==================================================
+// ══════════════════════════════════════════════════
 function init(){
   setPhase('waiting');
-  buildVisemeUI(); // Build UI immediately so grid renders
-  try{
-    if(ftCtx) drawFace();
-    if(webglOK && faceTex) faceTex.needsUpdate=true;
-    if(webglOK && renderer) renderer.render(scene,cam3);
-    readGLPixels(); applyChuckClose();
-  }catch(e){ console.warn('init render error:',e.message); }
+  drawFace(); faceTex.needsUpdate=true;
+  renderer.render(scene,cam3);
+  readGLPixels(); applyChuckClose();
 }
 
 document.getElementById('startBtn').addEventListener('click', startCamera);
@@ -1359,402 +1216,6 @@ document.getElementById('tierBtns').addEventListener('click',e=>{
 document.getElementById('recalBtn').addEventListener('click',()=>{
   if(phase==='live') startCalib();
 });
-
-
-// ==================================================
-//  VISEME SYSTEM
-// ==================================================
-
-// 18 viseme groups with example phonemes and mouth geometry hints
-const VISEMES = [
-  {id:'REST', sym:'~',   lbl:'rest',  desc:'silence',       openW:0.00, openH:0.00, spread:0.00},
-  {id:'MB',   sym:'MB',  lbl:'m/b/p', desc:'closed press',  openW:0.00, openH:0.00, spread:0.02},
-  {id:'FV',   sym:'FV',  lbl:'f/v',   desc:'lip-teeth',     openW:0.08, openH:0.02, spread:0.05},
-  {id:'TH',   sym:'TH',  lbl:'th',    desc:'tongue-dental', openW:0.06, openH:0.03, spread:0.08},
-  {id:'LN',   sym:'LN',  lbl:'l/n/t', desc:'tongue-alv',    openW:0.10, openH:0.04, spread:0.10},
-  {id:'SZ',   sym:'SZ',  lbl:'s/z',   desc:'sibilant',      openW:0.05, openH:0.02, spread:0.12},
-  {id:'CH',   sym:'CH',  lbl:'ch/sh', desc:'affricate',     openW:0.08, openH:0.05, spread:0.06},
-  {id:'KG',   sym:'KG',  lbl:'k/g',   desc:'velar',         openW:0.12, openH:0.06, spread:0.08},
-  {id:'RR',   sym:'RR',  lbl:'r',     desc:'retroflex',     openW:0.10, openH:0.05, spread:0.04},
-  {id:'WW',   sym:'WW',  lbl:'w/wh',  desc:'rounded',       openW:0.08, openH:0.06, spread:-0.05},
-  {id:'AH',   sym:'AH',  lbl:'ah',    desc:'father/hot',    openW:0.35, openH:0.55, spread:0.00},
-  {id:'AA',   sym:'AA',  lbl:'aa',    desc:'cat/man',       openW:0.40, openH:0.45, spread:0.15},
-  {id:'AY',   sym:'AY',  lbl:'ay',    desc:'say/face',      openW:0.30, openH:0.35, spread:0.18},
-  {id:'EE',   sym:'EE',  lbl:'ee',    desc:'see/meet',      openW:0.20, openH:0.18, spread:0.40},
-  {id:'IH',   sym:'IH',  lbl:'ih',    desc:'sit/bit',       openW:0.22, openH:0.22, spread:0.25},
-  {id:'OH',   sym:'OH',  lbl:'oh',    desc:'go/bone',       openW:0.25, openH:0.38, spread:-0.08},
-  {id:'OO',   sym:'OO',  lbl:'oo',    desc:'blue/food',     openW:0.15, openH:0.28, spread:-0.15},
-  {id:'UH',   sym:'UH',  lbl:'uh',    desc:'cup/but',       openW:0.28, openH:0.32, spread:0.05},
-];
-
-// 6 eye states
-const EYE_STATES = [
-  {id:'NEUTRAL', sym:'[o]',  lbl:'neutral'},
-  {id:'WIDE',    sym:'[O]',  lbl:'wide'},
-  {id:'NARROW',  sym:'[-]',  lbl:'narrow'},
-  {id:'SQUINT',  sym:'[~]',  lbl:'squint'},
-  {id:'WINK_L',  sym:'[;]',  lbl:'wink L'},
-  {id:'WINK_R',  sym:'[;]',  lbl:'wink R'},
-];
-
-// Landmark indices for mouth snapshot (outer+inner lips + jaw)
-const MOUTH_SNAP_IDX = [
-  61,185,40,39,37,0,267,269,270,409,291, // upper outer
-  61,146,91,181,84,17,314,405,321,375,291, // lower outer
-  78,82,13,312,308,   // upper inner
-  78,87,14,317,308,   // lower inner
-  152,                // jaw/chin
-];
-// Deduplicated
-const MOUTH_SNAP_DEDUP = [...new Set(MOUTH_SNAP_IDX)];
-
-// Eye landmark indices for eye snapshot
-const EYE_SNAP_IDX = [
-  33,133,159,145,160,144,163,7,   // left eye
-  263,362,386,374,387,373,390,249, // right eye
-  105,334,                          // brow peaks
-];
-
-// -- Viseme Library Storage --
-const visemeLib = {};    // id -> {lm: [...], confidence: float, capturedAt: Date}
-const eyeLib    = {};    // id -> {lm: [...]}
-
-// -- Current best match --
-let currentViseme = 'REST';
-let currentConfidence = 0;
-
-// -- Audio Analysis --
-let audioCtx = null, analyser = null, micStream = null;
-let audioData = null;
-let amplitude = 0, voicedAmplitude = 0;
-let lastCaptureTime = 0;
-const CAPTURE_COOLDOWN = 800; // ms between captures
-
-// -- Build viseme grid UI --
-function buildVisemeUI(){
-  const grid = document.getElementById('vsmGrid');
-  grid.innerHTML = '';
-  VISEMES.forEach(v=>{
-    const cell = document.createElement('div');
-    cell.className = 'vsm-cell';
-    cell.id = `vsm_${v.id}`;
-    cell.title = `${v.id}: ${v.desc}`;
-    cell.innerHTML = `<div class="vsm-sym">${v.sym}</div><div class="vsm-lbl">${v.lbl}</div><div class="vsm-bar" id="vsmbar_${v.id}"></div>`;
-    cell.addEventListener('click', ()=>manualCapture(v.id));
-    grid.appendChild(cell);
-  });
-
-  const eyeGrid = document.getElementById('eyeGrid');
-  eyeGrid.innerHTML = '';
-  EYE_STATES.forEach(e=>{
-    const cell = document.createElement('div');
-    cell.className = 'eye-cell';
-    cell.id = `eye_${e.id}`;
-    cell.title = `Click to capture ${e.lbl} eye state`;
-    cell.innerHTML = `<div class="eye-sym">${e.sym}</div><div class="eye-lbl">${e.lbl}</div>`;
-    cell.addEventListener('click', ()=>captureEyeState(e.id));
-    eyeGrid.appendChild(cell);
-  });
-}
-
-function updateVisemeUI(){
-  let count = 0;
-  VISEMES.forEach(v=>{
-    const cell = document.getElementById(`vsm_${v.id}`);
-    const bar  = document.getElementById(`vsmbar_${v.id}`);
-    if(!cell) return;
-    const captured = !!visemeLib[v.id];
-    const isActive = currentViseme === v.id;
-    cell.className = 'vsm-cell' + (captured?' captured':'') + (isActive?' active':'');
-    if(bar) bar.style.width = isActive ? (currentConfidence*100)+'%' : (captured?'100%':'0%');
-    if(captured) count++;
-  });
-  EYE_STATES.forEach(e=>{
-    const cell = document.getElementById(`eye_${e.id}`);
-    if(!cell) return;
-    cell.className = 'eye-cell' + (eyeLib[e.id]?' captured':'');
-  });
-  document.getElementById('vsmCount').textContent = count;
-
-  // Active label
-  const v = VISEMES.find(x=>x.id===currentViseme);
-  document.getElementById('vsmActive').textContent = v ? `/${v.lbl}/` : '';
-}
-
-// -- Audio init --
-async function initAudio(){
-  try{
-    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-    const micSrc = audioCtx.createMediaStreamSource(micStream);
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
-    analyser.smoothingTimeConstant = 0.5;
-    micSrc.connect(analyser);
-    audioData = new Float32Array(analyser.fftSize);
-    document.getElementById('vsmMic').className = 'vsm-mic on';
-    requestAnimationFrame(audioLoop);
-    console.log('[Viseme] Audio init OK');
-  }catch(e){
-    console.warn('[Viseme] Audio failed:', e.message);
-  }
-}
-
-// -- Audio loop -- runs every rAF --
-function audioLoop(){
-  if(!analyser){ return; }
-  requestAnimationFrame(audioLoop);
-
-  analyser.getFloatTimeDomainData(audioData);
-
-  // RMS amplitude
-  let sum=0;
-  for(let i=0;i<audioData.length;i++) sum+=audioData[i]*audioData[i];
-  const rms=Math.sqrt(sum/audioData.length);
-  amplitude = rms;
-
-  // Smooth voiced amplitude (speech onset detection)
-  voicedAmplitude = voicedAmplitude*.85 + rms*.15;
-
-  // Update audio bar
-  const pct = Math.min(100, rms*800);
-  document.getElementById('audioFill').style.width = pct+'%';
-
-  // Mic color: grey=silent, amber=voiced, green=strong
-  const mic = document.getElementById('vsmMic');
-  if(rms<0.008)      mic.className='vsm-mic';
-  else if(rms<0.035) mic.className='vsm-mic on';
-  else               mic.className='vsm-mic voiced';
-
-  // Get frequency data for formant estimation
-  const freqData = new Float32Array(analyser.frequencyBinCount);
-  analyser.getFloatFrequencyData(freqData);
-
-  // Classify viseme from current mouth shape + audio
-  classifyViseme(rms, freqData);
-}
-
-// -- Formant estimator -- finds peak in frequency band --
-function peakInBand(freqData, loHz, hiHz){
-  const nyq = audioCtx.sampleRate/2;
-  const bins = freqData.length;
-  const lo = Math.floor(loHz/nyq*bins);
-  const hi = Math.min(bins-1, Math.ceil(hiHz/nyq*bins));
-  let max=-Infinity, maxBin=lo;
-  for(let i=lo;i<=hi;i++) if(freqData[i]>max){max=freqData[i];maxBin=i;}
-  return {freq: maxBin/bins*nyq, power: max};
-}
-
-// -- Viseme classifier --
-// Primary: landmark mouth geometry when face is tracked
-// Secondary: audio formants help distinguish vowels
-function classifyViseme(rms, freqData){
-  if(!faceMap || phase!=='live') return;
-
-  const lm = faceMap.all;
-  if(!lm) return;
-
-  // Mouth geometry from current live landmarks (re-projected each frame via vibe)
-  const mL=lm[61], mR=lm[291];
-  const mTop=lm[13], mBot=lm[14];
-  const mWidth = Math.abs(mR.x-mL.x);
-  const mHeight= Math.abs(mBot.y-mTop.y);
-  const mCenter= {x:(mL.x+mR.x)*.5, y:(mL.y+mR.y)*.5};
-  const cornerRise= mCenter.y - (mL.y+mR.y)*.5; // negative=smile
-
-  // Normalize by eye width as scale reference
-  const scale = faceMap.eyeW || 80;
-  const normH = mHeight/scale;
-  const normW = mWidth/scale;
-  // Spread: how wide corners are relative to expected
-  const spread = (normW-0.85)/0.5;
-
-  // Lip protrusion: lower lip center Y relative to corners
-  const lipBot = lm[17];
-  const protrude = ((mL.y+mR.y)*.5 - lipBot.y)/scale; // positive=protruded
-
-  // Determine current live vibe values
-  const moN = vibe.mouthOpen;   // 0-1 normalized
-  const mcN = vibe.mouthCurve;  // -1(frown) to +1(smile)
-
-  // -- Classify --
-  let best='REST', bestConf=0;
-
-  if(rms < 0.006){
-    best='REST'; bestConf=0.9;
-  } else if(moN < 0.015){
-    // Mouth nearly closed
-    if(rms > 0.010){
-      best='MB'; bestConf=0.85; // voiced with closed mouth = m/b/p
-    } else {
-      best='REST'; bestConf=0.7;
-    }
-  } else {
-    // Mouth open -- classify by shape
-    // Use audio formants to distinguish vowels when available
-    let f1=0, f2=0;
-    if(freqData && rms>0.010){
-      f1 = peakInBand(freqData, 200,  900).freq;
-      f2 = peakInBand(freqData, 900, 3000).freq;
-    }
-
-    // Score each vowel viseme
-    const vowelScores = {
-      AH: scoreViseme(moN, mcN, spread, protrude, 0.55, 0.00, 0.00, 0.00, f1, f2, 750, 1200),
-      AA: scoreViseme(moN, mcN, spread, protrude, 0.45, 0.15, 0.15, 0.00, f1, f2, 850, 1550),
-      AY: scoreViseme(moN, mcN, spread, protrude, 0.35, 0.18, 0.18, 0.00, f1, f2, 600, 2200),
-      EE: scoreViseme(moN, mcN, spread, protrude, 0.18, 0.40, 0.40, 0.00, f1, f2, 280, 2600),
-      IH: scoreViseme(moN, mcN, spread, protrude, 0.22, 0.25, 0.25, 0.00, f1, f2, 390, 2000),
-      OH: scoreViseme(moN, mcN, spread, protrude, 0.38,-0.08,-0.08, 0.08, f1, f2, 600, 1000),
-      OO: scoreViseme(moN, mcN, spread, protrude, 0.28,-0.15,-0.15, 0.14, f1, f2, 300,  900),
-      UH: scoreViseme(moN, mcN, spread, protrude, 0.32, 0.05, 0.05, 0.00, f1, f2, 600, 1400),
-      WW: scoreViseme(moN, mcN, spread, protrude, 0.06,-0.15,-0.15, 0.16, f1, f2, 300,  700),
-      RR: scoreViseme(moN, mcN, spread, protrude, 0.12, 0.04, 0.04, 0.05, f1, f2, 490, 1350),
-    };
-
-    // Find best vowel
-    let bestV='AH', bestVScore=0;
-    for(const [k,s] of Object.entries(vowelScores)){
-      if(s>bestVScore){bestVScore=s;bestV=k;}
-    }
-
-    // Consonant detection (high freq energy, low openness)
-    const hiFreqPower = freqData ? peakInBand(freqData, 3000, 8000).power : -100;
-    const isHiFreq = hiFreqPower > -35;
-
-    if(isHiFreq && moN < 0.12){
-      if(spread > 0.15)           { best='SZ'; bestConf=0.65; }
-      else if(protrude > 0.04)    { best='CH'; bestConf=0.60; }
-      else                        { best='FV'; bestConf=0.55; }
-    } else if(moN < 0.08 && rms > 0.008){
-      best='LN'; bestConf=0.50;
-    } else {
-      best=bestV; bestConf=bestVScore;
-    }
-  }
-
-  currentViseme    = best;
-  currentConfidence = bestConf;
-
-  // Auto-capture if voiced, confident, and cooled down
-  const now = Date.now();
-  if(rms > 0.025 && bestConf > 0.72 && !visemeLib[best] && now-lastCaptureTime > CAPTURE_COOLDOWN){
-    captureVisemeState(best);
-    lastCaptureTime = now;
-  }
-
-  updateVisemeUI();
-}
-
-function scoreViseme(moN, mcN, spread, protrude, tOpenH, tSpread, tCurve, tProtrude, f1, f2, tF1, tF2){
-  const dH    = 1-Math.min(1,Math.abs(moN-tOpenH)/0.25);
-  const dSpr  = 1-Math.min(1,Math.abs(spread-tSpread)/0.35);
-  const dProt = 1-Math.min(1,Math.abs(protrude-tProtrude)/0.12);
-  let score = (dH*0.45 + dSpr*0.30 + dProt*0.15);
-
-  // Formant boost if audio available
-  if(f1>0 && f2>0){
-    const fScore = (1-Math.min(1,Math.abs(f1-tF1)/500)) * 0.35
-                 + (1-Math.min(1,Math.abs(f2-tF2)/800)) * 0.35;
-    score = score*0.72 + fScore*0.28;
-  }
-  return score;
-}
-
-// -- Capture a mouth viseme from current live landmarks --
-function captureVisemeState(id){
-  if(!faceMap) return;
-  // Use calibration landmarks as base, adjusted by current vibe
-  const snap = MOUTH_SNAP_DEDUP.map(i=>({
-    x: faceMap.all[i].x,
-    y: faceMap.all[i].y + (i===152 ? vibe.mouthOpen*FFH*.15 : 0),
-  }));
-  visemeLib[id] = {lm:snap, idx:MOUTH_SNAP_DEDUP, confidence:currentConfidence, ts:Date.now()};
-
-  // Flash the cell
-  const cell = document.getElementById(`vsm_${id}`);
-  if(cell){
-    cell.style.background='rgba(106,158,106,.35)';
-    setTimeout(()=>{ cell.style.background=''; },400);
-  }
-  console.log(`[Viseme] Captured: ${id} (conf=${currentConfidence.toFixed(2)})`);
-  updateVisemeUI();
-}
-
-function captureEyeState(id){
-  if(!faceMap) return;
-  const snap = EYE_SNAP_IDX.map(i=>({x:faceMap.all[i].x, y:faceMap.all[i].y}));
-  eyeLib[id] = {lm:snap, idx:EYE_SNAP_IDX};
-  updateVisemeUI();
-}
-
-// Manual capture -- click a cell to force-capture current state
-function manualCapture(id){
-  if(!faceMap || phase!=='live') return;
-  currentViseme = id;
-  currentConfidence = 1.0;
-  captureVisemeState(id);
-}
-
-// -- Get blended mouth shape for a given id pair --
-// Returns array of {x,y} deltas to apply on top of base faceMap positions
-function getVisemeBlend(idA, idB, t){
-  const sA = visemeLib[idA], sB = visemeLib[idB];
-  if(!sA && !sB) return null;
-  if(!sA) return sB.lm.map(p=>({x:p.x,y:p.y}));
-  if(!sB) return sA.lm.map(p=>({x:p.x,y:p.y}));
-  return sA.lm.map((p,i)=>({
-    x: p.x*(1-t) + sB.lm[i].x*t,
-    y: p.y*(1-t) + sB.lm[i].y*t,
-  }));
-}
-
-// Nearest captured viseme to current detected viseme
-function getNearestCaptured(){
-  if(visemeLib[currentViseme]) return {id:currentViseme, blend:null};
-
-  // Find 2 nearest by geometric distance to captured visemes
-  const cur = VISEMES.find(v=>v.id===currentViseme);
-  if(!cur) return null;
-
-  let best1=null, best2=null, d1=Infinity, d2=Infinity;
-  for(const id of Object.keys(visemeLib)){
-    const v = VISEMES.find(x=>x.id===id);
-    if(!v) continue;
-    const d = Math.hypot(v.openH-cur.openH, v.spread-cur.spread, v.openW-cur.openW);
-    if(d<d1){d2=d1;best2=best1;d1=d;best1=id;}
-    else if(d<d2){d2=d;best2=id;}
-  }
-  if(!best1) return null;
-  if(!best2) return {id:best1, blend:null};
-  const t = d1/(d1+d2);
-  return {id:best1, blend:getVisemeBlend(best1,best2,t)};
-}
-
-// Export viseme library as compact packet
-function exportVisemePacket(){
-  const out = {v:{}, e:{}};
-  for(const [id,data] of Object.entries(visemeLib)){
-    out.v[id] = data.lm.map(p=>[Math.round(p.x),Math.round(p.y)]);
-  }
-  for(const [id,data] of Object.entries(eyeLib)){
-    out.e[id] = data.lm.map(p=>[Math.round(p.x),Math.round(p.y)]);
-  }
-  const json = JSON.stringify(out);
-  console.log(`[Viseme] Packet: ${json.length} bytes, ${Object.keys(out.v).length} visemes, ${Object.keys(out.e).length} eye states`);
-  return json;
-}
-
-// -- Init viseme system --
-function initViseme(){
-  buildVisemeUI();
-  // Auto-capture REST immediately once calibrated
-  setTimeout(()=>{
-    if(faceMap && phase==='live' && !visemeLib['REST']){
-      captureVisemeState('REST');
-    }
-  }, 500);
-}
-
 
 init();
 </script>
