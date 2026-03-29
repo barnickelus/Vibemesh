@@ -111,6 +111,7 @@ let neutralTex=null,exprTextures=[],lastCapTime=0;
 const display=document.getElementById('display');
 const renderer=new THREE.WebGLRenderer({canvas:display,antialias:true,alpha:false});
 renderer.setSize(W,H,false);renderer.setClearColor(0x0c0b09,1);
+scene.background=new THREE.Color(0x100e0c);
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(28,W/H,0.1,100);
 camera.position.set(0,-0.05,4.0);
@@ -183,7 +184,7 @@ function buildHead(lm,snapshot){
     const nx=(lm[i].x-fcx)/frw,ny=-(lm[i].y-fcy)/frh;
     const nz=1.0-((lm[i].z||0)-zMin)/zR;
     const p=skullProject(nx*0.90,ny*0.86,nz);
-    bP[i*3]=p.x;bP[i*3+1]=p.y;bP[i*3+2]=p.z;
+    bP[i*3]=p.x;bP[i*3+1]=p.y;bP[i*3+2]=p.z+0.04; // face sits slightly in front of skull
     bU[i*2]=clamp((lm[i].x-fcx)/(frw*2.3)+0.5,0,1);
     bU[i*2+1]=1-clamp((lm[i].y-fcy)/(frh*2.5)+0.5,0,1);
   }
@@ -225,7 +226,7 @@ function buildHead(lm,snapshot){
   geo.setAttribute('displacement',new THREE.BufferAttribute(liveDisp,3));
   geo.setIndex(new THREE.BufferAttribute(new Uint16Array(tris.flatMap(t=>t)),1));
   geo.computeVertexNormals();
-  const mat=new THREE.ShaderMaterial({uniforms:{faceTex:{value:neutralTex}},vertexShader:fVert,fragmentShader:fFrag,transparent:true,side:THREE.FrontSide,depthWrite:true});
+  const mat=new THREE.ShaderMaterial({uniforms:{faceTex:{value:neutralTex}},vertexShader:fVert,fragmentShader:fFrag,transparent:true,side:THREE.FrontSide,depthWrite:true,depthTest:true});
   faceMeshObj=new THREE.Mesh(geo,mat);faceMeshObj.renderOrder=2;
   headGroup.add(faceMeshObj);
 
@@ -246,8 +247,9 @@ function buildHead(lm,snapshot){
     if(!(avgZ>0.25&&Math.abs(avgY)<0.7))keep.push(skI[i],skI[i+1],skI[i+2]);
   }
   skG.setIndex(keep);skG.computeVertexNormals();
-  const skull=new THREE.Mesh(skG,sm(hairC));
-  skull.scale.set(SKX,SKY,SKZ);skull.position.set(0,HCY,-0.02);skull.renderOrder=1;
+  const skMat=sm(hairC);skMat.depthWrite=true;
+  const skull=new THREE.Mesh(skG,skMat);
+  skull.scale.set(SKX,SKY,SKZ);skull.position.set(0,HCY,-0.06); // push skull back to avoid z-fight with faceskull.renderOrder=1;
   headGroup.add(skull);
 
   // Ears
@@ -336,7 +338,10 @@ function finishCalib(){
   const sp=sx.getImageData(clamp(Math.round(calibLM[116].x*VW)-3,0,VW),clamp(Math.round(calibLM[116].y*VH)-3,0,VH),7,7).data;let sr=0,sg=0,sb=0,sn=0;for(let i=0;i<sp.length;i+=4){sr+=sp[i];sg+=sp[i+1];sb+=sp[i+2];sn++;}if(sn>0)pal.skin=[sr/sn,sg/sn,sb/sn];
   const hp=sx.getImageData(clamp(Math.round(calibLM[10].x*VW)-4,0,VW),clamp(Math.round((calibLM[10].y-0.04)*VH)-4,0,VH),9,9).data;let hr=0,hg=0,hb=0,hn=0;for(let i=0;i<hp.length;i+=4){hr+=hp[i];hg+=hp[i+1];hb+=hp[i+2];hn++;}if(hn>0)pal.hair=[hr/hn,hg/hn,hb/hn];
   }catch(e){}
-  buildEnv(snap);buildHead(calibLM,snap);
+  buildEnv(snap);
+  console.log('Building head...');
+  buildHead(calibLM,snap);
+  console.log('Head built, transitioning to live');
   const n=calibLM[LM.NOSE],le=calibLM[LM.L_EYE_OUT],re=calibLM[LM.R_EYE_OUT],ch=calibLM[LM.CHIN];const es=Math.abs(re.x-le.x);poseBaseline.yawOffset=es>.01?(n.x-(le.x+re.x)*.5)/es:0;const emy=(le.y+re.y)*.5;poseBaseline.noseRatio=(ch.y-emy)>.01?(n.y-emy)/(ch.y-emy):0.55;
   exprTextures=[];lastCapTime=Date.now();
 }
@@ -349,7 +354,7 @@ function onResults(results){
   if(!results.multiFaceLandmarks?.length){if(phase!=='waiting'&&phase!=='calibrating')setPhase('searching');return;}
   const lm=results.multiFaceLandmarks[0];
   if(phase==='searching'||phase==='waiting')startCalib();
-  if(phase==='calibrating'){calibCount++;document.getElementById('calibFill').style.width=(calibCount/CALIB_FRAMES*100)+'%';accLM(lm);const bd=(lm[159].y+lm[386].y)*.5-(lm[105].y+lm[334].y)*.5;browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;if(calibCount>=CALIB_FRAMES){try{finishCalib();setPhase('live');}catch(e){console.error(e);setPhase('live');}}return;}
+  if(phase==='calibrating'){calibCount++;document.getElementById('calibFill').style.width=(calibCount/CALIB_FRAMES*100)+'%';accLM(lm);const bd=(lm[159].y+lm[386].y)*.5-(lm[105].y+lm[334].y)*.5;browBaseline=browBaseline===null?bd:browBaseline*.88+bd*.12;if(calibCount>=CALIB_FRAMES){try{finishCalib();}catch(e){console.error('Build error:',e);}setPhase('live');}return;}
   const p3=extractPose(lm);pose.yaw=smooth(pose.yaw,p3.yaw,.07);pose.pitch=smooth(pose.pitch,p3.pitch,.06);pose.roll=smooth(pose.roll,p3.roll,.07);
   const nv=extractVibe(lm);if(nv){vibe.mouthOpen=smooth(vibe.mouthOpen,nv.mouthOpen,.18);vibe.mouthCurve=smooth(vibe.mouthCurve,nv.mouthCurve,.18);vibe.browLift=smooth(vibe.browLift,nv.browLift,.18);vibe.eyeOpen=smooth(vibe.eyeOpen,nv.eyeOpen,.14);}
   updateDisplacements(lm);tryCapture(lm);if(exprTextures.length>0)selectTex();tick();
