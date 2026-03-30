@@ -1,279 +1,486 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoBi-Net // FULL SCULPT + PATCH + EXTRUDE</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <style>
-        body { margin: 0; background: #000; color: #0f0; font-family: 'Courier New', monospace; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        #container { position: relative; width: 480px; height: 560px; border: 1px solid #111; box-shadow: 0 0 40px rgba(0,255,0,0.1); }
-        canvas, video { position: absolute; top: 0; left: 0; }
-        #ui { position: absolute; bottom: 10px; left: 10px; z-index: 100; font-size: 9px; background: rgba(0,0,0,0.9); padding: 8px; border: 1px solid #0f0; pointer-events: none; line-height: 1.5; text-transform: uppercase; }
-        .hint { position: absolute; top: 10px; right: 10px; font-size: 8px; color: #333; z-index: 100; letter-spacing: 1px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibe Protocol: Living Clay</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg: #050505; --surface: #111; --border: #333; --text: #eee; --muted: #666; --accent: #d4af37; --dk: #8a6a1c; --green: #4caf50; }
+  body { background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px; overflow: hidden; }
+  body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(circle at 50% 40%, #1a1814 0%, var(--bg) 80%); z-index: -1; }
+  
+  header { text-align: center; margin-bottom: 20px; position: relative; z-index: 10; }
+  .ey { font-size: 0.5rem; letter-spacing: 0.4em; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; }
+  h1 { font-family: 'Cormorant Garamond', serif; font-size: 2.5rem; font-weight: 400; letter-spacing: 0.05em; }
+  h1 em { font-style: italic; color: var(--accent); }
+  
+  .container { display: flex; gap: 20px; align-items: flex-start; position: relative; z-index: 10; }
+  
+  .canvas-wrapper { position: relative; border: 1px solid var(--border); background: #000; }
+  .canvas-wrapper::before, .canvas-wrapper::after { content: ''; position: absolute; width: 15px; height: 15px; z-index: 20; pointer-events: none; }
+  .canvas-wrapper::before { top: -1px; left: -1px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  .canvas-wrapper::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+  
+  canvas { display: block; }
+  
+  #overlay { position: absolute; inset: 0; background: rgba(5,5,5,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 30; transition: opacity 0.5s; backdrop-filter: blur(4px); }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  
+  .status-text { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; color: var(--accent); margin-bottom: 10px; }
+  .sub-text { font-size: 0.5rem; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-bottom: 20px; }
+  
+  button { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; letter-spacing: 0.15em; text-transform: uppercase; padding: 10px 24px; background: transparent; border: 1px solid var(--accent); color: var(--accent); cursor: pointer; transition: all 0.2s; }
+  button:hover { background: var(--accent); color: var(--bg); }
+  button:disabled { opacity: 0.3; pointer-events: none; }
+
+  .progress-bar { width: 200px; height: 1px; background: var(--border); margin-top: 20px; position: relative; }
+  .progress-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent); width: 0%; transition: width 0.1s; }
+
+  .sidebar { width: 220px; display: flex; flex-direction: column; gap: 15px; }
+  
+  .video-feed { position: relative; border: 1px solid var(--border); height: 165px; background: #000; overflow: hidden; }
+  video { display: none; } /* Hidden, drawn to internal canvas */
+  #feed-canvas { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); opacity: 0.5; filter: grayscale(100%) contrast(1.2); }
+  .badge { position: absolute; top: 10px; right: 10px; font-size: 0.4rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 6px; border: 1px solid; }
+  .badge.wait { color: var(--accent); border-color: var(--accent); }
+  .badge.live { color: var(--green); border-color: var(--green); }
+
+  .panel { border: 1px solid var(--border); padding: 15px; background: var(--surface); }
+  .panel-header { font-size: 0.45rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  
+  .metric { margin-bottom: 10px; }
+  .metric-label { font-size: 0.4rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .metric-val { color: var(--accent); }
+  .metric-track { height: 1px; background: var(--border); position: relative; }
+  .metric-fill { position: absolute; left: 0; top: -1px; height: 3px; background: var(--dk); transition: width 0.1s; }
+  
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+  .dot.active { background: var(--green); box-shadow: 0 0 8px var(--green); }
+</style>
 </head>
 <body>
 
-<div id="container">
-    <video id="input_video" style="display:none"></video>
-    <canvas id="ft_canvas" width="640" height="480" style="display:none"></canvas>
-    <canvas id="final_canvas" width="480" height="560"></canvas>
-    <div id="ui">
-        LOBI-NET // SCULPT PROTOCOL v1.0<br>
-        PHASE: <span id="phase_label" style="color:#f0f">SCULPTING...</span><br>
-        PACKETS: <span id="packet_count" style="color:#0ff">0 / 468</span>
+<header>
+  <div class="ey">Vibe Protocol</div>
+  <h1>Living <em>Clay</em></h1>
+</header>
+
+<div class="container">
+  <div class="canvas-wrapper">
+    <canvas id="stage" width="500" height="600"></canvas>
+    <div id="overlay">
+      <div class="status-text" id="status-main">System Standby</div>
+      <div class="sub-text" id="status-sub">Awaiting Visual Input</div>
+      <button id="btn-start">Initialize Link</button>
+      <div class="progress-bar" id="prog-wrap" style="display: none;">
+        <div class="progress-fill" id="prog-fill"></div>
+      </div>
     </div>
-    <div class="hint">PRESS 'D' FOR WIREFRAME/SOURCE</div>
+  </div>
+
+  <div class="sidebar">
+    <div class="video-feed">
+      <video id="webcam" playsinline muted></video>
+      <canvas id="feed-canvas" width="640" height="480"></canvas>
+      <div class="badge wait" id="badge">Standby</div>
+    </div>
+    
+    <div class="panel">
+      <div class="panel-header">
+        Manifold Status <div class="dot" id="status-dot"></div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Tether Density <span class="metric-val" id="val-tether">0%</span></div>
+        <div class="metric-track"><div class="metric-fill" id="fill-tether" style="width:0%"></div></div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Deformation <span class="metric-val" id="val-deform">0.00</span></div>
+        <div class="metric-track"><div class="metric-fill" id="fill-deform" style="width:0%"></div></div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Color Shift <span class="metric-val" id="val-color">0.00</span></div>
+        <div class="metric-track"><div class="metric-fill" id="fill-color" style="width:0%"></div></div>
+      </div>
+      <div style="margin-top: 20px; text-align: right;">
+        <button id="btn-reset" style="padding: 6px 12px; font-size: 0.45rem;">Recalibrate</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
-'use strict';
+/**
+ * VIBE PROTOCOL: LIVING CLAY
+ * Architecture: Inverse Distance Weighting (IDW) Manifold Projection
+ */
 
-const W=480, H=560;
-let isDevMode = false; 
-const vid = document.getElementById('input_video');
-const ftCtx = document.getElementById('ft_canvas').getContext('2d', {willReadFrequently: true});
+const CONFIG = {
+  K_NEAREST: 4,          // Number of anchors per clay vertex
+  POWER: 2.5,            // Falloff curve for gravity influence
+  SMOOTHING: 0.15,       // Lerp speed for physical mesh movement
+  COLOR_SMOOTHING: 0.08, // Lerp speed for vertex colors
+  CLAY_BASE: [0.65, 0.50, 0.35], // Neutral clay RGB
+  CLAY_DARK: [0.30, 0.22, 0.15]  // Back of head RGB
+};
 
-// Vibe & State
-const LM={ NOSE:1, MOUTH_T:13, MOUTH_B:14, MOUTH_L:61, MOUTH_R:291 };
-let vibe = { mouthOpen: 0, yaw: 0, pitch: 0 };
-let liveLM = null;
+// --- DOM Elements ---
+const dom = {
+  stage: document.getElementById('stage'),
+  webcam: document.getElementById('webcam'),
+  feed: document.getElementById('feed-canvas'),
+  feedCtx: document.getElementById('feed-canvas').getContext('2d', {willReadFrequently: true}),
+  overlay: document.getElementById('overlay'),
+  sMain: document.getElementById('status-main'),
+  sSub: document.getElementById('status-sub'),
+  btnStart: document.getElementById('btn-start'),
+  btnReset: document.getElementById('btn-reset'),
+  pWrap: document.getElementById('prog-wrap'),
+  pFill: document.getElementById('prog-fill'),
+  badge: document.getElementById('badge'),
+  dot: document.getElementById('status-dot'),
+  vTether: document.getElementById('val-tether'),
+  fTether: document.getElementById('fill-tether'),
+  vDeform: document.getElementById('val-deform'),
+  fDeform: document.getElementById('fill-deform')
+};
 
-// Indices for patches
-const JAWLINE = [234, 93, 132, 58, 172, 136, 150, 149, 176, 148, 152, 377, 400, 378, 379, 365, 397, 288, 361, 323, 454];
-const INNER_LIP_TOP = [78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308];
-const INNER_LIP_BOT = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308];
-const L_EYE_SOCKET = [33, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7];
-const R_EYE_SOCKET = [362, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374, 380, 381, 382];
-
-// --- THREE.JS SETUP ---
+// --- Three.js Setup ---
 const scene = new THREE.Scene();
-const cam3 = new THREE.PerspectiveCamera(35, W/H, 0.1, 1000);
-cam3.position.set(0, 0, 4.2);
+const camera = new THREE.PerspectiveCamera(35, 500/600, 0.1, 100);
+camera.position.set(0, 0, 4.5);
+const renderer = new THREE.WebGLRenderer({ canvas: dom.stage, antialias: true, alpha: true });
+renderer.setSize(500, 600);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setSize(W, H);
+// Lighting designed to emphasize faceted clay
+scene.add(new THREE.AmbientLight(0xfff5e6, 0.2));
+const keyLight = new THREE.DirectionalLight(0xffecd4, 1.2);
+keyLight.position.set(-2, 3, 4);
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0xaaccff, 0.8);
+rimLight.position.set(3, 1, -2);
+scene.add(rimLight);
+const fillLight = new THREE.DirectionalLight(0xd4af37, 0.3);
+fillLight.position.set(0, -2, 2);
+scene.add(fillLight);
 
-// ══════════════════════════════════════════════════
-//  1. ADVANCED TOPOLOGY (Stitching Voids & Neck)
-// ══════════════════════════════════════════════════
-function generateAdvancedTopology(tesselationEdges) {
-    const adj = Array.from({length: 468}, () => []);
-    tesselationEdges.forEach(edge => { adj[edge[0]].push(edge[1]); adj[edge[1]].push(edge[0]); });
+// The Clay Primitive (Dense Icosahedron for beautiful triangulations)
+// detail=12 yields roughly 1440 faces. High enough for smooth data, low enough to look "sculpted"
+const geometry = new THREE.IcosahedronGeometry(1.2, 12); 
+const vertexCount = geometry.attributes.position.count;
+
+// Data Buffers
+const baseVertices = [];    // Original perfect sphere positions
+const targetVertices = [];  // Real-time target positions
+const currentVertices = []; // Interpolated rendered positions
+const targetColors = [];    // Real-time target colors
+const currentColors = [];   // Interpolated rendered colors
+const vertexMapping = [];   // The IDW tethers [ {index, weight}, ... ]
+
+const posAttr = geometry.attributes.position;
+const colorArray = new Float32Array(vertexCount * 3);
+
+for (let i = 0; i < vertexCount; i++) {
+  const v = new THREE.Vector3(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
+  baseVertices.push(v.clone());
+  currentVertices.push(v.clone());
+  targetVertices.push(v.clone());
+  
+  targetColors.push(new THREE.Color(...CONFIG.CLAY_BASE));
+  currentColors.push(new THREE.Color(...CONFIG.CLAY_BASE));
+  
+  colorArray[i*3] = CONFIG.CLAY_BASE[0];
+  colorArray[i*3+1] = CONFIG.CLAY_BASE[1];
+  colorArray[i*3+2] = CONFIG.CLAY_BASE[2];
+}
+
+geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+
+const material = new THREE.MeshStandardMaterial({
+  vertexColors: true,
+  flatShading: true, // Crucial for the faceted "Chuck Close / Low Bit" aesthetic
+  roughness: 0.85,
+  metalness: 0.05
+});
+
+const clayMesh = new THREE.Mesh(geometry, material);
+scene.add(clayMesh);
+
+// Add a subtle rotation container
+const rig = new THREE.Group();
+scene.add(rig);
+rig.add(clayMesh);
+
+// --- State Machine ---
+let state = 'IDLE'; // IDLE, CALIBRATING, LIVE
+let calibrationFrames = [];
+let faceMeshModel = null;
+let liveDeformation = 0;
+
+// --- Mathematical Core: IDW Binding ---
+// This runs once during calibration to tether the sphere vertices to the canonical 468 points
+function computeManifold(neutralLandmarks) {
+  vertexMapping.length = 0;
+  
+  for (let i = 0; i < vertexCount; i++) {
+    const v = baseVertices[i];
     
-    let tris = [];
-    // Base Face Mesh
-    for (let i = 0; i < 468; i++) {
-        for (let j = 0; j < adj[i].length; j++) {
-            const n1 = adj[i][j]; if (n1 <= i) continue;
-            for (let k = j + 1; k < adj[i].length; k++) {
-                const n2 = adj[i][k]; if (n2 <= i) continue;
-                if (adj[n1].includes(n2)) tris.push(i, n1, n2);
-            }
-        }
+    // Only tether the front hemisphere. The back stays solid clay.
+    if (v.z < -0.1) {
+      vertexMapping.push({ isBack: true });
+      continue;
     }
 
-    // Mouth Patch (Fills the black hole)
-    for (let i = 0; i < INNER_LIP_TOP.length - 1; i++) {
-        tris.push(INNER_LIP_TOP[i], INNER_LIP_BOT[i], INNER_LIP_TOP[i+1]);
-        tris.push(INNER_LIP_BOT[i], INNER_LIP_BOT[i+1], INNER_LIP_TOP[i+1]);
+    // Find distances to all 468 landmarks
+    const distances = [];
+    for (let j = 0; j < neutralLandmarks.length; j++) {
+      const lm = neutralLandmarks[j];
+      const d = v.distanceToSquared(lm);
+      distances.push({ index: j, distSq: d });
     }
 
-    // Neck Extrusion (Jaw to Shoulder)
-    for (let i = 0; i < JAWLINE.length - 1; i++) {
-        const jawA = JAWLINE[i], jawB = JAWLINE[i+1];
-        const neckA = 468 + i, neckB = 468 + i + 1;
-        tris.push(jawA, neckA, jawB);
-        tris.push(neckA, neckB, jawB);
-    }
-
-    return tris;
-}
-
-// ══════════════════════════════════════════════════
-//  2. THE SCULPTING RECEIVER
-// ══════════════════════════════════════════════════
-class SculptingReceiver {
-    constructor() {
-        this.totalVerts = 468 + JAWLINE.length; // Face + Procedural Neck
-        this.basePositions = new Float32Array(this.totalVerts * 3);
-        this.targetPositions = new Float32Array(this.totalVerts * 3);
-        this.positions = new Float32Array(this.totalVerts * 3);
-        this.colors = new Float32Array(this.totalVerts * 3);
-        this.targetColors = new Float32Array(this.totalVerts * 3);
-        this.isFullySculpted = false;
-
-        // Init as a Sphere
-        for (let i = 0; i < this.totalVerts; i++) {
-            const phi = Math.acos(1 - 2 * (i + 0.5) / this.totalVerts);
-            const theta = Math.PI * (1 + Math.sqrt(5)) * i;
-            const r = 0.65;
-            const x = r * Math.cos(theta) * Math.sin(phi);
-            const y = r * Math.sin(theta) * Math.sin(phi);
-            const z = r * Math.cos(phi);
-            
-            [this.positions, this.targetPositions, this.basePositions].forEach(arr => {
-                arr[i*3] = x; arr[i*3+1] = y; arr[i*3+2] = z;
-            });
-            [this.colors, this.targetColors].forEach(arr => {
-                arr[i*3] = 0.1; arr[i*3+1] = 0.1; arr[i*3+2] = 0.1;
-            });
-        }
-
-        this.geometry = new THREE.BufferGeometry();
-        this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-        this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
-        this.material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
-        this.mesh = new THREE.Mesh(this.geometry, this.material);
-        scene.add(this.mesh);
-    }
-
-    initTopology(triangles) { this.geometry.setIndex(triangles); }
-
-    receiveBuildPacket(packet) {
-        const i = packet.idx;
-        // Face points
-        this.basePositions[i*3]   = packet.x;
-        this.basePositions[i*3+1] = packet.y;
-        this.basePositions[i*3+2] = packet.z;
-        this.targetPositions[i*3] = packet.x;
-        this.targetPositions[i*3+1] = packet.y;
-        this.targetPositions[i*3+2] = packet.z;
-        
-        let r = packet.r / 255, g = packet.g / 255, b = packet.b / 255;
-
-        // Shadow the interior mouth points
-        if (INNER_LIP_TOP.includes(i) || INNER_LIP_BOT.includes(i)) {
-            r *= 0.15; g *= 0.1; b *= 0.1;
-        }
-        
-        this.targetColors[i*3] = r; this.targetColors[i*3+1] = g; this.targetColors[i*3+2] = b;
-
-        // Update Extruded Neck based on jaw discovery
-        const jawIdx = JAWLINE.indexOf(i);
-        if (jawIdx !== -1) {
-            const neckI = 468 + jawIdx;
-            this.basePositions[neckI*3] = packet.x * 1.05; // Slightly flare neck
-            this.basePositions[neckI*3+1] = packet.y - 1.5; // Drop to shoulder
-            this.basePositions[neckI*3+2] = packet.z - 0.4; // Push back
-            this.targetPositions[neckI*3] = this.basePositions[neckI*3];
-            this.targetPositions[neckI*3+1] = this.basePositions[neckI*3+1];
-            this.targetPositions[neckI*3+2] = this.basePositions[neckI*3+2];
-            this.targetColors[neckI*3] = r; this.targetColors[neckI*3+1] = g; this.targetColors[neckI*3+2] = b;
-        }
-    }
-
-    applyLiveDelta(vibe) {
-        this.targetPositions.set(this.basePositions);
-        const pushY = vibe.mouthOpen * 0.18;
-        this.targetPositions[LM.MOUTH_B * 3 + 1] -= pushY; // Lower lip drop
-        
-        // Tilt the head
-        this.mesh.rotation.y = -vibe.yaw;
-        this.mesh.rotation.x = vibe.pitch;
-    }
-
-    update() {
-        const speed = this.isFullySculpted ? 0.3 : 0.08;
-        let pUp = false, cUp = false;
-        for (let i = 0; i < this.totalVerts * 3; i++) {
-            const pd = this.targetPositions[i]-this.positions[i];
-            if(Math.abs(pd)>0.001){this.positions[i]+=pd*speed; pUp=true;}
-            const cd = this.targetColors[i]-this.colors[i];
-            if(Math.abs(cd)>0.001){this.colors[i]+=cd*speed; cUp=true;}
-        }
-        if(pUp) this.geometry.attributes.position.needsUpdate=true;
-        if(cUp) this.geometry.attributes.color.needsUpdate=true;
-    }
-}
-
-const receiver = new SculptingReceiver();
-
-// ══════════════════════════════════════════════════
-//  3. TRANSMITTER & TICK
-// ══════════════════════════════════════════════════
-let packetIndex = 0;
-const TRANSMIT_QUEUE = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109, 33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7, 362, 398, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374, 380, 381, 382];
-const s = new Set(TRANSMIT_QUEUE); for(let i=0;i<468;i++) if(!s.has(i)) TRANSMIT_QUEUE.push(i);
-
-function runTransmitter(lm) {
-    if (packetIndex < TRANSMIT_QUEUE.length) {
-        ftCtx.drawImage(vid, 0, 0, 640, 480);
-        const limit = Math.min(packetIndex + 15, TRANSMIT_QUEUE.length);
-        for (let i = packetIndex; i < limit; i++) {
-            const idx = TRANSMIT_QUEUE[i], pt = lm[idx];
-            const px = Math.floor(Math.max(0,Math.min(pt.x*640,639))), py = Math.floor(Math.max(0,Math.min(pt.y*480,479)));
-            const rgb = ftCtx.getImageData(px,py,1,1).data;
-            receiver.receiveBuildPacket({idx:idx, x:(pt.x-0.5)*2.5, y:-(pt.y-0.5)*2.5, z:-pt.z*2.5, r:rgb[0], g:rgb[1], b:rgb[2]});
-        }
-        packetIndex = limit;
-        document.getElementById('packet_count').innerText = `${packetIndex} / 468`;
-        if (packetIndex >= TRANSMIT_QUEUE.length) {
-            receiver.isFullySculpted = true;
-            document.getElementById('phase_label').innerText = "LIVE (STABLE)";
-            document.getElementById('phase_label').style.color = "#0f0";
-        }
-    } else {
-        const top = lm[10], bot = lm[152], mT = lm[LM.MOUTH_T], mB = lm[LM.MOUTH_B];
-        vibe.mouthOpen = Math.min(Math.abs(mT.y-mB.y)/(Math.abs(top.y-bot.y)+0.01)*8, 1.0);
-        vibe.yaw = (lm[LM.NOSE].x - 0.5) * 1.5;
-        vibe.pitch = (lm[LM.NOSE].y - 0.5) * -1.2;
-        receiver.applyLiveDelta(vibe);
-    }
-}
-
-function applyChuckClose(ctx) {
-    const size = 8; 
-    const imageData = ctx.getImageData(0, 0, W, H);
-    ctx.clearRect(0,0,W,H);
-    for (let y = 0; y < H; y += size) {
-        for (let x = 0; x < W; x += size) {
-            const idx = (y * W + x) * 4;
-            ctx.fillStyle = `rgb(${imageData.data[idx]},${imageData.data[idx+1]},${imageData.data[idx+2]})`;
-            ctx.beginPath(); ctx.arc(x+size/2, y+size/2, size/2.2, 0, 7); ctx.fill();
-        }
-    }
-}
-
-function tick() {
-    receiver.update();
-    const mainCtx = document.getElementById('final_canvas').getContext('2d');
-    mainCtx.clearRect(0, 0, W, H);
+    // Sort by nearest
+    distances.sort((a, b) => a.distSq - b.distSq);
     
-    if (isDevMode) {
-        renderer.setViewport(0, 0, W, H);
-        receiver.material.wireframe = true;
-        renderer.render(scene, cam3);
-        mainCtx.drawImage(renderer.domElement, 0, 0, W, H);
-    } else {
-        renderer.setViewport(0, 0, W, H);
-        receiver.material.wireframe = false;
-        renderer.render(scene, cam3);
-        mainCtx.drawImage(renderer.domElement, 0, 0, W, H);
-        applyChuckClose(mainCtx);
+    // Take Top K and compute Inverse Distance Weighting
+    let totalWeight = 0;
+    const tethers = [];
+    
+    for (let k = 0; k < CONFIG.K_NEAREST; k++) {
+      const anchor = distances[k];
+      // Prevent division by zero
+      const dist = Math.max(Math.sqrt(anchor.distSq), 0.0001); 
+      const weight = 1.0 / Math.pow(dist, CONFIG.POWER);
+      tethers.push({ index: anchor.index, weight: weight });
+      totalWeight += weight;
     }
+
+    // Normalize weights so they sum to 1.0
+    for (let k = 0; k < tethers.length; k++) {
+      tethers[k].weight /= totalWeight;
+    }
+
+    vertexMapping.push({ isBack: false, tethers: tethers });
+  }
 }
 
+// Normalize raw MediaPipe coordinates into our 3D space
+function normalizeLandmarks(rawLM) {
+  const out = [];
+  // Calculate bounding center for alignment
+  let cx=0, cy=0, cz=0;
+  for(let i=0; i<468; i++) {
+    cx += rawLM[i].x; cy += rawLM[i].y; cz += rawLM[i].z || 0;
+  }
+  cx /= 468; cy /= 468; cz /= 468;
+
+  const scaleX = 3.2; 
+  const scaleY = -3.2; // Invert Y for 3D space
+  const scaleZ = 3.2;
+
+  for(let i=0; i<468; i++) {
+    out.push(new THREE.Vector3(
+      (rawLM[i].x - cx) * scaleX,
+      (rawLM[i].y - cy) * scaleY,
+      ((rawLM[i].z || 0) - cz) * scaleZ
+    ));
+  }
+  return out;
+}
+
+// --- Frame Execution ---
 function onResults(results) {
-    if (!results.multiFaceLandmarks || !results.multiFaceLandmarks[0]) return;
-    liveLM = results.multiFaceLandmarks[0];
-    if (receiver.geometry.getIndex() === null && window.FACEMESH_TESSELATION) {
-        receiver.initTopology(generateAdvancedTopology(window.FACEMESH_TESSELATION));
+  // Draw feed
+  dom.feedCtx.drawImage(results.image, 0, 0, dom.feed.width, dom.feed.height);
+  
+  if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
+  
+  const rawLM = results.multiFaceLandmarks[0];
+  const normLM = normalizeLandmarks(rawLM);
+
+  if (state === 'CALIBRATING') {
+    calibrationFrames.push(normLM);
+    const progress = (calibrationFrames.length / 30) * 100;
+    dom.fTether.style.width = progress + '%';
+    dom.vTether.innerText = Math.floor(progress) + '%';
+    dom.pFill.style.width = progress + '%';
+    
+    if (calibrationFrames.length >= 30) {
+      // Average the frames to create a stable neutral map
+      const avgLM = [];
+      for(let i=0; i<468; i++) avgLM.push(new THREE.Vector3());
+      
+      for(let f=0; f<30; f++) {
+        for(let i=0; i<468; i++) {
+          avgLM[i].add(calibrationFrames[f][i]);
+        }
+      }
+      for(let i=0; i<468; i++) avgLM[i].divideScalar(30);
+
+      computeManifold(avgLM);
+      
+      state = 'LIVE';
+      dom.overlay.classList.add('hidden');
+      dom.badge.className = 'badge live';
+      dom.badge.innerText = 'Sync Active';
+      dom.dot.className = 'dot active';
     }
-    runTransmitter(liveLM);
-    tick();
+    return;
+  }
+
+  if (state === 'LIVE') {
+    // 1. Extract Colors from Video
+    const imgData = dom.feedCtx.getImageData(0, 0, dom.feed.width, dom.feed.height).data;
+    const lmColors = [];
+    
+    for (let i = 0; i < 468; i++) {
+      let px = Math.floor(rawLM[i].x * dom.feed.width);
+      let py = Math.floor(rawLM[i].y * dom.feed.height);
+      // Clamp
+      px = Math.max(0, Math.min(px, dom.feed.width - 1));
+      py = Math.max(0, Math.min(py, dom.feed.height - 1));
+      
+      const idx = (py * dom.feed.width + px) * 4;
+      lmColors.push({
+        r: imgData[idx] / 255,
+        g: imgData[idx+1] / 255,
+        b: imgData[idx+2] / 255
+      });
+    }
+
+    let totalDelta = 0;
+
+    // 2. Apply Manifold Deformation (Pull the strings)
+    for (let i = 0; i < vertexCount; i++) {
+      const map = vertexMapping[i];
+      
+      if (map.isBack) {
+        targetVertices[i].copy(baseVertices[i]);
+        targetColors[i].setRGB(...CONFIG.CLAY_DARK);
+      } else {
+        // IDW Calculation
+        let tx = 0, ty = 0, tz = 0;
+        let cr = 0, cg = 0, cb = 0;
+        
+        for (let t = 0; t < map.tethers.length; t++) {
+          const teth = map.tethers[t];
+          const lPos = normLM[teth.index];
+          const lCol = lmColors[teth.index];
+          
+          tx += lPos.x * teth.weight;
+          ty += lPos.y * teth.weight;
+          tz += lPos.z * teth.weight;
+          
+          cr += lCol.r * teth.weight;
+          cg += lCol.g * teth.weight;
+          cb += lCol.b * teth.weight;
+        }
+        
+        // Push target position slightly out to maintain sphere volume feeling
+        const pushScale = 1.1; 
+        targetVertices[i].set(tx * pushScale, ty * pushScale, tz * pushScale);
+        
+        // Color blending - mix video feed with clay base to maintain material look
+        targetColors[i].setRGB(
+          (cr * 0.7) + (CONFIG.CLAY_BASE[0] * 0.3),
+          (cg * 0.7) + (CONFIG.CLAY_BASE[1] * 0.3),
+          (cb * 0.7) + (CONFIG.CLAY_BASE[2] * 0.3)
+        );
+      }
+
+      // Record deformation delta for UI metrics
+      totalDelta += targetVertices[i].distanceTo(currentVertices[i]);
+
+      // 3. Easing
+      currentVertices[i].lerp(targetVertices[i], CONFIG.SMOOTHING);
+      currentColors[i].lerp(targetColors[i], CONFIG.COLOR_SMOOTHING);
+      
+      // Update geometry buffers
+      posAttr.setXYZ(i, currentVertices[i].x, currentVertices[i].y, currentVertices[i].z);
+      colorArray[i*3] = currentColors[i].r;
+      colorArray[i*3+1] = currentColors[i].g;
+      colorArray[i*3+2] = currentColors[i].b;
+    }
+
+    posAttr.needsUpdate = true;
+    geometry.attributes.color.needsUpdate = true;
+    geometry.computeVertexNormals();
+
+    // Update UI Metrics
+    liveDeformation = liveDeformation * 0.9 + (totalDelta / vertexCount) * 0.1;
+    dom.vDeform.innerText = liveDeformation.toFixed(3);
+    dom.fDeform.style.width = Math.min((liveDeformation / 0.05) * 100, 100) + '%';
+    
+    // Add subtle procedural head bob
+    const time = Date.now() * 0.001;
+    rig.rotation.y = Math.sin(time * 0.5) * 0.15;
+    rig.rotation.x = Math.cos(time * 0.7) * 0.1;
+  }
 }
 
-const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
-faceMesh.setOptions({maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
-faceMesh.onResults(onResults);
-const camera = new Camera(vid, {onFrame: async () => { await faceMesh.send({image: vid}); }, width: 640, height: 480});
-camera.start();
+// --- Render Loop ---
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+}
+animate();
 
-window.addEventListener('keydown', e => { if(e.key.toLowerCase()==='d') isDevMode = !isDevMode; });
+// --- Hardware Init ---
+async function startSystem() {
+  dom.btnStart.disabled = true;
+  dom.sMain.innerText = 'Initializing Model';
+  dom.sSub.innerText = 'Loading MediaPipe Topology...';
+  
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+    dom.webcam.srcObject = stream;
+    await dom.webcam.play();
+
+    faceMeshModel = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+    faceMeshModel.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+    faceMeshModel.onResults(onResults);
+    
+    await faceMeshModel.initialize();
+    
+    dom.sMain.innerText = 'Mapping Topography';
+    dom.sSub.innerText = 'Hold face neutral for baseline projection';
+    dom.pWrap.style.display = 'block';
+    
+    state = 'CALIBRATING';
+    calibrationFrames = [];
+    
+    // Feed loop
+    const processVideo = async () => {
+      if(!dom.webcam.paused) await faceMeshModel.send({image: dom.webcam});
+      requestAnimationFrame(processVideo);
+    };
+    processVideo();
+
+  } catch(e) {
+    dom.sMain.innerText = 'Hardware Failure';
+    dom.sSub.innerText = e.message;
+    dom.btnStart.disabled = false;
+  }
+}
+
+dom.btnStart.addEventListener('click', startSystem);
+dom.btnReset.addEventListener('click', () => {
+  if(state === 'LIVE') {
+    state = 'CALIBRATING';
+    calibrationFrames = [];
+    dom.overlay.classList.remove('hidden');
+    dom.sMain.innerText = 'Remapping Topography';
+    dom.sSub.innerText = 'Hold face neutral';
+    dom.badge.className = 'badge wait';
+    dom.badge.innerText = 'Calibrating';
+    dom.dot.className = 'dot';
+  }
+});
 </script>
 </body>
 </html>
