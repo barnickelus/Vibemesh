@@ -1,302 +1,582 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoBi-Net // SCULPTING RECEIVER</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <style>
-        body { margin: 0; background: #050505; color: #00ff00; font-family: 'Courier New', monospace; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        #container { position: relative; width: 480px; height: 560px; border: 1px solid #222; box-shadow: 0 0 20px rgba(0,255,0,0.2); }
-        canvas, video { position: absolute; top: 0; left: 0; }
-        #ui { position: absolute; bottom: 10px; left: 10px; z-index: 100; font-size: 9px; background: rgba(0,0,0,0.9); padding: 8px; border: 1px solid #00ff0033; pointer-events: none; line-height: 1.5; text-transform: uppercase; }
-        .hint { position: absolute; top: 10px; right: 10px; font-size: 8px; color: #444; z-index: 100; text-transform: uppercase; }
-        #ft_canvas { display: none; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibe Protocol — Clay</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0908;--surface:#121110;--border:#252220;--text:#e8e2d8;--muted:#4e4840;--accent:#c9a96e;--dk:#7a5c2e;--green:#6a9e6a;--amber:#c9a050}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:14px 12px 24px}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 50% 35%,#1a1510 0%,var(--bg) 70%);pointer-events:none;z-index:0}
+header{position:relative;z-index:1;text-align:center;margin-bottom:10px}
+.ey{font-size:.45rem;letter-spacing:.35em;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
+h1{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:500;letter-spacing:.06em;line-height:1}
+h1 em{font-style:italic;color:var(--accent)}
+.sub{font-size:.42rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-top:4px}
+.stage{position:relative;z-index:1;display:flex;gap:12px;align-items:flex-start}
+.wrap{position:relative}
+.wrap::before,.wrap::after{content:'';position:absolute;width:10px;height:10px;z-index:3;pointer-events:none}
+.wrap::before{top:0;left:0;border-top:2px solid var(--dk);border-left:2px solid var(--dk)}
+.wrap::after{bottom:0;right:0;border-bottom:2px solid var(--dk);border-right:2px solid var(--dk)}
+#display{display:block;border:1px solid var(--border)}
+#ov{position:absolute;inset:0;background:rgba(10,9,8,.90);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;z-index:5;transition:opacity .5s}
+#ov.gone{opacity:0;pointer-events:none}
+.ovt{font-family:'Cormorant Garamond',serif;font-size:1.3rem;color:var(--accent)}
+.ovs{font-size:.44rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+#go{font-family:'JetBrains Mono',monospace;font-size:.52rem;letter-spacing:.14em;text-transform:uppercase;padding:8px 18px;cursor:pointer;background:var(--accent);border:none;color:var(--bg);font-weight:500}
+#go:hover{opacity:.8}
+#go:disabled{opacity:.4;cursor:default}
+.cb{width:140px;height:2px;background:var(--border);margin-top:2px}
+#cf{height:100%;background:var(--accent);width:0%;transition:width .1s}
+.stat{display:flex;justify-content:space-between;font-size:.42rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:0 2px;margin-top:3px}
+.rc{width:170px;display:flex;flex-direction:column;gap:6px}
+.pip{position:relative;border:1px solid var(--border);overflow:hidden}
+#vid{display:block;width:170px;height:128px;object-fit:cover;transform:scaleX(-1)}
+.bg{position:absolute;top:3px;right:3px;font-size:.38rem;letter-spacing:.1em;text-transform:uppercase;padding:1px 3px;border:1px solid;z-index:2}
+.bg.w{color:var(--amber);border-color:var(--amber)}
+.bg.c{color:var(--accent);border-color:var(--accent)}
+.bg.l{color:var(--green);border-color:var(--green)}
+.pan{border:1px solid var(--border);padding:6px;background:var(--surface)}
+.ph{font-size:.38rem;letter-spacing:.2em;text-transform:uppercase;color:var(--dk);margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+.dot{width:4px;height:4px;border-radius:50%;background:var(--border)}
+.dot.on{background:var(--green);animation:pu 1.8s infinite}
+@keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
+.pr{margin-bottom:3px}
+.pl{font-size:.36rem;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;display:flex;justify-content:space-between}
+.pv{color:var(--accent)}
+.bt{height:2px;background:var(--border);position:relative}
+.bf{height:100%;background:var(--dk);position:absolute;left:0;transition:width .06s}
+.ar{font-size:.34rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:4px;padding-top:4px;border-top:1px solid var(--border)}
+.ar span{color:var(--accent)}
+.ctrls{position:relative;z-index:1;margin-top:8px;display:flex;gap:6px}
+.btn{font-family:'JetBrains Mono',monospace;font-size:.44rem;letter-spacing:.1em;text-transform:uppercase;padding:4px 8px;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer}
+.btn:hover{border-color:var(--dk);color:var(--text)}
+</style>
 </head>
 <body>
-
-<div id="container">
-    <video id="input_video" style="display:none"></video>
-    <canvas id="ft_canvas" width="640" height="480"></canvas>
-    <canvas id="final_canvas" width="480" height="560"></canvas>
-    <div id="ui">
-        LOBI-NET // SCULPT PROTOCOL<br>
-        PHASE: <span id="phase_label" style="color:#ff00ff">19-BYTE (BUILDING)</span><br>
-        PACKETS: <span id="packet_count" style="color:#00ffff">0 / 468</span>
+<header>
+  <div class="ey">Vibe Protocol</div>
+  <h1>Living <em>Clay</em></h1>
+  <div class="sub">Starts blank. Gains likeness. Every frame a new detail.</div>
+</header>
+<div class="stage">
+  <div>
+    <div class="wrap">
+      <canvas id="display" width="480" height="580"></canvas>
+      <div id="ov">
+        <div class="ovt" id="ovt">Vibe Protocol</div>
+        <div class="ovs" id="ovs">Camera access needed</div>
+        <button id="go">Enable Camera</button>
+        <div class="cb" id="cbar" style="display:none"><div id="cf"></div></div>
+      </div>
     </div>
-    <div class="hint">PRESS 'D' TO TOGGLE DEV MODE</div>
+    <div class="stat"><span id="sp">Waiting</span><span id="ss">0 samples</span><span id="sl">0% likeness</span></div>
+  </div>
+  <div class="rc">
+    <div class="pip"><video id="vid" playsinline muted></video><div class="bg w" id="badge">Wait</div></div>
+    <div class="pan">
+      <div class="ph">Expression <div class="dot" id="pdot"></div></div>
+      <div class="pr"><div class="pl">Mouth <span class="pv" id="vm">0.00</span></div><div class="bt"><div class="bf" id="bm"></div></div></div>
+      <div class="pr"><div class="pl">Smile <span class="pv" id="vs">0.00</span></div><div class="bt"><div class="bf" id="bs"></div></div></div>
+      <div class="pr"><div class="pl">Eyes <span class="pv" id="ve">1.00</span></div><div class="bt"><div class="bf" id="be"></div></div></div>
+      <div class="pr"><div class="pl">Yaw <span class="pv" id="vy">0.00</span></div><div class="bt"><div class="bf" id="by"></div></div></div>
+      <div class="ar">Sculpted: <span id="ac">0</span> pts | <span id="ak">0</span> bytes</div>
+    </div>
+  </div>
+</div>
+<div class="ctrls">
+  <button class="btn" id="recal">Reset Clay</button>
+  <button class="btn" id="wireBtn">Wire OFF</button>
 </div>
 
 <script>
-'use strict';
+var CW=480,CH=580,NL=468;
+var OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+var LM={N:1,CH:152,T:10,LE:33,RE:263,LT:159,LB:145,RT:386,RB:374,LBR:105,RBR:334,MT:13,MB:14,ML:61,MR:291};
+function cl(v,a,b){return v<a?a:v>b?b:v;}
+function lerp(a,b,t){return a+(b-a)*t;}
 
-const W=480, H=560;
-let isDevMode = true; 
-const vid = document.getElementById('input_video');
-const ftCtx = document.getElementById('ft_canvas').getContext('2d', {willReadFrequently: true});
+var phase='w',calCnt=0,calLM=null,browBL=null;
+var vb={mo:0,mc:0,bl:0,eo:1};
+var po={y:0,p:0,r:0};
+var pBL={nr:0.55,yo:0};
 
-// Vibe & Calibration State
-const LM={ NOSE:1, MOUTH_T:13, MOUTH_B:14, MOUTH_L:61, MOUTH_R:291 };
-let vibe = { mouthOpen: 0, yaw: 0, pitch: 0 };
-let liveLM = null;
+// Sculpt state
+var clayMesh=null;       // THREE.Mesh
+var clayGeo=null;        // BufferGeometry
+var basePos=null;        // Float32Array — original ellipsoid positions
+var sculptPos=null;      // Float32Array — sculpted (target) positions
+var currentPos=null;     // Float32Array — smoothly animated current positions
+var colors=null;         // Float32Array — vertex colors (r,g,b per vertex)
+var sculptWeight=null;   // Float32Array — per-vertex confidence (0=unsculpted, 1=fully sculpted)
+var totalSamples=0;
+var regionTags=null;     // Uint8Array — expression region per vertex
+var neighbors=null;      // Array of arrays — neighbor indices for diffusion
+var wireframe=false;
+var wireHelper=null;
 
-// --- THREE.JS SETUP ---
-const scene = new THREE.Scene();
-const cam3 = new THREE.PerspectiveCamera(35, (W/2)/H, 0.1, 1000);
-cam3.position.set(0, 0, 4.0);
+// Clay color
+var CLAY_R=0.72, CLAY_G=0.58, CLAY_B=0.45;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setSize(W, H);
+// ═══ THREE.JS SETUP ═══
+var display=document.getElementById('display');
+var renderer=new THREE.WebGLRenderer({canvas:display,antialias:true,alpha:false});
+renderer.setSize(CW,CH,false);
+renderer.setClearColor(0x0a0908,1);
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.1;
 
-// ══════════════════════════════════════════════════
-//  1. TRIANGLE EXTRACTOR & PRIORITY QUEUE
-// ══════════════════════════════════════════════════
-function generateTriangles(tesselationEdges) {
-    const adj = Array.from({length: 468}, () => []);
-    tesselationEdges.forEach(edge => {
-        adj[edge[0]].push(edge[1]);
-        adj[edge[1]].push(edge[0]);
-    });
-    const tris = [];
-    for (let i = 0; i < 468; i++) {
-        for (let j = 0; j < adj[i].length; j++) {
-            const n1 = adj[i][j];
-            if (n1 <= i) continue;
-            for (let k = j + 1; k < adj[i].length; k++) {
-                const n2 = adj[i][k];
-                if (n2 <= i) continue;
-                if (adj[n1].includes(n2)) tris.push(i, n1, n2);
-            }
-        }
-    }
-    return tris;
-}
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0a0908);
 
-const SCULPT_PRIORITY = {
-    OVAL: [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109],
-    L_EYE: [33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7],
-    R_EYE: [362, 398, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374, 380, 381, 382],
-    NOSE: [1, 2, 98, 327, 168, 6],
-    MOUTH: [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 14, 317, 402, 318, 324, 308, 78, 191, 80, 81, 82, 13, 312, 311, 310, 415]
-};
+// Environment gradient
+var bgCvs=document.createElement('canvas');
+bgCvs.width=2;bgCvs.height=256;
+var bgx=bgCvs.getContext('2d');
+var bgGrad=bgx.createLinearGradient(0,0,0,256);
+bgGrad.addColorStop(0,'#1a1612');
+bgGrad.addColorStop(0.4,'#110f0d');
+bgGrad.addColorStop(1,'#080706');
+bgx.fillStyle=bgGrad;bgx.fillRect(0,0,2,256);
+scene.background=new THREE.CanvasTexture(bgCvs);
 
-const PRIORITY_SET = new Set([...SCULPT_PRIORITY.OVAL, ...SCULPT_PRIORITY.L_EYE, ...SCULPT_PRIORITY.R_EYE, ...SCULPT_PRIORITY.NOSE, ...SCULPT_PRIORITY.MOUTH]);
-const FILL = [];
-for (let i = 0; i < 468; i++) if (!PRIORITY_SET.has(i)) FILL.push(i);
-const TRANSMIT_QUEUE = [...SCULPT_PRIORITY.OVAL, ...SCULPT_PRIORITY.L_EYE, ...SCULPT_PRIORITY.R_EYE, ...SCULPT_PRIORITY.NOSE, ...SCULPT_PRIORITY.MOUTH, ...FILL];
+var camera=new THREE.PerspectiveCamera(30,CW/CH,0.1,100);
+camera.position.set(0,0,3.8);
 
-// ══════════════════════════════════════════════════
-//  2. THE SCULPTING RECEIVER
-// ══════════════════════════════════════════════════
-class SculptingReceiver {
-    constructor() {
-        this.numVertices = 468;
-        this.isFullySculpted = false;
-        this.basePositions = new Float32Array(this.numVertices * 3); // The measured resting face
-        this.targetPositions = new Float32Array(this.numVertices * 3); // Where it's animating to
-        this.positions = new Float32Array(this.numVertices * 3); // Active mesh positions
-        this.colors = new Float32Array(this.numVertices * 3);
-        this.targetColors = new Float32Array(this.numVertices * 3);
-        
-        // Init as Fibonacci Sphere
-        const radius = 0.6;
-        for (let i = 0; i < this.numVertices; i++) {
-            const phi = Math.acos(1 - 2 * (i + 0.5) / this.numVertices);
-            const theta = Math.PI * (1 + Math.sqrt(5)) * i;
-            const x = radius * Math.cos(theta) * Math.sin(phi);
-            const y = radius * Math.sin(theta) * Math.sin(phi);
-            const z = radius * Math.cos(phi);
-            
-            [this.positions, this.targetPositions, this.basePositions].forEach(arr => {
-                arr[i*3] = x; arr[i*3+1] = y; arr[i*3+2] = z;
-            });
-            [this.colors, this.targetColors].forEach(arr => {
-                arr[i*3] = 0.5; arr[i*3+1] = 0.5; arr[i*3+2] = 0.5;
-            });
-        }
+// Warm studio lighting
+scene.add(new THREE.AmbientLight(0xffe0c8,0.35));
+var key=new THREE.DirectionalLight(0xfff0e0,0.6);
+key.position.set(-2,2.5,3);scene.add(key);
+var fill=new THREE.DirectionalLight(0xc8d8f0,0.25);
+fill.position.set(2,0.5,2);scene.add(fill);
+var rim=new THREE.DirectionalLight(0xffd0a0,0.2);
+rim.position.set(0,1,-3);scene.add(rim);
 
-        this.geometry = new THREE.BufferGeometry();
-        this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-        this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
-        
-        this.material = new THREE.MeshBasicMaterial({ vertexColors: true, wireframe: false, side: THREE.DoubleSide });
-        this.mesh = new THREE.Mesh(this.geometry, this.material);
-        scene.add(this.mesh);
-    }
+// Region constants
+var R_NONE=0,R_MOUTH=1,R_JAW=2,R_EYE_L=3,R_EYE_R=4,R_BROW_L=5,R_BROW_R=6,R_NOSE=7,R_CHEEK=8;
 
-    initTopology(triangles) {
-        this.geometry.setIndex(triangles);
-    }
+// ═══ BUILD CLAY — subdivided ellipsoid ═══
+function buildClay(){
+  if(clayMesh){scene.remove(clayMesh);if(wireHelper)scene.remove(wireHelper);}
 
-    receiveBuildPacket(packet) {
-        const i = packet.idx;
-        this.basePositions[i*3]   = packet.x;
-        this.basePositions[i*3+1] = packet.y;
-        this.basePositions[i*3+2] = packet.z;
-        this.targetPositions[i*3]   = packet.x;
-        this.targetPositions[i*3+1] = packet.y;
-        this.targetPositions[i*3+2] = packet.z;
-        this.targetColors[i*3]   = packet.r / 255;
-        this.targetColors[i*3+1] = packet.g / 255;
-        this.targetColors[i*3+2] = packet.b / 255;
-    }
+  // Head-shaped ellipsoid: taller than wide, slightly narrower side-to-side
+  var geo=new THREE.SphereGeometry(1,48,36);
+  clayGeo=geo;
 
-    applyLiveDelta(vibe) {
-        // Reset targets to base sculpted face
-        this.targetPositions.set(this.basePositions);
-        
-        // Physically push mouth vertices based on vibe delta
-        const pushY = vibe.mouthOpen * 0.15; // Max mouth drop amount in world space
-        
-        // Drop lower lip
-        const botIdx = LM.MOUTH_B * 3 + 1;
-        this.targetPositions[botIdx] -= pushY;
-        
-        // Slightly pull down corners
-        this.targetPositions[LM.MOUTH_L * 3 + 1] -= pushY * 0.3;
-        this.targetPositions[LM.MOUTH_R * 3 + 1] -= pushY * 0.3;
+  var pos=geo.attributes.position;
+  var nVerts=pos.count;
 
-        // Apply Pose to entire Mesh object
-        this.mesh.rotation.y = -vibe.yaw;
-        this.mesh.rotation.x = vibe.pitch;
-    }
+  basePos=new Float32Array(nVerts*3);
+  sculptPos=new Float32Array(nVerts*3);
+  currentPos=new Float32Array(nVerts*3);
+  colors=new Float32Array(nVerts*3);
+  sculptWeight=new Float32Array(nVerts);
+  regionTags=new Uint8Array(nVerts);
 
-    update() {
-        const speed = this.isFullySculpted ? 0.3 : 0.08; // Fast for live delta, slow for build phase
-        let pUpdate = false, cUpdate = false;
-        
-        for (let i = 0; i < this.numVertices * 3; i++) {
-            const pDiff = this.targetPositions[i] - this.positions[i];
-            if (Math.abs(pDiff) > 0.001) { this.positions[i] += pDiff * speed; pUpdate = true; }
-            
-            const cDiff = this.targetColors[i] - this.colors[i];
-            if (Math.abs(cDiff) > 0.001) { this.colors[i] += cDiff * speed; cUpdate = true; }
-        }
-        
-        if (pUpdate) this.geometry.attributes.position.needsUpdate = true;
-        if (cUpdate) this.geometry.attributes.color.needsUpdate = true;
-    }
-}
+  // Shape into head ellipsoid and tag regions
+  for(var i=0;i<nVerts;i++){
+    var x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
 
-const receiver = new SculptingReceiver();
+    // Scale to head proportions
+    x*=0.58;  // width
+    y*=0.72;  // height
+    z*=0.54;  // depth
+    y+=0.08;  // shift up slightly
 
-// ══════════════════════════════════════════════════
-//  3. THE TRANSMITTER (Sampling & Sending)
-// ══════════════════════════════════════════════════
-let packetIndex = 0;
-const packetsPerFrame = 12; // Speed of the incoming data stream
+    basePos[i*3]=x; basePos[i*3+1]=y; basePos[i*3+2]=z;
+    sculptPos[i*3]=x; sculptPos[i*3+1]=y; sculptPos[i*3+2]=z;
+    currentPos[i*3]=x; currentPos[i*3+1]=y; currentPos[i*3+2]=z;
 
-function runTransmitter(lm) {
-    if (packetIndex < TRANSMIT_QUEUE.length) {
-        // BUILD PHASE (19-Byte Packets)
-        ftCtx.drawImage(vid, 0, 0, 640, 480);
-        const limit = Math.min(packetIndex + packetsPerFrame, TRANSMIT_QUEUE.length);
-        
-        for (let i = packetIndex; i < limit; i++) {
-            const idx = TRANSMIT_QUEUE[i];
-            const pt = lm[idx];
-            
-            const px = Math.floor(Math.max(0, Math.min(pt.x * 640, 639)));
-            const py = Math.floor(Math.max(0, Math.min(pt.y * 480, 479)));
-            const rgb = ftCtx.getImageData(px, py, 1, 1).data;
-            
-            receiver.receiveBuildPacket({
-                idx: idx,
-                x: (pt.x - 0.5) * 2.5,
-                y: -(pt.y - 0.5) * 2.5,
-                z: -pt.z * 2.5,
-                r: rgb[0], g: rgb[1], b: rgb[2]
-            });
-        }
-        packetIndex = limit;
-        document.getElementById('packet_count').innerText = `${packetIndex} / 468`;
-        
-        if (packetIndex >= TRANSMIT_QUEUE.length) {
-            receiver.isFullySculpted = true;
-            document.getElementById('phase_label').innerText = "24-BYTE (LIVE DELTA)";
-            document.getElementById('phase_label').style.color = "#00ff00";
-        }
+    // Initialize clay color
+    colors[i*3]=CLAY_R; colors[i*3+1]=CLAY_G; colors[i*3+2]=CLAY_B;
+
+    // Tag expression regions based on position on the ellipsoid
+    var nx=pos.getX(i), ny=pos.getY(i), nz=pos.getZ(i); // original sphere coords as normals
+    var front=nz>0.3;
+
+    if(front && ny<-0.15 && ny>-0.55 && Math.abs(nx)<0.35){
+      regionTags[i]=R_MOUTH;
+    } else if(front && ny<=-0.55){
+      regionTags[i]=R_JAW;
+    } else if(front && ny>0.05 && ny<0.35 && nx<-0.15 && nx>-0.55){
+      regionTags[i]=R_EYE_L;
+    } else if(front && ny>0.05 && ny<0.35 && nx>0.15 && nx<0.55){
+      regionTags[i]=R_EYE_R;
+    } else if(front && ny>=0.35 && ny<0.55 && nx<-0.1){
+      regionTags[i]=R_BROW_L;
+    } else if(front && ny>=0.35 && ny<0.55 && nx>0.1){
+      regionTags[i]=R_BROW_R;
+    } else if(front && ny>-0.15 && ny<0.15 && Math.abs(nx)<0.2){
+      regionTags[i]=R_NOSE;
+    } else if(front && Math.abs(nx)>0.3){
+      regionTags[i]=R_CHEEK;
     } else {
-        // LIVE PHASE (24-Byte Protocol)
-        const top = lm[10], bot = lm[152], mT = lm[LM.MOUTH_T], mB = lm[LM.MOUTH_B];
-        const dist = Math.sqrt(Math.pow(mT.x - mB.x, 2) + Math.pow(mT.y - mB.y, 2));
-        const faceSize = Math.sqrt(Math.pow(top.x - bot.x, 2) + Math.pow(top.y - bot.y, 2));
-        
-        vibe.mouthOpen = Math.min(dist / faceSize * 8.0, 1.0);
-        vibe.yaw = (lm[LM.NOSE].x - 0.5) * 1.5;
-        vibe.pitch = (lm[LM.NOSE].y - 0.5) * -1.2;
-        
-        receiver.applyLiveDelta(vibe);
+      regionTags[i]=R_NONE;
     }
+  }
+
+  // Build neighbor lists for color diffusion
+  var idx=geo.index.array;
+  neighbors=[];
+  for(i=0;i<nVerts;i++) neighbors.push([]);
+  for(i=0;i<idx.length;i+=3){
+    var a=idx[i],b=idx[i+1],c=idx[i+2];
+    if(neighbors[a].indexOf(b)<0) neighbors[a].push(b);
+    if(neighbors[a].indexOf(c)<0) neighbors[a].push(c);
+    if(neighbors[b].indexOf(a)<0) neighbors[b].push(a);
+    if(neighbors[b].indexOf(c)<0) neighbors[b].push(c);
+    if(neighbors[c].indexOf(a)<0) neighbors[c].push(a);
+    if(neighbors[c].indexOf(b)<0) neighbors[c].push(b);
+  }
+
+  // Update geometry positions
+  for(i=0;i<nVerts;i++){
+    pos.setXYZ(i,currentPos[i*3],currentPos[i*3+1],currentPos[i*3+2]);
+  }
+
+  // Add vertex colors
+  geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+  geo.computeVertexNormals();
+
+  // Material: clay-like
+  var mat=new THREE.MeshStandardMaterial({
+    vertexColors:true,
+    roughness:0.82,
+    metalness:0.02,
+    flatShading:false
+  });
+
+  clayMesh=new THREE.Mesh(geo,mat);
+  clayMesh.rotation.order='YXZ';
+  scene.add(clayMesh);
+
+  // Neck + body (simple, dark)
+  var clothCol=new THREE.Color(0.10,0.09,0.08);
+  var neckGeo=new THREE.CylinderGeometry(0.14,0.18,0.3,16);
+  var neckMat=new THREE.MeshStandardMaterial({color:new THREE.Color(CLAY_R*0.7,CLAY_G*0.7,CLAY_B*0.7),roughness:0.85,metalness:0});
+  var neck=new THREE.Mesh(neckGeo,neckMat);
+  neck.position.set(0,-0.78,0);
+  clayMesh.add(neck);
+
+  var bodyGeo=new THREE.SphereGeometry(0.5,16,8,0,Math.PI*2,0,Math.PI*0.5);
+  var bodyMat=new THREE.MeshStandardMaterial({color:clothCol,roughness:0.9,metalness:0});
+  var body=new THREE.Mesh(bodyGeo,bodyMat);
+  body.position.set(0,-0.95,0);body.scale.set(1.1,0.4,0.5);body.rotation.x=Math.PI;
+  clayMesh.add(body);
+
+  var torsoGeo=new THREE.CylinderGeometry(0.45,0.40,0.5,16);
+  var torso=new THREE.Mesh(torsoGeo,new THREE.MeshStandardMaterial({color:clothCol,roughness:0.9,metalness:0}));
+  torso.position.set(0,-1.22,0);torso.scale.set(1,1,0.4);
+  clayMesh.add(torso);
+
+  document.getElementById('ss').textContent='0 samples';
+  document.getElementById('sl').textContent='0% likeness';
 }
 
-// ══════════════════════════════════════════════════
-//  4. RENDER LOOP & POST-PROCESSING
-// ══════════════════════════════════════════════════
-function applyChuckClose(ctx) {
-    const size = isDevMode ? 4 : 8; 
-    const imageData = ctx.getImageData(0, 0, W, H);
-    ctx.clearRect(0,0,W,H);
-    for (let y = 0; y < H; y += size) {
-        for (let x = 0; x < W; x += size) {
-            const idx = (y * W + x) * 4;
-            const r = imageData.data[idx], g = imageData.data[idx+1], b = imageData.data[idx+2];
-            ctx.fillStyle = `rgb(${r},${g},${b})`;
-            ctx.beginPath();
-            ctx.arc(x + size/2, y + size/2, size/2.2, 0, Math.PI*2);
-            ctx.fill();
-        }
+// ═══ SCULPT — apply surface samples to clay ═══
+// Called each frame with a few landmark measurements.
+// Each sample nudges nearby vertices toward the target position + color.
+function sculptFrame(lm, vid){
+  if(!clayMesh || !calLM) return;
+
+  var ox=OVAL.map(function(i){return lm[i].x;}), oy=OVAL.map(function(i){return lm[i].y;});
+  var fcx=(Math.min.apply(null,ox)+Math.max.apply(null,ox))*0.5;
+  var fcy=(Math.min.apply(null,oy)+Math.max.apply(null,oy))*0.5;
+  var fw=(Math.max.apply(null,ox)-Math.min.apply(null,ox))*0.5||0.001;
+  var fh=(Math.max.apply(null,oy)-Math.min.apply(null,oy))*0.5||0.001;
+
+  // Sample video for colors
+  var colorCvs=document.createElement('canvas');
+  colorCvs.width=640;colorCvs.height=480;
+  var colorCtx=colorCvs.getContext('2d');
+  try{colorCtx.drawImage(vid,0,0,640,480);}catch(e){return;}
+
+  // Pick 8 random landmarks per frame to sculpt
+  var SAMPLES_PER_FRAME=8;
+  for(var s=0;s<SAMPLES_PER_FRAME;s++){
+    var li=Math.floor(Math.random()*NL);
+    var lmPt=lm[li];
+
+    // Convert landmark to 3D target position on our ellipsoid
+    var nx=(lmPt.x-fcx)/fw;  // -1..1
+    var ny=-(lmPt.y-fcy)/fh;
+    var nz=1.0-((lmPt.z||0)+0.05)*8; // rough depth estimate
+    nz=cl(nz,0,1);
+
+    // Project onto ellipsoid surface with depth
+    var r2=nx*nx+ny*ny;
+    var frontZ=r2<1?Math.sqrt(1-cl(r2,0,0.99)):0;
+    var tgtX=nx*0.58;
+    var tgtY=ny*0.72+0.08;
+    var tgtZ=frontZ*0.54*0.5+nz*0.54*0.5;
+
+    // Sample color from video
+    var px=cl(Math.round(lmPt.x*640),0,639);
+    var py=cl(Math.round(lmPt.y*480),0,479);
+    var pxData;
+    try{pxData=colorCtx.getImageData(px,py,1,1).data;}catch(e){continue;}
+    var tgtR=pxData[0]/255, tgtG=pxData[1]/255, tgtB=pxData[2]/255;
+
+    // Find nearest vertices on clay and sculpt them
+    var nVerts=basePos.length/3;
+    var influence=0.015; // how strongly each sample sculpts
+    var radius=0.15;     // influence radius
+
+    for(var vi=0;vi<nVerts;vi++){
+      var vx=sculptPos[vi*3], vy=sculptPos[vi*3+1], vz=sculptPos[vi*3+2];
+      var dx=vx-tgtX, dy=vy-tgtY, dz=vz-tgtZ;
+      var dist=Math.sqrt(dx*dx+dy*dy+dz*dz);
+
+      if(dist<radius){
+        var w=influence*(1-dist/radius); // falloff with distance
+        var sw=sculptWeight[vi];
+        var newW=cl(sw+w*0.5,0,1);
+
+        // Sculpt position
+        sculptPos[vi*3]=lerp(sculptPos[vi*3],tgtX,w);
+        sculptPos[vi*3+1]=lerp(sculptPos[vi*3+1],tgtY,w);
+        sculptPos[vi*3+2]=lerp(sculptPos[vi*3+2],tgtZ,w);
+
+        // Sculpt color — blend from clay toward actual skin/hair color
+        colors[vi*3]=lerp(colors[vi*3],tgtR,w*1.5);
+        colors[vi*3+1]=lerp(colors[vi*3+1],tgtG,w*1.5);
+        colors[vi*3+2]=lerp(colors[vi*3+2],tgtB,w*1.5);
+
+        sculptWeight[vi]=newW;
+      }
     }
+
+    totalSamples++;
+  }
+
+  // Color diffusion — spread colors slightly to neighbors each frame
+  var nVerts2=colors.length/3;
+  var diffRate=0.008;
+  for(var di=0;di<nVerts2;di++){
+    if(sculptWeight[di]<0.01) continue; // only diffuse from sculpted verts
+    var nb=neighbors[di];
+    for(var ni=0;ni<nb.length;ni++){
+      var nbi=nb[ni];
+      if(sculptWeight[nbi]>=sculptWeight[di]) continue; // don't overwrite more confident
+      colors[nbi*3]=lerp(colors[nbi*3],colors[di*3],diffRate);
+      colors[nbi*3+1]=lerp(colors[nbi*3+1],colors[di*3+1],diffRate);
+      colors[nbi*3+2]=lerp(colors[nbi*3+2],colors[di*3+2],diffRate);
+      sculptWeight[nbi]=cl(sculptWeight[nbi]+0.001,0,1);
+    }
+  }
+
+  // Update likeness display
+  var avgWeight=0;
+  for(di=0;di<nVerts2;di++) avgWeight+=sculptWeight[di];
+  avgWeight/=nVerts2;
+  document.getElementById('ss').textContent=totalSamples+' samples';
+  document.getElementById('sl').textContent=(avgWeight*100).toFixed(0)+'% likeness';
+  document.getElementById('ac').textContent=totalSamples;
+  document.getElementById('ak').textContent=(totalSamples*24)|0;
 }
 
-function tick() {
-    receiver.update();
+// ═══ EXPRESSION DEFORMATION ═══
+// Displace vertices based on expression floats and region tags.
+// This runs every frame, ON TOP of the sculpted positions.
+function applyExpression(){
+  if(!clayMesh || !sculptPos) return;
 
-    const mainCtx = document.getElementById('final_canvas').getContext('2d');
-    mainCtx.clearRect(0, 0, W, H);
+  var pos=clayGeo.attributes.position;
+  var nVerts=pos.count;
+  var mo=vb.mo*4;  // amplify for visible effect
+  var mc=vb.mc;
+  var eo=vb.eo;
+  var bl=vb.bl*3;
 
-    if (isDevMode) {
-        mainCtx.drawImage(vid, 0, 0, W/2, H); // Left: Source
-        renderer.setViewport(0, 0, W/2, H);
-        renderer.render(scene, cam3);
-        mainCtx.drawImage(renderer.domElement, W/2, 0, W/2, H); // Right: Receiver
-    } else {
-        renderer.setViewport(0, 0, W, H);
-        renderer.render(scene, cam3);
-        mainCtx.drawImage(renderer.domElement, 0, 0, W, H);
-        applyChuckClose(mainCtx);
+  for(var i=0;i<nVerts;i++){
+    // Start from sculpted position (not base — sculpt accumulates)
+    var sx=sculptPos[i*3], sy=sculptPos[i*3+1], sz=sculptPos[i*3+2];
+    var dx=0, dy=0, dz=0;
+
+    switch(regionTags[i]){
+      case R_MOUTH:
+        dy-=mo*0.04;  // jaw drops
+        dx+=mc*0.005*(sx>0?1:-1); // smile pulls corners
+        dy+=mc*0.008;
+        break;
+      case R_JAW:
+        dy-=mo*0.025;
+        break;
+      case R_EYE_L: case R_EYE_R:
+        dy+=(eo-1)*0.008;
+        break;
+      case R_BROW_L: case R_BROW_R:
+        dy+=bl*0.02;
+        break;
+      case R_NOSE:
+        // nose scrunches slightly with big smile
+        dy+=mc*0.003;
+        break;
     }
+
+    // Smoothly animate current position toward target
+    var tgtX=sx+dx, tgtY=sy+dy, tgtZ=sz+dz;
+    currentPos[i*3]=lerp(currentPos[i*3],tgtX,0.25);
+    currentPos[i*3+1]=lerp(currentPos[i*3+1],tgtY,0.25);
+    currentPos[i*3+2]=lerp(currentPos[i*3+2],tgtZ,0.25);
+
+    pos.setXYZ(i, currentPos[i*3], currentPos[i*3+1], currentPos[i*3+2]);
+  }
+
+  pos.needsUpdate=true;
+  clayGeo.attributes.color.needsUpdate=true;
+  clayGeo.computeVertexNormals();
 }
 
-// ══════════════════════════════════════════════════
-//  5. MEDIAPIPE BOOT
-// ══════════════════════════════════════════════════
-window.addEventListener('keydown', e => { if(e.key.toLowerCase()==='d') isDevMode = !isDevMode; });
+// ═══ POSE & EXPRESSION EXTRACTION ═══
+function dz(v,t){if(Math.abs(v)<t)return 0;return(v>0?1:-1)*(Math.abs(v)-t)/(1-t);}
 
-function onResults(results) {
-    if (!results.multiFaceLandmarks || !results.multiFaceLandmarks[0]) return;
-    liveLM = results.multiFaceLandmarks[0];
-    
-    // Auto-generate topology on the very first frame
-    if (receiver.geometry.getIndex() === null && window.FACEMESH_TESSELATION) {
-        const tris = generateTriangles(window.FACEMESH_TESSELATION);
-        receiver.initTopology(tris);
-    }
-    
-    runTransmitter(liveLM);
-    tick();
+function getPose(lm){
+  var n=lm[LM.N],le=lm[LM.LE],re=lm[LM.RE],ch=lm[LM.CH];
+  var emx=(le.x+re.x)*0.5,es=Math.abs(re.x-le.x);
+  var ry=es>0.01?(n.x-emx)/es:0;
+  var yaw=dz(ry-pBL.yo,0.03)*Math.PI*0.72;
+  var emy=(le.y+re.y)*0.5,fh=ch.y-emy;
+  var nr=fh>0.01?(n.y-emy)/fh:0.55;
+  var pitch=dz(nr-pBL.nr,0.012)*Math.PI*1.2;
+  var ddx=re.x-le.x,ddy=re.y-le.y;
+  var roll=dz(-Math.atan2(ddy,ddx),0.015)*0.65;
+  return{y:cl(yaw,-0.9,0.9),p:cl(pitch,-0.65,0.65),r:cl(roll,-0.4,0.4)};
 }
 
-const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
-faceMesh.setOptions({maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
-faceMesh.onResults(onResults);
+function getVibe(lm){
+  var fH=Math.sqrt(Math.pow(lm[LM.T].x-lm[LM.CH].x,2)+Math.pow(lm[LM.T].y-lm[LM.CH].y,2));
+  if(fH<0.01)return null;
+  var mO=Math.sqrt(Math.pow(lm[LM.MT].x-lm[LM.MB].x,2)+Math.pow(lm[LM.MT].y-lm[LM.MB].y,2))/fH;
+  var cY=(lm[LM.ML].y+lm[LM.MR].y)*0.5,mY=(lm[LM.MT].y+lm[LM.MB].y)*0.5;
+  var mC=cl((mY-cY)/(fH*0.055),-1,1);
+  var bY=(lm[LM.LBR].y+lm[LM.RBR].y)*0.5,eY=(lm[LM.LT].y+lm[LM.RT].y)*0.5;
+  var bd=eY-bY,bl=0;
+  if(browBL!==null)bl=cl((bd-browBL)/(fH*0.16)*0.058,-0.055,0.075);
+  var lE=Math.abs(lm[LM.LT].y-lm[LM.LB].y),rE=Math.abs(lm[LM.RT].y-lm[LM.RB].y);
+  var eo=cl((lE+rE)/(fH*0.095),0,1.35);
+  return{mo:cl(mO*1.85-0.04,0,0.12),mc:mC,bl:bl,eo:eo};
+}
 
-const camera = new Camera(vid, {onFrame: async () => { await faceMesh.send({image: vid}); }, width: 640, height: 480});
-camera.start();
+// ═══ CALIBRATION ═══
+var vid=document.getElementById('vid');
+function accLM(lm){
+  if(!calLM){calLM=[];for(var i=0;i<lm.length;i++)calLM.push({x:lm[i].x,y:lm[i].y,z:lm[i].z||0});}
+  else{for(var j=0;j<lm.length;j++){calLM[j].x=calLM[j].x*0.82+lm[j].x*0.18;calLM[j].y=calLM[j].y*0.82+lm[j].y*0.18;calLM[j].z=calLM[j].z*0.82+(lm[j].z||0)*0.18;}}
+}
 
+function finishCal(){
+  if(!calLM)return;
+  var n=calLM[LM.N],le=calLM[LM.LE],re=calLM[LM.RE],ch=calLM[LM.CH];
+  var es=Math.abs(re.x-le.x);
+  pBL.yo=es>0.01?(n.x-(le.x+re.x)*0.5)/es:0;
+  var emy=(le.y+re.y)*0.5;
+  pBL.nr=(ch.y-emy)>0.01?(n.y-emy)/(ch.y-emy):0.55;
+  totalSamples=0;
+}
+
+// ═══ PHASE ═══
+function setP(p){
+  phase=p;
+  var ov=document.getElementById('ov'),ot=document.getElementById('ovt'),os=document.getElementById('ovs');
+  var cb=document.getElementById('cbar'),btn=document.getElementById('go'),bg=document.getElementById('badge');
+  document.getElementById('sp').textContent=p==='w'?'Waiting':p==='s'?'Searching':p==='c'?'Calibrating':'Live';
+  btn.style.display=p==='w'?'':'none';
+  if(p==='w'){ov.classList.remove('gone');ot.textContent='Vibe Protocol';os.textContent='Camera access needed';cb.style.display='none';bg.className='bg w';bg.textContent='Wait';}
+  else if(p==='s'){ov.classList.remove('gone');ot.textContent='Searching';os.textContent='Show your face';cb.style.display='none';bg.className='bg w';bg.textContent='Search';}
+  else if(p==='c'){ov.classList.remove('gone');ot.textContent='Calibrating';os.textContent='Hold still';cb.style.display='block';bg.className='bg c';bg.textContent='Cal';}
+  else if(p==='l'){ov.classList.add('gone');bg.className='bg l';bg.textContent='Live';document.getElementById('pdot').className='dot on';}
+}
+function startCal(){calCnt=0;calLM=null;browBL=null;pBL={nr:0.55,yo:0};buildClay();setP('c');}
+
+// ═══ MEDIAPIPE ═══
+var fm;
+function onRes(results){
+  if(!results.multiFaceLandmarks||!results.multiFaceLandmarks.length){
+    if(phase!=='w'&&phase!=='c')setP('s');return;
+  }
+  var lm=results.multiFaceLandmarks[0];
+  if(phase==='s'||phase==='w')startCal();
+
+  if(phase==='c'){
+    calCnt++;
+    document.getElementById('cf').style.width=(calCnt/45*100)+'%';
+    accLM(lm);
+    var bd=(lm[159].y+lm[386].y)*0.5-(lm[105].y+lm[334].y)*0.5;
+    browBL=browBL===null?bd:browBL*0.88+bd*0.12;
+    if(calCnt>=45){try{finishCal();}catch(e){console.error(e);}setP('l');}
+    return;
+  }
+
+  // Live
+  var p3=getPose(lm);
+  po.y=lerp(po.y,p3.y,0.07);po.p=lerp(po.p,p3.p,0.06);po.r=lerp(po.r,p3.r,0.07);
+  var nv=getVibe(lm);
+  if(nv){vb.mo=lerp(vb.mo,nv.mo,0.18);vb.mc=lerp(vb.mc,nv.mc,0.18);vb.bl=lerp(vb.bl,nv.bl,0.18);vb.eo=lerp(vb.eo,nv.eo,0.14);}
+
+  // Sculpt the clay with surface samples
+  sculptFrame(lm, vid);
+
+  // Apply expression deformation
+  applyExpression();
+
+  // Rotate head (mirrored)
+  if(clayMesh){
+    clayMesh.rotation.y=-po.y;
+    clayMesh.rotation.x=po.p;
+    clayMesh.rotation.z=po.r;
+  }
+
+  renderer.render(scene,camera);
+
+  // UI
+  var f=function(v){return(v>=0?'+':'')+v.toFixed(2);};
+  document.getElementById('vm').textContent=vb.mo.toFixed(2);document.getElementById('bm').style.width=cl(vb.mo/0.12*100,0,100)+'%';
+  document.getElementById('vs').textContent=f(vb.mc);document.getElementById('bs').style.width=cl(Math.abs(vb.mc)*50,0,100)+'%';
+  document.getElementById('ve').textContent=vb.eo.toFixed(2);document.getElementById('be').style.width=cl(vb.eo/1.35*100,0,100)+'%';
+  document.getElementById('vy').textContent=f(po.y);document.getElementById('by').style.width=cl(Math.abs(po.y)/1.5*100,0,100)+'%';
+}
+
+// ═══ CAMERA ═══
+var pumpOn=false;
+function pump(){if(!pumpOn)return;if(vid.readyState>=2&&!vid.paused){try{fm.send({image:vid});}catch(e){}}requestAnimationFrame(pump);}
+function startCam(){
+  var btn=document.getElementById('go');btn.textContent='Starting...';btn.disabled=true;
+  navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false})
+  .then(function(stream){vid.srcObject=stream;return vid.play();})
+  .then(function(){
+    document.getElementById('ovt').textContent='Loading';document.getElementById('ovs').textContent='Downloading model...';
+    fm=new FaceMesh({locateFile:function(f){return 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/'+f;}});
+    fm.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
+    fm.onResults(onRes);return fm.initialize();
+  })
+  .then(function(){pumpOn=true;setP('s');requestAnimationFrame(pump);})
+  .catch(function(e){console.error(e);document.getElementById('ovt').textContent='Error';document.getElementById('ovs').textContent=e.message||'Failed';btn.textContent='Retry';btn.disabled=false;btn.onclick=startCam;});
+}
+
+// ═══ INIT ═══
+buildClay();
+setP('w');
+renderer.render(scene,camera);
+
+document.getElementById('go').addEventListener('click',startCam);
+document.getElementById('recal').addEventListener('click',function(){if(phase==='l'){buildClay();totalSamples=0;startCal();}});
+document.getElementById('wireBtn').addEventListener('click',function(){
+  wireframe=!wireframe;
+  this.textContent='Wire '+(wireframe?'ON':'OFF');
+  if(wireframe&&clayMesh){
+    wireHelper=new THREE.WireframeGeometry(clayGeo);
+    var wm=new THREE.LineSegments(wireHelper,new THREE.LineBasicMaterial({color:0x3a3530,opacity:0.3,transparent:true}));
+    clayMesh.add(wm);
+  }else if(wireHelper){
+    clayMesh.remove(clayMesh.children[clayMesh.children.length-1]);
+    wireHelper=null;
+  }
+});
 </script>
 </body>
 </html>
