@@ -1,692 +1,302 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibe Protocol</title>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0a0908;--surface:#121110;--border:#252220;--text:#e8e2d8;--muted:#4e4840;--accent:#c9a96e;--dk:#7a5c2e;--green:#6a9e6a;--amber:#c9a050}
-body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:14px 12px 24px}
-body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 50% 35%,#1a1510 0%,var(--bg) 70%);pointer-events:none;z-index:0}
-header{position:relative;z-index:1;text-align:center;margin-bottom:10px}
-.ey{font-size:.45rem;letter-spacing:.35em;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
-h1{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:500;letter-spacing:.06em;line-height:1}
-h1 em{font-style:italic;color:var(--accent)}
-.sub{font-size:.42rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-top:4px}
-.stage{position:relative;z-index:1;display:flex;gap:12px;align-items:flex-start}
-.wrap{position:relative}
-.wrap::before,.wrap::after{content:'';position:absolute;width:10px;height:10px;z-index:3;pointer-events:none}
-.wrap::before{top:0;left:0;border-top:2px solid var(--dk);border-left:2px solid var(--dk)}
-.wrap::after{bottom:0;right:0;border-bottom:2px solid var(--dk);border-right:2px solid var(--dk)}
-canvas{display:block;border:1px solid var(--border)}
-#ov{position:absolute;inset:0;background:rgba(10,9,8,.90);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;z-index:5;transition:opacity .5s}
-#ov.gone{opacity:0;pointer-events:none}
-.ovt{font-family:'Cormorant Garamond',serif;font-size:1.3rem;color:var(--accent)}
-.ovs{font-size:.44rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
-#go{font-family:'JetBrains Mono',monospace;font-size:.52rem;letter-spacing:.14em;text-transform:uppercase;padding:8px 18px;cursor:pointer;background:var(--accent);border:none;color:var(--bg);font-weight:500;margin-top:2px}
-#go:hover{opacity:.8}
-#go:disabled{opacity:.4;cursor:default}
-.cb{width:140px;height:2px;background:var(--border);margin-top:2px}
-#cf{height:100%;background:var(--accent);width:0%;transition:width .1s}
-.stat{display:flex;justify-content:space-between;font-size:.42rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:0 2px;margin-top:3px}
-.rc{width:170px;display:flex;flex-direction:column;gap:6px}
-.pip{position:relative;border:1px solid var(--border);overflow:hidden}
-#vid{display:block;width:170px;height:128px;object-fit:cover;transform:scaleX(-1)}
-.bg{position:absolute;top:3px;right:3px;font-size:.38rem;letter-spacing:.1em;text-transform:uppercase;padding:1px 3px;border:1px solid;z-index:2}
-.bg.w{color:var(--amber);border-color:var(--amber)}
-.bg.c{color:var(--accent);border-color:var(--accent)}
-.bg.l{color:var(--green);border-color:var(--green)}
-.pan{border:1px solid var(--border);padding:6px;background:var(--surface)}
-.ph{font-size:.38rem;letter-spacing:.2em;text-transform:uppercase;color:var(--dk);margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
-.dot{width:4px;height:4px;border-radius:50%;background:var(--border)}
-.dot.on{background:var(--green);animation:pu 1.8s infinite}
-@keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
-.pr{margin-bottom:3px}
-.pl{font-size:.36rem;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;display:flex;justify-content:space-between}
-.pv{color:var(--accent)}
-.bt{height:2px;background:var(--border);position:relative}
-.bf{height:100%;background:var(--dk);position:absolute;left:0;transition:width .06s}
-.ar{font-size:.34rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:4px;padding-top:4px;border-top:1px solid var(--border)}
-.ar span{color:var(--accent)}
-.ctrls{position:relative;z-index:1;margin-top:8px;display:flex;gap:6px}
-.btn{font-family:'JetBrains Mono',monospace;font-size:.44rem;letter-spacing:.1em;text-transform:uppercase;padding:4px 8px;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer}
-.btn:hover{border-color:var(--dk);color:var(--text)}
-.btn.on{border-color:var(--green);color:var(--green)}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoBi-Net // SCULPTING RECEIVER</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; background: #050505; color: #00ff00; font-family: 'Courier New', monospace; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        #container { position: relative; width: 480px; height: 560px; border: 1px solid #222; box-shadow: 0 0 20px rgba(0,255,0,0.2); }
+        canvas, video { position: absolute; top: 0; left: 0; }
+        #ui { position: absolute; bottom: 10px; left: 10px; z-index: 100; font-size: 9px; background: rgba(0,0,0,0.9); padding: 8px; border: 1px solid #00ff0033; pointer-events: none; line-height: 1.5; text-transform: uppercase; }
+        .hint { position: absolute; top: 10px; right: 10px; font-size: 8px; color: #444; z-index: 100; text-transform: uppercase; }
+        #ft_canvas { display: none; }
+    </style>
 </head>
 <body>
-<header>
-  <div class="ey">Vibe Protocol</div>
-  <h1>Presence <em>Engine</em></h1>
-  <div class="sub">Photo warp + landmark puppetry | 36 bytes/frame</div>
-</header>
-<div class="stage">
-  <div>
-    <div class="wrap">
-      <canvas id="c" width="480" height="580"></canvas>
-      <div id="ov">
-        <div class="ovt" id="ovt">Vibe Protocol</div>
-        <div class="ovs" id="ovs">Camera access needed</div>
-        <button id="go">Enable Camera</button>
-        <div class="cb" id="cbar" style="display:none"><div id="cf"></div></div>
-      </div>
+
+<div id="container">
+    <video id="input_video" style="display:none"></video>
+    <canvas id="ft_canvas" width="640" height="480"></canvas>
+    <canvas id="final_canvas" width="480" height="560"></canvas>
+    <div id="ui">
+        LOBI-NET // SCULPT PROTOCOL<br>
+        PHASE: <span id="phase_label" style="color:#ff00ff">19-BYTE (BUILDING)</span><br>
+        PACKETS: <span id="packet_count" style="color:#00ffff">0 / 468</span>
     </div>
-    <div class="stat"><span id="sp">Waiting</span><span id="st">--</span><span id="sx">--</span></div>
-  </div>
-  <div class="rc">
-    <div class="pip"><video id="vid" playsinline muted></video><div class="bg w" id="badge">Wait</div></div>
-    <div class="pan">
-      <div class="ph">Expression <div class="dot" id="pdot"></div></div>
-      <div class="pr"><div class="pl">Mouth <span class="pv" id="vm">0.00</span></div><div class="bt"><div class="bf" id="bm"></div></div></div>
-      <div class="pr"><div class="pl">Smile <span class="pv" id="vs">0.00</span></div><div class="bt"><div class="bf" id="bs"></div></div></div>
-      <div class="pr"><div class="pl">Eyes <span class="pv" id="ve">1.00</span></div><div class="bt"><div class="bf" id="be"></div></div></div>
-      <div class="pr"><div class="pl">Yaw <span class="pv" id="vy">0.00</span></div><div class="bt"><div class="bf" id="by"></div></div></div>
-      <div class="ar">Textures: <span id="ac">1</span> | <span id="ak">50</span>KB</div>
-    </div>
-  </div>
-</div>
-<div class="ctrls">
-  <button class="btn" id="recal">Recalibrate</button>
-  <button class="btn on" id="gridBtn">Grid ON</button>
+    <div class="hint">PRESS 'D' TO TOGGLE DEV MODE</div>
 </div>
 
 <script>
-var CW=480, CH=580, VW=640, VH=480, CFRAMES=45, NL=468;
-var OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
-var LM={N:1,CH:152,T:10,LE:33,RE:263,LT:159,LB:145,RT:386,RB:374,LBR:105,RBR:334,MT:13,MB:14,ML:61,MR:291};
+'use strict';
 
-function cl(v,a,b){return v<a?a:v>b?b:v;}
-function lerp(a,b,t){return a+(b-a)*t;}
+const W=480, H=560;
+let isDevMode = true; 
+const vid = document.getElementById('input_video');
+const ftCtx = document.getElementById('ft_canvas').getContext('2d', {willReadFrequently: true});
 
-// ═══════════════════════════════════════
-//  STATE
-// ═══════════════════════════════════════
-var phase='w', calCnt=0, calLM=null, browBL=null;
-var vb={mo:0,mc:0,bl:0,eo:1};
-var po={y:0,p:0,r:0};
-var pBL={nr:0.55,yo:0};
-var pal={sk:[170,135,110],hr:[50,38,28],bg:[35,30,25]};
+// Vibe & Calibration State
+const LM={ NOSE:1, MOUTH_T:13, MOUTH_B:14, MOUTH_L:61, MOUTH_R:291 };
+let vibe = { mouthOpen: 0, yaw: 0, pitch: 0 };
+let liveLM = null;
 
-// Avatar data — set during calibration
-var snapImg=null;       // HTMLCanvasElement — the snapshot
-var triIdx=null;        // [[i0,i1,i2],...] — triangle vertex indices
-var srcPts=null;        // [{x,y},...] — landmark positions in snapshot pixel coords
-var dstPts=null;        // [{x,y},...] — current screen positions (animated)
-var calScreen=null;     // [{x,y},...] — calibration screen positions (base)
-var calNorm=null;       // [{x,y},...] — calibration normalized positions
-var calFW=1, calFH=1;  // calibration face dimensions for normalization
+// --- THREE.JS SETUP ---
+const scene = new THREE.Scene();
+const cam3 = new THREE.PerspectiveCamera(35, (W/2)/H, 0.1, 1000);
+cam3.position.set(0, 0, 4.0);
 
-// Expression textures
-var exTex=[], lastCap=0;
-var gridOn=true;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(W, H);
 
-// Offscreen canvas for grid post-process
-var offCvs=document.createElement('canvas');
-offCvs.width=CW; offCvs.height=CH;
-var offCtx=offCvs.getContext('2d');
-
-var cvs=document.getElementById('c');
-var ctx=cvs.getContext('2d');
-var vid=document.getElementById('vid');
-
-// ═══════════════════════════════════════
-//  DELAUNAY TRIANGULATION
-// ═══════════════════════════════════════
-function delaunay(pts){
-  var n=pts.length, i, j, k, e;
-  if(n<3) return [];
-  var mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;
-  for(i=0;i<n;i++){
-    if(pts[i].x<mnx)mnx=pts[i].x; if(pts[i].y<mny)mny=pts[i].y;
-    if(pts[i].x>mxx)mxx=pts[i].x; if(pts[i].y>mxy)mxy=pts[i].y;
-  }
-  var dm=Math.max(mxx-mnx||1,mxy-mny||1)*10;
-  var sp=[{x:mnx-dm,y:mny-dm},{x:mnx+dm*3,y:mny-dm},{x:mnx+(mxx-mnx)*0.5,y:mny+dm*3}];
-  var all=pts.concat(sp);
-
-  function mkTri(a,b,c){
-    var ax=all[a].x,ay=all[a].y,bx=all[b].x,by=all[b].y,cx=all[c].x,cy=all[c].y;
-    var D=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));
-    if(Math.abs(D)<1e-12) return {v:[a,b,c],cx:0,cy:0,r2:-1};
-    var ux=((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/D;
-    var uy=((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/D;
-    return {v:[a,b,c], cx:ux, cy:uy, r2:(ax-ux)*(ax-ux)+(ay-uy)*(ay-uy)};
-  }
-
-  var tris=[mkTri(n,n+1,n+2)];
-  for(i=0;i<n;i++){
-    var px=pts[i].x, py=pts[i].y;
-    var bad=[], good=[];
-    for(j=0;j<tris.length;j++){
-      var t=tris[j];
-      if(t.r2>=0 && (px-t.cx)*(px-t.cx)+(py-t.cy)*(py-t.cy) < t.r2*1.000001)
-        bad.push(t);
-      else good.push(t);
-    }
-    var edges=[];
-    for(j=0;j<bad.length;j++){
-      var v=bad[j].v;
-      for(e=0;e<3;e++){
-        var a=v[e], b=v[(e+1)%3], shared=false;
-        for(k=0;k<bad.length;k++){
-          if(k===j) continue;
-          var ov=bad[k].v;
-          if((ov[0]===a||ov[1]===a||ov[2]===a)&&(ov[0]===b||ov[1]===b||ov[2]===b)){shared=true;break;}
+// ══════════════════════════════════════════════════
+//  1. TRIANGLE EXTRACTOR & PRIORITY QUEUE
+// ══════════════════════════════════════════════════
+function generateTriangles(tesselationEdges) {
+    const adj = Array.from({length: 468}, () => []);
+    tesselationEdges.forEach(edge => {
+        adj[edge[0]].push(edge[1]);
+        adj[edge[1]].push(edge[0]);
+    });
+    const tris = [];
+    for (let i = 0; i < 468; i++) {
+        for (let j = 0; j < adj[i].length; j++) {
+            const n1 = adj[i][j];
+            if (n1 <= i) continue;
+            for (let k = j + 1; k < adj[i].length; k++) {
+                const n2 = adj[i][k];
+                if (n2 <= i) continue;
+                if (adj[n1].includes(n2)) tris.push(i, n1, n2);
+            }
         }
-        if(!shared) edges.push([a,b]);
-      }
     }
-    tris=good;
-    for(j=0;j<edges.length;j++) tris.push(mkTri(i,edges[j][0],edges[j][1]));
-  }
-
-  var out=[];
-  for(i=0;i<tris.length;i++){
-    var tv=tris[i].v;
-    if(tv[0]<n && tv[1]<n && tv[2]<n && tris[i].r2>=0) out.push(tv);
-  }
-  return out;
+    return tris;
 }
 
-// ═══════════════════════════════════════
-//  TRIANGLE WARP — the core algorithm
-//  Maps a triangle region from source image
-//  to a destination triangle on canvas using
-//  affine transformation.
-// ═══════════════════════════════════════
-function warpTri(destCtx, img, s0,s1,s2, d0,d1,d2){
-  // Affine: maps source coords → dest coords
-  var A=s0.x-s2.x, B=s1.x-s2.x, C=s0.y-s2.y, D=s1.y-s2.y;
-  var det=A*D-B*C;
-  if(Math.abs(det)<0.5) return; // degenerate triangle
-  var id=1/det;
+const SCULPT_PRIORITY = {
+    OVAL: [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109],
+    L_EYE: [33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7],
+    R_EYE: [362, 398, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374, 380, 381, 382],
+    NOSE: [1, 2, 98, 327, 168, 6],
+    MOUTH: [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 14, 317, 402, 318, 324, 308, 78, 191, 80, 81, 82, 13, 312, 311, 310, 415]
+};
 
-  var a=(D*(d0.x-d2.x)-B*(d1.x-d2.x))*id;
-  var b=(D*(d0.y-d2.y)-B*(d1.y-d2.y))*id;
-  var c=(A*(d1.x-d2.x)-C*(d0.x-d2.x))*id;
-  var d2v=(A*(d1.y-d2.y)-C*(d0.y-d2.y))*id;
-  var e=d0.x-a*s0.x-c*s0.y;
-  var f=d0.y-b*s0.x-d2v*s0.y;
+const PRIORITY_SET = new Set([...SCULPT_PRIORITY.OVAL, ...SCULPT_PRIORITY.L_EYE, ...SCULPT_PRIORITY.R_EYE, ...SCULPT_PRIORITY.NOSE, ...SCULPT_PRIORITY.MOUTH]);
+const FILL = [];
+for (let i = 0; i < 468; i++) if (!PRIORITY_SET.has(i)) FILL.push(i);
+const TRANSMIT_QUEUE = [...SCULPT_PRIORITY.OVAL, ...SCULPT_PRIORITY.L_EYE, ...SCULPT_PRIORITY.R_EYE, ...SCULPT_PRIORITY.NOSE, ...SCULPT_PRIORITY.MOUTH, ...FILL];
 
-  destCtx.save();
-  destCtx.beginPath();
-  destCtx.moveTo(d0.x, d0.y);
-  destCtx.lineTo(d1.x, d1.y);
-  destCtx.lineTo(d2.x, d2.y);
-  destCtx.closePath();
-  destCtx.clip();
-  destCtx.setTransform(a, b, c, d2v, e, f);
-  destCtx.drawImage(img, 0, 0);
-  destCtx.restore();
-}
+// ══════════════════════════════════════════════════
+//  2. THE SCULPTING RECEIVER
+// ══════════════════════════════════════════════════
+class SculptingReceiver {
+    constructor() {
+        this.numVertices = 468;
+        this.isFullySculpted = false;
+        this.basePositions = new Float32Array(this.numVertices * 3); // The measured resting face
+        this.targetPositions = new Float32Array(this.numVertices * 3); // Where it's animating to
+        this.positions = new Float32Array(this.numVertices * 3); // Active mesh positions
+        this.colors = new Float32Array(this.numVertices * 3);
+        this.targetColors = new Float32Array(this.numVertices * 3);
+        
+        // Init as Fibonacci Sphere
+        const radius = 0.6;
+        for (let i = 0; i < this.numVertices; i++) {
+            const phi = Math.acos(1 - 2 * (i + 0.5) / this.numVertices);
+            const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+            const x = radius * Math.cos(theta) * Math.sin(phi);
+            const y = radius * Math.sin(theta) * Math.sin(phi);
+            const z = radius * Math.cos(phi);
+            
+            [this.positions, this.targetPositions, this.basePositions].forEach(arr => {
+                arr[i*3] = x; arr[i*3+1] = y; arr[i*3+2] = z;
+            });
+            [this.colors, this.targetColors].forEach(arr => {
+                arr[i*3] = 0.5; arr[i*3+1] = 0.5; arr[i*3+2] = 0.5;
+            });
+        }
 
-// ═══════════════════════════════════════
-//  BUILD AVATAR from calibration data
-// ═══════════════════════════════════════
-function buildAvatar(lm, snapshot){
-  snapImg=snapshot;
-
-  // Face bounding box
-  var ox=OVAL.map(function(i){return lm[i].x;}), oy=OVAL.map(function(i){return lm[i].y;});
-  var fcx=(Math.min.apply(null,ox)+Math.max.apply(null,ox))*0.5;
-  var fcy=(Math.min.apply(null,oy)+Math.max.apply(null,oy))*0.5;
-  var fw=(Math.max.apply(null,ox)-Math.min.apply(null,ox))*0.5 || 0.001;
-  var fh=(Math.max.apply(null,oy)-Math.min.apply(null,oy))*0.5 || 0.001;
-  calFW=fw; calFH=fh;
-
-  // Build source points (snapshot pixel coords) and screen points
-  srcPts=[]; calScreen=[]; calNorm=[];
-  var SCALE_X=CW*0.30, SCALE_Y=CH*0.28;
-  var CENTER_X=CW*0.5, CENTER_Y=CH*0.40;
-
-  for(var i=0;i<NL;i++){
-    // Source: where this landmark is in the snapshot image
-    srcPts.push({x: lm[i].x*VW, y: lm[i].y*VH});
-
-    // Normalized face-relative position
-    var nx=(lm[i].x-fcx)/fw;
-    var ny=(lm[i].y-fcy)/fh;
-    calNorm.push({x:nx, y:ny});
-
-    // Screen position (mirrored X for mirror behavior)
-    calScreen.push({
-      x: CENTER_X - nx*SCALE_X,  // mirrored
-      y: CENTER_Y + ny*SCALE_Y
-    });
-  }
-
-  // Initialize destination points as copies of screen positions
-  dstPts=[];
-  for(i=0;i<NL;i++){
-    dstPts.push({x:calScreen[i].x, y:calScreen[i].y});
-  }
-
-  // Triangulate using screen positions
-  // Add small jitter to prevent collinear issues
-  var jitPts=[];
-  for(i=0;i<NL;i++){
-    jitPts.push({
-      x: calScreen[i].x + ((i*7919)%100-50)*1e-6,
-      y: calScreen[i].y + ((i*6271)%100-50)*1e-6
-    });
-  }
-
-  var rawTris=delaunay(jitPts);
-
-  // Filter: remove large triangles (hull artifacts, gaps)
-  triIdx=[];
-  for(i=0;i<rawTris.length;i++){
-    var t=rawTris[i];
-    var p0=calScreen[t[0]], p1=calScreen[t[1]], p2=calScreen[t[2]];
-    // Triangle area in screen pixels
-    var area=Math.abs((p1.x-p0.x)*(p2.y-p0.y)-(p2.x-p0.x)*(p1.y-p0.y))*0.5;
-    // Filter by max area (skip huge hull triangles)
-    if(area < 600 && area > 0.5){
-      triIdx.push(t);
+        this.geometry = new THREE.BufferGeometry();
+        this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+        this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
+        
+        this.material = new THREE.MeshBasicMaterial({ vertexColors: true, wireframe: false, side: THREE.DoubleSide });
+        this.mesh = new THREE.Mesh(this.geometry, this.material);
+        scene.add(this.mesh);
     }
-  }
 
-  document.getElementById('st').textContent=triIdx.length+' tris';
-}
-
-// ═══════════════════════════════════════
-//  UPDATE — compute new positions from live landmarks
-// ═══════════════════════════════════════
-function updateAvatar(liveLM){
-  if(!calLM || !calScreen) return;
-
-  // Live face center
-  var lox=OVAL.map(function(i){return liveLM[i].x;}), loy=OVAL.map(function(i){return liveLM[i].y;});
-  var lfx=(Math.min.apply(null,lox)+Math.max.apply(null,lox))*0.5;
-  var lfy=(Math.min.apply(null,loy)+Math.max.apply(null,loy))*0.5;
-
-  // Calibration face center
-  var cox=OVAL.map(function(i){return calLM[i].x;}), coy=OVAL.map(function(i){return calLM[i].y;});
-  var cfx=(Math.min.apply(null,cox)+Math.max.apply(null,cox))*0.5;
-  var cfy=(Math.min.apply(null,coy)+Math.max.apply(null,coy))*0.5;
-
-  var SCALE_X=CW*0.30, SCALE_Y=CH*0.28;
-  var MAX_D=20; // max displacement in pixels
-
-  for(var i=0;i<NL;i++){
-    // Both normalized by CALIBRATION face width (prevents scale mismatch)
-    var lnx=(liveLM[i].x-lfx)/calFW;
-    var lny=(liveLM[i].y-lfy)/calFH;
-    var cnx=(calLM[i].x-cfx)/calFW;
-    var cny=(calLM[i].y-cfy)/calFH;
-
-    // Expression displacement in screen pixels
-    var dx=-(lnx-cnx)*SCALE_X;  // mirrored
-    var dy=(lny-cny)*SCALE_Y;
-
-    // Clamp to prevent explosion
-    dx=cl(dx,-MAX_D,MAX_D);
-    dy=cl(dy,-MAX_D,MAX_D);
-
-    // Target position = calibration screen pos + expression displacement
-    var tgtX=calScreen[i].x + dx;
-    var tgtY=calScreen[i].y + dy;
-
-    // EMA smooth
-    dstPts[i].x=lerp(dstPts[i].x, tgtX, 0.22);
-    dstPts[i].y=lerp(dstPts[i].y, tgtY, 0.22);
-  }
-}
-
-// ═══════════════════════════════════════
-//  RENDER — draw warped triangles
-// ═══════════════════════════════════════
-function renderAvatar(){
-  // Choose render target: offscreen if grid, direct if not
-  var rc=gridOn ? offCtx : ctx;
-  rc.clearRect(0,0,CW,CH);
-
-  // Background gradient
-  var bg=rc.createRadialGradient(CW*0.5,CH*0.38,10,CW*0.5,CH*0.38,CH*0.55);
-  bg.addColorStop(0,'rgb('+(pal.bg[0]*0.35|0)+','+(pal.bg[1]*0.35|0)+','+(pal.bg[2]*0.35|0)+')');
-  bg.addColorStop(0.5,'rgb('+(pal.bg[0]*0.12|0)+','+(pal.bg[1]*0.12|0)+','+(pal.bg[2]*0.12|0)+')');
-  bg.addColorStop(1,'rgb(8,7,6)');
-  rc.fillStyle=bg;
-  rc.fillRect(0,0,CW,CH);
-
-  // Head silhouette
-  rc.save();
-  rc.beginPath();
-  rc.ellipse(CW*0.5,CH*0.38,CW*0.29,CH*0.30,0,0,Math.PI*2);
-  var hg=rc.createRadialGradient(CW*0.5,CH*0.33,10,CW*0.5,CH*0.38,CH*0.30);
-  hg.addColorStop(0,'rgb('+(pal.hr[0]*0.30|0)+','+(pal.hr[1]*0.30|0)+','+(pal.hr[2]*0.30|0)+')');
-  hg.addColorStop(0.8,'rgb('+(pal.hr[0]*0.15|0)+','+(pal.hr[1]*0.15|0)+','+(pal.hr[2]*0.15|0)+')');
-  hg.addColorStop(1,'rgb('+(pal.hr[0]*0.06|0)+','+(pal.hr[1]*0.06|0)+','+(pal.hr[2]*0.06|0)+')');
-  rc.fillStyle=hg;
-  rc.fill();
-  rc.restore();
-
-  // Neck
-  rc.fillStyle='rgb('+(pal.sk[0]*0.22|0)+','+(pal.sk[1]*0.22|0)+','+(pal.sk[2]*0.22|0)+')';
-  var neckW=CW*0.12, neckH=CH*0.05;
-  rc.beginPath();
-  rc.ellipse(CW*0.5, CH*0.66, neckW, neckH, 0, 0, Math.PI*2);
-  rc.fill();
-
-  // Shoulders
-  rc.beginPath();
-  rc.ellipse(CW*0.5, CH*0.74, CW*0.36, CH*0.09, 0, 0, Math.PI*2);
-  rc.fillStyle='rgb(16,14,13)';
-  rc.fill();
-
-  if(!triIdx || !snapImg || !srcPts || !dstPts) return;
-
-  // Choose texture source — best match for current expression
-  var texSrc=snapImg;
-  if(exTex.length>0){
-    var bestD=vb.mo*10+Math.abs(vb.mc)+Math.abs(1-vb.eo)+Math.abs(po.y)*0.5;
-    for(var ei=0;ei<exTex.length;ei++){
-      var e=exTex[ei];
-      var dd=Math.abs(e.mo-vb.mo)*10+Math.abs(e.mc-vb.mc)+Math.abs(e.eo-vb.eo)+Math.abs(e.ya-po.y)*0.5;
-      if(dd<bestD){bestD=dd; texSrc=e.cvs;}
+    initTopology(triangles) {
+        this.geometry.setIndex(triangles);
     }
-  }
 
-  // Warp each triangle
-  for(var i=0;i<triIdx.length;i++){
-    var t=triIdx[i];
-    warpTri(rc, texSrc,
-      srcPts[t[0]], srcPts[t[1]], srcPts[t[2]],
-      dstPts[t[0]], dstPts[t[1]], dstPts[t[2]]
-    );
-  }
-
-  // If grid mode, render grid from offscreen to main canvas
-  if(gridOn){
-    renderGrid();
-  }
-}
-
-// ═══════════════════════════════════════
-//  CHUCK CLOSE GRID POST-PROCESS
-//  Reads the warped face from offscreen canvas,
-//  renders as colored circles on main canvas.
-// ═══════════════════════════════════════
-var GRID=7; // cell size in pixels
-
-function renderGrid(){
-  ctx.clearRect(0,0,CW,CH);
-
-  // Read all pixels from offscreen render
-  var imgData=offCtx.getImageData(0,0,CW,CH);
-  var px=imgData.data;
-
-  var cols=Math.ceil(CW/GRID);
-  var rows=Math.ceil(CH/GRID);
-  var half=GRID*0.5;
-
-  // Background
-  ctx.fillStyle='rgb(8,7,6)';
-  ctx.fillRect(0,0,CW,CH);
-
-  for(var r=0;r<rows;r++){
-    for(var c=0;c<cols;c++){
-      // Cell center
-      var cx2=c*GRID+half;
-      var cy2=r*GRID+half;
-      var sx2=Math.min(Math.round(cx2),CW-1);
-      var sy2=Math.min(Math.round(cy2),CH-1);
-      var idx=(sy2*CW+sx2)*4;
-
-      var cr=px[idx], cg=px[idx+1], cb=px[idx+2], ca=px[idx+3];
-      if(ca<10) continue; // skip fully transparent
-
-      // Luminance affects dot size
-      var lum=(cr*0.299+cg*0.587+cb*0.114)/255;
-      var dotR=half*(0.55+lum*0.40);
-
-      // Draw circle
-      ctx.beginPath();
-      ctx.arc(cx2, cy2, dotR, 0, Math.PI*2);
-      ctx.fillStyle='rgb('+cr+','+cg+','+cb+')';
-      ctx.fill();
+    receiveBuildPacket(packet) {
+        const i = packet.idx;
+        this.basePositions[i*3]   = packet.x;
+        this.basePositions[i*3+1] = packet.y;
+        this.basePositions[i*3+2] = packet.z;
+        this.targetPositions[i*3]   = packet.x;
+        this.targetPositions[i*3+1] = packet.y;
+        this.targetPositions[i*3+2] = packet.z;
+        this.targetColors[i*3]   = packet.r / 255;
+        this.targetColors[i*3+1] = packet.g / 255;
+        this.targetColors[i*3+2] = packet.b / 255;
     }
-  }
-}
 
-// ═══════════════════════════════════════
-//  TEXTURE ACCUMULATION
-// ═══════════════════════════════════════
-function tryCapture(){
-  var now=Date.now();
-  if(now-lastCap<1500 || exTex.length>=12) return;
-  var mo=vb.mo, mc=vb.mc, eo=vb.eo, ya=po.y;
+    applyLiveDelta(vibe) {
+        // Reset targets to base sculpted face
+        this.targetPositions.set(this.basePositions);
+        
+        // Physically push mouth vertices based on vibe delta
+        const pushY = vibe.mouthOpen * 0.15; // Max mouth drop amount in world space
+        
+        // Drop lower lip
+        const botIdx = LM.MOUTH_B * 3 + 1;
+        this.targetPositions[botIdx] -= pushY;
+        
+        // Slightly pull down corners
+        this.targetPositions[LM.MOUTH_L * 3 + 1] -= pushY * 0.3;
+        this.targetPositions[LM.MOUTH_R * 3 + 1] -= pushY * 0.3;
 
-  // Check if sufficiently different from existing
-  var isDiff=true;
-  for(var i=0;i<exTex.length;i++){
-    var e=exTex[i];
-    if(!(Math.abs(e.mo-mo)>0.015||Math.abs(e.mc-mc)>0.15||Math.abs(e.eo-eo)>0.2||Math.abs(e.ya-ya)>0.15)){
-      isDiff=false; break;
+        // Apply Pose to entire Mesh object
+        this.mesh.rotation.y = -vibe.yaw;
+        this.mesh.rotation.x = vibe.pitch;
     }
-  }
-  if(!isDiff) return;
-  if(!(mo>0.025||Math.abs(mc)>0.15||eo<0.7||eo>1.1||Math.abs(ya)>0.2)) return;
 
-  // Capture snapshot
-  var cc=document.createElement('canvas'); cc.width=VW; cc.height=VH;
-  cc.getContext('2d').drawImage(vid,0,0,VW,VH);
-  exTex.push({cvs:cc, mo:mo, mc:mc, eo:eo, ya:ya});
-  lastCap=now;
-  var tot=1+exTex.length;
-  document.getElementById('sx').textContent=tot+' tex';
-  document.getElementById('ac').textContent=tot;
-  document.getElementById('ak').textContent=tot*50;
-}
-
-// ═══════════════════════════════════════
-//  POSE & EXPRESSION EXTRACTION
-// ═══════════════════════════════════════
-function dz(v,t){if(Math.abs(v)<t)return 0;return(v>0?1:-1)*(Math.abs(v)-t)/(1-t);}
-
-function getPose(lm){
-  var n=lm[LM.N],le=lm[LM.LE],re=lm[LM.RE],ch=lm[LM.CH];
-  var emx=(le.x+re.x)*0.5, es=Math.abs(re.x-le.x);
-  var ry=es>0.01?(n.x-emx)/es:0;
-  var yaw=dz(ry-pBL.yo,0.03)*Math.PI*0.72;
-  var emy=(le.y+re.y)*0.5, fh=ch.y-emy;
-  var nr=fh>0.01?(n.y-emy)/fh:0.55;
-  var pitch=dz(nr-pBL.nr,0.012)*Math.PI*1.2;
-  var dx=re.x-le.x, dy=re.y-le.y;
-  var roll=dz(-Math.atan2(dy,dx),0.015)*0.65;
-  return {y:cl(yaw,-0.9,0.9), p:cl(pitch,-0.65,0.65), r:cl(roll,-0.4,0.4)};
-}
-
-function getVibe(lm){
-  var fH=Math.sqrt(Math.pow(lm[LM.T].x-lm[LM.CH].x,2)+Math.pow(lm[LM.T].y-lm[LM.CH].y,2));
-  if(fH<0.01) return null;
-  var mO=Math.sqrt(Math.pow(lm[LM.MT].x-lm[LM.MB].x,2)+Math.pow(lm[LM.MT].y-lm[LM.MB].y,2))/fH;
-  var cY=(lm[LM.ML].y+lm[LM.MR].y)*0.5, mY=(lm[LM.MT].y+lm[LM.MB].y)*0.5;
-  var mC=cl((mY-cY)/(fH*0.055),-1,1);
-  var bY=(lm[LM.LBR].y+lm[LM.RBR].y)*0.5, eY=(lm[LM.LT].y+lm[LM.RT].y)*0.5;
-  var bd=eY-bY, bl=0;
-  if(browBL!==null) bl=cl((bd-browBL)/(fH*0.16)*0.058,-0.055,0.075);
-  var lE=Math.abs(lm[LM.LT].y-lm[LM.LB].y), rE=Math.abs(lm[LM.RT].y-lm[LM.RB].y);
-  var eo=cl((lE+rE)/(fH*0.095),0,1.35);
-  return {mo:cl(mO*1.85-0.04,0,0.12), mc:mC, bl:bl, eo:eo};
-}
-
-// ═══════════════════════════════════════
-//  CALIBRATION
-// ═══════════════════════════════════════
-function accLM(lm){
-  if(!calLM){
-    calLM=[];
-    for(var i=0;i<lm.length;i++) calLM.push({x:lm[i].x,y:lm[i].y,z:lm[i].z||0});
-  } else {
-    for(var j=0;j<lm.length;j++){
-      calLM[j].x=calLM[j].x*0.82+lm[j].x*0.18;
-      calLM[j].y=calLM[j].y*0.82+lm[j].y*0.18;
+    update() {
+        const speed = this.isFullySculpted ? 0.3 : 0.08; // Fast for live delta, slow for build phase
+        let pUpdate = false, cUpdate = false;
+        
+        for (let i = 0; i < this.numVertices * 3; i++) {
+            const pDiff = this.targetPositions[i] - this.positions[i];
+            if (Math.abs(pDiff) > 0.001) { this.positions[i] += pDiff * speed; pUpdate = true; }
+            
+            const cDiff = this.targetColors[i] - this.colors[i];
+            if (Math.abs(cDiff) > 0.001) { this.colors[i] += cDiff * speed; cUpdate = true; }
+        }
+        
+        if (pUpdate) this.geometry.attributes.position.needsUpdate = true;
+        if (cUpdate) this.geometry.attributes.color.needsUpdate = true;
     }
-  }
 }
 
-function finishCal(){
-  if(!calLM) return;
+const receiver = new SculptingReceiver();
 
-  // Capture snapshot
-  var snap=document.createElement('canvas');
-  snap.width=VW; snap.height=VH;
-  snap.getContext('2d').drawImage(vid,0,0,VW,VH);
+// ══════════════════════════════════════════════════
+//  3. THE TRANSMITTER (Sampling & Sending)
+// ══════════════════════════════════════════════════
+let packetIndex = 0;
+const packetsPerFrame = 12; // Speed of the incoming data stream
 
-  // Sample colors
-  try{
-    var sc=snap.getContext('2d');
-    var sp=sc.getImageData(cl(Math.round(calLM[116].x*VW)-3,0,VW),cl(Math.round(calLM[116].y*VH)-3,0,VH),7,7).data;
-    var sr=0,sg=0,sb=0,sn=0;
-    for(var q=0;q<sp.length;q+=4){sr+=sp[q];sg+=sp[q+1];sb+=sp[q+2];sn++;}
-    if(sn>0) pal.sk=[sr/sn|0,sg/sn|0,sb/sn|0];
-    var hp=sc.getImageData(cl(Math.round(calLM[10].x*VW)-4,0,VW),cl(Math.round((calLM[10].y-0.04)*VH)-4,0,VH),9,9).data;
-    var hr=0,hg=0,hb=0,hn=0;
-    for(q=0;q<hp.length;q+=4){hr+=hp[q];hg+=hp[q+1];hb+=hp[q+2];hn++;}
-    if(hn>0) pal.hr=[hr/hn|0,hg/hn|0,hb/hn|0];
-    var bp=sc.getImageData(5,5,10,10).data;
-    var br=0,bgi=0,bb=0,bn=0;
-    for(q=0;q<bp.length;q+=4){br+=bp[q];bgi+=bp[q+1];bb+=bp[q+2];bn++;}
-    if(bn>0) pal.bg=[br/bn|0,bgi/bn|0,bb/bn|0];
-  }catch(e){}
-
-  // Build avatar
-  buildAvatar(calLM, snap);
-
-  // Pose baseline
-  var n=calLM[LM.N],le=calLM[LM.LE],re=calLM[LM.RE],ch=calLM[LM.CH];
-  var es=Math.abs(re.x-le.x);
-  pBL.yo=es>0.01?(n.x-(le.x+re.x)*0.5)/es:0;
-  var emy=(le.y+re.y)*0.5;
-  pBL.nr=(ch.y-emy)>0.01?(n.y-emy)/(ch.y-emy):0.55;
-
-  exTex=[]; lastCap=Date.now();
-}
-
-// ═══════════════════════════════════════
-//  PHASE MACHINE
-// ═══════════════════════════════════════
-function setP(p){
-  phase=p;
-  var ov=document.getElementById('ov'),ot=document.getElementById('ovt'),os=document.getElementById('ovs');
-  var cb=document.getElementById('cbar'),btn=document.getElementById('go'),bg=document.getElementById('badge');
-  document.getElementById('sp').textContent=p==='w'?'Waiting':p==='s'?'Searching':p==='c'?'Calibrating':'Live';
-  btn.style.display=p==='w'?'':'none';
-  if(p==='w'){ov.classList.remove('gone');ot.textContent='Vibe Protocol';os.textContent='Camera access needed';cb.style.display='none';bg.className='bg w';bg.textContent='Wait';}
-  else if(p==='s'){ov.classList.remove('gone');ot.textContent='Searching';os.textContent='Show your face';cb.style.display='none';bg.className='bg w';bg.textContent='Search';}
-  else if(p==='c'){ov.classList.remove('gone');ot.textContent='Calibrating';os.textContent='Hold still';cb.style.display='block';bg.className='bg c';bg.textContent='Cal';}
-  else if(p==='l'){ov.classList.add('gone');bg.className='bg l';bg.textContent='Live';document.getElementById('pdot').className='dot on';}
-}
-
-function startCal(){calCnt=0;calLM=null;browBL=null;pBL={nr:0.55,yo:0};exTex=[];setP('c');}
-
-// ═══════════════════════════════════════
-//  MEDIAPIPE
-// ═══════════════════════════════════════
-var fm;
-function onRes(results){
-  if(!results.multiFaceLandmarks||!results.multiFaceLandmarks.length){
-    if(phase!=='w'&&phase!=='c') setP('s');
-    return;
-  }
-  var lm=results.multiFaceLandmarks[0];
-  if(phase==='s'||phase==='w') startCal();
-
-  if(phase==='c'){
-    calCnt++;
-    document.getElementById('cf').style.width=(calCnt/CFRAMES*100)+'%';
-    accLM(lm);
-    var bd=(lm[159].y+lm[386].y)*0.5-(lm[105].y+lm[334].y)*0.5;
-    browBL=browBL===null?bd:browBL*0.88+bd*0.12;
-    if(calCnt>=CFRAMES){
-      try{finishCal();}catch(e){console.error(e);}
-      setP('l');
+function runTransmitter(lm) {
+    if (packetIndex < TRANSMIT_QUEUE.length) {
+        // BUILD PHASE (19-Byte Packets)
+        ftCtx.drawImage(vid, 0, 0, 640, 480);
+        const limit = Math.min(packetIndex + packetsPerFrame, TRANSMIT_QUEUE.length);
+        
+        for (let i = packetIndex; i < limit; i++) {
+            const idx = TRANSMIT_QUEUE[i];
+            const pt = lm[idx];
+            
+            const px = Math.floor(Math.max(0, Math.min(pt.x * 640, 639)));
+            const py = Math.floor(Math.max(0, Math.min(pt.y * 480, 479)));
+            const rgb = ftCtx.getImageData(px, py, 1, 1).data;
+            
+            receiver.receiveBuildPacket({
+                idx: idx,
+                x: (pt.x - 0.5) * 2.5,
+                y: -(pt.y - 0.5) * 2.5,
+                z: -pt.z * 2.5,
+                r: rgb[0], g: rgb[1], b: rgb[2]
+            });
+        }
+        packetIndex = limit;
+        document.getElementById('packet_count').innerText = `${packetIndex} / 468`;
+        
+        if (packetIndex >= TRANSMIT_QUEUE.length) {
+            receiver.isFullySculpted = true;
+            document.getElementById('phase_label').innerText = "24-BYTE (LIVE DELTA)";
+            document.getElementById('phase_label').style.color = "#00ff00";
+        }
+    } else {
+        // LIVE PHASE (24-Byte Protocol)
+        const top = lm[10], bot = lm[152], mT = lm[LM.MOUTH_T], mB = lm[LM.MOUTH_B];
+        const dist = Math.sqrt(Math.pow(mT.x - mB.x, 2) + Math.pow(mT.y - mB.y, 2));
+        const faceSize = Math.sqrt(Math.pow(top.x - bot.x, 2) + Math.pow(top.y - bot.y, 2));
+        
+        vibe.mouthOpen = Math.min(dist / faceSize * 8.0, 1.0);
+        vibe.yaw = (lm[LM.NOSE].x - 0.5) * 1.5;
+        vibe.pitch = (lm[LM.NOSE].y - 0.5) * -1.2;
+        
+        receiver.applyLiveDelta(vibe);
     }
-    return;
-  }
-
-  // ── LIVE ──
-  var p3=getPose(lm);
-  po.y=lerp(po.y,p3.y,0.07);
-  po.p=lerp(po.p,p3.p,0.06);
-  po.r=lerp(po.r,p3.r,0.07);
-
-  var nv=getVibe(lm);
-  if(nv){
-    vb.mo=lerp(vb.mo,nv.mo,0.18);
-    vb.mc=lerp(vb.mc,nv.mc,0.18);
-    vb.bl=lerp(vb.bl,nv.bl,0.18);
-    vb.eo=lerp(vb.eo,nv.eo,0.14);
-  }
-
-  updateAvatar(lm);
-  tryCapture();
-  renderAvatar();
-
-  // UI
-  var f=function(v){return(v>=0?'+':'')+v.toFixed(2);};
-  document.getElementById('vm').textContent=vb.mo.toFixed(2);
-  document.getElementById('bm').style.width=cl(vb.mo/0.12*100,0,100)+'%';
-  document.getElementById('vs').textContent=f(vb.mc);
-  document.getElementById('bs').style.width=cl(Math.abs(vb.mc)*50,0,100)+'%';
-  document.getElementById('ve').textContent=vb.eo.toFixed(2);
-  document.getElementById('be').style.width=cl(vb.eo/1.35*100,0,100)+'%';
-  document.getElementById('vy').textContent=f(po.y);
-  document.getElementById('by').style.width=cl(Math.abs(po.y)/1.5*100,0,100)+'%';
 }
 
-// ═══════════════════════════════════════
-//  CAMERA STARTUP
-// ═══════════════════════════════════════
-var pumpOn=false;
-function pump(){
-  if(!pumpOn) return;
-  if(vid.readyState>=2 && !vid.paused){
-    try{fm.send({image:vid});}catch(e){}
-  }
-  requestAnimationFrame(pump);
+// ══════════════════════════════════════════════════
+//  4. RENDER LOOP & POST-PROCESSING
+// ══════════════════════════════════════════════════
+function applyChuckClose(ctx) {
+    const size = isDevMode ? 4 : 8; 
+    const imageData = ctx.getImageData(0, 0, W, H);
+    ctx.clearRect(0,0,W,H);
+    for (let y = 0; y < H; y += size) {
+        for (let x = 0; x < W; x += size) {
+            const idx = (y * W + x) * 4;
+            const r = imageData.data[idx], g = imageData.data[idx+1], b = imageData.data[idx+2];
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.beginPath();
+            ctx.arc(x + size/2, y + size/2, size/2.2, 0, Math.PI*2);
+            ctx.fill();
+        }
+    }
 }
 
-function startCam(){
-  var btn=document.getElementById('go');
-  btn.textContent='Starting...'; btn.disabled=true;
-  navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false})
-  .then(function(stream){vid.srcObject=stream; return vid.play();})
-  .then(function(){
-    document.getElementById('ovt').textContent='Loading';
-    document.getElementById('ovs').textContent='Downloading model...';
-    fm=new FaceMesh({locateFile:function(f){return 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/'+f;}});
-    fm.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
-    fm.onResults(onRes);
-    return fm.initialize();
-  })
-  .then(function(){pumpOn=true; setP('s'); requestAnimationFrame(pump);})
-  .catch(function(e){
-    console.error(e);
-    document.getElementById('ovt').textContent='Error';
-    document.getElementById('ovs').textContent=e.message||'Failed';
-    btn.textContent='Retry'; btn.disabled=false; btn.onclick=startCam;
-  });
+function tick() {
+    receiver.update();
+
+    const mainCtx = document.getElementById('final_canvas').getContext('2d');
+    mainCtx.clearRect(0, 0, W, H);
+
+    if (isDevMode) {
+        mainCtx.drawImage(vid, 0, 0, W/2, H); // Left: Source
+        renderer.setViewport(0, 0, W/2, H);
+        renderer.render(scene, cam3);
+        mainCtx.drawImage(renderer.domElement, W/2, 0, W/2, H); // Right: Receiver
+    } else {
+        renderer.setViewport(0, 0, W, H);
+        renderer.render(scene, cam3);
+        mainCtx.drawImage(renderer.domElement, 0, 0, W, H);
+        applyChuckClose(mainCtx);
+    }
 }
 
-// ═══════════════════════════════════════
-//  INIT
-// ═══════════════════════════════════════
-setP('w');
-ctx.fillStyle='#0a0908';
-ctx.fillRect(0,0,CW,CH);
+// ══════════════════════════════════════════════════
+//  5. MEDIAPIPE BOOT
+// ══════════════════════════════════════════════════
+window.addEventListener('keydown', e => { if(e.key.toLowerCase()==='d') isDevMode = !isDevMode; });
 
-document.getElementById('go').addEventListener('click',startCam);
-document.getElementById('recal').addEventListener('click',function(){if(phase==='l')startCal();});
-document.getElementById('gridBtn').addEventListener('click',function(){
-  gridOn=!gridOn;
-  this.textContent='Grid '+(gridOn?'ON':'OFF');
-  this.className=gridOn?'btn on':'btn';
-});
+function onResults(results) {
+    if (!results.multiFaceLandmarks || !results.multiFaceLandmarks[0]) return;
+    liveLM = results.multiFaceLandmarks[0];
+    
+    // Auto-generate topology on the very first frame
+    if (receiver.geometry.getIndex() === null && window.FACEMESH_TESSELATION) {
+        const tris = generateTriangles(window.FACEMESH_TESSELATION);
+        receiver.initTopology(tris);
+    }
+    
+    runTransmitter(liveLM);
+    tick();
+}
+
+const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+faceMesh.setOptions({maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
+faceMesh.onResults(onResults);
+
+const camera = new Camera(vid, {onFrame: async () => { await faceMesh.send({image: vid}); }, width: 640, height: 480});
+camera.start();
+
 </script>
 </body>
 </html>
