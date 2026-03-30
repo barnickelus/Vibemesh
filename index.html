@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibe Protocol — Clay</title>
+<title>Vibe Protocol</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0a0908;--surface:#121110;--border:#252220;--text:#e8e2d8;--muted:#4e4840;--accent:#c9a96e;--dk:#7a5c2e;--green:#6a9e6a;--amber:#c9a050}
+:root{--bg:#0a0908;--surface:#121110;--border:#252220;--text:#e8e2d8;--muted:#4e4840;--accent:#c9a96e;--dk:#7a5c2e;--green:#6a9e6a}
 body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:14px 12px 24px}
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 50% 35%,#1a1510 0%,var(--bg) 70%);pointer-events:none;z-index:0}
 header{position:relative;z-index:1;text-align:center;margin-bottom:10px}
 .ey{font-size:.45rem;letter-spacing:.35em;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
-h1{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:500;letter-spacing:.06em;line-height:1}
+h1{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:500;letter-spacing:.06em}
 h1 em{font-style:italic;color:var(--accent)}
 .sub{font-size:.42rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-top:4px}
 .stage{position:relative;z-index:1;display:flex;gap:12px;align-items:flex-start}
@@ -37,8 +37,7 @@ h1 em{font-style:italic;color:var(--accent)}
 .pip{position:relative;border:1px solid var(--border);overflow:hidden}
 #vid{display:block;width:170px;height:128px;object-fit:cover;transform:scaleX(-1)}
 .bg{position:absolute;top:3px;right:3px;font-size:.38rem;letter-spacing:.1em;text-transform:uppercase;padding:1px 3px;border:1px solid;z-index:2}
-.bg.w{color:var(--amber);border-color:var(--amber)}
-.bg.c{color:var(--accent);border-color:var(--accent)}
+.bg.w{color:var(--accent);border-color:var(--accent)}
 .bg.l{color:var(--green);border-color:var(--green)}
 .pan{border:1px solid var(--border);padding:6px;background:var(--surface)}
 .ph{font-size:.38rem;letter-spacing:.2em;text-transform:uppercase;color:var(--dk);margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
@@ -52,7 +51,6 @@ h1 em{font-style:italic;color:var(--accent)}
 .bf{height:100%;background:var(--dk);position:absolute;left:0;transition:width .06s}
 .ar{font-size:.34rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:4px;padding-top:4px;border-top:1px solid var(--border)}
 .ar span{color:var(--accent)}
-.phase-lbl{font-size:.32rem;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-top:3px}
 .ctrls{position:relative;z-index:1;margin-top:8px;display:flex;gap:6px}
 .btn{font-family:'JetBrains Mono',monospace;font-size:.44rem;letter-spacing:.1em;text-transform:uppercase;padding:4px 8px;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer}
 .btn:hover{border-color:var(--dk);color:var(--text)}
@@ -62,7 +60,7 @@ h1 em{font-style:italic;color:var(--accent)}
 <header>
   <div class="ey">Vibe Protocol</div>
   <h1>Living <em>Clay</em></h1>
-  <div class="sub">Proportions first. Landmarks second. Detail accumulates.</div>
+  <div class="sub">Sphere > Human > You</div>
 </header>
 <div class="stage">
   <div>
@@ -75,7 +73,7 @@ h1 em{font-style:italic;color:var(--accent)}
         <div class="cb" id="cbar" style="display:none"><div id="cf"></div></div>
       </div>
     </div>
-    <div class="stat"><span id="sp">Waiting</span><span id="ss">--</span><span id="sl">0%</span></div>
+    <div class="stat"><span id="sp">Waiting</span><span id="ss">--</span><span id="sl">--</span></div>
   </div>
   <div class="rc">
     <div class="pip"><video id="vid" playsinline muted></video><div class="bg w" id="badge">Wait</div></div>
@@ -85,14 +83,11 @@ h1 em{font-style:italic;color:var(--accent)}
       <div class="pr"><div class="pl">Smile <span class="pv" id="vs">0.00</span></div><div class="bt"><div class="bf" id="bs"></div></div></div>
       <div class="pr"><div class="pl">Eyes <span class="pv" id="ve">1.00</span></div><div class="bt"><div class="bf" id="be"></div></div></div>
       <div class="pr"><div class="pl">Yaw <span class="pv" id="vy">0.00</span></div><div class="bt"><div class="bf" id="by"></div></div></div>
-      <div class="ar">Packets: <span id="ac">0</span> | <span id="ak">0</span> bytes</div>
-      <div class="phase-lbl" id="phLbl">Phase: Waiting</div>
+      <div class="ar"><span id="phLbl">Forming</span> | <span id="ac">0</span> packets</div>
     </div>
   </div>
 </div>
-<div class="ctrls">
-  <button class="btn" id="recal">Reset Clay</button>
-</div>
+<div class="ctrls"><button class="btn" id="recal">Reset</button></div>
 
 <script>
 var CW=480,CH=580,NL=468;
@@ -100,388 +95,334 @@ var OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377
 var LM={N:1,CH:152,T:10,LE:33,RE:263,LT:159,LB:145,RT:386,RB:374,LBR:105,RBR:334,MT:13,MB:14,ML:61,MR:291};
 function cl(v,a,b){return v<a?a:v>b?b:v;}
 function lerp(a,b,t){return a+(b-a)*t;}
-function dist2d(a,b){return Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));}
+function dist2(a,b){return Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));}
 
 var phase='w',calCnt=0,calLM=null,browBL=null;
-var vb={mo:0,mc:0,bl:0,eo:1};
-var po={y:0,p:0,r:0};
-var pBL={nr:0.55,yo:0};
+var vb={mo:0,mc:0,bl:0,eo:1},po={y:0,p:0,r:0},pBL={nr:0.55,yo:0};
 
-// Clay state
-var clayMesh=null,clayGeo=null;
-var basePos=null,sculptPos=null,currentPos=null,colors=null;
-var sculptWeight=null,regionTags=null,nVerts=0;
-var sculptPhase=0; // 0=proportions, 1=anchors, 2=features, 3=detail, 4=refine
-var sculptFrame2=0;
-var totalPackets=0;
-var measurements={}; // accumulated measurements
+var clayMesh=null,clayGeo=null,nV=0;
+var spherePos=null;   // original sphere
+var humanPos=null;     // universal human form target
+var sculptPos=null;    // personalized target (starts as humanPos)
+var currentPos=null;   // animated display positions
+var colors=null;
+var sculptW=null;      // per-vertex sculpt confidence
+var regionTags=null;
+var formBlend=0;       // 0=sphere, 1=human form
+var sculptFrame=0,totalPkt=0;
+var measurements={};
 
-// Region constants
+var CLAY=[0.72,0.58,0.45]; // clay RGB
 var R_NONE=0,R_MOUTH=1,R_JAW=2,R_EYE_L=3,R_EYE_R=4,R_BROW_L=5,R_BROW_R=6,R_NOSE=7,R_CHEEK=8,R_FOREHEAD=9;
-
-var CLAY_R=0.72,CLAY_G=0.58,CLAY_B=0.45;
 
 // ═══ THREE.JS ═══
 var display=document.getElementById('display');
-var renderer=new THREE.WebGLRenderer({canvas:display,antialias:true,alpha:false});
-renderer.setSize(CW,CH,false);renderer.setClearColor(0x0a0908,1);
-renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
-
+var ren=new THREE.WebGLRenderer({canvas:display,antialias:true});
+ren.setSize(CW,CH,false);ren.setClearColor(0x0a0908);
+ren.toneMapping=THREE.ACESFilmicToneMapping;ren.toneMappingExposure=1.1;
 var scene=new THREE.Scene();
 var bgC=document.createElement('canvas');bgC.width=2;bgC.height=256;
-var bgx=bgC.getContext('2d');
-var bgG=bgx.createLinearGradient(0,0,0,256);
-bgG.addColorStop(0,'#1a1612');bgG.addColorStop(0.4,'#110f0d');bgG.addColorStop(1,'#080706');
-bgx.fillStyle=bgG;bgx.fillRect(0,0,2,256);
-scene.background=new THREE.CanvasTexture(bgC);
-
-var camera=new THREE.PerspectiveCamera(30,CW/CH,0.1,100);
-camera.position.set(0,0,3.8);
-
+var bx=bgC.getContext('2d');var bg=bx.createLinearGradient(0,0,0,256);
+bg.addColorStop(0,'#1a1612');bg.addColorStop(0.4,'#110f0d');bg.addColorStop(1,'#080706');
+bx.fillStyle=bg;bx.fillRect(0,0,2,256);scene.background=new THREE.CanvasTexture(bgC);
+var cam=new THREE.PerspectiveCamera(30,CW/CH,0.1,100);cam.position.set(0,0,3.8);
 scene.add(new THREE.AmbientLight(0xffe0c8,0.35));
-var keyL=new THREE.DirectionalLight(0xfff0e0,0.6);keyL.position.set(-2,2.5,3);scene.add(keyL);
-var fillL=new THREE.DirectionalLight(0xc8d8f0,0.25);fillL.position.set(2,0.5,2);scene.add(fillL);
-var rimL=new THREE.DirectionalLight(0xffd0a0,0.2);rimL.position.set(0,1,-3);scene.add(rimL);
+var kl=new THREE.DirectionalLight(0xfff0e0,0.6);kl.position.set(-2,2.5,3);scene.add(kl);
+var fl=new THREE.DirectionalLight(0xc8d8f0,0.25);fl.position.set(2,0.5,2);scene.add(fl);
+var rl=new THREE.DirectionalLight(0xffd0a0,0.2);rl.position.set(0,1,-3);scene.add(rl);
 
-// ═══ BUILD CLAY ═══
+// ═══════════════════════════════════════════
+//  UNIVERSAL HUMAN FORM
+//  Defined as deformations from a unit sphere.
+//  Every human shares this topology.
+// ═══════════════════════════════════════════
+var FORM_DEFORMS=[
+  // Eye sockets — indent
+  {cx:-0.30, cy:0.15, cz:0.85, r:0.18, dx:0, dy:0, dz:-0.12},
+  {cx:0.30, cy:0.15, cz:0.85, r:0.18, dx:0, dy:0, dz:-0.12},
+  // Brow ridge — push forward above eyes
+  {cx:-0.25, cy:0.32, cz:0.88, r:0.20, dx:0, dy:0.02, dz:0.04},
+  {cx:0.25, cy:0.32, cz:0.88, r:0.20, dx:0, dy:0.02, dz:0.04},
+  // Nose bridge — narrow ridge
+  {cx:0, cy:0.10, cz:0.95, r:0.10, dx:0, dy:0, dz:0.08},
+  // Nose tip — forward + down
+  {cx:0, cy:-0.08, cz:0.95, r:0.12, dx:0, dy:-0.02, dz:0.14},
+  // Nostrils — widen at base of nose
+  {cx:-0.08, cy:-0.14, cz:0.90, r:0.08, dx:-0.02, dy:0, dz:0.03},
+  {cx:0.08, cy:-0.14, cz:0.90, r:0.08, dx:0.02, dy:0, dz:0.03},
+  // Upper lip — slight forward
+  {cx:0, cy:-0.25, cz:0.90, r:0.12, dx:0, dy:0, dz:0.05},
+  // Lower lip — slight forward
+  {cx:0, cy:-0.35, cz:0.88, r:0.10, dx:0, dy:0, dz:0.04},
+  // Philtrum groove — indent between nose and lip
+  {cx:0, cy:-0.18, cz:0.95, r:0.04, dx:0, dy:0, dz:-0.03},
+  // Chin — narrow and project forward
+  {cx:0, cy:-0.55, cz:0.75, r:0.15, dx:0, dy:-0.03, dz:0.06},
+  // Jaw angle — defined corner
+  {cx:-0.50, cy:-0.35, cz:0.50, r:0.15, dx:-0.02, dy:0, dz:0},
+  {cx:0.50, cy:-0.35, cz:0.50, r:0.15, dx:0.02, dy:0, dz:0},
+  // Cheekbones — outward prominence
+  {cx:-0.50, cy:0.05, cz:0.75, r:0.18, dx:-0.03, dy:0, dz:0.03},
+  {cx:0.50, cy:0.05, cz:0.75, r:0.18, dx:0.03, dy:0, dz:0.03},
+  // Temples — slight indent
+  {cx:-0.55, cy:0.30, cz:0.60, r:0.15, dx:0.02, dy:0, dz:-0.02},
+  {cx:0.55, cy:0.30, cz:0.60, r:0.15, dx:-0.02, dy:0, dz:-0.02},
+  // Forehead curve — slopes back
+  {cx:0, cy:0.65, cz:0.65, r:0.25, dx:0, dy:0.02, dz:-0.04},
+  // Under chin — taper
+  {cx:0, cy:-0.60, cz:0.20, r:0.20, dx:0, dy:0, dz:-0.04},
+  // Back of head flatten slightly
+  {cx:0, cy:0.10, cz:-0.90, r:0.30, dx:0, dy:0, dz:0.05},
+  // Ear position hints
+  {cx:-0.85, cy:0.05, cz:0.15, r:0.12, dx:-0.04, dy:0, dz:0},
+  {cx:0.85, cy:0.05, cz:0.15, r:0.12, dx:0.04, dy:0, dz:0}
+];
+
 function buildClay(){
   if(clayMesh) scene.remove(clayMesh);
-  var geo=new THREE.SphereGeometry(1,52,40);
+  var geo=new THREE.SphereGeometry(1,56,42);
   clayGeo=geo;
   var pos=geo.attributes.position;
-  nVerts=pos.count;
+  nV=pos.count;
 
-  basePos=new Float32Array(nVerts*3);
-  sculptPos=new Float32Array(nVerts*3);
-  currentPos=new Float32Array(nVerts*3);
-  colors=new Float32Array(nVerts*3);
-  sculptWeight=new Float32Array(nVerts);
-  regionTags=new Uint8Array(nVerts);
+  spherePos=new Float32Array(nV*3);
+  humanPos=new Float32Array(nV*3);
+  sculptPos=new Float32Array(nV*3);
+  currentPos=new Float32Array(nV*3);
+  colors=new Float32Array(nV*3);
+  sculptW=new Float32Array(nV);
+  regionTags=new Uint8Array(nV);
 
-  for(var i=0;i<nVerts;i++){
-    var x=pos.getX(i)*0.56, y=pos.getY(i)*0.70+0.08, z=pos.getZ(i)*0.52;
-    var nx=pos.getX(i),ny=pos.getY(i),nz=pos.getZ(i);
-    basePos[i*3]=x; basePos[i*3+1]=y; basePos[i*3+2]=z;
-    sculptPos[i*3]=x; sculptPos[i*3+1]=y; sculptPos[i*3+2]=z;
-    currentPos[i*3]=x; currentPos[i*3+1]=y; currentPos[i*3+2]=z;
-    colors[i*3]=CLAY_R; colors[i*3+1]=CLAY_G; colors[i*3+2]=CLAY_B;
+  // Store sphere positions, compute human form, tag regions
+  for(var i=0;i<nV;i++){
+    var ox=pos.getX(i),oy=pos.getY(i),oz=pos.getZ(i);
 
-    var front=nz>0.3;
-    if(front&&ny<-0.15&&ny>-0.55&&Math.abs(nx)<0.35) regionTags[i]=R_MOUTH;
-    else if(ny<=-0.55) regionTags[i]=R_JAW;
-    else if(front&&ny>0.05&&ny<0.35&&nx<-0.12) regionTags[i]=R_EYE_L;
-    else if(front&&ny>0.05&&ny<0.35&&nx>0.12) regionTags[i]=R_EYE_R;
-    else if(front&&ny>=0.35&&ny<0.55&&nx<0) regionTags[i]=R_BROW_L;
-    else if(front&&ny>=0.35&&ny<0.55&&nx>0) regionTags[i]=R_BROW_R;
-    else if(front&&ny>-0.15&&ny<0.15&&Math.abs(nx)<0.25) regionTags[i]=R_NOSE;
-    else if(front&&ny>=0.55) regionTags[i]=R_FOREHEAD;
-    else if(front&&Math.abs(nx)>0.3) regionTags[i]=R_CHEEK;
+    // Head ellipsoid scaling
+    var hx=ox*0.55, hy=oy*0.70+0.06, hz=oz*0.52;
+    spherePos[i*3]=hx; spherePos[i*3+1]=hy; spherePos[i*3+2]=hz;
+
+    // Compute human form: start from ellipsoid, apply all deformations
+    var fx=hx, fy=hy, fz=hz;
+    for(var d=0;d<FORM_DEFORMS.length;d++){
+      var def=FORM_DEFORMS[d];
+      // Distance on unit sphere from deformation center
+      var ddx=ox-def.cx, ddy=oy-def.cy, ddz=oz-def.cz;
+      var dist=Math.sqrt(ddx*ddx+ddy*ddy+ddz*ddz);
+      if(dist<def.r){
+        var w=1-dist/def.r;
+        w=w*w; // quadratic falloff for smoother blend
+        fx+=def.dx*w;
+        fy+=def.dy*w;
+        fz+=def.dz*w;
+      }
+    }
+    humanPos[i*3]=fx; humanPos[i*3+1]=fy; humanPos[i*3+2]=fz;
+    sculptPos[i*3]=fx; sculptPos[i*3+1]=fy; sculptPos[i*3+2]=fz;
+    currentPos[i*3]=hx; currentPos[i*3+1]=hy; currentPos[i*3+2]=hz;
+
+    // Clay color
+    colors[i*3]=CLAY[0]; colors[i*3+1]=CLAY[1]; colors[i*3+2]=CLAY[2];
+
+    // Region tags (on unit sphere coords)
+    var front=oz>0.3;
+    if(front&&oy<-0.15&&oy>-0.50&&Math.abs(ox)<0.30) regionTags[i]=R_MOUTH;
+    else if(oy<=-0.50) regionTags[i]=R_JAW;
+    else if(front&&oy>0.05&&oy<0.30&&ox<-0.10) regionTags[i]=R_EYE_L;
+    else if(front&&oy>0.05&&oy<0.30&&ox>0.10) regionTags[i]=R_EYE_R;
+    else if(front&&oy>=0.30&&oy<0.50&&ox<0) regionTags[i]=R_BROW_L;
+    else if(front&&oy>=0.30&&oy<0.50&&ox>0) regionTags[i]=R_BROW_R;
+    else if(front&&oy>-0.15&&oy<0.12&&Math.abs(ox)<0.20) regionTags[i]=R_NOSE;
+    else if(front&&oy>=0.50) regionTags[i]=R_FOREHEAD;
+    else if(front&&Math.abs(ox)>0.30) regionTags[i]=R_CHEEK;
     else regionTags[i]=R_NONE;
 
-    pos.setXYZ(i,x,y,z);
+    pos.setXYZ(i,hx,hy,hz);
   }
 
   geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
   geo.computeVertexNormals();
 
-  var mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.82,metalness:0.02,flatShading:false});
-  clayMesh=new THREE.Mesh(geo,mat);
-  clayMesh.rotation.order='YXZ';
+  var mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.82,metalness:0.02});
+  clayMesh=new THREE.Mesh(geo,mat);clayMesh.rotation.order='YXZ';
 
   // Neck + body
-  var skinMat=new THREE.MeshStandardMaterial({color:new THREE.Color(CLAY_R*0.7,CLAY_G*0.7,CLAY_B*0.7),roughness:0.85});
+  var skinMat=new THREE.MeshStandardMaterial({color:new THREE.Color(CLAY[0]*0.7,CLAY[1]*0.7,CLAY[2]*0.7),roughness:0.85});
   var clothMat=new THREE.MeshStandardMaterial({color:new THREE.Color(0.10,0.09,0.08),roughness:0.9});
-
-  var neck=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.17,0.28,16),skinMat);
-  neck.position.set(0,-0.76,0);clayMesh.add(neck);
-
-  var shoulders=new THREE.Mesh(new THREE.SphereGeometry(0.5,16,8,0,Math.PI*2,0,Math.PI*0.5),clothMat);
-  shoulders.position.set(0,-0.92,0);shoulders.scale.set(1.1,0.38,0.48);shoulders.rotation.x=Math.PI;
-  clayMesh.add(shoulders);
-
-  var torso=new THREE.Mesh(new THREE.CylinderGeometry(0.44,0.40,0.5,16),clothMat);
-  torso.position.set(0,-1.18,0);torso.scale.set(1,1,0.38);clayMesh.add(torso);
+  var neck=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.16,0.26,16),skinMat);
+  neck.position.set(0,-0.74,0);clayMesh.add(neck);
+  var sh=new THREE.Mesh(new THREE.SphereGeometry(0.48,16,8,0,Math.PI*2,0,Math.PI*0.5),clothMat);
+  sh.position.set(0,-0.90,0);sh.scale.set(1.1,0.36,0.46);sh.rotation.x=Math.PI;clayMesh.add(sh);
+  var torso=new THREE.Mesh(new THREE.CylinderGeometry(0.43,0.38,0.48,16),clothMat);
+  torso.position.set(0,-1.14,0);torso.scale.set(1,1,0.36);clayMesh.add(torso);
 
   scene.add(clayMesh);
-  sculptPhase=0; sculptFrame2=0; totalPackets=0; measurements={};
+  formBlend=0; sculptFrame=0; totalPkt=0; measurements={};
 }
 
-// ═══ STRUCTURED MEASUREMENT SYSTEM ═══
-// Extracts anthropometric ratios from landmarks,
-// applies them to the clay in logical sequence.
+// ═══ ANIMATE SPHERE → HUMAN FORM ═══
+function animateForm(dt){
+  if(formBlend>=1) return;
+  formBlend=cl(formBlend+dt*0.8, 0, 1); // takes ~1.2 seconds
+  // Smooth easing
+  var t=formBlend<0.5 ? 2*formBlend*formBlend : 1-Math.pow(-2*formBlend+2,2)/2;
 
-function extractMeasurements(lm){
+  for(var i=0;i<nV;i++){
+    currentPos[i*3]=lerp(spherePos[i*3],humanPos[i*3],t);
+    currentPos[i*3+1]=lerp(spherePos[i*3+1],humanPos[i*3+1],t);
+    currentPos[i*3+2]=lerp(spherePos[i*3+2],humanPos[i*3+2],t);
+  }
+}
+
+// ═══ PERSONALIZATION SCULPT ═══
+function nudgeNear(tx,ty,tz,radius,dx,dy,dz,str){
+  for(var i=0;i<nV;i++){
+    var vx=sculptPos[i*3]-tx,vy=sculptPos[i*3+1]-ty,vz=sculptPos[i*3+2]-tz;
+    var d=Math.sqrt(vx*vx+vy*vy+vz*vz);
+    if(d<radius){var w=str*(1-d/radius);w*=w;sculptPos[i*3]+=dx*w;sculptPos[i*3+1]+=dy*w;sculptPos[i*3+2]+=dz*w;}
+  }
+}
+
+function colorNear(tx,ty,tz,radius,r,g,b,str){
+  for(var i=0;i<nV;i++){
+    var vx=sculptPos[i*3]-tx,vy=sculptPos[i*3+1]-ty,vz=sculptPos[i*3+2]-tz;
+    var d=Math.sqrt(vx*vx+vy*vy+vz*vz);
+    if(d<radius){var w=str*(1-d/radius);colors[i*3]=lerp(colors[i*3],r,w);colors[i*3+1]=lerp(colors[i*3+1],g,w);colors[i*3+2]=lerp(colors[i*3+2],b,w);sculptW[i]=cl(sculptW[i]+w*0.3,0,1);}
+  }
+}
+
+function sculptStep(lm,vid2){
+  var m=extractM(lm);if(!m)return;
+  for(var key in m){if(typeof m[key]==='number')measurements[key]=measurements[key]!==undefined?lerp(measurements[key],m[key],0.12):m[key];}
+  var M=measurements, f=sculptFrame, rate=0.03;
+
+  // Personalization: adjust universal form toward individual
+  if(f>=0){
+    // Face width
+    var fR=cl(M.faceRatio||0.78,0.6,1.0);
+    for(var i=0;i<nV;i++){
+      var xShift=(fR-0.78)*0.15*rate;
+      sculptPos[i*3]+=sculptPos[i*3]*xShift;
+    }
+    // Nose projection
+    var nP=cl(M.noseProj||0.04,0,0.1);
+    nudgeNear(0,-0.02,0.54, 0.15, 0,0,(nP-0.04)*2*rate, 1);
+    // Eye separation
+    var eS=cl(M.eyeSep||0.38,0.28,0.50);
+    var eyeAdj=(eS-0.38)*0.3*rate;
+    nudgeNear(-0.18,0.12,0.45, 0.12, -eyeAdj,0,0, 1);
+    nudgeNear(0.18,0.12,0.45, 0.12, eyeAdj,0,0, 1);
+    // Mouth width
+    var mW=cl(M.mouthWidth||0.35,0.25,0.50);
+    nudgeNear(-0.12,-0.22,0.48, 0.08, -(mW-0.35)*0.2*rate,0,0, 1);
+    nudgeNear(0.12,-0.22,0.48, 0.08, (mW-0.35)*0.2*rate,0,0, 1);
+    // Jaw width
+    var jW=cl(M.jawWidth||0.65,0.5,0.85);
+    nudgeNear(-0.30,-0.38,0.22, 0.15, -(jW-0.65)*0.2*rate,0,0, 1);
+    nudgeNear(0.30,-0.38,0.22, 0.15, (jW-0.65)*0.2*rate,0,0, 1);
+    // Brow height
+    var bA=cl(M.browArch||0.04,0.02,0.08);
+    nudgeNear(-0.15,0.28,0.50, 0.10, 0,(bA-0.04)*rate,0.005*rate, 1);
+    nudgeNear(0.15,0.28,0.50, 0.10, 0,(bA-0.04)*rate,0.005*rate, 1);
+    // Lip thickness
+    var lU=cl(M.lipU||0.02,0.01,0.05);
+    nudgeNear(0,-0.22,0.52, 0.08, 0,0,(lU-0.02)*3*rate, 1);
+  }
+
+  // Fine detail: ALL landmarks nudge nearest vertices (gentle)
+  if(f>60){
+    var fcx=M.fcx||0.5,fcy=M.fcy||0.5,fw=M.fw||0.3,fh=M.fh||0.4;
+    var dRate=0.004;
+    for(var li=0;li<NL;li+=3){ // every 3rd landmark to save CPU
+      var lp=lm[li];
+      var nx=(lp.x-fcx)/(fw*0.5),ny=-(lp.y-fcy)/(fh*0.5);
+      var r2=nx*nx+ny*ny;
+      var fz=r2<1?Math.sqrt(1-cl(r2,0,0.99)):0;
+      var tx=nx*0.55, ty=ny*0.70+0.06, tz=fz*0.52*0.5+cl(1-(lp.z||0)*8+0.4,0,1)*0.52*0.5;
+      // Find nearest
+      var bestD=99,bestI=-1;
+      for(var vi=0;vi<nV;vi++){
+        var ddx=sculptPos[vi*3]-tx,ddy=sculptPos[vi*3+1]-ty,ddz=sculptPos[vi*3+2]-tz;
+        var dd=ddx*ddx+ddy*ddy+ddz*ddz;
+        if(dd<bestD){bestD=dd;bestI=vi;}
+      }
+      if(bestI>=0&&bestD<0.05){
+        sculptPos[bestI*3]=lerp(sculptPos[bestI*3],tx,dRate);
+        sculptPos[bestI*3+1]=lerp(sculptPos[bestI*3+1],ty,dRate);
+        sculptPos[bestI*3+2]=lerp(sculptPos[bestI*3+2],tz,dRate);
+      }
+    }
+  }
+
+  // COLOR sampling
+  var cc=document.createElement('canvas');cc.width=640;cc.height=480;
+  var ccx=cc.getContext('2d');
+  try{ccx.drawImage(vid2,0,0,640,480);}catch(e){return;}
+  var cRate=0.018;
+  for(var si=0;si<10;si++){
+    var sli=Math.floor(Math.random()*NL);
+    var slp=lm[sli];
+    var px=cl(Math.round(slp.x*640),0,639),py=cl(Math.round(slp.y*480),0,479);
+    var pd;try{pd=ccx.getImageData(px,py,1,1).data;}catch(e2){continue;}
+    var fcx2=M.fcx||0.5,fcy2=M.fcy||0.5,fw2=M.fw||0.3,fh2=M.fh||0.4;
+    var snx=(slp.x-fcx2)/(fw2*0.5),sny=-(slp.y-fcy2)/(fh2*0.5);
+    var sr2=snx*snx+sny*sny;
+    var sfz=sr2<1?Math.sqrt(1-cl(sr2,0,0.99)):0;
+    colorNear(snx*0.55,sny*0.70+0.06,sfz*0.52, 0.16, pd[0]/255,pd[1]/255,pd[2]/255, cRate);
+  }
+
+  sculptFrame++; totalPkt+=10;
+  document.getElementById('ac').textContent=totalPkt;
+  var avg=0;for(var wi=0;wi<nV;wi++)avg+=sculptW[wi];avg/=nV;
+  document.getElementById('sl').textContent=(avg*100).toFixed(0)+'%';
+  document.getElementById('ss').textContent='F'+sculptFrame;
+  document.getElementById('phLbl').textContent=f<30?'Forming':f<60?'Proportions':f<120?'Features':'Detail';
+}
+
+function extractM(lm){
   var ox=OVAL.map(function(i){return lm[i].x;}),oy=OVAL.map(function(i){return lm[i].y;});
   var fcx=(Math.min.apply(null,ox)+Math.max.apply(null,ox))*0.5;
   var fcy=(Math.min.apply(null,oy)+Math.max.apply(null,oy))*0.5;
-  var fw=(Math.max.apply(null,ox)-Math.min.apply(null,ox));
-  var fh=(Math.max.apply(null,oy)-Math.min.apply(null,oy));
-  if(fw<0.01||fh<0.01) return null;
-
-  var eyeMid={x:(lm[LM.LE].x+lm[LM.RE].x)*0.5, y:(lm[LM.LE].y+lm[LM.RE].y)*0.5};
-
-  return {
-    // Proportions (ratios)
-    faceRatio: fw/fh,                                    // wider face = higher
-    eyeLineY: (eyeMid.y-fcy+fh*0.5)/fh,                // how far down eyes are (0-1)
-    mouthLineY: ((lm[LM.MT].y+lm[LM.MB].y)*0.5-fcy+fh*0.5)/fh,
-    chinY: (lm[LM.CH].y-fcy+fh*0.5)/fh,
-
-    // Feature positions (as fractions of face width)
-    eyeSep: dist2d(lm[LM.LE],lm[LM.RE])/fw,
-    noseWidth: dist2d(lm[48]||lm[LM.N],lm[278]||lm[LM.N])/fw, // alar landmarks
-    mouthWidth: dist2d(lm[LM.ML],lm[LM.MR])/fw,
-    jawWidth: dist2d(lm[132],lm[361])/fw,               // jaw angle landmarks
-
-    // Feature depths (z-based)
-    noseProj: -(lm[LM.N].z||0),                          // nose projects forward
-    browDepth: -((lm[LM.LBR].z||0)+(lm[LM.RBR].z||0))*0.5,
-
-    // Feature shapes
-    eyeOpenL: Math.abs(lm[LM.LT].y-lm[LM.LB].y)/fh,
-    eyeOpenR: Math.abs(lm[LM.RT].y-lm[LM.RB].y)/fh,
-    lipThickU: Math.abs(lm[LM.MT].y-lm[0].y)/fh,
-    lipThickL: Math.abs(lm[LM.MB].y-lm[17].y)/fh,
-    browArchL: (eyeMid.y-lm[LM.LBR].y)/fh,
-    browArchR: (eyeMid.y-lm[LM.RBR].y)/fh,
-
-    // Nose shape
-    noseBridgeW: dist2d(lm[193]||lm[LM.N],lm[417]||lm[LM.N])/fw,
-    noseLen: dist2d(lm[6],lm[LM.N])/fh,
-
-    // Raw positions for fine sculpting (normalized -1..1)
-    fcx:fcx, fcy:fcy, fw:fw, fh:fh
-  };
-}
-
-// ═══ APPLY SCULPT — vertex manipulation by phase ═══
-function nudgeRegion(region, dx, dy, dz, strength){
-  for(var i=0;i<nVerts;i++){
-    if(regionTags[i]!==region) continue;
-    sculptPos[i*3]+=dx*strength;
-    sculptPos[i*3+1]+=dy*strength;
-    sculptPos[i*3+2]+=dz*strength;
-  }
-}
-
-function nudgeNear(tx,ty,tz,radius,dx,dy,dz,strength){
-  for(var i=0;i<nVerts;i++){
-    var vx=sculptPos[i*3],vy=sculptPos[i*3+1],vz=sculptPos[i*3+2];
-    var d=Math.sqrt((vx-tx)*(vx-tx)+(vy-ty)*(vy-ty)+(vz-tz)*(vz-tz));
-    if(d<radius){
-      var w=strength*(1-d/radius);
-      sculptPos[i*3]+=dx*w;
-      sculptPos[i*3+1]+=dy*w;
-      sculptPos[i*3+2]+=dz*w;
-    }
-  }
-}
-
-function colorRegion(region, r, g, b, strength){
-  for(var i=0;i<nVerts;i++){
-    if(regionTags[i]!==region) continue;
-    colors[i*3]=lerp(colors[i*3],r,strength);
-    colors[i*3+1]=lerp(colors[i*3+1],g,strength);
-    colors[i*3+2]=lerp(colors[i*3+2],b,strength);
-    sculptWeight[i]=cl(sculptWeight[i]+strength*0.5,0,1);
-  }
-}
-
-function colorNear(tx,ty,tz,radius,r,g,b,strength){
-  for(var i=0;i<nVerts;i++){
-    var vx=sculptPos[i*3],vy=sculptPos[i*3+1],vz=sculptPos[i*3+2];
-    var d=Math.sqrt((vx-tx)*(vx-tx)+(vy-ty)*(vy-ty)+(vz-tz)*(vz-tz));
-    if(d<radius){
-      var w=strength*(1-d/radius);
-      colors[i*3]=lerp(colors[i*3],r,w);
-      colors[i*3+1]=lerp(colors[i*3+1],g,w);
-      colors[i*3+2]=lerp(colors[i*3+2],b,w);
-      sculptWeight[i]=cl(sculptWeight[i]+w*0.3,0,1);
-    }
-  }
-}
-
-function sculptStep(lm, vid2){
-  var m=extractMeasurements(lm);
-  if(!m) return;
-
-  // Accumulate measurements with EMA for stability
-  for(var key in m){
-    if(typeof m[key]==='number'){
-      measurements[key]=measurements[key]!==undefined?lerp(measurements[key],m[key],0.15):m[key];
-    }
-  }
-  var M=measurements;
-
-  var f=sculptFrame2;
-  var rate=0.04; // how fast each sculpt step applies
-
-  // ════ PHASE 0: PROPORTIONS (frames 0-30) ════
-  if(f<30){
-    document.getElementById('phLbl').textContent='Phase: Proportions';
-
-    // Adjust face width/height ratio
-    var targetRatio=cl(M.faceRatio||0.75,0.6,1.0);
-    var currentRatio=0.56/0.70; // our ellipsoid defaults
-    var scaleX=lerp(1,targetRatio/currentRatio,rate*0.3);
-    for(var i=0;i<nVerts;i++){
-      sculptPos[i*3]*=lerp(1,scaleX,rate*0.5);
-    }
-
-    // Shift eye line to correct Y position
-    var eyeY=cl(M.eyeLineY||0.42,0.35,0.50);
-    var eyeShift=(0.42-eyeY)*0.3*rate;
-    nudgeRegion(R_EYE_L,0,eyeShift,0,1);
-    nudgeRegion(R_EYE_R,0,eyeShift,0,1);
-
-    // Shift mouth line
-    var mouthY=cl(M.mouthLineY||0.72,0.65,0.80);
-    var mouthShift=(0.72-mouthY)*0.2*rate;
-    nudgeRegion(R_MOUTH,0,mouthShift,0,1);
-  }
-
-  // ════ PHASE 1: ANCHOR FEATURES (frames 30-80) ════
-  if(f>=30&&f<80){
-    document.getElementById('phLbl').textContent='Phase: Features';
-
-    // Push nose forward
-    var nProj=cl(M.noseProj||0.03,0,0.08);
-    nudgeNear(0,0,0.52,0.15,0,0,nProj*3*rate,1);
-
-    // Carve eye sockets (push inward)
-    var eyeS=cl(M.eyeSep||0.38,0.3,0.5)*0.56;
-    nudgeNear(-eyeS*0.5,0.15,0.45,0.10,0,0,-0.03*rate,1); // left eye socket
-    nudgeNear(eyeS*0.5,0.15,0.45,0.10,0,0,-0.03*rate,1);  // right eye socket
-
-    // Mouth width
-    var mW=cl(M.mouthWidth||0.35,0.25,0.50)*0.56;
-    nudgeNear(-mW*0.5,-0.22,0.48,0.08,  -0.005*rate,0,0,1); // mouth corners out
-    nudgeNear(mW*0.5,-0.22,0.48,0.08,  0.005*rate,0,0,1);
-
-    // Jaw width
-    var jW=cl(M.jawWidth||0.65,0.5,0.85)*0.56;
-    var jawDelta=(jW-0.56*0.65)*rate*0.3;
-    nudgeNear(-0.35,-0.40,0.20,0.15, jawDelta,0,0,1);
-    nudgeNear(0.35,-0.40,0.20,0.15, -jawDelta,0,0,1);
-  }
-
-  // ════ PHASE 2: FEATURE SHAPES (frames 80-150) ════
-  if(f>=80&&f<150){
-    document.getElementById('phLbl').textContent='Phase: Shapes';
-
-    // Brow ridge
-    var browA=cl(M.browArchL||0.04,0.02,0.08);
-    nudgeRegion(R_BROW_L,0,browA*rate*0.5,0.01*rate,1);
-    nudgeRegion(R_BROW_R,0,(M.browArchR||browA)*rate*0.5,0.01*rate,1);
-
-    // Nose bridge width
-    var nBW=cl(M.noseBridgeW||0.12,0.06,0.20)*0.56;
-    nudgeNear(-nBW*0.3,0.05,0.50,0.06, -0.002*rate,0,0,1);
-    nudgeNear(nBW*0.3,0.05,0.50,0.06, 0.002*rate,0,0,1);
-
-    // Lip thickness
-    var lipU=cl(M.lipThickU||0.02,0.01,0.04);
-    var lipL=cl(M.lipThickL||0.03,0.01,0.05);
-    nudgeNear(0,-0.20,0.52,0.06, 0,0,(lipU*2)*rate,1); // upper lip forward
-    nudgeNear(0,-0.30,0.50,0.06, 0,0,(lipL*2)*rate,1); // lower lip forward
-
-    // Cheekbone prominence
-    nudgeNear(-0.40,0.0,0.35,0.12, 0,0,0.008*rate,1);
-    nudgeNear(0.40,0.0,0.35,0.12, 0,0,0.008*rate,1);
-  }
-
-  // ════ PHASE 3: ALL-LANDMARK DETAIL (frames 150+) ════
-  if(f>=150){
-    document.getElementById('phLbl').textContent='Phase: Detail';
-
-    // Each frame, project ALL landmarks to 3D and nudge nearest vertices
-    var fcx2=M.fcx||0.5,fcy2=M.fcy||0.5,fw2=M.fw||0.3,fh2=M.fh||0.4;
-    var detailRate=0.006; // very gentle per-frame
-
-    for(var li=0;li<NL;li++){
-      var lp=lm[li];
-      var nx=(lp.x-fcx2)/(fw2*0.5); // -1..1
-      var ny=-(lp.y-fcy2)/(fh2*0.5);
-      var nz2=1.0-((lp.z||0)+0.05)*8;
-      nz2=cl(nz2,0,1);
-      var r2=nx*nx+ny*ny;
-      var fz=r2<1?Math.sqrt(1-cl(r2,0,0.99)):0;
-      var tx=nx*0.56, ty=ny*0.70+0.08, tz=fz*0.52*0.5+nz2*0.52*0.5;
-
-      // Find and nudge nearest vertex
-      var bestD=999,bestI=-1;
-      for(var vi=0;vi<nVerts;vi++){
-        var dx2=sculptPos[vi*3]-tx,dy2=sculptPos[vi*3+1]-ty,dz2=sculptPos[vi*3+2]-tz;
-        var dd=dx2*dx2+dy2*dy2+dz2*dz2;
-        if(dd<bestD){bestD=dd;bestI=vi;}
-      }
-      if(bestI>=0&&bestD<0.04){
-        sculptPos[bestI*3]=lerp(sculptPos[bestI*3],tx,detailRate);
-        sculptPos[bestI*3+1]=lerp(sculptPos[bestI*3+1],ty,detailRate);
-        sculptPos[bestI*3+2]=lerp(sculptPos[bestI*3+2],tz,detailRate);
-      }
-    }
-  }
-
-  // ════ COLOR — always running ════
-  // Sample a few landmark colors each frame
-  var colorCvs=document.createElement('canvas');colorCvs.width=640;colorCvs.height=480;
-  var colorCtx=colorCvs.getContext('2d');
-  try{colorCtx.drawImage(vid2,0,0,640,480);}catch(e){return;}
-
-  var colorRate=0.02;
-  var samplesPerFrame=12;
-  for(var si=0;si<samplesPerFrame;si++){
-    var sli=Math.floor(Math.random()*NL);
-    var slp=lm[sli];
-    var px2=cl(Math.round(slp.x*640),0,639);
-    var py2=cl(Math.round(slp.y*480),0,479);
-    var pd;
-    try{pd=colorCtx.getImageData(px2,py2,1,1).data;}catch(e2){continue;}
-    var tr=pd[0]/255,tg=pd[1]/255,tb=pd[2]/255;
-
-    // Project landmark to 3D
-    var fcx3=M.fcx||0.5,fcy3=M.fcy||0.5,fw3=M.fw||0.3,fh3=M.fh||0.4;
-    var snx=(slp.x-fcx3)/(fw3*0.5);
-    var sny=-(slp.y-fcy3)/(fh3*0.5);
-    var sr2=snx*snx+sny*sny;
-    var sfz=sr2<1?Math.sqrt(1-cl(sr2,0,0.99)):0;
-    var stx=snx*0.56,sty=sny*0.70+0.08,stz=sfz*0.52;
-
-    colorNear(stx,sty,stz, 0.18, tr,tg,tb, colorRate);
-  }
-
-  sculptFrame2++;
-  totalPackets+=samplesPerFrame;
-  document.getElementById('ac').textContent=totalPackets;
-  document.getElementById('ak').textContent=(totalPackets*24);
-
-  // Likeness estimate
-  var avgW=0;
-  for(var wi=0;wi<nVerts;wi++) avgW+=sculptWeight[wi];
-  avgW/=nVerts;
-  document.getElementById('sl').textContent=(avgW*100).toFixed(0)+'%';
-  document.getElementById('ss').textContent='F'+sculptFrame2;
+  var fw=Math.max.apply(null,ox)-Math.min.apply(null,ox);
+  var fh=Math.max.apply(null,oy)-Math.min.apply(null,oy);
+  if(fw<0.01||fh<0.01)return null;
+  var em={x:(lm[LM.LE].x+lm[LM.RE].x)*0.5,y:(lm[LM.LE].y+lm[LM.RE].y)*0.5};
+  return{faceRatio:fw/fh, eyeLineY:(em.y-fcy+fh*0.5)/fh, mouthLineY:((lm[LM.MT].y+lm[LM.MB].y)*0.5-fcy+fh*0.5)/fh,
+    eyeSep:dist2(lm[LM.LE],lm[LM.RE])/fw, noseWidth:dist2(lm[48]||lm[LM.N],lm[278]||lm[LM.N])/fw,
+    mouthWidth:dist2(lm[LM.ML],lm[LM.MR])/fw, jawWidth:dist2(lm[132],lm[361])/fw,
+    noseProj:-(lm[LM.N].z||0), browArch:(em.y-lm[LM.LBR].y)/fh,
+    lipU:Math.abs(lm[LM.MT].y-(lm[0]||lm[LM.MT]).y)/fh,
+    fcx:fcx,fcy:fcy,fw:fw,fh:fh};
 }
 
 // ═══ EXPRESSION ═══
 function applyExpr(){
-  if(!clayMesh||!sculptPos) return;
+  if(!clayMesh||!sculptPos)return;
   var pos=clayGeo.attributes.position;
   var mo=vb.mo*4,mc=vb.mc,eo=vb.eo,bl=vb.bl*3;
-  for(var i=0;i<nVerts;i++){
-    var sx=sculptPos[i*3],sy=sculptPos[i*3+1],sz=sculptPos[i*3+2];
-    var dx=0,dy=0,dz=0;
-    switch(regionTags[i]){
-      case R_MOUTH: dy-=mo*0.04; dx+=mc*0.005*(sx>0?1:-1); dy+=mc*0.008; break;
-      case R_JAW: dy-=mo*0.025; break;
-      case R_EYE_L: case R_EYE_R: dy+=(eo-1)*0.008; break;
-      case R_BROW_L: case R_BROW_R: dy+=bl*0.02; break;
-      case R_NOSE: dy+=mc*0.003; break;
+  // Blend target: if still forming, blend sphere→human; otherwise use sculptPos
+  var useForm=formBlend<1;
+  for(var i=0;i<nV;i++){
+    var sx,sy,sz;
+    if(useForm){
+      sx=currentPos[i*3];sy=currentPos[i*3+1];sz=currentPos[i*3+2];
+    }else{
+      sx=sculptPos[i*3];sy=sculptPos[i*3+1];sz=sculptPos[i*3+2];
     }
-    currentPos[i*3]=lerp(currentPos[i*3],sx+dx,0.25);
-    currentPos[i*3+1]=lerp(currentPos[i*3+1],sy+dy,0.25);
-    currentPos[i*3+2]=lerp(currentPos[i*3+2],sz+dz,0.25);
+    var dx=0,dy=0;
+    switch(regionTags[i]){
+      case R_MOUTH:dy-=mo*0.035;dx+=mc*0.004*(sx>0?1:-1);dy+=mc*0.006;break;
+      case R_JAW:dy-=mo*0.02;break;
+      case R_EYE_L:case R_EYE_R:dy+=(eo-1)*0.007;break;
+      case R_BROW_L:case R_BROW_R:dy+=bl*0.015;break;
+      case R_NOSE:dy+=mc*0.002;break;
+    }
+    var tx=sx+dx,ty=sy+dy;
+    // Smooth animation
+    if(!useForm){
+      currentPos[i*3]=lerp(currentPos[i*3],tx,0.20);
+      currentPos[i*3+1]=lerp(currentPos[i*3+1],ty,0.20);
+      currentPos[i*3+2]=lerp(currentPos[i*3+2],sz,0.20);
+    }
     pos.setXYZ(i,currentPos[i*3],currentPos[i*3+1],currentPos[i*3+2]);
   }
   pos.needsUpdate=true;
@@ -491,7 +432,7 @@ function applyExpr(){
 
 // ═══ POSE & VIBE ═══
 function dz(v,t){if(Math.abs(v)<t)return 0;return(v>0?1:-1)*(Math.abs(v)-t)/(1-t);}
-function getPose(lm){var n=lm[LM.N],le=lm[LM.LE],re=lm[LM.RE],ch=lm[LM.CH];var emx=(le.x+re.x)*0.5,es=Math.abs(re.x-le.x);var ry=es>0.01?(n.x-emx)/es:0;var yaw=dz(ry-pBL.yo,0.03)*Math.PI*0.72;var emy=(le.y+re.y)*0.5,fh=ch.y-emy;var nr=fh>0.01?(n.y-emy)/fh:0.55;var pitch=dz(nr-pBL.nr,0.012)*Math.PI*1.2;var ddx=re.x-le.x,ddy=re.y-le.y;var roll=dz(-Math.atan2(ddy,ddx),0.015)*0.65;return{y:cl(yaw,-0.9,0.9),p:cl(pitch,-0.65,0.65),r:cl(roll,-0.4,0.4)};}
+function getPose(lm){var n=lm[LM.N],le=lm[LM.LE],re=lm[LM.RE],ch=lm[LM.CH];var emx=(le.x+re.x)*0.5,es=Math.abs(re.x-le.x);var ry=es>0.01?(n.x-emx)/es:0;var yaw=dz(ry-pBL.yo,0.03)*Math.PI*0.72;var emy=(le.y+re.y)*0.5,fh=ch.y-emy;var nr=fh>0.01?(n.y-emy)/fh:0.55;var pitch=dz(nr-pBL.nr,0.012)*Math.PI*1.2;var dx=re.x-le.x,dy=re.y-le.y;var roll=dz(-Math.atan2(dy,dx),0.015)*0.65;return{y:cl(yaw,-0.9,0.9),p:cl(pitch,-0.65,0.65),r:cl(roll,-0.4,0.4)};}
 function getVibe(lm){var fH=Math.sqrt(Math.pow(lm[LM.T].x-lm[LM.CH].x,2)+Math.pow(lm[LM.T].y-lm[LM.CH].y,2));if(fH<0.01)return null;var mO=Math.sqrt(Math.pow(lm[LM.MT].x-lm[LM.MB].x,2)+Math.pow(lm[LM.MT].y-lm[LM.MB].y,2))/fH;var cY=(lm[LM.ML].y+lm[LM.MR].y)*0.5,mY=(lm[LM.MT].y+lm[LM.MB].y)*0.5;var mC=cl((mY-cY)/(fH*0.055),-1,1);var bY=(lm[LM.LBR].y+lm[LM.RBR].y)*0.5,eY=(lm[LM.LT].y+lm[LM.RT].y)*0.5;var bd=eY-bY,bl2=0;if(browBL!==null)bl2=cl((bd-browBL)/(fH*0.16)*0.058,-0.055,0.075);var lE=Math.abs(lm[LM.LT].y-lm[LM.LB].y),rE=Math.abs(lm[LM.RT].y-lm[LM.RB].y);var eo=cl((lE+rE)/(fH*0.095),0,1.35);return{mo:cl(mO*1.85-0.04,0,0.12),mc:mC,bl:bl2,eo:eo};}
 
 // ═══ CALIBRATION ═══
@@ -500,29 +441,35 @@ function accLM(lm){if(!calLM){calLM=[];for(var i=0;i<lm.length;i++)calLM.push({x
 function finishCal(){if(!calLM)return;var n=calLM[LM.N],le=calLM[LM.LE],re=calLM[LM.RE],ch=calLM[LM.CH];var es=Math.abs(re.x-le.x);pBL.yo=es>0.01?(n.x-(le.x+re.x)*0.5)/es:0;var emy=(le.y+re.y)*0.5;pBL.nr=(ch.y-emy)>0.01?(n.y-emy)/(ch.y-emy):0.55;}
 
 // ═══ PHASE ═══
-function setP(p){phase=p;var ov=document.getElementById('ov'),ot=document.getElementById('ovt'),os=document.getElementById('ovs'),cb2=document.getElementById('cbar'),btn=document.getElementById('go'),bg=document.getElementById('badge');document.getElementById('sp').textContent=p==='w'?'Waiting':p==='s'?'Searching':p==='c'?'Calibrating':'Sculpting';btn.style.display=p==='w'?'':'none';
-if(p==='w'){ov.classList.remove('gone');ot.textContent='Vibe Protocol';os.textContent='Camera access needed';cb2.style.display='none';bg.className='bg w';bg.textContent='Wait';}
-else if(p==='s'){ov.classList.remove('gone');ot.textContent='Searching';os.textContent='Show your face';cb2.style.display='none';bg.className='bg w';bg.textContent='Search';}
-else if(p==='c'){ov.classList.remove('gone');ot.textContent='Calibrating';os.textContent='Hold still';cb2.style.display='block';bg.className='bg c';bg.textContent='Cal';}
-else if(p==='l'){ov.classList.add('gone');bg.className='bg l';bg.textContent='Live';document.getElementById('pdot').className='dot on';}}
+function setP(p){phase=p;var ov=document.getElementById('ov'),ot=document.getElementById('ovt'),os=document.getElementById('ovs'),cb2=document.getElementById('cbar'),btn=document.getElementById('go'),badge=document.getElementById('badge');document.getElementById('sp').textContent=p==='w'?'Waiting':p==='s'?'Searching':p==='c'?'Calibrating':'Sculpting';btn.style.display=p==='w'?'':'none';
+if(p==='w'){ov.classList.remove('gone');ot.textContent='Vibe Protocol';os.textContent='Camera access needed';cb2.style.display='none';badge.className='bg w';badge.textContent='Wait';}
+else if(p==='s'){ov.classList.remove('gone');ot.textContent='Searching';os.textContent='Show your face';cb2.style.display='none';badge.className='bg w';badge.textContent='Search';}
+else if(p==='c'){ov.classList.remove('gone');ot.textContent='Calibrating';os.textContent='Hold still';cb2.style.display='block';badge.className='bg w';badge.textContent='Cal';}
+else if(p==='l'){ov.classList.add('gone');badge.className='bg l';badge.textContent='Live';document.getElementById('pdot').className='dot on';}}
 function startCal(){calCnt=0;calLM=null;browBL=null;pBL={nr:0.55,yo:0};buildClay();setP('c');}
 
 // ═══ MEDIAPIPE ═══
-var fm;
+var fm,lastTime=0;
 function onRes(results){
   if(!results.multiFaceLandmarks||!results.multiFaceLandmarks.length){if(phase!=='w'&&phase!=='c')setP('s');return;}
   var lm=results.multiFaceLandmarks[0];
   if(phase==='s'||phase==='w')startCal();
+  var now=performance.now();var dt=lastTime?cl((now-lastTime)/1000,0,0.1):0.033;lastTime=now;
+
   if(phase==='c'){calCnt++;document.getElementById('cf').style.width=(calCnt/45*100)+'%';accLM(lm);var bd=(lm[159].y+lm[386].y)*0.5-(lm[105].y+lm[334].y)*0.5;browBL=browBL===null?bd:browBL*0.88+bd*0.12;if(calCnt>=45){try{finishCal();}catch(e){console.error(e);}setP('l');}return;}
 
   var p3=getPose(lm);po.y=lerp(po.y,p3.y,0.07);po.p=lerp(po.p,p3.p,0.06);po.r=lerp(po.r,p3.r,0.07);
   var nv=getVibe(lm);if(nv){vb.mo=lerp(vb.mo,nv.mo,0.18);vb.mc=lerp(vb.mc,nv.mc,0.18);vb.bl=lerp(vb.bl,nv.bl,0.18);vb.eo=lerp(vb.eo,nv.eo,0.14);}
 
-  sculptStep(lm,vid);
+  // Animate sphere→human form
+  animateForm(dt);
+  // Personalize once form is established
+  if(formBlend>=0.95) sculptStep(lm,vid);
+  // Expression
   applyExpr();
 
   if(clayMesh){clayMesh.rotation.y=-po.y;clayMesh.rotation.x=po.p;clayMesh.rotation.z=po.r;}
-  renderer.render(scene,camera);
+  ren.render(scene,cam);
 
   var f=function(v){return(v>=0?'+':'')+v.toFixed(2);};
   document.getElementById('vm').textContent=vb.mo.toFixed(2);document.getElementById('bm').style.width=cl(vb.mo/0.12*100,0,100)+'%';
@@ -541,9 +488,9 @@ navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480}
 .then(function(){pumpOn=true;setP('s');requestAnimationFrame(pump);})
 .catch(function(e){console.error(e);document.getElementById('ovt').textContent='Error';document.getElementById('ovs').textContent=e.message||'Failed';btn.textContent='Retry';btn.disabled=false;btn.onclick=startCam;});}
 
-buildClay();setP('w');renderer.render(scene,camera);
+buildClay();setP('w');ren.render(scene,cam);
 document.getElementById('go').addEventListener('click',startCam);
-document.getElementById('recal').addEventListener('click',function(){if(phase==='l'){buildClay();totalPackets=0;startCal();}});
+document.getElementById('recal').addEventListener('click',function(){if(phase==='l'){buildClay();startCal();}});
 </script>
 </body>
 </html>
