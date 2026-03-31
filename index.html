@@ -1,486 +1,236 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibe Protocol: Living Clay</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  :root { --bg: #050505; --surface: #111; --border: #333; --text: #eee; --muted: #666; --accent: #d4af37; --dk: #8a6a1c; --green: #4caf50; }
-  body { background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px; overflow: hidden; }
-  body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(circle at 50% 40%, #1a1814 0%, var(--bg) 80%); z-index: -1; }
-  
-  header { text-align: center; margin-bottom: 20px; position: relative; z-index: 10; }
-  .ey { font-size: 0.5rem; letter-spacing: 0.4em; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; }
-  h1 { font-family: 'Cormorant Garamond', serif; font-size: 2.5rem; font-weight: 400; letter-spacing: 0.05em; }
-  h1 em { font-style: italic; color: var(--accent); }
-  
-  .container { display: flex; gap: 20px; align-items: flex-start; position: relative; z-index: 10; }
-  
-  .canvas-wrapper { position: relative; border: 1px solid var(--border); background: #000; }
-  .canvas-wrapper::before, .canvas-wrapper::after { content: ''; position: absolute; width: 15px; height: 15px; z-index: 20; pointer-events: none; }
-  .canvas-wrapper::before { top: -1px; left: -1px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
-  .canvas-wrapper::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
-  
-  canvas { display: block; }
-  
-  #overlay { position: absolute; inset: 0; background: rgba(5,5,5,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 30; transition: opacity 0.5s; backdrop-filter: blur(4px); }
-  #overlay.hidden { opacity: 0; pointer-events: none; }
-  
-  .status-text { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; color: var(--accent); margin-bottom: 10px; }
-  .sub-text { font-size: 0.5rem; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-bottom: 20px; }
-  
-  button { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; letter-spacing: 0.15em; text-transform: uppercase; padding: 10px 24px; background: transparent; border: 1px solid var(--accent); color: var(--accent); cursor: pointer; transition: all 0.2s; }
-  button:hover { background: var(--accent); color: var(--bg); }
-  button:disabled { opacity: 0.3; pointer-events: none; }
-
-  .progress-bar { width: 200px; height: 1px; background: var(--border); margin-top: 20px; position: relative; }
-  .progress-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent); width: 0%; transition: width 0.1s; }
-
-  .sidebar { width: 220px; display: flex; flex-direction: column; gap: 15px; }
-  
-  .video-feed { position: relative; border: 1px solid var(--border); height: 165px; background: #000; overflow: hidden; }
-  video { display: none; } /* Hidden, drawn to internal canvas */
-  #feed-canvas { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); opacity: 0.5; filter: grayscale(100%) contrast(1.2); }
-  .badge { position: absolute; top: 10px; right: 10px; font-size: 0.4rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 6px; border: 1px solid; }
-  .badge.wait { color: var(--accent); border-color: var(--accent); }
-  .badge.live { color: var(--green); border-color: var(--green); }
-
-  .panel { border: 1px solid var(--border); padding: 15px; background: var(--surface); }
-  .panel-header { font-size: 0.45rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-  
-  .metric { margin-bottom: 10px; }
-  .metric-label { font-size: 0.4rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; display: flex; justify-content: space-between; margin-bottom: 4px; }
-  .metric-val { color: var(--accent); }
-  .metric-track { height: 1px; background: var(--border); position: relative; }
-  .metric-fill { position: absolute; left: 0; top: -1px; height: 3px; background: var(--dk); transition: width 0.1s; }
-  
-  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
-  .dot.active { background: var(--green); box-shadow: 0 0 8px var(--green); }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeMesh | LoBi-Net Prototype</title>
+    <style>
+        body { margin: 0; background: #050505; color: #00ffcc; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
+        #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
+        .controls { pointer-events: auto; background: rgba(0, 20, 20, 0.8); padding: 15px; border: 1px solid #00ffcc; border-radius: 4px; }
+        button { background: transparent; color: #00ffcc; border: 1px solid #00ffcc; padding: 8px 12px; cursor: pointer; text-transform: uppercase; font-size: 10px; letter-spacing: 2px; }
+        button:hover { background: #00ffcc; color: #000; }
+        button.active { background: #00ffcc; color: #000; box-shadow: 0 0 15px #00ffcc; }
+        h1 { font-size: 14px; margin: 0 0 10px 0; letter-spacing: 4px; }
+        p { font-size: 9px; opacity: 0.7; margin: 5px 0; }
+    </style>
 </head>
 <body>
 
-<header>
-  <div class="ey">Vibe Protocol</div>
-  <h1>Living <em>Clay</em></h1>
-</header>
-
-<div class="container">
-  <div class="canvas-wrapper">
-    <canvas id="stage" width="500" height="600"></canvas>
-    <div id="overlay">
-      <div class="status-text" id="status-main">System Standby</div>
-      <div class="sub-text" id="status-sub">Awaiting Visual Input</div>
-      <button id="btn-start">Initialize Link</button>
-      <div class="progress-bar" id="prog-wrap" style="display: none;">
-        <div class="progress-fill" id="prog-fill"></div>
-      </div>
+    <div id="ui">
+        <div class="controls">
+            <h1>VIBEMESH // LOBI-NET</h1>
+            <p>STATUS: <span id="status">IDLE_SEARCHING</span></p>
+            <p>PROTOCOL: SEMANTIC_PRESENCE_V1</p>
+            <hr style="border: 0; border-top: 1px solid #003333; margin: 10px 0;">
+            <button id="connectBtn">Connect Spatial Ledger</button>
+            <button id="audioBtn">Simulate Audio Pulse</button>
+        </div>
     </div>
-  </div>
 
-  <div class="sidebar">
-    <div class="video-feed">
-      <video id="webcam" playsinline muted></video>
-      <canvas id="feed-canvas" width="640" height="480"></canvas>
-      <div class="badge wait" id="badge">Standby</div>
-    </div>
-    
-    <div class="panel">
-      <div class="panel-header">
-        Manifold Status <div class="dot" id="status-dot"></div>
-      </div>
-      <div class="metric">
-        <div class="metric-label">Tether Density <span class="metric-val" id="val-tether">0%</span></div>
-        <div class="metric-track"><div class="metric-fill" id="fill-tether" style="width:0%"></div></div>
-      </div>
-      <div class="metric">
-        <div class="metric-label">Deformation <span class="metric-val" id="val-deform">0.00</span></div>
-        <div class="metric-track"><div class="metric-fill" id="fill-deform" style="width:0%"></div></div>
-      </div>
-      <div class="metric">
-        <div class="metric-label">Color Shift <span class="metric-val" id="val-color">0.00</span></div>
-        <div class="metric-track"><div class="metric-fill" id="fill-color" style="width:0%"></div></div>
-      </div>
-      <div style="margin-top: 20px; text-align: right;">
-        <button id="btn-reset" style="padding: 6px 12px; font-size: 0.45rem;">Recalibrate</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-/**
- * VIBE PROTOCOL: LIVING CLAY
- * Architecture: Inverse Distance Weighting (IDW) Manifold Projection
- */
-
-const CONFIG = {
-  K_NEAREST: 4,          // Number of anchors per clay vertex
-  POWER: 2.5,            // Falloff curve for gravity influence
-  SMOOTHING: 0.15,       // Lerp speed for physical mesh movement
-  COLOR_SMOOTHING: 0.08, // Lerp speed for vertex colors
-  CLAY_BASE: [0.65, 0.50, 0.35], // Neutral clay RGB
-  CLAY_DARK: [0.30, 0.22, 0.15]  // Back of head RGB
-};
-
-// --- DOM Elements ---
-const dom = {
-  stage: document.getElementById('stage'),
-  webcam: document.getElementById('webcam'),
-  feed: document.getElementById('feed-canvas'),
-  feedCtx: document.getElementById('feed-canvas').getContext('2d', {willReadFrequently: true}),
-  overlay: document.getElementById('overlay'),
-  sMain: document.getElementById('status-main'),
-  sSub: document.getElementById('status-sub'),
-  btnStart: document.getElementById('btn-start'),
-  btnReset: document.getElementById('btn-reset'),
-  pWrap: document.getElementById('prog-wrap'),
-  pFill: document.getElementById('prog-fill'),
-  badge: document.getElementById('badge'),
-  dot: document.getElementById('status-dot'),
-  vTether: document.getElementById('val-tether'),
-  fTether: document.getElementById('fill-tether'),
-  vDeform: document.getElementById('val-deform'),
-  fDeform: document.getElementById('fill-deform')
-};
-
-// --- Three.js Setup ---
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(35, 500/600, 0.1, 100);
-camera.position.set(0, 0, 4.5);
-const renderer = new THREE.WebGLRenderer({ canvas: dom.stage, antialias: true, alpha: true });
-renderer.setSize(500, 600);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-
-// Lighting designed to emphasize faceted clay
-scene.add(new THREE.AmbientLight(0xfff5e6, 0.2));
-const keyLight = new THREE.DirectionalLight(0xffecd4, 1.2);
-keyLight.position.set(-2, 3, 4);
-scene.add(keyLight);
-const rimLight = new THREE.DirectionalLight(0xaaccff, 0.8);
-rimLight.position.set(3, 1, -2);
-scene.add(rimLight);
-const fillLight = new THREE.DirectionalLight(0xd4af37, 0.3);
-fillLight.position.set(0, -2, 2);
-scene.add(fillLight);
-
-// The Clay Primitive (Dense Icosahedron for beautiful triangulations)
-// detail=12 yields roughly 1440 faces. High enough for smooth data, low enough to look "sculpted"
-const geometry = new THREE.IcosahedronGeometry(1.2, 12); 
-const vertexCount = geometry.attributes.position.count;
-
-// Data Buffers
-const baseVertices = [];    // Original perfect sphere positions
-const targetVertices = [];  // Real-time target positions
-const currentVertices = []; // Interpolated rendered positions
-const targetColors = [];    // Real-time target colors
-const currentColors = [];   // Interpolated rendered colors
-const vertexMapping = [];   // The IDW tethers [ {index, weight}, ... ]
-
-const posAttr = geometry.attributes.position;
-const colorArray = new Float32Array(vertexCount * 3);
-
-for (let i = 0; i < vertexCount; i++) {
-  const v = new THREE.Vector3(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
-  baseVertices.push(v.clone());
-  currentVertices.push(v.clone());
-  targetVertices.push(v.clone());
-  
-  targetColors.push(new THREE.Color(...CONFIG.CLAY_BASE));
-  currentColors.push(new THREE.Color(...CONFIG.CLAY_BASE));
-  
-  colorArray[i*3] = CONFIG.CLAY_BASE[0];
-  colorArray[i*3+1] = CONFIG.CLAY_BASE[1];
-  colorArray[i*3+2] = CONFIG.CLAY_BASE[2];
-}
-
-geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
-
-const material = new THREE.MeshStandardMaterial({
-  vertexColors: true,
-  flatShading: true, // Crucial for the faceted "Chuck Close / Low Bit" aesthetic
-  roughness: 0.85,
-  metalness: 0.05
-});
-
-const clayMesh = new THREE.Mesh(geometry, material);
-scene.add(clayMesh);
-
-// Add a subtle rotation container
-const rig = new THREE.Group();
-scene.add(rig);
-rig.add(clayMesh);
-
-// --- State Machine ---
-let state = 'IDLE'; // IDLE, CALIBRATING, LIVE
-let calibrationFrames = [];
-let faceMeshModel = null;
-let liveDeformation = 0;
-
-// --- Mathematical Core: IDW Binding ---
-// This runs once during calibration to tether the sphere vertices to the canonical 468 points
-function computeManifold(neutralLandmarks) {
-  vertexMapping.length = 0;
-  
-  for (let i = 0; i < vertexCount; i++) {
-    const v = baseVertices[i];
-    
-    // Only tether the front hemisphere. The back stays solid clay.
-    if (v.z < -0.1) {
-      vertexMapping.push({ isBack: true });
-      continue;
-    }
-
-    // Find distances to all 468 landmarks
-    const distances = [];
-    for (let j = 0; j < neutralLandmarks.length; j++) {
-      const lm = neutralLandmarks[j];
-      const d = v.distanceToSquared(lm);
-      distances.push({ index: j, distSq: d });
-    }
-
-    // Sort by nearest
-    distances.sort((a, b) => a.distSq - b.distSq);
-    
-    // Take Top K and compute Inverse Distance Weighting
-    let totalWeight = 0;
-    const tethers = [];
-    
-    for (let k = 0; k < CONFIG.K_NEAREST; k++) {
-      const anchor = distances[k];
-      // Prevent division by zero
-      const dist = Math.max(Math.sqrt(anchor.distSq), 0.0001); 
-      const weight = 1.0 / Math.pow(dist, CONFIG.POWER);
-      tethers.push({ index: anchor.index, weight: weight });
-      totalWeight += weight;
-    }
-
-    // Normalize weights so they sum to 1.0
-    for (let k = 0; k < tethers.length; k++) {
-      tethers[k].weight /= totalWeight;
-    }
-
-    vertexMapping.push({ isBack: false, tethers: tethers });
-  }
-}
-
-// Normalize raw MediaPipe coordinates into our 3D space
-function normalizeLandmarks(rawLM) {
-  const out = [];
-  // Calculate bounding center for alignment
-  let cx=0, cy=0, cz=0;
-  for(let i=0; i<468; i++) {
-    cx += rawLM[i].x; cy += rawLM[i].y; cz += rawLM[i].z || 0;
-  }
-  cx /= 468; cy /= 468; cz /= 468;
-
-  const scaleX = 3.2; 
-  const scaleY = -3.2; // Invert Y for 3D space
-  const scaleZ = 3.2;
-
-  for(let i=0; i<468; i++) {
-    out.push(new THREE.Vector3(
-      (rawLM[i].x - cx) * scaleX,
-      (rawLM[i].y - cy) * scaleY,
-      ((rawLM[i].z || 0) - cz) * scaleZ
-    ));
-  }
-  return out;
-}
-
-// --- Frame Execution ---
-function onResults(results) {
-  // Draw feed
-  dom.feedCtx.drawImage(results.image, 0, 0, dom.feed.width, dom.feed.height);
-  
-  if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
-  
-  const rawLM = results.multiFaceLandmarks[0];
-  const normLM = normalizeLandmarks(rawLM);
-
-  if (state === 'CALIBRATING') {
-    calibrationFrames.push(normLM);
-    const progress = (calibrationFrames.length / 30) * 100;
-    dom.fTether.style.width = progress + '%';
-    dom.vTether.innerText = Math.floor(progress) + '%';
-    dom.pFill.style.width = progress + '%';
-    
-    if (calibrationFrames.length >= 30) {
-      // Average the frames to create a stable neutral map
-      const avgLM = [];
-      for(let i=0; i<468; i++) avgLM.push(new THREE.Vector3());
-      
-      for(let f=0; f<30; f++) {
-        for(let i=0; i<468; i++) {
-          avgLM[i].add(calibrationFrames[f][i]);
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
         }
-      }
-      for(let i=0; i<468; i++) avgLM[i].divideScalar(30);
+    </script>
 
-      computeManifold(avgLM);
-      
-      state = 'LIVE';
-      dom.overlay.classList.add('hidden');
-      dom.badge.className = 'badge live';
-      dom.badge.innerText = 'Sync Active';
-      dom.dot.className = 'dot active';
-    }
-    return;
-  }
+    <script type="module">
+        import * as THREE from 'three';
 
-  if (state === 'LIVE') {
-    // 1. Extract Colors from Video
-    const imgData = dom.feedCtx.getImageData(0, 0, dom.feed.width, dom.feed.height).data;
-    const lmColors = [];
-    
-    for (let i = 0; i < 468; i++) {
-      let px = Math.floor(rawLM[i].x * dom.feed.width);
-      let py = Math.floor(rawLM[i].y * dom.feed.height);
-      // Clamp
-      px = Math.max(0, Math.min(px, dom.feed.width - 1));
-      py = Math.max(0, Math.min(py, dom.feed.height - 1));
-      
-      const idx = (py * dom.feed.width + px) * 4;
-      lmColors.push({
-        r: imgData[idx] / 255,
-        g: imgData[idx+1] / 255,
-        b: imgData[idx+2] / 255
-      });
-    }
+        // --- 1. SHADER SOURCE (Prismatic LOBI-NET) ---
+        const vShader = `
+            varying vec2 vUv;
+            varying vec3 vNormal;
+            void main() {
+                vUv = uv;
+                vNormal = normalize(normalMatrix * normal);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `;
 
-    let totalDelta = 0;
+        const fShader = `
+            uniform float uTime;
+            uniform float uResolution;
+            uniform vec3 uBaseColor;
+            uniform float uVibeEnergy;
+            uniform float uVibePitch;
+            varying vec2 vUv;
+            varying vec3 vNormal;
 
-    // 2. Apply Manifold Deformation (Pull the strings)
-    for (let i = 0; i < vertexCount; i++) {
-      const map = vertexMapping[i];
-      
-      if (map.isBack) {
-        targetVertices[i].copy(baseVertices[i]);
-        targetColors[i].setRGB(...CONFIG.CLAY_DARK);
-      } else {
-        // IDW Calculation
-        let tx = 0, ty = 0, tz = 0;
-        let cr = 0, cg = 0, cb = 0;
-        
-        for (let t = 0; t < map.tethers.length; t++) {
-          const teth = map.tethers[t];
-          const lPos = normLM[teth.index];
-          const lCol = lmColors[teth.index];
-          
-          tx += lPos.x * teth.weight;
-          ty += lPos.y * teth.weight;
-          tz += lPos.z * teth.weight;
-          
-          cr += lCol.r * teth.weight;
-          cg += lCol.g * teth.weight;
-          cb += lCol.b * teth.weight;
+            void main() {
+                // 45-degree Grid Rotation
+                float angle = 0.785398;
+                mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
+                vec2 gridUv = (rot * vUv) * uResolution;
+                
+                vec2 id = floor(gridUv);
+                vec2 f = fract(gridUv);
+                float dist = length(f - 0.5);
+
+                // RMS Optical Blending Logic
+                vec3 innerColor = uBaseColor * (1.5 + sin(uTime + id.x) * 0.2);
+                innerColor = mix(innerColor, vec3(uVibePitch, 0.5, 1.0 - uVibePitch), uVibeEnergy * 0.5);
+                
+                vec3 outerRing = vec3(1.0) - uBaseColor;
+                outerRing = mix(uBaseColor, outerRing, 0.2);
+
+                // Nested "Chuck Close" Blobs
+                float innerRad = 0.15 + (uVibeEnergy * 0.15);
+                float outerRad = 0.45;
+
+                vec3 color = uBaseColor * 0.1; // Gaps
+                float mask1 = 1.0 - smoothstep(outerRad - 0.05, outerRad + 0.05, dist);
+                color = mix(color, outerRing, mask1);
+                
+                float mask2 = 1.0 - smoothstep(innerRad - 0.05, innerRad + 0.05, dist);
+                color = mix(color, innerColor, mask2);
+
+                // Lighting
+                float diff = max(dot(vNormal, vec3(0.5, 0.7, 1.0)), 0.0);
+                gl_FragColor = vec4(color * (diff + 0.4), 0.9);
+            }
+        `;
+
+        // --- 2. CONFIG & LANDMARKS ---
+        let isConnected = false;
+        let isAudioActive = false;
+        const LANDMARKS = [
+            new THREE.Vector3(0, -1.5, 1.2),   // 0: Chin
+            new THREE.Vector3(-1.2, -0.5, 0.5),// 1: Left Jaw
+            new THREE.Vector3(1.2, -0.5, 0.5), // 2: Right Jaw
+            new THREE.Vector3(0, 0, 1.8),      // 3: Nose Tip
+            new THREE.Vector3(-0.5, 0.5, 1.4), // 4: Left Eye
+            new THREE.Vector3(0.5, 0.5, 1.4),  // 5: Right Eye
+            new THREE.Vector3(-0.8, 0.8, 1.0), // 6: Left Brow
+            new THREE.Vector3(0.8, 0.8, 1.0),  // 7: Right Brow
+            new THREE.Vector3(-0.4, -0.6, 1.5),// 8: Mouth L
+            new THREE.Vector3(0.4, -0.6, 1.5), // 9: Mouth R
+            new THREE.Vector3(-1.5, 0, 0),     // 10: L Ear
+            new THREE.Vector3(1.5, 0, 0),      // 11: R Ear
+        ];
+
+        // --- 3. SCENE SETUP ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const geometry = new THREE.SphereGeometry(2, 80, 80);
+        const originalPos = geometry.attributes.position.clone();
+        const targetPos = geometry.attributes.position.clone();
+
+        const material = new THREE.ShaderMaterial({
+            vertexShader: vShader,
+            fragmentShader: fShader,
+            transparent: true,
+            uniforms: {
+                uTime: { value: 0 },
+                uResolution: { value: 60.0 },
+                uBaseColor: { value: new THREE.Color('#00ffcc') },
+                uVibeEnergy: { value: 0 },
+                uVibePitch: { value: 0.5 }
+            }
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+        camera.position.z = 5;
+
+        // --- 4. REFINED SCULPTING MATH ---
+        function updateSculpt() {
+            const posAttr = geometry.attributes.position;
+            const sigma = 0.7; // Gaussian spread
+            const strength = 0.85;
+
+            for (let i = 0; i < posAttr.count; i++) {
+                let v = new THREE.Vector3(originalPos.getX(i), originalPos.getY(i), originalPos.getZ(i));
+                
+                if (isConnected) {
+                    let aggTarget = new THREE.Vector3(0, 0, 0);
+                    let totalWeight = 0;
+
+                    LANDMARKS.forEach(l => {
+                        const d = v.distanceTo(l);
+                        const w = Math.exp(-(d * d) / (2 * (sigma * sigma)));
+                        if (w > 0.001) {
+                            aggTarget.addScaledVector(l, w);
+                            totalWeight += w;
+                        }
+                    });
+
+                    if (totalWeight > 0) {
+                        aggTarget.divideScalar(totalWeight);
+                        const blend = Math.min(totalWeight, 1.0) * strength;
+                        v.lerp(aggTarget, blend);
+                    }
+                } else {
+                    // Idle Rippling
+                    const time = performance.now() * 0.002;
+                    const noise = Math.sin(v.x * 2 + time) * Math.cos(v.y * 2 + time) * 0.1;
+                    v.addScaledVector(v.clone().normalize(), noise);
+                }
+
+                targetPos.setXYZ(i, v.x, v.y, v.z);
+            }
         }
-        
-        // Push target position slightly out to maintain sphere volume feeling
-        const pushScale = 1.1; 
-        targetVertices[i].set(tx * pushScale, ty * pushScale, tz * pushScale);
-        
-        // Color blending - mix video feed with clay base to maintain material look
-        targetColors[i].setRGB(
-          (cr * 0.7) + (CONFIG.CLAY_BASE[0] * 0.3),
-          (cg * 0.7) + (CONFIG.CLAY_BASE[1] * 0.3),
-          (cb * 0.7) + (CONFIG.CLAY_BASE[2] * 0.3)
-        );
-      }
 
-      // Record deformation delta for UI metrics
-      totalDelta += targetVertices[i].distanceTo(currentVertices[i]);
+        // --- 5. ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = performance.now() * 0.001;
+            material.uniforms.uTime.value = time;
 
-      // 3. Easing
-      currentVertices[i].lerp(targetVertices[i], CONFIG.SMOOTHING);
-      currentColors[i].lerp(targetColors[i], CONFIG.COLOR_SMOOTHING);
-      
-      // Update geometry buffers
-      posAttr.setXYZ(i, currentVertices[i].x, currentVertices[i].y, currentVertices[i].z);
-      colorArray[i*3] = currentColors[i].r;
-      colorArray[i*3+1] = currentColors[i].g;
-      colorArray[i*3+2] = currentColors[i].b;
-    }
+            // Handle Audio Simulation
+            if (isAudioActive) {
+                material.uniforms.uVibeEnergy.value = THREE.MathUtils.lerp(material.uniforms.uVibeEnergy.value, 0.4 + Math.sin(time * 10) * 0.4, 0.2);
+                material.uniforms.uVibePitch.value = 0.5 + Math.sin(time * 5) * 0.3;
+            } else {
+                material.uniforms.uVibeEnergy.value = THREE.MathUtils.lerp(material.uniforms.uVibeEnergy.value, 0, 0.1);
+            }
 
-    posAttr.needsUpdate = true;
-    geometry.attributes.color.needsUpdate = true;
-    geometry.computeVertexNormals();
+            updateSculpt();
 
-    // Update UI Metrics
-    liveDeformation = liveDeformation * 0.9 + (totalDelta / vertexCount) * 0.1;
-    dom.vDeform.innerText = liveDeformation.toFixed(3);
-    dom.fDeform.style.width = Math.min((liveDeformation / 0.05) * 100, 100) + '%';
-    
-    // Add subtle procedural head bob
-    const time = Date.now() * 0.001;
-    rig.rotation.y = Math.sin(time * 0.5) * 0.15;
-    rig.rotation.x = Math.cos(time * 0.7) * 0.1;
-  }
-}
+            // Smoothly Lerp current mesh to target sculpt
+            const posAttr = geometry.attributes.position;
+            for (let i = 0; i < posAttr.count; i++) {
+                const cur = new THREE.Vector3(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
+                const tar = new THREE.Vector3(targetPos.getX(i), targetPos.getY(i), targetPos.getZ(i));
+                cur.lerp(tar, 0.1);
+                posAttr.setXYZ(i, cur.x, cur.y, cur.z);
+            }
+            
+            posAttr.needsUpdate = true;
+            geometry.computeVertexNormals();
+            renderer.render(scene, camera);
+        }
 
-// --- Render Loop ---
-function animate() {
-  requestAnimationFrame(animate);
-  renderer.render(scene, camera);
-}
-animate();
+        // --- 6. UI INTERACTION ---
+        const connBtn = document.getElementById('connectBtn');
+        const audioBtn = document.getElementById('audioBtn');
+        const status = document.getElementById('status');
 
-// --- Hardware Init ---
-async function startSystem() {
-  dom.btnStart.disabled = true;
-  dom.sMain.innerText = 'Initializing Model';
-  dom.sSub.innerText = 'Loading MediaPipe Topology...';
-  
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-    dom.webcam.srcObject = stream;
-    await dom.webcam.play();
+        connBtn.addEventListener('click', () => {
+            isConnected = !isConnected;
+            connBtn.classList.toggle('active');
+            status.innerText = isConnected ? 'SPATIAL_SYNC_ACTIVE' : 'IDLE_SEARCHING';
+            connBtn.innerText = isConnected ? 'Disconnect Ledger' : 'Connect Spatial Ledger';
+        });
 
-    faceMeshModel = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
-    faceMeshModel.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-    faceMeshModel.onResults(onResults);
-    
-    await faceMeshModel.initialize();
-    
-    dom.sMain.innerText = 'Mapping Topography';
-    dom.sSub.innerText = 'Hold face neutral for baseline projection';
-    dom.pWrap.style.display = 'block';
-    
-    state = 'CALIBRATING';
-    calibrationFrames = [];
-    
-    // Feed loop
-    const processVideo = async () => {
-      if(!dom.webcam.paused) await faceMeshModel.send({image: dom.webcam});
-      requestAnimationFrame(processVideo);
-    };
-    processVideo();
+        audioBtn.addEventListener('click', () => {
+            isAudioActive = !isAudioActive;
+            audioBtn.classList.toggle('active');
+        });
 
-  } catch(e) {
-    dom.sMain.innerText = 'Hardware Failure';
-    dom.sSub.innerText = e.message;
-    dom.btnStart.disabled = false;
-  }
-}
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
 
-dom.btnStart.addEventListener('click', startSystem);
-dom.btnReset.addEventListener('click', () => {
-  if(state === 'LIVE') {
-    state = 'CALIBRATING';
-    calibrationFrames = [];
-    dom.overlay.classList.remove('hidden');
-    dom.sMain.innerText = 'Remapping Topography';
-    dom.sSub.innerText = 'Hold face neutral';
-    dom.badge.className = 'badge wait';
-    dom.badge.innerText = 'Calibrating';
-    dom.dot.className = 'dot';
-  }
-});
-</script>
+        animate();
+    </script>
 </body>
 </html>
