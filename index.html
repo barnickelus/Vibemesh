@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VibeMesh | LoBi-Net Reactive Prototype</title>
+    <title>VibeMesh | Dynamic LoBi-Net</title>
     <style>
         body { margin: 0; background: #070505; color: #ff9d6e; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
         #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
-        .controls { pointer-events: auto; background: rgba(20, 10, 5, 0.9); padding: 20px; border: 1px solid #ff9d6e; border-radius: 2px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        button { background: transparent; color: #ff9d6e; border: 1px solid #ff9d6e; padding: 10px 15px; cursor: pointer; text-transform: uppercase; font-size: 10px; letter-spacing: 2px; transition: 0.3s; margin-top: 10px; }
+        .controls { pointer-events: auto; background: rgba(20, 10, 5, 0.9); padding: 20px; border: 1px solid #ff9d6e; border-radius: 2px; }
+        button { background: transparent; color: #ff9d6e; border: 1px solid #ff9d6e; padding: 10px 15px; cursor: pointer; text-transform: uppercase; font-size: 10px; letter-spacing: 2px; transition: 0.3s; margin-top: 10px; width: 100%; }
         button:hover { background: #ff9d6e; color: #000; }
         button.active { background: #ff9d6e; color: #000; box-shadow: 0 0 15px #ff9d6e; }
         h1 { font-size: 14px; margin: 0 0 5px 0; letter-spacing: 4px; color: #fff; }
         p { font-size: 9px; opacity: 0.7; margin: 5px 0; }
+        #packet-indicator { color: #00ffcc; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -21,9 +22,9 @@
         <div class="controls">
             <h1>VIBEMESH // LOBI-NET</h1>
             <p>STATUS: <span id="status">IDLE_SEARCHING</span></p>
-            <p>ASSET: LIVING_CLAY_V2</p>
+            <p>PACKET_SYNC: <span id="packet-indicator">OFFLINE</span></p>
             <hr style="border: 0; border-top: 1px solid #331a10; margin: 15px 0;">
-            <button id="connectBtn">Connect Spatial Ledger</button><br>
+            <button id="connectBtn">Connect Spatial Ledger</button>
             <button id="audioBtn">Simulate Audio Pulse</button>
         </div>
     </div>
@@ -35,14 +36,12 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 1. THE PRISMATIC "CHUCK CLOSE" SHADER ---
+        // --- 1. SHADERS (Copper Editorial Palette) ---
         const vShader = `
             varying vec2 vUv;
             varying vec3 vNormal;
-            varying vec3 vPos;
             void main() {
                 vUv = uv;
-                vPos = position;
                 vNormal = normalize(normalMatrix * normal);
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             }
@@ -54,56 +53,44 @@
             uniform float uVibePitch;
             varying vec2 vUv;
             varying vec3 vNormal;
-            varying vec3 vPos;
 
             void main() {
-                // Rotated Diamond Grid
-                vec2 uv = vUv * 65.0; 
+                vec2 uv = vUv * 75.0; 
                 float a = 0.785;
                 uv *= mat2(cos(a), -sin(a), sin(a), cos(a));
-                
-                vec2 id = floor(uv);
                 vec2 f = fract(uv);
                 float d = length(f - 0.5);
 
-                // Editorial Palette (Copper / Gold / Flesh)
-                vec3 base = vec3(0.45, 0.25, 0.15); // Deep Copper
-                vec3 glow = vec3(1.0, 0.7, 0.4);   // Golden Highlight
-                
-                // Audio-Reactive Prismatic Shift
-                vec3 accent = mix(vec3(1.0, 0.4, 0.2), vec3(0.2, 0.6, 1.0), uVibePitch);
-                vec3 seedColor = mix(glow, accent, uVibeEnergy);
+                vec3 base = vec3(0.4, 0.2, 0.1); 
+                vec3 glow = vec3(1.0, 0.6, 0.3);
+                vec3 accent = mix(vec3(1.0, 0.3, 0.1), vec3(0.1, 0.5, 1.0), uVibePitch);
 
-                // Nested Circles Math
-                float outer = 1.0 - smoothstep(0.35, 0.45, d);
-                float inner = 1.0 - smoothstep(0.1 + (uVibeEnergy * 0.2), 0.2 + (uVibeEnergy * 0.2), d);
-                
-                vec3 color = base * 0.2; // The "Grout"
-                color = mix(color, base, outer);
-                color = mix(color, seedColor, inner);
+                float mask = 1.0 - smoothstep(0.1 + (uVibeEnergy * 0.3), 0.45, d);
+                vec3 color = mix(base * 0.3, glow, mask);
+                color = mix(color, accent, mask * uVibeEnergy);
 
-                // Lighting & Depth
-                float light = max(dot(vNormal, vec3(0.5, 0.5, 1.0)), 0.1);
-                gl_FragColor = vec4(color * (light + 0.3), 1.0);
+                float light = max(dot(vNormal, vec3(0.5, 0.8, 1.0)), 0.2);
+                gl_FragColor = vec4(color * (light + 0.4), 1.0);
             }
         `;
 
-        // --- 2. SETUP & LANDMARKS ---
+        // --- 2. CORE SETUP ---
         const LANDMARKS = [
             new THREE.Vector3(0, -1.6, 1.2),   // 0: Chin
             new THREE.Vector3(-1.3, -0.6, 0.5),// 1: L Jaw
             new THREE.Vector3(1.3, -0.6, 0.5), // 2: R Jaw
-            new THREE.Vector3(0, 0.1, 1.9),    // 3: Nose
+            new THREE.Vector3(0, 0.2, 2.0),    // 3: Nose
             new THREE.Vector3(-0.5, 0.6, 1.4), // 4: L Eye
             new THREE.Vector3(0.5, 0.6, 1.4),  // 5: R Eye
-            new THREE.Vector3(-0.7, 1.0, 1.2), // 6: L Brow
-            new THREE.Vector3(0.7, 1.0, 1.2),  // 7: R Brow
-            new THREE.Vector3(-0.4, -0.7, 1.5),// 8: Mouth L
-            new THREE.Vector3(0.4, -0.7, 1.5)  // 9: Mouth R
+            new THREE.Vector3(-0.7, 1.1, 1.2), // 6: L Brow
+            new THREE.Vector3(0.7, 1.1, 1.2),  // 7: R Brow
+            new THREE.Vector3(-0.4, -0.7, 1.6),// 8: Mouth L
+            new THREE.Vector3(0.4, -0.7, 1.6)  // 9: Mouth R
         ];
 
         let isConnected = false;
         let isAudioActive = false;
+        let lookTarget = new THREE.Vector3(0,0,0);
 
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -111,7 +98,7 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        const geometry = new THREE.SphereGeometry(2.2, 90, 90);
+        const geometry = new THREE.SphereGeometry(2.3, 100, 100);
         const originalPos = geometry.attributes.position.clone();
         const targetPos = geometry.attributes.position.clone();
         const material = new THREE.ShaderMaterial({
@@ -121,31 +108,34 @@
 
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
-        camera.position.z = 5.5;
+        camera.position.z = 6;
 
-        // --- 3. THE TEMPORAL CONDUCTOR (DYNAMICS) ---
-        function getVisemeOffset(vertex, l8, l9, energy) {
-            const distM = (vertex.distanceTo(l8) + vertex.distanceTo(l9)) / 2;
-            if (distM < 0.7) {
-                const pull = Math.pow(1.0 - distM/0.7, 2) * energy;
-                return new THREE.Vector3(0, -0.5 * pull, 0.2 * pull);
+        // --- 3. DYNAMIC PACKET SIMULATOR ---
+        setInterval(() => {
+            if (isConnected) {
+                // Simulate the 'Head Turn' - shifting all landmarks slightly
+                lookTarget.set(
+                    (Math.random() - 0.5) * 0.4,
+                    (Math.random() - 0.5) * 0.3,
+                    0
+                );
+                document.getElementById('packet-indicator').innerText = 'RECV_PACKET_' + Math.floor(Math.random() * 999);
             }
-            return new THREE.Vector3(0,0,0);
-        }
+        }, 1500);
 
         function updateGeometry() {
             const pos = geometry.attributes.position;
             const time = performance.now() * 0.001;
-            const sigma = 0.7;
+            const sigma = 0.8; // Larger radius for more noticeable morph
 
-            // Generate Dynamic Landmarks (Breathing & Saccades)
-            const dynamicL = LANDMARKS.map((l, i) => {
-                let d = l.clone();
+            // Apply Temporal Conductor (Breathing & Look Shifts)
+            const activeL = LANDMARKS.map((l, i) => {
+                let d = l.clone().add(lookTarget); // Apply the 'Look' shift
                 if (isConnected) {
-                    d.z += Math.sin(time * 2.0) * 0.05; // Breath
-                    if (i >= 4 && i <= 7) { // Eye jitter
-                        d.x += Math.sin(time * 30.0 + i) * 0.015;
-                        d.y += Math.cos(time * 25.0 + i) * 0.015;
+                    d.z += Math.sin(time * 1.5) * 0.15; // Aggressive Breathing
+                    if (i >= 4 && i <= 7) { // Eye saccades
+                        d.x += Math.sin(time * 40.0) * 0.04;
+                        d.y += Math.cos(time * 35.0) * 0.04;
                     }
                 }
                 return d;
@@ -159,22 +149,25 @@
                 if (isConnected) {
                     let agg = new THREE.Vector3(0,0,0);
                     let tw = 0;
-                    dynamicL.forEach(l => {
-                        const d = v.distanceTo(l);
-                        const w = Math.exp(-(d*d)/(2*sigma*sigma));
+                    activeL.forEach(l => {
+                        const dist = v.distanceTo(l);
+                        const w = Math.exp(-(dist*dist)/(2*sigma*sigma));
                         if (w > 0.001) { agg.addScaledVector(l, w); tw += w; }
                     });
 
                     if (tw > 0) {
                         agg.divideScalar(tw);
-                        v.lerp(agg, Math.min(tw, 1.0) * 0.85);
-                        // Apply Mouth Viseme
-                        const vOff = getVisemeOffset(v, dynamicL[8], dynamicL[9], energy);
-                        v.add(vOff);
+                        v.lerp(agg, Math.min(tw, 1.0) * 0.95);
+                        
+                        // Audio-driven mouth movement (Viseme)
+                        const distM = (v.distanceTo(activeL[8]) + v.distanceTo(activeL[9])) / 2;
+                        if (distM < 0.8) {
+                            v.y -= (1.0 - distM/0.8) * energy * 0.8;
+                            v.z += (1.0 - distM/0.8) * energy * 0.3;
+                        }
                     }
                 } else {
-                    // Idle Searching Wave
-                    v.addScaledVector(v.clone().normalize(), Math.sin(v.y * 3.0 + time * 3.0) * 0.1);
+                    v.addScaledVector(v.clone().normalize(), Math.sin(v.y * 2.0 + time * 3.0) * 0.15);
                 }
                 targetPos.setXYZ(i, v.x, v.y, v.z);
             }
@@ -187,11 +180,11 @@
             material.uniforms.uTime.value = time;
 
             if (isAudioActive) {
-                const e = 0.3 + Math.sin(time * 15.0) * 0.3;
-                material.uniforms.uVibeEnergy.value = THREE.MathUtils.lerp(material.uniforms.uVibeEnergy.value, e, 0.2);
-                material.uniforms.uVibePitch.value = 0.5 + Math.sin(time * 4.0) * 0.4;
+                const e = 0.4 + Math.sin(time * 20.0) * 0.4;
+                material.uniforms.uVibeEnergy.value = THREE.MathUtils.lerp(material.uniforms.uVibeEnergy.value, e, 0.3);
+                material.uniforms.uVibePitch.value = 0.5 + Math.sin(time * 5.0) * 0.4;
             } else {
-                material.uniforms.uVibeEnergy.value *= 0.85;
+                material.uniforms.uVibeEnergy.value *= 0.9;
             }
 
             updateGeometry();
@@ -200,7 +193,7 @@
             for (let i = 0; i < pos.count; i++) {
                 const cur = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
                 const tar = new THREE.Vector3(targetPos.getX(i), targetPos.getY(i), targetPos.getZ(i));
-                cur.lerp(tar, 0.15); // Elastic interpolation
+                cur.lerp(tar, 0.1); // Elastic interpolation
                 pos.setXYZ(i, cur.x, cur.y, cur.z);
             }
             pos.needsUpdate = true;
@@ -208,15 +201,17 @@
             renderer.render(scene, camera);
         }
 
-        // --- 5. INTERFACE ---
+        // --- 5. UI ---
         const cBtn = document.getElementById('connectBtn');
         const aBtn = document.getElementById('audioBtn');
         const st = document.getElementById('status');
+        const pInd = document.getElementById('packet-indicator');
 
         cBtn.onclick = () => {
             isConnected = !isConnected;
             cBtn.classList.toggle('active');
             st.innerText = isConnected ? 'SPATIAL_SYNC_ACTIVE' : 'IDLE_SEARCHING';
+            pInd.innerText = isConnected ? 'SYNCING_LIVE...' : 'OFFLINE';
             cBtn.innerText = isConnected ? 'Disconnect Ledger' : 'Connect Spatial Ledger';
         };
 
