@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VibeMesh | LoBi-Net Prototype</title>
+    <title>VibeMesh | LoBi-Net Reactive Prototype</title>
     <style>
-        body { margin: 0; background: #050505; color: #00ffcc; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
+        body { margin: 0; background: #070505; color: #ff9d6e; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
         #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
-        .controls { pointer-events: auto; background: rgba(0, 20, 20, 0.8); padding: 15px; border: 1px solid #00ffcc; border-radius: 4px; }
-        button { background: transparent; color: #00ffcc; border: 1px solid #00ffcc; padding: 8px 12px; cursor: pointer; text-transform: uppercase; font-size: 10px; letter-spacing: 2px; }
-        button:hover { background: #00ffcc; color: #000; }
-        button.active { background: #00ffcc; color: #000; box-shadow: 0 0 15px #00ffcc; }
-        h1 { font-size: 14px; margin: 0 0 10px 0; letter-spacing: 4px; }
+        .controls { pointer-events: auto; background: rgba(20, 10, 5, 0.9); padding: 20px; border: 1px solid #ff9d6e; border-radius: 2px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        button { background: transparent; color: #ff9d6e; border: 1px solid #ff9d6e; padding: 10px 15px; cursor: pointer; text-transform: uppercase; font-size: 10px; letter-spacing: 2px; transition: 0.3s; margin-top: 10px; }
+        button:hover { background: #ff9d6e; color: #000; }
+        button.active { background: #ff9d6e; color: #000; box-shadow: 0 0 15px #ff9d6e; }
+        h1 { font-size: 14px; margin: 0 0 5px 0; letter-spacing: 4px; color: #fff; }
         p { font-size: 9px; opacity: 0.7; margin: 5px 0; }
     </style>
 </head>
@@ -21,30 +21,28 @@
         <div class="controls">
             <h1>VIBEMESH // LOBI-NET</h1>
             <p>STATUS: <span id="status">IDLE_SEARCHING</span></p>
-            <p>PROTOCOL: SEMANTIC_PRESENCE_V1</p>
-            <hr style="border: 0; border-top: 1px solid #003333; margin: 10px 0;">
-            <button id="connectBtn">Connect Spatial Ledger</button>
+            <p>ASSET: LIVING_CLAY_V2</p>
+            <hr style="border: 0; border-top: 1px solid #331a10; margin: 15px 0;">
+            <button id="connectBtn">Connect Spatial Ledger</button><br>
             <button id="audioBtn">Simulate Audio Pulse</button>
         </div>
     </div>
 
     <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
-            }
-        }
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
     </script>
 
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 1. SHADER SOURCE (Prismatic LOBI-NET) ---
+        // --- 1. THE PRISMATIC "CHUCK CLOSE" SHADER ---
         const vShader = `
             varying vec2 vUv;
             varying vec3 vNormal;
+            varying vec3 vPos;
             void main() {
                 vUv = uv;
+                vPos = position;
                 vNormal = normalize(normalMatrix * normal);
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             }
@@ -52,184 +50,179 @@
 
         const fShader = `
             uniform float uTime;
-            uniform float uResolution;
-            uniform vec3 uBaseColor;
             uniform float uVibeEnergy;
             uniform float uVibePitch;
             varying vec2 vUv;
             varying vec3 vNormal;
+            varying vec3 vPos;
 
             void main() {
-                // 45-degree Grid Rotation
-                float angle = 0.785398;
-                mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
-                vec2 gridUv = (rot * vUv) * uResolution;
+                // Rotated Diamond Grid
+                vec2 uv = vUv * 65.0; 
+                float a = 0.785;
+                uv *= mat2(cos(a), -sin(a), sin(a), cos(a));
                 
-                vec2 id = floor(gridUv);
-                vec2 f = fract(gridUv);
-                float dist = length(f - 0.5);
+                vec2 id = floor(uv);
+                vec2 f = fract(uv);
+                float d = length(f - 0.5);
 
-                // RMS Optical Blending Logic
-                vec3 innerColor = uBaseColor * (1.5 + sin(uTime + id.x) * 0.2);
-                innerColor = mix(innerColor, vec3(uVibePitch, 0.5, 1.0 - uVibePitch), uVibeEnergy * 0.5);
+                // Editorial Palette (Copper / Gold / Flesh)
+                vec3 base = vec3(0.45, 0.25, 0.15); // Deep Copper
+                vec3 glow = vec3(1.0, 0.7, 0.4);   // Golden Highlight
                 
-                vec3 outerRing = vec3(1.0) - uBaseColor;
-                outerRing = mix(uBaseColor, outerRing, 0.2);
+                // Audio-Reactive Prismatic Shift
+                vec3 accent = mix(vec3(1.0, 0.4, 0.2), vec3(0.2, 0.6, 1.0), uVibePitch);
+                vec3 seedColor = mix(glow, accent, uVibeEnergy);
 
-                // Nested "Chuck Close" Blobs
-                float innerRad = 0.15 + (uVibeEnergy * 0.15);
-                float outerRad = 0.45;
-
-                vec3 color = uBaseColor * 0.1; // Gaps
-                float mask1 = 1.0 - smoothstep(outerRad - 0.05, outerRad + 0.05, dist);
-                color = mix(color, outerRing, mask1);
+                // Nested Circles Math
+                float outer = 1.0 - smoothstep(0.35, 0.45, d);
+                float inner = 1.0 - smoothstep(0.1 + (uVibeEnergy * 0.2), 0.2 + (uVibeEnergy * 0.2), d);
                 
-                float mask2 = 1.0 - smoothstep(innerRad - 0.05, innerRad + 0.05, dist);
-                color = mix(color, innerColor, mask2);
+                vec3 color = base * 0.2; // The "Grout"
+                color = mix(color, base, outer);
+                color = mix(color, seedColor, inner);
 
-                // Lighting
-                float diff = max(dot(vNormal, vec3(0.5, 0.7, 1.0)), 0.0);
-                gl_FragColor = vec4(color * (diff + 0.4), 0.9);
+                // Lighting & Depth
+                float light = max(dot(vNormal, vec3(0.5, 0.5, 1.0)), 0.1);
+                gl_FragColor = vec4(color * (light + 0.3), 1.0);
             }
         `;
 
-        // --- 2. CONFIG & LANDMARKS ---
-        let isConnected = false;
-        let isAudioActive = false;
+        // --- 2. SETUP & LANDMARKS ---
         const LANDMARKS = [
-            new THREE.Vector3(0, -1.5, 1.2),   // 0: Chin
-            new THREE.Vector3(-1.2, -0.5, 0.5),// 1: Left Jaw
-            new THREE.Vector3(1.2, -0.5, 0.5), // 2: Right Jaw
-            new THREE.Vector3(0, 0, 1.8),      // 3: Nose Tip
-            new THREE.Vector3(-0.5, 0.5, 1.4), // 4: Left Eye
-            new THREE.Vector3(0.5, 0.5, 1.4),  // 5: Right Eye
-            new THREE.Vector3(-0.8, 0.8, 1.0), // 6: Left Brow
-            new THREE.Vector3(0.8, 0.8, 1.0),  // 7: Right Brow
-            new THREE.Vector3(-0.4, -0.6, 1.5),// 8: Mouth L
-            new THREE.Vector3(0.4, -0.6, 1.5), // 9: Mouth R
-            new THREE.Vector3(-1.5, 0, 0),     // 10: L Ear
-            new THREE.Vector3(1.5, 0, 0),      // 11: R Ear
+            new THREE.Vector3(0, -1.6, 1.2),   // 0: Chin
+            new THREE.Vector3(-1.3, -0.6, 0.5),// 1: L Jaw
+            new THREE.Vector3(1.3, -0.6, 0.5), // 2: R Jaw
+            new THREE.Vector3(0, 0.1, 1.9),    // 3: Nose
+            new THREE.Vector3(-0.5, 0.6, 1.4), // 4: L Eye
+            new THREE.Vector3(0.5, 0.6, 1.4),  // 5: R Eye
+            new THREE.Vector3(-0.7, 1.0, 1.2), // 6: L Brow
+            new THREE.Vector3(0.7, 1.0, 1.2),  // 7: R Brow
+            new THREE.Vector3(-0.4, -0.7, 1.5),// 8: Mouth L
+            new THREE.Vector3(0.4, -0.7, 1.5)  // 9: Mouth R
         ];
 
-        // --- 3. SCENE SETUP ---
+        let isConnected = false;
+        let isAudioActive = false;
+
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        const geometry = new THREE.SphereGeometry(2, 80, 80);
+        const geometry = new THREE.SphereGeometry(2.2, 90, 90);
         const originalPos = geometry.attributes.position.clone();
         const targetPos = geometry.attributes.position.clone();
-
         const material = new THREE.ShaderMaterial({
-            vertexShader: vShader,
-            fragmentShader: fShader,
-            transparent: true,
-            uniforms: {
-                uTime: { value: 0 },
-                uResolution: { value: 60.0 },
-                uBaseColor: { value: new THREE.Color('#00ffcc') },
-                uVibeEnergy: { value: 0 },
-                uVibePitch: { value: 0.5 }
-            }
+            vertexShader: vShader, fragmentShader: fShader,
+            uniforms: { uTime: { value: 0 }, uVibeEnergy: { value: 0 }, uVibePitch: { value: 0.5 } }
         });
 
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
-        camera.position.z = 5;
+        camera.position.z = 5.5;
 
-        // --- 4. REFINED SCULPTING MATH ---
-        function updateSculpt() {
-            const posAttr = geometry.attributes.position;
-            const sigma = 0.7; // Gaussian spread
-            const strength = 0.85;
+        // --- 3. THE TEMPORAL CONDUCTOR (DYNAMICS) ---
+        function getVisemeOffset(vertex, l8, l9, energy) {
+            const distM = (vertex.distanceTo(l8) + vertex.distanceTo(l9)) / 2;
+            if (distM < 0.7) {
+                const pull = Math.pow(1.0 - distM/0.7, 2) * energy;
+                return new THREE.Vector3(0, -0.5 * pull, 0.2 * pull);
+            }
+            return new THREE.Vector3(0,0,0);
+        }
 
-            for (let i = 0; i < posAttr.count; i++) {
+        function updateGeometry() {
+            const pos = geometry.attributes.position;
+            const time = performance.now() * 0.001;
+            const sigma = 0.7;
+
+            // Generate Dynamic Landmarks (Breathing & Saccades)
+            const dynamicL = LANDMARKS.map((l, i) => {
+                let d = l.clone();
+                if (isConnected) {
+                    d.z += Math.sin(time * 2.0) * 0.05; // Breath
+                    if (i >= 4 && i <= 7) { // Eye jitter
+                        d.x += Math.sin(time * 30.0 + i) * 0.015;
+                        d.y += Math.cos(time * 25.0 + i) * 0.015;
+                    }
+                }
+                return d;
+            });
+
+            const energy = material.uniforms.uVibeEnergy.value;
+
+            for (let i = 0; i < pos.count; i++) {
                 let v = new THREE.Vector3(originalPos.getX(i), originalPos.getY(i), originalPos.getZ(i));
                 
                 if (isConnected) {
-                    let aggTarget = new THREE.Vector3(0, 0, 0);
-                    let totalWeight = 0;
-
-                    LANDMARKS.forEach(l => {
+                    let agg = new THREE.Vector3(0,0,0);
+                    let tw = 0;
+                    dynamicL.forEach(l => {
                         const d = v.distanceTo(l);
-                        const w = Math.exp(-(d * d) / (2 * (sigma * sigma)));
-                        if (w > 0.001) {
-                            aggTarget.addScaledVector(l, w);
-                            totalWeight += w;
-                        }
+                        const w = Math.exp(-(d*d)/(2*sigma*sigma));
+                        if (w > 0.001) { agg.addScaledVector(l, w); tw += w; }
                     });
 
-                    if (totalWeight > 0) {
-                        aggTarget.divideScalar(totalWeight);
-                        const blend = Math.min(totalWeight, 1.0) * strength;
-                        v.lerp(aggTarget, blend);
+                    if (tw > 0) {
+                        agg.divideScalar(tw);
+                        v.lerp(agg, Math.min(tw, 1.0) * 0.85);
+                        // Apply Mouth Viseme
+                        const vOff = getVisemeOffset(v, dynamicL[8], dynamicL[9], energy);
+                        v.add(vOff);
                     }
                 } else {
-                    // Idle Rippling
-                    const time = performance.now() * 0.002;
-                    const noise = Math.sin(v.x * 2 + time) * Math.cos(v.y * 2 + time) * 0.1;
-                    v.addScaledVector(v.clone().normalize(), noise);
+                    // Idle Searching Wave
+                    v.addScaledVector(v.clone().normalize(), Math.sin(v.y * 3.0 + time * 3.0) * 0.1);
                 }
-
                 targetPos.setXYZ(i, v.x, v.y, v.z);
             }
         }
 
-        // --- 5. ANIMATION LOOP ---
+        // --- 4. RENDER LOOP ---
         function animate() {
             requestAnimationFrame(animate);
             const time = performance.now() * 0.001;
             material.uniforms.uTime.value = time;
 
-            // Handle Audio Simulation
             if (isAudioActive) {
-                material.uniforms.uVibeEnergy.value = THREE.MathUtils.lerp(material.uniforms.uVibeEnergy.value, 0.4 + Math.sin(time * 10) * 0.4, 0.2);
-                material.uniforms.uVibePitch.value = 0.5 + Math.sin(time * 5) * 0.3;
+                const e = 0.3 + Math.sin(time * 15.0) * 0.3;
+                material.uniforms.uVibeEnergy.value = THREE.MathUtils.lerp(material.uniforms.uVibeEnergy.value, e, 0.2);
+                material.uniforms.uVibePitch.value = 0.5 + Math.sin(time * 4.0) * 0.4;
             } else {
-                material.uniforms.uVibeEnergy.value = THREE.MathUtils.lerp(material.uniforms.uVibeEnergy.value, 0, 0.1);
+                material.uniforms.uVibeEnergy.value *= 0.85;
             }
 
-            updateSculpt();
+            updateGeometry();
 
-            // Smoothly Lerp current mesh to target sculpt
-            const posAttr = geometry.attributes.position;
-            for (let i = 0; i < posAttr.count; i++) {
-                const cur = new THREE.Vector3(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
+            const pos = geometry.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const cur = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
                 const tar = new THREE.Vector3(targetPos.getX(i), targetPos.getY(i), targetPos.getZ(i));
-                cur.lerp(tar, 0.1);
-                posAttr.setXYZ(i, cur.x, cur.y, cur.z);
+                cur.lerp(tar, 0.15); // Elastic interpolation
+                pos.setXYZ(i, cur.x, cur.y, cur.z);
             }
-            
-            posAttr.needsUpdate = true;
+            pos.needsUpdate = true;
             geometry.computeVertexNormals();
             renderer.render(scene, camera);
         }
 
-        // --- 6. UI INTERACTION ---
-        const connBtn = document.getElementById('connectBtn');
-        const audioBtn = document.getElementById('audioBtn');
-        const status = document.getElementById('status');
+        // --- 5. INTERFACE ---
+        const cBtn = document.getElementById('connectBtn');
+        const aBtn = document.getElementById('audioBtn');
+        const st = document.getElementById('status');
 
-        connBtn.addEventListener('click', () => {
+        cBtn.onclick = () => {
             isConnected = !isConnected;
-            connBtn.classList.toggle('active');
-            status.innerText = isConnected ? 'SPATIAL_SYNC_ACTIVE' : 'IDLE_SEARCHING';
-            connBtn.innerText = isConnected ? 'Disconnect Ledger' : 'Connect Spatial Ledger';
-        });
+            cBtn.classList.toggle('active');
+            st.innerText = isConnected ? 'SPATIAL_SYNC_ACTIVE' : 'IDLE_SEARCHING';
+            cBtn.innerText = isConnected ? 'Disconnect Ledger' : 'Connect Spatial Ledger';
+        };
 
-        audioBtn.addEventListener('click', () => {
-            isAudioActive = !isAudioActive;
-            audioBtn.classList.toggle('active');
-        });
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
+        aBtn.onclick = () => { aBtn.classList.toggle('active'); isAudioActive = !isAudioActive; };
+        window.onresize = () => { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
+        
         animate();
     </script>
 </body>
