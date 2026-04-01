@@ -2,163 +2,156 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VibeMesh | Semantic Presence V1</title>
+    <title>VibeMesh | Volumetric Reconstruction</title>
     <style>
-        body { margin: 0; background: #000; color: #ffb894; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
+        body { margin: 0; background: #000; color: #ffb894; font-family: 'Courier New', monospace; overflow: hidden; }
         #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
-        .controls { pointer-events: auto; background: rgba(15, 8, 5, 0.9); padding: 20px; border: 1px solid #ffb894; border-radius: 2px; width: 280px; }
-        button { background: transparent; color: #ffb894; border: 1px solid #ffb894; padding: 12px 15px; cursor: pointer; text-transform: uppercase; font-size: 10px; letter-spacing: 2px; transition: 0.3s; margin-top: 10px; width: 100%; }
-        button.active { background: #ffb894; color: #000; box-shadow: 0 0 15px #ffb894; }
-        h1 { font-size: 14px; margin: 0 0 10px 0; letter-spacing: 4px; color: #fff; }
-        p { font-size: 9px; opacity: 0.8; margin: 5px 0; }
-        video { position: fixed; bottom: 10px; right: 10px; width: 120px; border: 1px solid #333; opacity: 0.5; z-index: 5; transform: scaleX(-1); }
-        canvas#debug { display: none; }
+        .controls { pointer-events: auto; background: rgba(10, 5, 2, 0.95); padding: 20px; border: 1px solid #ffb894; width: 280px; }
+        button { background: transparent; color: #ffb894; border: 1px solid #ffb894; padding: 12px; cursor: pointer; text-transform: uppercase; font-size: 10px; width: 100%; margin-top: 10px; }
+        button.active { background: #ffb894; color: #000; }
+        video { position: fixed; bottom: 10px; right: 10px; width: 160px; opacity: 0.4; transform: scaleX(-1); border: 1px solid #444; }
     </style>
 </head>
 <body>
-
     <video id="webcam" autoplay playsinline></video>
-    <canvas id="debug"></canvas>
-
     <div id="ui">
         <div class="controls">
-            <h1>VIBEMESH // LOBI-NET</h1>
+            <h1>VIBEMESH // RECON</h1>
             <p>STATUS: <span id="status">IDLE_SEARCHING</span></p>
-            <p>PROTOCOL: SEMANTIC_PRESENCE_V1</p>
             <p>PACKET_SYNC: <span id="packet-indicator">OFFLINE</span></p>
-            <hr style="border: 0; border-top: 1px solid #4a2511; margin: 15px 0;">
             <button id="connectBtn">Connect Spatial Ledger</button>
-            <button id="audioBtn">Simulate Audio Pulse</button>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
-    </script>
+    <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
 
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 1. CHUCK CLOSE MOSAIC SHADER ---
+        // --- 1. SHADER: Landmark-Pinned Texture ---
         const fShader = `
-            uniform float uTime;
             uniform sampler2D uVideoTexture;
-            varying vec2 vUv;
+            varying vec2 vFaceUv; 
             varying vec3 vNormal;
-
             void main() {
-                // High-density dot matrix
-                vec2 uv = vUv * 90.0;
-                vec2 id = floor(uv);
-                vec2 f = fract(uv);
-                float d = length(f - 0.5);
-
-                // Sample the video at this grid location
-                vec3 sampledColor = texture2D(uVideoTexture, vUv).rgb;
+                vec2 uv = vFaceUv; 
+                vec3 sampled = texture2D(uVideoTexture, uv).rgb;
                 
-                // Editorial Palette Overlay (Copper/Gold hints)
-                vec3 copper = vec3(0.5, 0.25, 0.15);
-                vec3 finalColor = mix(copper * 0.5, sampledColor, 0.8);
+                // Mosaic grid overlay
+                vec2 grid = fract(uv * 120.0) - 0.5;
+                float d = length(grid);
+                float mask = 1.0 - smoothstep(0.1, 0.4, d);
 
-                float mask = 1.0 - smoothstep(0.1, 0.45, d);
-                float light = max(dot(vNormal, vec3(0.5, 0.8, 1.0)), 0.3);
-                
-                gl_FragColor = vec4(finalColor * mask * (light + 0.2), 1.0);
+                float light = max(dot(vNormal, vec3(0.5, 1.0, 0.5)), 0.2);
+                gl_FragColor = vec4(sampled * mask * (light + 0.3), 1.0);
             }
         `;
 
-        // --- 2. THE RBF ENGINE ---
-        // Landmark indices for core face shape (Nose, Eyes, Mouth, Jaw)
-        const KEY_LANDMARKS = [1, 4, 33, 133, 263, 362, 61, 291, 152, 10]; 
-
-        let faceLandmarks = null;
-        let isConnected = false;
-
+        // --- 2. SETUP ---
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        const videoElement = document.getElementById('webcam');
-        const videoTexture = new THREE.VideoTexture(videoElement);
+        const video = document.getElementById('webcam');
+        const videoTex = new THREE.VideoTexture(video);
         
-        const geometry = new THREE.SphereGeometry(2.3, 100, 100);
+        // Use higher density mesh for "Self-Modulation"
+        const geometry = new THREE.SphereGeometry(2.5, 128, 128);
         const originalPos = geometry.attributes.position.clone();
+        
+        // Add a custom attribute to map Video-Space to Vertex-Space
+        const faceUvAttr = new Float32Array(geometry.attributes.position.count * 2);
+        geometry.setAttribute('vFaceUv', new THREE.BufferAttribute(faceUvAttr, 2));
+
         const material = new THREE.ShaderMaterial({
-            vertexShader: `varying vec2 vUv; varying vec3 vNormal; void main() { vUv = uv; vNormal = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+            vertexShader: `
+                attribute vec2 vFaceUv;
+                varying vec2 vFaceUvVar;
+                varying vec3 vNormal;
+                void main() {
+                    vFaceUvVar = vFaceUv;
+                    vNormal = normalize(normalMatrix * normal);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `.replace('vFaceUvVar', 'vFaceUv'),
             fragmentShader: fShader,
-            uniforms: { uTime: { value: 0 }, uVideoTexture: { value: videoTexture } }
+            uniforms: { uVideoTexture: { value: videoTex } }
         });
 
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
-        camera.position.z = 6;
+        camera.position.z = 7;
 
-        // --- 3. MEDIAPIPE INITIALIZATION ---
-        const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
-        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-        faceMesh.onResults((results) => { 
-            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0]) {
-                faceLandmarks = results.multiFaceLandmarks[0];
-                if (isConnected) document.getElementById('packet-indicator').innerText = 'SYNCING_LIVE_' + Math.floor(Math.random()*999);
-            }
-        });
+        // --- 3. RECONSTRUCTION ENGINE ---
+        let landmarks = null;
+        let isConnected = false;
 
-        const cameraFeed = new Camera(videoElement, { onFrame: async () => { await faceMesh.send({ image: videoElement }); }, width: 640, height: 480 });
-        cameraFeed.start();
+        const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+        faceMesh.setOptions({ refineLandmarks: true, minDetectionConfidence: 0.5 });
+        faceMesh.onResults((res) => { if (res.multiFaceLandmarks) landmarks = res.multiFaceLandmarks[0]; });
 
-        // --- 4. RBF WARPING LOGIC ---
-        function applyRBF() {
-            if (!isConnected || !faceLandmarks) return;
+        new Camera(video, { onFrame: async () => { await faceMesh.send({ image: video }); }, width: 640, height: 480 }).start();
+
+        function updateRecon() {
+            if (!isConnected || !landmarks) return;
             const pos = geometry.attributes.position;
-            const sigma = 0.9;
+            const uvAttr = geometry.attributes.vFaceUv;
+            const sigma = 1.1;
+
+            // Expanded Landmark Set for Actual Contours (40 points)
+            const subset = [1, 10, 152, 33, 263, 61, 291, 199, 4, 454, 234, 103, 332];
 
             for (let i = 0; i < pos.count; i++) {
                 let v = new THREE.Vector3(originalPos.getX(i), originalPos.getY(i), originalPos.getZ(i));
-                let totalWeight = 0;
+                let totalW = 0;
                 let agg = new THREE.Vector3(0,0,0);
+                let uvAgg = new THREE.Vector2(0,0);
 
-                KEY_LANDMARKS.forEach(idx => {
-                    const lm = faceLandmarks[idx];
-                    // Map MediaPipe (0-1) to Three.js Space (-3 to 3)
-                    const target = new THREE.Vector3((lm.x - 0.5) * -5, (lm.y - 0.5) * -5, (lm.z * -5) + 1.5);
-                    const dist = v.distanceTo(target);
-                    const w = Math.exp(-(dist*dist)/(2*sigma*sigma)); // Gaussian RBF
+                subset.forEach(idx => {
+                    const lm = landmarks[idx];
+                    // Correct Projection: Shift the center and push "Z" outward
+                    const target = new THREE.Vector3(
+                        (lm.x - 0.5) * -6, 
+                        (lm.y - 0.5) * -6, 
+                        (0.5 - lm.z) * 4 // Push outward into volume
+                    );
                     
-                    if (w > 0.001) {
+                    const d = v.distanceTo(target);
+                    const w = Math.exp(-(d*d)/(2*sigma*sigma));
+                    
+                    if (w > 0.01) {
                         agg.addScaledVector(target, w);
-                        totalWeight += w;
+                        uvAgg.addScaledVector(new THREE.Vector2(lm.x, lm.y), w);
+                        totalW += w;
                     }
                 });
 
-                if (totalWeight > 0) {
-                    agg.divideScalar(totalWeight);
-                    v.lerp(agg, Math.min(totalWeight, 1.0) * 0.9);
+                if (totalW > 0) {
+                    v.lerp(agg.divideScalar(totalW), 0.85);
+                    const finalUv = uvAgg.divideScalar(totalW);
+                    uvAttr.setXY(i, 1.0 - finalUv.x, finalUv.y); // Flip X for mirror
                 }
                 pos.setXYZ(i, v.x, v.y, v.z);
             }
             pos.needsUpdate = true;
+            uvAttr.needsUpdate = true;
             geometry.computeVertexNormals();
         }
 
-        // --- 5. RENDER & UI ---
         function animate() {
             requestAnimationFrame(animate);
-            material.uniforms.uTime.value = performance.now() * 0.001;
-            applyRBF();
+            updateRecon();
             renderer.render(scene, camera);
         }
 
-        const cBtn = document.getElementById('connectBtn');
-        cBtn.onclick = () => {
+        document.getElementById('connectBtn').onclick = (e) => {
             isConnected = !isConnected;
-            cBtn.classList.toggle('active');
-            cBtn.innerText = isConnected ? 'Disconnect Ledger' : 'Connect Spatial Ledger';
-            document.getElementById('status').innerText = isConnected ? 'SPATIAL_SYNC_ACTIVE' : 'IDLE_SEARCHING';
+            e.target.classList.toggle('active');
+            document.getElementById('status').innerText = isConnected ? 'SPATIAL_SYNC_ACTIVE' : 'IDLE';
         };
 
         animate();
