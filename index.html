@@ -2,43 +2,48 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>VibeMesh | Parametric Recon V7.2</title>
+    <title>VibeMesh | Parametric Recon V7.1</title>
     <style>
         body { margin: 0; background: #020202; color: #ffb894; font-family: 'Courier New', monospace; overflow: hidden; }
         #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
-        .panel { pointer-events: auto; background: rgba(10, 5, 2, 0.95); border: 1px solid #ffb894; padding: 20px; width: 320px; box-shadow: 0 0 30px rgba(255, 184, 148, 0.15); }
+        .panel { pointer-events: auto; background: rgba(10, 5, 2, 0.95); border: 1px solid #ffb894; padding: 20px; width: 300px; box-shadow: 0 0 30px rgba(255, 184, 148, 0.15); }
         button { background: transparent; color: #ffb894; border: 1px solid #ffb894; padding: 12px; cursor: pointer; text-transform: uppercase; width: 100%; margin-top: 10px; font-weight: bold; }
         button.active { background: #ffb894; color: #000; box-shadow: 0 0 15px #ffb894; }
         #console { margin-top: 15px; font-size: 10px; color: #885533; border-top: 1px solid #442211; padding-top: 10px; }
-        video { position: fixed; bottom: 10px; right: 10px; width: 140px; opacity: 0.25; transform: scaleX(-1); border: 1px solid #444; }
+        video { position: fixed; bottom: 10px; right: 10px; width: 140px; opacity: 0.2; transform: scaleX(-1); border: 1px solid #444; }
     </style>
 </head>
 <body>
     <video id="webcam" autoplay playsinline></video>
     <div id="ui">
         <div class="panel">
-            <h1>VIBEMESH // V7.2</h1>
+            <h1>VIBEMESH // V7.1</h1>
             <p>PROTOCOL: LoBi-Net_RECON</p>
             <p>SKIN: CHUCK_CLOSE_SQUID</p>
             <button id="connectBtn">Connect Spatial Ledger</button>
-            <button id="debugBtn">Toggle Debug Sphere</button>
-            <div id="console">> LOG: Awaiting Telemetry... (check console for errors)</div>
+            <div id="console">> LOG: Awaiting Telemetry...</div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
-    </script>
+    <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
 
     <script type="module">
         import * as THREE from 'three';
 
-        // Debug flag - set to true to see plain orange sphere if shader fails
-        let debugMode = false;
+        // --- 1. CLEAN SHADERS (NO VARIABLE COLLISIONS) ---
+        const vShader = `
+            attribute vec2 customUv; // Explicit attribute name
+            varying vec2 vUv;        // Explicit varying name
+            varying vec3 vNormal;
+            void main() {
+                vUv = customUv;      // Pass data safely
+                vNormal = normalize(normalMatrix * normal);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `;
 
-        // --- SHADER (fixed varying/attribute names) ---
         const fShader = `
             uniform sampler2D uVideoTexture;
             uniform float uTime;
@@ -46,121 +51,95 @@
             varying vec3 vNormal;
 
             void main() {
-                vec2 uv = vUv;
-                vec3 sampled = texture2D(uVideoTexture, uv).rgb;
+                vec3 sampled = texture2D(uVideoTexture, vUv).rgb;
                 float lum = dot(sampled, vec3(0.299, 0.587, 0.114));
 
-                vec2 grid = fract(uv * 120.0) - 0.5;
+                // Discretize into 120x120 Cell Grid
+                vec2 grid = fract(vUv * 120.0) - 0.5;
                 float d = length(grid);
 
+                // Nested Ring Logic (Optical Blending)
                 float ringCount = floor(lum * 8.0) + 1.0;
                 float ringWidth = 0.45 / ringCount;
                 
-                vec3 cellColor = vec3(0.02, 0.01, 0.01);
+                vec3 cellColor = vec3(0.02, 0.01, 0.01); // Deep Clay Base
                 
-                for(float i = 0.0; i < 8.0; i++) {
-                    if (i < ringCount) {
+                for(float i=0.0; i<8.0; i++) {
+                    if(i < ringCount) {
                         float r = (i + 1.0) * ringWidth;
+                        // Color vibration: Shift channels based on Time
                         vec3 shift = vec3(sampled.r, sampled.g * 0.8, sampled.b * 1.2);
-                        if (d < r) {
+                        if(d < r) {
                             float vib = sin(uTime * 4.0 + i) * 0.1;
-                            cellColor = (mod(i, 2.0) < 0.5) ? shift : shift * (0.5 + vib);
+                            cellColor = (mod(i, 2.0) == 0.0) ? shift : shift * (0.5 + vib);
                         }
                     }
                 }
 
+                // Bioluminescent glow based on normal
                 float light = max(dot(vNormal, vec3(0.5, 1.0, 0.5)), 0.2);
                 gl_FragColor = vec4(cellColor * (light + 0.5), 1.0);
             }
         `;
 
+        // --- 2. THE ENGINE ---
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
 
         const video = document.getElementById('webcam');
         const videoTex = new THREE.VideoTexture(video);
-        videoTex.minFilter = THREE.LinearFilter;
-        videoTex.magFilter = THREE.LinearFilter;
-
+        
+        // High-density "Living Clay" Sphere
         const geometry = new THREE.SphereGeometry(2.5, 200, 200);
         const originalPos = geometry.attributes.position.clone();
+        
+        // Attach the custom UV array safely
+        const uvAttr = new Float32Array(geometry.attributes.position.count * 2);
+        geometry.setAttribute('customUv', new THREE.BufferAttribute(uvAttr, 2));
 
-        // Proper UV attribute for the shader
-        const uvAttribute = geometry.attributes.uv.clone();
-        geometry.setAttribute('vUv', uvAttribute);
-
-        let material = new THREE.ShaderMaterial({
-            vertexShader: `
-                attribute vec2 vUv;
-                varying vec2 vUv;
-                varying vec3 vNormal;
-                void main() {
-                    vUv = vUv;
-                    vNormal = normalize(normalMatrix * normal);
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
+        const material = new THREE.ShaderMaterial({
+            vertexShader: vShader,
             fragmentShader: fShader,
-            uniforms: { 
-                uVideoTexture: { value: videoTex }, 
-                uTime: { value: 0 } 
-            }
+            uniforms: { uVideoTexture: { value: videoTex }, uTime: { value: 0 } }
         });
 
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
         camera.position.z = 7;
 
-        // Fallback debug material (bright orange so you KNOW it's rendering)
-        const debugMaterial = new THREE.MeshBasicMaterial({ color: 0xff6600, wireframe: true });
-
-        // MediaPipe setup
+        // --- 3. THE RBF SCULPTOR ---
         let landmarks = null;
         let isConnected = false;
-        let frameCounter = 0;
-
-        const faceMesh = new FaceMesh({ 
-            locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` 
-        });
+        const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
         faceMesh.setOptions({ refineLandmarks: true, minDetectionConfidence: 0.6 });
-        faceMesh.onResults((res) => { 
-            if (res.multiFaceLandmarks && res.multiFaceLandmarks.length > 0) landmarks = res.multiFaceLandmarks[0]; 
-        });
+        faceMesh.onResults((res) => { if (res.multiFaceLandmarks) landmarks = res.multiFaceLandmarks[0]; });
 
-        new Camera(video, { 
-            onFrame: async () => await faceMesh.send({ image: video }), 
-            width: 640, height: 480 
-        }).start();
-
-        const anchors = [1, 152, 33, 263, 61, 291, 10, 234, 454, 197, 103, 332];
+        new Camera(video, { onFrame: async () => { await faceMesh.send({ image: video }); }, width: 640, height: 480 }).start();
 
         function updateAvatar() {
             if (!isConnected || !landmarks) return;
-
             const pos = geometry.attributes.position;
-            const uvData = geometry.attributes.vUv;
-            const sigmaSq = 0.005;
+            const uvData = geometry.attributes.customUv; // Use the fixed attribute name
+            const sigmaSq = 0.005; 
+
+            // The 12 Semantic Anchors
+            const anchors = [1, 152, 33, 263, 61, 291, 10, 234, 454, 197, 103, 332];
 
             for (let i = 0; i < pos.count; i++) {
-                let v = new THREE.Vector3().fromBufferAttribute(originalPos, i);
+                let v = new THREE.Vector3(originalPos.getX(i), originalPos.getY(i), originalPos.getZ(i));
                 let totalW = 0;
-                let aggPos = new THREE.Vector3();
-                let aggUv = new THREE.Vector2();
+                let aggPos = new THREE.Vector3(0,0,0);
+                let aggUv = new THREE.Vector2(0,0);
 
                 anchors.forEach(idx => {
                     const lm = landmarks[idx];
-                    if (!lm) return;
-                    const target = new THREE.Vector3(
-                        (lm.x - 0.5) * -6,
-                        (lm.y - 0.5) * -8,
-                        (0.5 - (lm.z || 0)) * 6
-                    );
+                    const target = new THREE.Vector3((lm.x-0.5)*-6, (lm.y-0.5)*-8, (0.5-lm.z)*6);
                     const dSq = v.distanceToSquared(target);
-                    const w = Math.exp(-dSq / (2 * sigmaSq));
+                    const w = Math.exp(-dSq / (2.0 * sigmaSq));
+                    
                     if (w > 0.001) {
                         aggPos.addScaledVector(target, w);
                         aggUv.addScaledVector(new THREE.Vector2(lm.x, lm.y), w);
@@ -168,14 +147,13 @@
                     }
                 });
 
-                if (totalW > 0.001) {
-                    v.lerp(aggPos.divideScalar(totalW), 0.92);
+                if (totalW > 0) {
+                    v.lerp(aggPos.divideScalar(totalW), 0.95);
                     const fUv = aggUv.divideScalar(totalW);
-                    uvData.setXY(i, 1.0 - fUv.x, fUv.y);
+                    uvData.setXY(i, 1.0 - fUv.x, fUv.y); 
                 }
                 pos.setXYZ(i, v.x, v.y, v.z);
             }
-
             pos.needsUpdate = true;
             uvData.needsUpdate = true;
             geometry.computeVertexNormals();
@@ -184,39 +162,15 @@
         function animate() {
             requestAnimationFrame(animate);
             material.uniforms.uTime.value = performance.now() * 0.001;
-
-            frameCounter++;
-            if (frameCounter % 3 === 0) updateAvatar();
-
+            updateAvatar();
             renderer.render(scene, camera);
         }
 
-        // Buttons
         document.getElementById('connectBtn').onclick = (e) => {
             isConnected = !isConnected;
             e.target.classList.toggle('active');
-            document.getElementById('console').innerText = isConnected 
-                ? "> LOG: Squid skin activated — move your face!" 
-                : "> LOG: IDLE";
+            document.getElementById('console').innerText = isConnected ? "> LOG: Syncing Parametric Data..." : "> LOG: IDLE";
         };
-
-        document.getElementById('debugBtn').onclick = () => {
-            debugMode = !debugMode;
-            mesh.material = debugMode ? debugMaterial : material;
-            document.getElementById('console').innerText = debugMode 
-                ? "> DEBUG: Plain orange sphere (shader bypassed)" 
-                : "> LOG: Back to squid shader";
-        };
-
-        // Resize
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        // Open console (F12) and tell me if you see any red shader errors!
-        console.log("%cVibeMesh V7.2 loaded — check for shader errors in console", "color:#ffb894; font-weight:bold");
 
         animate();
     </script>
