@@ -2,26 +2,27 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>VibeMesh | Parametric Recon V7.1</title>
+    <title>VibeMesh | Bas-Relief Core V8</title>
     <style>
-        body { margin: 0; background: #020202; color: #ffb894; font-family: 'Courier New', monospace; overflow: hidden; }
+        body { margin: 0; background: #050505; color: #00ffcc; font-family: 'Courier New', monospace; overflow: hidden; }
         #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
-        .panel { pointer-events: auto; background: rgba(10, 5, 2, 0.95); border: 1px solid #ffb894; padding: 20px; width: 300px; box-shadow: 0 0 30px rgba(255, 184, 148, 0.15); }
-        button { background: transparent; color: #ffb894; border: 1px solid #ffb894; padding: 12px; cursor: pointer; text-transform: uppercase; width: 100%; margin-top: 10px; font-weight: bold; }
-        button.active { background: #ffb894; color: #000; box-shadow: 0 0 15px #ffb894; }
-        #console { margin-top: 15px; font-size: 10px; color: #885533; border-top: 1px solid #442211; padding-top: 10px; }
-        video { position: fixed; bottom: 10px; right: 10px; width: 140px; opacity: 0.2; transform: scaleX(-1); border: 1px solid #444; }
+        .panel { pointer-events: auto; background: rgba(0, 10, 10, 0.95); border: 1px solid #00ffcc; padding: 20px; width: 320px; box-shadow: 0 0 25px rgba(0, 255, 204, 0.15); }
+        button { background: transparent; color: #00ffcc; border: 1px solid #00ffcc; padding: 12px; cursor: pointer; text-transform: uppercase; width: 100%; margin-top: 10px; font-weight: bold; transition: all 0.2s; }
+        button:hover { background: rgba(0, 255, 204, 0.2); }
+        button.active { background: #00ffcc; color: #000; box-shadow: 0 0 15px #00ffcc; }
+        #console { margin-top: 15px; font-size: 10px; color: #00aa88; border-top: 1px solid #004433; padding-top: 10px; height: 80px; overflow-y: auto; }
+        video { position: fixed; bottom: 10px; right: 10px; width: 140px; opacity: 0.3; transform: scaleX(-1); border: 1px solid #004433; }
     </style>
 </head>
 <body>
     <video id="webcam" autoplay playsinline></video>
     <div id="ui">
         <div class="panel">
-            <h1>VIBEMESH // V7.1</h1>
-            <p>PROTOCOL: LoBi-Net_RECON</p>
-            <p>SKIN: CHUCK_CLOSE_SQUID</p>
-            <button id="connectBtn">Connect Spatial Ledger</button>
-            <div id="console">> LOG: Awaiting Telemetry...</div>
+            <h1>VIBEMESH // V8</h1>
+            <p>PROTOCOL: RELIEF_NODE</p>
+            <p>SKIN: OPTICAL_GRID_X</p>
+            <button id="connectBtn">Initialize Ledger</button>
+            <div id="console">> LOG: Standing by...</div>
         </div>
     </div>
 
@@ -32,144 +33,195 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 1. CLEAN SHADERS (NO VARIABLE COLLISIONS) ---
+        const log = (msg) => {
+            const c = document.getElementById('console');
+            c.innerHTML = `> ${msg}<br>` + c.innerHTML;
+        };
+
+        // --- 1. GPU SHADERS (Bulletproof Math) ---
+        // The Vertex shader pulls the flat plane forward based on 12 anchor points
         const vShader = `
-            attribute vec2 customUv; // Explicit attribute name
-            varying vec2 vUv;        // Explicit varying name
-            varying vec3 vNormal;
+            uniform vec3 uLandmarks[12];
+            varying vec2 vUv;
+            varying vec3 vViewPosition;
+
             void main() {
-                vUv = customUv;      // Pass data safely
-                vNormal = normalize(normalMatrix * normal);
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                vUv = uv;
+                vec3 newPos = position;
+                
+                float displacement = 0.0;
+                
+                // Calculate pull based on distance in 2D UV space
+                for(int i=0; i<12; i++) {
+                    float dist = distance(uv, uLandmarks[i].xy);
+                    // Smoothstep creates a soft, clay-like falloff (0.15 is the radius of influence)
+                    float influence = smoothstep(0.15, 0.0, dist);
+                    // Push vertex forward (+Z). uLandmarks[i].z holds depth scale.
+                    displacement += influence * uLandmarks[i].z * 3.0; 
+                }
+                
+                newPos.z += displacement;
+                
+                vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
+                gl_Position = projectionMatrix * mvPosition;
+                vViewPosition = -mvPosition.xyz; // Needed for lighting derivatives
             }
         `;
 
+        // The Fragment shader applies the Chuck Close Grid
         const fShader = `
             uniform sampler2D uVideoTexture;
             uniform float uTime;
-            varying vec2 vUv; 
-            varying vec3 vNormal;
+            uniform vec2 uResolution;
+            
+            varying vec2 vUv;
+            varying vec3 vViewPosition;
 
             void main() {
-                vec3 sampled = texture2D(uVideoTexture, vUv).rgb;
-                float lum = dot(sampled, vec3(0.299, 0.587, 0.114));
-
-                // Discretize into 120x120 Cell Grid
-                vec2 grid = fract(vUv * 120.0) - 0.5;
-                float d = length(grid);
-
-                // Nested Ring Logic (Optical Blending)
-                float ringCount = floor(lum * 8.0) + 1.0;
-                float ringWidth = 0.45 / ringCount;
+                // Determine aspect ratio to keep cells perfectly square
+                float aspect = uResolution.x / uResolution.y;
+                vec2 aspectUv = vec2(vUv.x * aspect, vUv.y);
                 
-                vec3 cellColor = vec3(0.02, 0.01, 0.01); // Deep Clay Base
+                float gridSize = 80.0; // The resolution of the bioluminescent grid
                 
-                for(float i=0.0; i<8.0; i++) {
-                    if(i < ringCount) {
-                        float r = (i + 1.0) * ringWidth;
-                        // Color vibration: Shift channels based on Time
-                        vec3 shift = vec3(sampled.r, sampled.g * 0.8, sampled.b * 1.2);
-                        if(d < r) {
-                            float vib = sin(uTime * 4.0 + i) * 0.1;
-                            cellColor = (mod(i, 2.0) == 0.0) ? shift : shift * (0.5 + vib);
-                        }
+                // Discretize space into cells
+                vec2 cellUv = floor(aspectUv * gridSize) / gridSize;
+                vec2 localUv = fract(aspectUv * gridSize) - 0.5; // Centers local coordinates from -0.5 to 0.5
+                
+                // Find true center of the cell to sample video
+                vec2 centerUv = vec2((cellUv.x + (0.5/gridSize)) / aspect, cellUv.y + (0.5/gridSize));
+                
+                // Sample video ONCE per cell to create the low-bit data effect
+                vec4 sampled = texture2D(uVideoTexture, centerUv);
+                float lum = dot(sampled.rgb, vec3(0.299, 0.587, 0.114));
+
+                // Generate GPU Normals dynamically based on how the vertex shader warped the plane
+                vec3 dx = dFdx(vViewPosition);
+                vec3 dy = dFdy(vViewPosition);
+                vec3 normal = normalize(cross(dx, dy));
+                
+                // Directional Light
+                float light = max(dot(normal, normalize(vec3(0.5, 0.5, 1.0))), 0.1);
+
+                // --- OPTICAL BLENDING (Chuck Close) ---
+                float d = length(localUv);
+                
+                // Base depth color
+                vec3 color = vec3(0.01, 0.02, 0.02);
+                
+                // Only draw cell geometry if the region has data/luminance
+                float maxRadius = lum * 0.45;
+                
+                if (d < maxRadius) {
+                    // Bioluminescent color shifting
+                    vec3 shift = vec3(sampled.b, sampled.r * 0.8, sampled.g * 1.5);
+                    float pulse = sin(uTime * 3.0 + centerUv.x * 15.0 + centerUv.y * 15.0) * 0.5 + 0.5;
+                    
+                    // Core ring vs outer ring
+                    if (d < maxRadius * 0.5) {
+                        color = mix(sampled.rgb, vec3(1.0), pulse * 0.5); // Hot core
+                    } else {
+                        color = shift; // Outer aura
                     }
                 }
-
-                // Bioluminescent glow based on normal
-                float light = max(dot(vNormal, vec3(0.5, 1.0, 0.5)), 0.2);
-                gl_FragColor = vec4(cellColor * (light + 0.5), 1.0);
+                
+                // Apply 3D shadow map so the face shape casts shadows on the grid
+                gl_FragColor = vec4(color * (light + 0.4), 1.0);
             }
         `;
 
-        // --- 2. THE ENGINE ---
+        // --- 2. ENGINE SETUP ---
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        // Use Orthographic-style field of view or fit plane to screen
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        // Required for dynamic normal generation in the fragment shader
+        renderer.extensions.get('OES_standard_derivatives'); 
         document.body.appendChild(renderer.domElement);
 
         const video = document.getElementById('webcam');
         const videoTex = new THREE.VideoTexture(video);
+
+        // Calculate a plane that perfectly fits the camera view
+        const vFov = camera.fov * Math.PI / 180;
+        const height = 2 * Math.tan(vFov / 2) * camera.position.z;
+        const width = height * (window.innerWidth / window.innerHeight);
+
+        // Super dense plane (250x250) for smooth 3D pushing
+        const geometry = new THREE.PlaneGeometry(width, height, 250, 250);
         
-        // High-density "Living Clay" Sphere
-        const geometry = new THREE.SphereGeometry(2.5, 200, 200);
-        const originalPos = geometry.attributes.position.clone();
-        
-        // Attach the custom UV array safely
-        const uvAttr = new Float32Array(geometry.attributes.position.count * 2);
-        geometry.setAttribute('customUv', new THREE.BufferAttribute(uvAttr, 2));
+        // Initialize the 12 anchor points as uniforms
+        const landmarkUniforms = [];
+        for(let i=0; i<12; i++) landmarkUniforms.push(new THREE.Vector3(0, 0, 0));
 
         const material = new THREE.ShaderMaterial({
             vertexShader: vShader,
             fragmentShader: fShader,
-            uniforms: { uVideoTexture: { value: videoTex }, uTime: { value: 0 } }
+            uniforms: {
+                uVideoTexture: { value: videoTex },
+                uTime: { value: 0 },
+                uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+                uLandmarks: { value: landmarkUniforms }
+            }
         });
 
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
-        camera.position.z = 7;
 
-        // --- 3. THE RBF SCULPTOR ---
-        let landmarks = null;
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            material.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+        });
+
+        // --- 3. THE PROTOCOL ---
+        let landmarksData = null;
         let isConnected = false;
+        
         const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-        faceMesh.setOptions({ refineLandmarks: true, minDetectionConfidence: 0.6 });
-        faceMesh.onResults((res) => { if (res.multiFaceLandmarks) landmarks = res.multiFaceLandmarks[0]; });
+        faceMesh.setOptions({ refineLandmarks: false, minDetectionConfidence: 0.6 });
+        faceMesh.onResults((res) => { if (res.multiFaceLandmarks) landmarksData = res.multiFaceLandmarks[0]; });
 
-        new Camera(video, { onFrame: async () => { await faceMesh.send({ image: video }); }, width: 640, height: 480 }).start();
+        const cameraStream = new Camera(video, { 
+            onFrame: async () => { await faceMesh.send({ image: video }); }, 
+            width: 640, height: 480 
+        });
+        cameraStream.start().then(() => log("Video Stream Locked")).catch(() => log("Stream Error"));
 
-        function updateAvatar() {
-            if (!isConnected || !landmarks) return;
-            const pos = geometry.attributes.position;
-            const uvData = geometry.attributes.customUv; // Use the fixed attribute name
-            const sigmaSq = 0.005; 
-
-            // The 12 Semantic Anchors
-            const anchors = [1, 152, 33, 263, 61, 291, 10, 234, 454, 197, 103, 332];
-
-            for (let i = 0; i < pos.count; i++) {
-                let v = new THREE.Vector3(originalPos.getX(i), originalPos.getY(i), originalPos.getZ(i));
-                let totalW = 0;
-                let aggPos = new THREE.Vector3(0,0,0);
-                let aggUv = new THREE.Vector2(0,0);
-
-                anchors.forEach(idx => {
-                    const lm = landmarks[idx];
-                    const target = new THREE.Vector3((lm.x-0.5)*-6, (lm.y-0.5)*-8, (0.5-lm.z)*6);
-                    const dSq = v.distanceToSquared(target);
-                    const w = Math.exp(-dSq / (2.0 * sigmaSq));
-                    
-                    if (w > 0.001) {
-                        aggPos.addScaledVector(target, w);
-                        aggUv.addScaledVector(new THREE.Vector2(lm.x, lm.y), w);
-                        totalW += w;
-                    }
-                });
-
-                if (totalW > 0) {
-                    v.lerp(aggPos.divideScalar(totalW), 0.95);
-                    const fUv = aggUv.divideScalar(totalW);
-                    uvData.setXY(i, 1.0 - fUv.x, fUv.y); 
-                }
-                pos.setXYZ(i, v.x, v.y, v.z);
-            }
-            pos.needsUpdate = true;
-            uvData.needsUpdate = true;
-            geometry.computeVertexNormals();
-        }
+        // The 12 Structural Anchors (Nose, Chin, Cheeks, Eyes, Mouth, Forehead)
+        const anchorIndices = [1, 152, 234, 454, 33, 263, 61, 291, 10, 103, 332, 2];
 
         function animate() {
             requestAnimationFrame(animate);
             material.uniforms.uTime.value = performance.now() * 0.001;
-            updateAvatar();
+
+            if (isConnected && landmarksData) {
+                for (let i = 0; i < 12; i++) {
+                    const lm = landmarksData[anchorIndices[i]];
+                    // Map Mediapipe directly into Plane UV Space
+                    // X is mirrored (1.0 - x), Y is inverted for WebGL (1.0 - y)
+                    // Z is inverted to push outward towards camera
+                    landmarkUniforms[i].set(1.0 - lm.x, 1.0 - lm.y, -lm.z + 0.5);
+                }
+            } else {
+                // Flatten back out if disconnected
+                for (let i = 0; i < 12; i++) {
+                    landmarkUniforms[i].lerp(new THREE.Vector3(0.5, 0.5, 0), 0.1);
+                }
+            }
+
             renderer.render(scene, camera);
         }
 
         document.getElementById('connectBtn').onclick = (e) => {
             isConnected = !isConnected;
+            e.target.innerText = isConnected ? "Disconnect Ledger" : "Initialize Ledger";
             e.target.classList.toggle('active');
-            document.getElementById('console').innerText = isConnected ? "> LOG: Syncing Parametric Data..." : "> LOG: IDLE";
+            log(isConnected ? "Syncing Spatial Landmarks..." : "Ledger Severed");
         };
 
         animate();
