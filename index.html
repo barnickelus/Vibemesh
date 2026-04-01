@@ -2,26 +2,27 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>VibeMesh | Parametric Recon V7.1</title>
+    <title>VibeMesh | Parametric Recon V7.2</title>
     <style>
         body { margin: 0; background: #020202; color: #ffb894; font-family: 'Courier New', monospace; overflow: hidden; }
         #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
-        .panel { pointer-events: auto; background: rgba(10, 5, 2, 0.95); border: 1px solid #ffb894; padding: 20px; width: 300px; box-shadow: 0 0 30px rgba(255, 184, 148, 0.15); }
+        .panel { pointer-events: auto; background: rgba(10, 5, 2, 0.95); border: 1px solid #ffb894; padding: 20px; width: 320px; box-shadow: 0 0 30px rgba(255, 184, 148, 0.15); }
         button { background: transparent; color: #ffb894; border: 1px solid #ffb894; padding: 12px; cursor: pointer; text-transform: uppercase; width: 100%; margin-top: 10px; font-weight: bold; }
         button.active { background: #ffb894; color: #000; box-shadow: 0 0 15px #ffb894; }
         #console { margin-top: 15px; font-size: 10px; color: #885533; border-top: 1px solid #442211; padding-top: 10px; }
-        video { position: fixed; bottom: 10px; right: 10px; width: 140px; opacity: 0.2; transform: scaleX(-1); border: 1px solid #444; }
+        video { position: fixed; bottom: 10px; right: 10px; width: 140px; opacity: 0.25; transform: scaleX(-1); border: 1px solid #444; }
     </style>
 </head>
 <body>
     <video id="webcam" autoplay playsinline></video>
     <div id="ui">
         <div class="panel">
-            <h1>VIBEMESH // V7.1</h1>
+            <h1>VIBEMESH // V7.2</h1>
             <p>PROTOCOL: LoBi-Net_RECON</p>
             <p>SKIN: CHUCK_CLOSE_SQUID</p>
             <button id="connectBtn">Connect Spatial Ledger</button>
-            <div id="console">> LOG: Awaiting Telemetry...</div>
+            <button id="debugBtn">Toggle Debug Sphere</button>
+            <div id="console">> LOG: Awaiting Telemetry... (check console for errors)</div>
         </div>
     </div>
 
@@ -34,15 +35,18 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 1. THE SQUID SKIN SHADER (fixed & cleaned) ---
+        // Debug flag - set to true to see plain orange sphere if shader fails
+        let debugMode = false;
+
+        // --- SHADER (fixed varying/attribute names) ---
         const fShader = `
             uniform sampler2D uVideoTexture;
             uniform float uTime;
-            varying vec2 vPinnedUv; 
+            varying vec2 vUv; 
             varying vec3 vNormal;
 
             void main() {
-                vec2 uv = vPinnedUv;
+                vec2 uv = vUv;
                 vec3 sampled = texture2D(uVideoTexture, uv).rgb;
                 float lum = dot(sampled, vec3(0.299, 0.587, 0.114));
 
@@ -52,7 +56,7 @@
                 float ringCount = floor(lum * 8.0) + 1.0;
                 float ringWidth = 0.45 / ringCount;
                 
-                vec3 cellColor = vec3(0.02, 0.01, 0.01); // Deep Clay Base
+                vec3 cellColor = vec3(0.02, 0.01, 0.01);
                 
                 for(float i = 0.0; i < 8.0; i++) {
                     if (i < ringCount) {
@@ -70,7 +74,6 @@
             }
         `;
 
-        // --- 2. THE ENGINE ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -80,22 +83,23 @@
 
         const video = document.getElementById('webcam');
         const videoTex = new THREE.VideoTexture(video);
-        
-        // High-density Living Clay Sphere
+        videoTex.minFilter = THREE.LinearFilter;
+        videoTex.magFilter = THREE.LinearFilter;
+
         const geometry = new THREE.SphereGeometry(2.5, 200, 200);
         const originalPos = geometry.attributes.position.clone();
 
-        // Initialize vPinnedUv with default sphere UVs
-        const uvAttr = geometry.attributes.uv.clone(); // start with proper UVs
-        geometry.setAttribute('vPinnedUv', uvAttr);
+        // Proper UV attribute for the shader
+        const uvAttribute = geometry.attributes.uv.clone();
+        geometry.setAttribute('vUv', uvAttribute);
 
-        const material = new THREE.ShaderMaterial({
+        let material = new THREE.ShaderMaterial({
             vertexShader: `
-                attribute vec2 vPinnedUv;
-                varying vec2 vPinnedUv;
+                attribute vec2 vUv;
+                varying vec2 vUv;
                 varying vec3 vNormal;
                 void main() {
-                    vPinnedUv = vPinnedUv;
+                    vUv = vUv;
                     vNormal = normalize(normalMatrix * normal);
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
@@ -111,7 +115,10 @@
         scene.add(mesh);
         camera.position.z = 7;
 
-        // --- 3. THE RBF SCULPTOR (throttled for performance) ---
+        // Fallback debug material (bright orange so you KNOW it's rendering)
+        const debugMaterial = new THREE.MeshBasicMaterial({ color: 0xff6600, wireframe: true });
+
+        // MediaPipe setup
         let landmarks = null;
         let isConnected = false;
         let frameCounter = 0;
@@ -121,15 +128,12 @@
         });
         faceMesh.setOptions({ refineLandmarks: true, minDetectionConfidence: 0.6 });
         faceMesh.onResults((res) => { 
-            if (res.multiFaceLandmarks && res.multiFaceLandmarks.length > 0) {
-                landmarks = res.multiFaceLandmarks[0]; 
-            }
+            if (res.multiFaceLandmarks && res.multiFaceLandmarks.length > 0) landmarks = res.multiFaceLandmarks[0]; 
         });
 
         new Camera(video, { 
-            onFrame: async () => { await faceMesh.send({ image: video }); }, 
-            width: 640, 
-            height: 480 
+            onFrame: async () => await faceMesh.send({ image: video }), 
+            width: 640, height: 480 
         }).start();
 
         const anchors = [1, 152, 33, 263, 61, 291, 10, 234, 454, 197, 103, 332];
@@ -138,7 +142,7 @@
             if (!isConnected || !landmarks) return;
 
             const pos = geometry.attributes.position;
-            const uvData = geometry.attributes.vPinnedUv;
+            const uvData = geometry.attributes.vUv;
             const sigmaSq = 0.005;
 
             for (let i = 0; i < pos.count; i++) {
@@ -149,14 +153,14 @@
 
                 anchors.forEach(idx => {
                     const lm = landmarks[idx];
+                    if (!lm) return;
                     const target = new THREE.Vector3(
                         (lm.x - 0.5) * -6,
                         (lm.y - 0.5) * -8,
-                        (0.5 - lm.z) * 6
+                        (0.5 - (lm.z || 0)) * 6
                     );
                     const dSq = v.distanceToSquared(target);
-                    const w = Math.exp(-dSq / (2.0 * sigmaSq));
-                    
+                    const w = Math.exp(-dSq / (2 * sigmaSq));
                     if (w > 0.001) {
                         aggPos.addScaledVector(target, w);
                         aggUv.addScaledVector(new THREE.Vector2(lm.x, lm.y), w);
@@ -164,10 +168,10 @@
                     }
                 });
 
-                if (totalW > 0) {
-                    v.lerp(aggPos.divideScalar(totalW), 0.95);
+                if (totalW > 0.001) {
+                    v.lerp(aggPos.divideScalar(totalW), 0.92);
                     const fUv = aggUv.divideScalar(totalW);
-                    uvData.setXY(i, 1.0 - fUv.x, fUv.y); // mirror flip
+                    uvData.setXY(i, 1.0 - fUv.x, fUv.y);
                 }
                 pos.setXYZ(i, v.x, v.y, v.z);
             }
@@ -182,29 +186,37 @@
             material.uniforms.uTime.value = performance.now() * 0.001;
 
             frameCounter++;
-            if (frameCounter % 3 === 0) {  // throttle deformation
-                updateAvatar();
-            }
+            if (frameCounter % 3 === 0) updateAvatar();
 
             renderer.render(scene, camera);
         }
 
-        // Connect button
+        // Buttons
         document.getElementById('connectBtn').onclick = (e) => {
             isConnected = !isConnected;
             e.target.classList.toggle('active');
-            const consoleEl = document.getElementById('console');
-            consoleEl.innerText = isConnected 
-                ? "> LOG: Syncing Parametric Data... Squid skin activated" 
+            document.getElementById('console').innerText = isConnected 
+                ? "> LOG: Squid skin activated — move your face!" 
                 : "> LOG: IDLE";
         };
 
-        // Resize handler
+        document.getElementById('debugBtn').onclick = () => {
+            debugMode = !debugMode;
+            mesh.material = debugMode ? debugMaterial : material;
+            document.getElementById('console').innerText = debugMode 
+                ? "> DEBUG: Plain orange sphere (shader bypassed)" 
+                : "> LOG: Back to squid shader";
+        };
+
+        // Resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+        // Open console (F12) and tell me if you see any red shader errors!
+        console.log("%cVibeMesh V7.2 loaded — check for shader errors in console", "color:#ffb894; font-weight:bold");
 
         animate();
     </script>
