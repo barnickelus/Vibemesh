@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>VibeMesh | Stable Recon V5</title>
+    <title>VibeMesh | First Principles</title>
     <style>
         body { margin: 0; background: #050505; color: #00ffcc; font-family: 'Courier New', monospace; overflow: hidden; }
         #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
@@ -17,8 +17,8 @@
     <video id="webcam" autoplay playsinline></video>
     <div id="ui">
         <div class="panel">
-            <h1>VIBEMESH // V5</h1>
-            <p>ASSET: LIVING_CLAY_STABLE</p>
+            <h1>VIBEMESH // CORE</h1>
+            <p>ASSET: LIVING_CLAY_V6</p>
             <p>STATUS: <span id="status">INIT_SEARCHING</span></p>
             <button id="connectBtn">Connect Spatial Ledger</button>
             <div id="console">> LOG: System Booting...</div>
@@ -32,13 +32,14 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 1. BIOLUMINESCENT CHUCK CLOSE SHADER ---
+        // --- 1. THE BIOLUMINESCENT CHUCK CLOSE SHADER ---
+        // This shader discretizes the video into cells, samples the center of the cell,
+        // and draws concentric shapes based on the luminance of that single pixel.
         const vShader = `
-            attribute vec2 customUv;
-            varying vec2 vFinalUv;
+            varying vec2 vUv;
             varying vec3 vNormal;
             void main() {
-                vFinalUv = customUv;
+                vUv = uv; // Standard UV mapping from the sphere
                 vNormal = normalize(normalMatrix * normal);
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             }
@@ -47,36 +48,70 @@
         const fShader = `
             uniform sampler2D uVideoTexture;
             uniform float uTime;
-            varying vec2 vFinalUv;
+            uniform float uGridSize;
+            varying vec2 vUv;
             varying vec3 vNormal;
 
             void main() {
-                vec2 uv = vFinalUv;
-                vec3 sampled = texture2D(uVideoTexture, uv).rgb;
-                float lum = dot(sampled, vec3(0.299, 0.587, 0.114));
+                // Map the front half of the sphere (uv.x from 0.25 to 0.75) to the full video
+                vec2 mappedUv = vec2((vUv.x - 0.25) * 2.0, vUv.y);
+                
+                // Mirror the video horizontally
+                mappedUv.x = 1.0 - mappedUv.x; 
 
-                // Chuck Close Optical Blending: 9-Layer Concentric Rings
-                vec2 grid = fract(uv * 120.0) - 0.5;
-                float dist = length(grid);
-                
-                float rings = floor(lum * 9.0);
-                float stepSize = 0.45 / 9.0;
-                float skinMask = 0.15; // Base ambient skin
-                
-                for(float i=0.0; i<9.0; i++) {
-                    if(i < rings) {
-                        float r = (i + 1.0) * stepSize;
-                        // Optical vibration using color ratio offsets
-                        float vib = sin(uTime * 3.0 + i) * 0.05;
-                        if(dist < r + vib) {
-                            skinMask = (mod(i, 2.0) == 0.0) ? 0.9 : 0.4;
-                        }
-                    }
+                // If we are on the back of the head, render dark clay
+                if (mappedUv.x < 0.0 || mappedUv.x > 1.0) {
+                    gl_FragColor = vec4(0.01, 0.02, 0.02, 1.0);
+                    return;
                 }
 
-                vec3 biolume = mix(vec3(0.0, 0.05, 0.05), sampled, skinMask);
-                float diffuse = max(dot(vNormal, vec3(0.5, 1.0, 0.5)), 0.2);
-                gl_FragColor = vec4(biolume * (diffuse + 0.4), 1.0);
+                // Discretize UV space into cells
+                vec2 cellUv = floor(mappedUv * uGridSize) / uGridSize;
+                
+                // Center the sample point within the cell to get one solid color per cell
+                vec2 centerUv = cellUv + (0.5 / uGridSize); 
+                
+                // Local coordinate within the cell (-0.5 to 0.5)
+                vec2 localUv = fract(mappedUv * uGridSize) - 0.5;
+
+                // Sample the video AT THE CENTER of the cell
+                vec4 cellColor = texture2D(uVideoTexture, centerUv);
+                
+                // Calculate luminance
+                float lum = dot(cellColor.rgb, vec3(0.299, 0.587, 0.114));
+
+                // Chuck Close Cellular Logic
+                // Base background of the cell
+                vec3 finalColor = cellColor.rgb * 0.2; 
+                float dist = length(localUv);
+
+                // Determine inner shape complexity based on luminance
+                float size = lum * 0.45; // Max radius within cell
+
+                // The "Bioluminescent Squid" Color Shift
+                // We shift the color channels to create optical vibration
+                vec3 shiftedColor = vec3(cellColor.b, cellColor.r, cellColor.g) * 1.5;
+
+                // Draw outer ring if luminance is high enough
+                if (dist < 0.45 && dist > 0.45 - (lum * 0.2)) {
+                    finalColor = shiftedColor;
+                }
+
+                // Draw inner core pulsing with time
+                if (dist < size) {
+                    float pulse = sin(uTime * 5.0 + centerUv.x * 10.0 + centerUv.y * 10.0) * 0.5 + 0.5;
+                    finalColor = mix(cellColor.rgb, vec3(1.0, 1.0, 1.0), pulse * 0.4);
+                }
+
+                // Add grid lines
+                if (max(abs(localUv.x), abs(localUv.y)) > 0.46) {
+                    finalColor *= 0.1;
+                }
+
+                // Apply basic 3D lighting
+                float light = max(dot(vNormal, vec3(0.5, 0.5, 1.0)), 0.2);
+                
+                gl_FragColor = vec4(finalColor * (light + 0.3), 1.0);
             }
         `;
 
@@ -90,23 +125,27 @@
         const video = document.getElementById('webcam');
         const videoTex = new THREE.VideoTexture(video);
         
-        // High-Density living clay (256x256)
-        const geometry = new THREE.SphereGeometry(2.6, 256, 256);
-        const originalPos = geometry.attributes.position.clone();
-        
-        // Custom attribute for pinned UV mapping
-        const customUvAttr = new Float32Array(geometry.attributes.position.count * 2);
-        geometry.setAttribute('customUv', new THREE.BufferAttribute(customUvAttr, 2));
+        // High-Density living clay
+        const geometry = new THREE.SphereGeometry(2.0, 128, 128);
+        const basePositions = geometry.attributes.position.clone();
+        const baseNormals = geometry.attributes.normal.clone();
+
+        // Rotate sphere so UV seam is at the back, face is at +Z
+        geometry.rotateY(-Math.PI / 2);
 
         const material = new THREE.ShaderMaterial({
             vertexShader: vShader,
             fragmentShader: fShader,
-            uniforms: { uVideoTexture: { value: videoTex }, uTime: { value: 0 } }
+            uniforms: { 
+                uVideoTexture: { value: videoTex }, 
+                uTime: { value: 0 },
+                uGridSize: { value: 50.0 } // The resolution of the Chuck Close cells
+            }
         });
 
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
-        camera.position.z = 7;
+        camera.position.z = 6;
 
         // --- 3. RECONSTRUCTION PIPELINE ---
         let landmarks = null;
@@ -126,42 +165,72 @@
         function updateRecon() {
             if (!isConnected || !landmarks) return;
             const pos = geometry.attributes.position;
-            const uvAttr = geometry.attributes.customUv;
-            const sigmaSq = 0.005; // Tight Gaussian elasticity
+            const sigmaSq = 0.05; // Elasticity of the clay
 
-            // 12 Core Semantic Anchors
-            const anchors = [1, 10, 152, 33, 263, 61, 291, 199, 4, 454, 234, 103];
+            // 34 Core Semantic Anchors defining true face shape
+            // (Silhouette, Jaw, Nose, Eyes, Cheeks)
+            const anchorIndices = [
+                10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
+                1, 4, // Nose tip, base
+                33, 263, // Eye corners
+                61, 291 // Mouth corners
+            ];
 
+            // Convert landmarks to World Space once per frame
+            const worldAnchors = anchorIndices.map(idx => {
+                const lm = landmarks[idx];
+                return {
+                    // Map mediapipe space to a 4.0x4.0 unit plane
+                    x: (lm.x - 0.5) * -4.0, // mirrored
+                    y: -(lm.y - 0.5) * 4.0, 
+                    z: -lm.z * 10.0 // Push depth map dramatically
+                };
+            });
+
+            // NORMAL-BASED DISPLACEMENT
+            // Instead of pulling vertices through the sphere, we only push them out along their normal
             for (let i = 0; i < pos.count; i++) {
-                let v = new THREE.Vector3(originalPos.getX(i), originalPos.getY(i), originalPos.getZ(i));
-                let totalW = 0;
-                let aggPos = new THREE.Vector3(0,0,0);
-                let aggUv = new THREE.Vector2(0,0);
+                // Get base vertex info
+                const bx = basePositions.getX(i);
+                const by = basePositions.getY(i);
+                const bz = basePositions.getZ(i);
+                const nx = baseNormals.getX(i);
+                const ny = baseNormals.getY(i);
+                const nz = baseNormals.getZ(i);
 
-                anchors.forEach(idx => {
-                    const lm = landmarks[idx];
-                    // Semantic Compression: Project 2D to Volumetric Space
-                    const target = new THREE.Vector3((lm.x-0.5)*-6.5, (lm.y-0.5)*-8.0, (0.5-lm.z)*6.0);
-                    const dSq = v.distanceToSquared(target);
-                    const w = Math.exp(-dSq / (2.0 * sigmaSq));
-                    
-                    if (w > 0.001) {
-                        aggPos.addScaledVector(target, w);
-                        aggUv.addScaledVector(new THREE.Vector2(lm.x, lm.y), w);
-                        totalW += w;
+                // Only calculate bump for the front half of the sphere
+                let totalBump = 0;
+                let weightSum = 0;
+
+                if (bz > 0) {
+                    worldAnchors.forEach(anchor => {
+                        // Calculate distance in XY plane
+                        const dx = bx - anchor.x;
+                        const dy = by - anchor.y;
+                        const dSq = (dx * dx) + (dy * dy);
+                        
+                        // Gaussian RBF weight
+                        const w = Math.exp(-dSq / (2.0 * sigmaSq));
+                        
+                        if (w > 0.001) {
+                            totalBump += anchor.z * w;
+                            weightSum += w;
+                        }
+                    });
+
+                    if (weightSum > 0) {
+                        totalBump /= weightSum;
                     }
-                });
-
-                if (totalW > 0) {
-                    v.lerp(aggPos.divideScalar(totalW), 0.92);
-                    const fUv = aggUv.divideScalar(totalW);
-                    uvAttr.setXY(i, 1.0 - fUv.x, fUv.y); 
                 }
-                pos.setXYZ(i, v.x, v.y, v.z);
+
+                // Apply displacement strictly along the base normal
+                // This guarantees the geometry will never collapse inward "black hole" style
+                const finalRadius = 2.0 + (totalBump * 0.8); // 0.8 is intensity scalar
+                pos.setXYZ(i, nx * finalRadius, ny * finalRadius, nz * finalRadius);
             }
+            
             pos.needsUpdate = true;
-            uvAttr.needsUpdate = true;
-            geometry.computeVertexNormals();
+            geometry.computeVertexNormals(); // Crucial for lighting to reflect the new face shape
         }
 
         function animate() {
