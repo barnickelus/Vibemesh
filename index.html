@@ -2,23 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>VibeMesh | Hardened Recon</title>
+    <title>VibeMesh | Bioluminescent Recon</title>
     <style>
-        body { margin: 0; background: #010101; color: #ffb894; font-family: 'Courier New', monospace; overflow: hidden; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
         #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
-        .controls { pointer-events: auto; background: rgba(10, 5, 2, 0.95); padding: 20px; border: 1px solid #ffb894; width: 280px; box-shadow: 0 0 20px rgba(255, 184, 148, 0.1); }
-        button { background: transparent; color: #ffb894; border: 1px solid #ffb894; padding: 12px; cursor: pointer; text-transform: uppercase; font-size: 10px; width: 100%; margin-top: 10px; letter-spacing: 1px; }
-        button.active { background: #ffb894; color: #000; box-shadow: 0 0 15px #ffb894; }
-        video { position: fixed; bottom: 10px; right: 10px; width: 140px; opacity: 0.3; transform: scaleX(-1); border: 1px solid #444; border-radius: 4px; }
-        #status-light { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ff7e5f; margin-right: 5px; }
+        .panel { pointer-events: auto; background: rgba(0, 5, 5, 0.9); border: 1px solid #00ffcc; padding: 20px; width: 280px; color: #00ffcc; box-shadow: 0 0 20px rgba(0, 255, 204, 0.2); }
+        button { background: transparent; color: #00ffcc; border: 1px solid #00ffcc; padding: 12px; cursor: pointer; text-transform: uppercase; width: 100%; margin-top: 10px; transition: 0.3s; }
+        button.active { background: #00ffcc; color: #000; box-shadow: 0 0 15px #00ffcc; }
+        video { position: fixed; bottom: 10px; right: 10px; width: 150px; opacity: 0.3; transform: scaleX(-1); border: 1px solid #333; }
     </style>
 </head>
 <body>
     <video id="webcam" autoplay playsinline></video>
     <div id="ui">
-        <div class="controls">
-            <h1>VIBEMESH // RECON</h1>
-            <p><span id="status-light"></span> STATUS: <span id="status">INITIALIZING...</span></p>
+        <div class="panel">
+            <h1>VIBEMESH // SKIN_V4</h1>
+            <p>STATUS: <span id="status">INIT_SEARCHING</span></p>
             <p>PACKET_SYNC: <span id="packet-indicator">OFFLINE</span></p>
             <button id="connectBtn">Connect Spatial Ledger</button>
         </div>
@@ -31,100 +30,96 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 1. SHADER SYSTEM ---
-        const vShader = `
-            attribute vec2 vFaceUv;
-            varying vec2 vUvFinal;
-            varying vec3 vNormal;
-            void main() {
-                vUvFinal = vFaceUv;
-                vNormal = normalize(normalMatrix * normal);
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-        `;
-
+        // --- 1. CHUCK CLOSE OPTICAL BLENDING SHADER ---
         const fShader = `
             uniform sampler2D uVideoTexture;
-            varying vec2 vUvFinal; 
+            uniform float uTime;
+            varying vec2 vFaceUv; 
             varying vec3 vNormal;
-            void main() {
-                // Mosaic Grid (Chuck Close Style)
-                vec2 grid = fract(vUvFinal * 130.0) - 0.5;
-                float d = length(grid);
-                float mask = 1.0 - smoothstep(0.1, 0.45, d);
 
-                // Sample Video Texture
-                vec3 videoColor = texture2D(uVideoTexture, vUvFinal).rgb;
+            void main() {
+                vec2 uv = vFaceUv;
+                vec3 baseColor = texture2D(uVideoTexture, uv).rgb;
+                float lum = dot(baseColor, vec3(0.299, 0.587, 0.114));
+
+                // Chuck Close Logic: Concentric rings based on luminance
+                vec2 grid = fract(uv * 110.0) - 0.5;
+                float d = length(grid);
                 
-                // Studio Lighting Simulation
-                float light = max(dot(vNormal, vec3(0.5, 1.0, 0.8)), 0.25);
-                gl_FragColor = vec4(videoColor * mask * (light + 0.2), 1.0);
+                // Optical Vibration: Shift rings with aggressive offsets
+                float rings = floor(lum * 9.0); // Up to 9 nested shapes
+                float ringStep = 0.45 / max(rings, 1.0);
+                float mask = 0.0;
+                
+                for(float i=0.0; i<9.0; i++) {
+                    if(i < rings) {
+                        float r = (i + 1.0) * ringStep;
+                        // Oscillating color ratios for "vibration"
+                        float vibration = sin(uTime * 2.0 + i) * 0.1;
+                        if(d < r + vibration) mask = (mod(i, 2.0) == 0.0) ? 1.0 : 0.4;
+                    }
+                }
+
+                // Bioluminescent "Squid" Glow
+                vec3 editorialGlow = mix(vec3(0.0, 0.1, 0.1), baseColor, mask);
+                float light = max(dot(vNormal, vec3(0.5, 1.0, 0.5)), 0.3);
+                
+                gl_FragColor = vec4(editorialGlow * (light + 0.5), 1.0);
             }
         `;
 
-        // --- 2. CORE SCENE SETUP ---
+        // --- 2. SETUP ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setClearColor(0x000000, 1);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
         const video = document.getElementById('webcam');
         const videoTex = new THREE.VideoTexture(video);
         
-        // High-density mesh for "Living Clay" deformation
-        const geometry = new THREE.SphereGeometry(2.5, 100, 100);
+        // Complex Subdivision (256x256) for smooth Living Clay warping
+        const geometry = new THREE.SphereGeometry(2.6, 256, 256);
         const originalPos = geometry.attributes.position.clone();
-        
-        // Initialize UV mapping attribute
         const faceUvAttr = new Float32Array(geometry.attributes.position.count * 2);
         geometry.setAttribute('vFaceUv', new THREE.BufferAttribute(faceUvAttr, 2));
 
         const material = new THREE.ShaderMaterial({
-            vertexShader: vShader,
+            vertexShader: `
+                attribute vec2 vFaceUv;
+                varying vec2 vFaceUvVar;
+                varying vec3 vNormal;
+                void main() {
+                    vFaceUvVar = vFaceUv;
+                    vNormal = normalize(normalMatrix * normal);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `.replace('vFaceUvVar', 'vFaceUv'),
             fragmentShader: fShader,
-            uniforms: { uVideoTexture: { value: videoTex } }
+            uniforms: { uVideoTexture: { value: videoTex }, uTime: { value: 0 } }
         });
 
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
         camera.position.z = 7;
 
-        // --- 3. MEDIAPIPE PIPELINE ---
+        // --- 3. RECONSTRUCTION ENGINE ---
         let landmarks = null;
         let isConnected = false;
-        const statusEl = document.getElementById('status');
-        const lightEl = document.getElementById('status-light');
-
         const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
         faceMesh.setOptions({ refineLandmarks: true, minDetectionConfidence: 0.5 });
-        faceMesh.onResults((res) => { 
-            if (res.multiFaceLandmarks && res.multiFaceLandmarks[0]) {
-                landmarks = res.multiFaceLandmarks[0];
-                statusEl.innerText = isConnected ? 'SPATIAL_SYNC_ACTIVE' : 'READY_FOR_LEDGER';
-                lightEl.style.background = '#00ffcc';
-            }
-        });
+        faceMesh.onResults((res) => { if (res.multiFaceLandmarks) landmarks = res.multiFaceLandmarks[0]; });
 
-        const cameraFeed = new Camera(video, { 
-            onFrame: async () => { await faceMesh.send({ image: video }); }, 
-            width: 640, height: 480 
-        });
-        cameraFeed.start().catch(() => {
-            statusEl.innerText = 'CAMERA_ERROR';
-            lightEl.style.background = '#ff0000';
-        });
+        new Camera(video, { onFrame: async () => { await faceMesh.send({ image: video }); }, width: 640, height: 480 }).start();
 
-        // --- 4. VOLUMETRIC UPDATE LOOP ---
-        function updateVolumetric() {
+        function updateMesh() {
             if (!isConnected || !landmarks) return;
             const pos = geometry.attributes.position;
             const uvAttr = geometry.attributes.vFaceUv;
-            const sigma = 1.2;
+            const sigmaSq = 0.005; // Tight Gaussian for elasticity
 
-            // Expanded Landmark Map for Contours
-            const anchors = [1, 10, 152, 33, 263, 61, 291, 4, 197, 454, 234];
+            // 12 Core Structural Anchors
+            const anchors = [1, 10, 152, 33, 263, 61, 291, 199, 4, 454, 234, 103];
 
             for (let i = 0; i < pos.count; i++) {
                 let v = new THREE.Vector3(originalPos.getX(i), originalPos.getY(i), originalPos.getZ(i));
@@ -134,17 +129,11 @@
 
                 anchors.forEach(idx => {
                     const lm = landmarks[idx];
-                    // Volumetric Projection: Push out the face features
-                    const target = new THREE.Vector3(
-                        (lm.x - 0.5) * -6, 
-                        (lm.y - 0.5) * -7, 
-                        (0.5 - lm.z) * 5 
-                    );
+                    const target = new THREE.Vector3((lm.x-0.5)*-6.5, (lm.y-0.5)*-7.5, (0.5-lm.z)*5.5);
+                    const dSq = v.distanceToSquared(target);
+                    const w = Math.exp(-dSq / (2.0 * sigmaSq));
                     
-                    const d = v.distanceTo(target);
-                    const w = Math.exp(-(d*d)/(2*sigma*sigma));
-                    
-                    if (w > 0.01) {
+                    if (w > 0.001) {
                         agg.addScaledVector(target, w);
                         uvAgg.addScaledVector(new THREE.Vector2(lm.x, lm.y), w);
                         totalW += w;
@@ -152,9 +141,9 @@
                 });
 
                 if (totalW > 0) {
-                    v.lerp(agg.divideScalar(totalW), 0.8);
-                    const fUv = uvAgg.divideScalar(totalW);
-                    uvAttr.setXY(i, 1.0 - fUv.x, fUv.y); 
+                    v.lerp(agg.divideScalar(totalW), 0.9);
+                    const finalUv = uvAgg.divideScalar(totalW);
+                    uvAttr.setXY(i, 1.0 - finalUv.x, finalUv.y); 
                 }
                 pos.setXYZ(i, v.x, v.y, v.z);
             }
@@ -165,20 +154,15 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            updateVolumetric();
+            material.uniforms.uTime.value = performance.now() * 0.001;
+            updateMesh();
             renderer.render(scene, camera);
         }
 
         document.getElementById('connectBtn').onclick = (e) => {
             isConnected = !isConnected;
             e.target.classList.toggle('active');
-            e.target.innerText = isConnected ? 'Disconnect Ledger' : 'Connect Spatial Ledger';
-        };
-
-        window.onresize = () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('status').innerText = isConnected ? 'SPATIAL_SYNC_ACTIVE' : 'IDLE';
         };
 
         animate();
