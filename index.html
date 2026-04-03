@@ -2,234 +2,181 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>VibeMesh | Canonical Matrix V9</title>
+    <title>VibeMesh | Chuck Close Matrix V10</title>
     <style>
-        body { margin: 0; background: #050505; color: #ffaa00; font-family: 'Courier New', monospace; overflow: hidden; }
+        body { margin: 0; background: #010101; color: #ffaa00; font-family: 'Courier New', monospace; overflow: hidden; }
         #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
-        .panel { pointer-events: auto; background: rgba(10, 5, 0, 0.95); border: 1px solid #ffaa00; padding: 20px; width: 320px; box-shadow: 0 0 25px rgba(255, 170, 0, 0.15); }
-        button { background: transparent; color: #ffaa00; border: 1px solid #ffaa00; padding: 12px; cursor: pointer; text-transform: uppercase; width: 100%; margin-top: 10px; font-weight: bold; transition: all 0.2s; }
-        button:hover { background: rgba(255, 170, 0, 0.2); }
-        #console { margin-top: 15px; font-size: 10px; color: #cc8800; border-top: 1px solid #664400; padding-top: 10px; height: 80px; overflow-y: auto; }
-        video, canvas.input_canvas { position: fixed; bottom: 10px; right: 10px; width: 160px; opacity: 0.0; border: 1px solid #664400; transform: scaleX(-1); }
+        .panel { pointer-events: auto; background: rgba(5, 5, 5, 0.9); border: 1px solid #444; padding: 20px; width: 300px; }
+        button { background: #222; color: #ffaa00; border: 1px solid #ffaa00; padding: 12px; cursor: pointer; width: 100%; font-weight: bold; }
+        #console { margin-top: 10px; font-size: 10px; color: #888; height: 60px; overflow-y: auto; border-top: 1px solid #333; }
+        video { position: fixed; bottom: 10px; right: 10px; width: 160px; opacity: 0.3; transform: scaleX(-1); border: 1px solid #333; }
     </style>
 </head>
 <body>
     <video id="webcam" autoplay playsinline></video>
-    
     <div id="ui">
         <div class="panel">
-            <h1>VIBEMESH // V9</h1>
-            <p>PROTOCOL: CANONICAL_MATRIX</p>
-            <p>SKIN: LOCKED_UV_GRID</p>
-            <button id="connectBtn">Initialize Semantic Mesh</button>
-            <div id="console">> LOG: Awaiting Initialization...</div>
+            <h2 style="margin:0 0 10px 0; font-size: 18px;">LO-BI NET // RECON</h2>
+            <p style="font-size: 10px; color: #666;">SKIN: CHUCK_CLOSE_MATRIX_V10</p>
+            <button id="startBtn">SYNC SPATIAL LEDGER</button>
+            <div id="console">> Awaiting stream...</div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    
     <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
 
     <script type="module">
         import * as THREE from 'three';
 
-        const log = (msg) => {
-            const c = document.getElementById('console');
-            c.innerHTML = `> ${msg}<br>` + c.innerHTML;
-        };
+        const video = document.getElementById('webcam');
+        const log = (m) => { document.getElementById('console').innerHTML = `> ${m}<br>` + document.getElementById('console').innerHTML; };
 
-        // --- 1. THREE.JS ENGINE SETUP ---
+        // --- 1. THREE.JS SCENE ---
         const scene = new THREE.Scene();
-        // Orthographic camera prevents weird perspective distortion on the face
         const aspect = window.innerWidth / window.innerHeight;
         const camera = new THREE.OrthographicCamera(-aspect, aspect, 1, -1, 0.1, 100);
-        camera.position.z = 2;
+        camera.position.z = 5;
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        const video = document.getElementById('webcam');
         const videoTex = new THREE.VideoTexture(video);
 
-        // --- 2. THE CHUCK CLOSE SHADER (Locked to UVs) ---
-        const material = new THREE.ShaderMaterial({
+        // --- 2. DUAL-UV CHUCK CLOSE SHADER ---
+        const matrixMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 uTexture: { value: videoTex },
                 uTime: { value: 0 },
-                uGridDensity: { value: 64.0 } // 64x64 Data Matrix
+                uGridDensity: { value: 54.0 } // Adjust for tile size
             },
             vertexShader: `
-                varying vec2 vUv;
+                varying vec2 vCanonicalUv; 
+                varying vec2 vScreenUv;
+
                 void main() {
-                    vUv = uv; // Pass the perfect canonical UVs to the fragment shader
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    vCanonicalUv = uv; // Grid wraps around the 3D shape
+                    
+                    // Project 3D vertex to 2D screen space to sample camera color
+                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                    vec4 clipPos = projectionMatrix * viewMatrix * worldPos;
+                    vScreenUv = (clipPos.xy / clipPos.w) * 0.5 + 0.5;
+
+                    gl_Position = clipPos;
                 }
             `,
             fragmentShader: `
                 uniform sampler2D uTexture;
                 uniform float uTime;
                 uniform float uGridDensity;
-                varying vec2 vUv;
+                varying vec2 vCanonicalUv;
+                varying vec2 vScreenUv;
 
                 void main() {
-                    // 1. Subdivide the UV space into the Data Matrix
-                    vec2 cellUv = floor(vUv * uGridDensity) / uGridDensity;
-                    
-                    // Center point of the cell to grab the RGB payload
-                    vec2 centerUv = cellUv + (0.5 / uGridDensity);
-                    
-                    // Local coordinates inside the cell (-0.5 to 0.5)
-                    vec2 localUv = fract(vUv * uGridDensity) - 0.5;
+                    // Create contiguous tiles using Canonical UVs
+                    vec2 cellUv = floor(vCanonicalUv * uGridDensity) / uGridDensity;
+                    vec2 localUv = fract(vCanonicalUv * uGridDensity) - 0.5;
 
-                    // 2. The Data Payload (Simulating incoming RGB data)
-                    // We mirror the X axis here so the texture maps correctly to the mirrored geometry
-                    vec4 dataColor = texture2D(uTexture, vec2(1.0 - centerUv.x, centerUv.y));
+                    // Sample live color from Screen UVs (inverted for mirror effect)
+                    vec3 colorData = texture2D(uTexture, vec2(1.0 - vScreenUv.x, vScreenUv.y)).rgb;
                     
-                    // Calculate luminance to decide how complex the cell should be
-                    float lum = dot(dataColor.rgb, vec3(0.299, 0.587, 0.114));
-
-                    // 3. Optical Blending (The Chuck Close Geometry)
+                    // The Chuck Close Logic: Edge-to-edge tiling
                     float dist = length(localUv);
-                    vec3 finalColor = vec3(0.05, 0.05, 0.08); // Deep background
+                    
+                    // Base tile color (Darker)
+                    vec3 finalColor = colorData * 0.7; 
 
-                    // Draw the matrix elements
-                    if (dist < 0.45) {
-                        // Base outer square/blob
-                        finalColor = dataColor.rgb * 0.7; 
-                        
-                        // Inner vibrating core based on luminance
-                        if (dist < lum * 0.35) {
-                            // Shift the hue slightly for the core to create optical vibration
-                            vec3 shiftedColor = vec3(dataColor.b, dataColor.r, dataColor.g);
-                            float pulse = sin(uTime * 5.0 + centerUv.x * 20.0) * 0.5 + 0.5;
-                            finalColor = mix(dataColor.rgb, shiftedColor, pulse);
-                        }
-                    }
+                    // Primary internal shape (Diamond/Circle blend)
+                    float shape = smoothstep(0.45, 0.4, dist);
+                    vec3 secondaryColor = colorData * 1.3; // Vibrance
+                    
+                    // Shift the secondary color slightly for "vibration"
+                    secondaryColor.r += sin(uTime + cellUv.x * 10.0) * 0.1;
+                    
+                    finalColor = mix(finalColor, secondaryColor, shape);
+
+                    // Inner core (Optical center)
+                    float core = smoothstep(0.15, 0.1, dist);
+                    finalColor = mix(finalColor, vec3(1.0) * colorData, core);
+
+                    // Subtle grid borders
+                    float border = smoothstep(0.48, 0.5, max(abs(localUv.x), abs(localUv.y)));
+                    finalColor = mix(finalColor, finalColor * 0.2, border);
 
                     gl_FragColor = vec4(finalColor, 1.0);
                 }
-            `,
-            side: THREE.DoubleSide
+            `
         });
 
-        // --- 3. DYNAMIC GEOMETRY (The Semantic Mesh) ---
-        // We start with an empty geometry. It will be populated by MediaPipe.
+        // --- 3. MEDIAPIPE TO GEOMETRY ---
         const geometry = new THREE.BufferGeometry();
-        const mesh = new THREE.Mesh(geometry, material);
+        const mesh = new THREE.Mesh(geometry, matrixMaterial);
         scene.add(mesh);
 
         let isInitialized = false;
 
-        // --- 4. MEDIAPIPE TRACKING TO 3D DATA PIPELINE ---
         const faceMesh = new FaceMesh({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
         });
 
-        faceMesh.setOptions({
-            maxNumFaces: 1,
-            refineLandmarks: true, // Gets the full 468 points including eyes and lips
-            minDetectionConfidence: 0.6,
-            minTrackingConfidence: 0.6
-        });
+        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5 });
 
         faceMesh.onResults((results) => {
-            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0]) {
                 const landmarks = results.multiFaceLandmarks[0];
                 
-                // If it's the first frame, we build the faces (triangles) and UV map
                 if (!isInitialized) {
-                    buildCanonicalTopology(landmarks);
+                    // Map initial positions to a normalized 0-1 "Pelt Map" for Canonical UVs
+                    const uvs = landmarks.map(l => [l.x, 1.0 - l.y]).flat();
+                    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+                    
+                    // Generate indices for the standard MediaPipe triangles
+                    const indices = [];
+                    for (let i = 0; i < window.FACEMESH_TESSELATION.length; i++) {
+                        indices.push(window.FACEMESH_TESSELATION[i][0], window.FACEMESH_TESSELATION[i][1], window.FACEMESH_TESSELATION[i][2]);
+                    }
+                    geometry.setIndex(indices);
                     isInitialized = true;
-                    log("Semantic Mesh Generated & UVs Locked.");
+                    log("TOPOLOGY LOCKED.");
                 }
 
-                // Every frame, update the XYZ positions
-                updateMeshPositions(landmarks);
+                const positions = new Float32Array(landmarks.length * 3);
+                for (let i = 0; i < landmarks.length; i++) {
+                    positions[i*3] = (landmarks[i].x - 0.5) * aspect * 2.5;
+                    positions[i*3+1] = -(landmarks[i].y - 0.5) * 2.5;
+                    positions[i*3+2] = -landmarks[i].z * 2;
+                }
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometry.attributes.position.needsUpdate = true;
+                geometry.computeVertexNormals();
             }
         });
 
-        const cameraStream = new Camera(video, {
+        const cam = new Camera(video, {
             onFrame: async () => { await faceMesh.send({ image: video }); },
             width: 640, height: 480
         });
 
-        // --- 5. TOPOLOGY FUNCTIONS ---
-        // MediaPipe triangulation array (Standard 468 face mesh)
-        // This tells Three.js which 3 points connect to make a triangle.
-        let FACEMESH_TESSELATION = [];
-
-        async function initTesselation() {
-            // We fetch the standard connection map dynamically to keep code clean
-            const res = await fetch('https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js');
-            // MediaPipe provides FACEMESH_TESSELATION as a global when loaded
-            FACEMESH_TESSELATION = window.FACEMESH_TESSELATION; 
-        }
-
-        function buildCanonicalTopology(landmarks) {
-            const vertices = [];
-            const uvs = [];
-            const indices = [];
-
-            // Add vertices and UVs
-            for (let i = 0; i < landmarks.length; i++) {
-                const lm = landmarks[i];
-                vertices.push(0, 0, 0); // Placeholder, updated next frame
-                // UVs are locked to the normalized X/Y of the face detection on frame 1
-                uvs.push(lm.x, 1.0 - lm.y); 
-            }
-
-            // Add triangles using the standard Tesselation map
-            if (FACEMESH_TESSELATION) {
-                for (let i = 0; i < FACEMESH_TESSELATION.length; i++) {
-                    indices.push(FACEMESH_TESSELATION[i][0], FACEMESH_TESSELATION[i][1], FACEMESH_TESSELATION[i][2]);
-                }
-            }
-
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-            geometry.setIndex(indices);
-        }
-
-        function updateMeshPositions(landmarks) {
-            const positions = geometry.attributes.position.array;
-            
-            for (let i = 0; i < landmarks.length; i++) {
-                const lm = landmarks[i];
-                // Map MediaPipe (0 to 1) to Three.js Orthographic space (-aspect to aspect)
-                // We invert X and Y to act like a mirror
-                positions[i * 3] = (1.0 - lm.x - 0.5) * aspect * 2; 
-                positions[i * 3 + 1] = -(lm.y - 0.5) * 2; 
-                positions[i * 3 + 2] = -lm.z * 2; // Pull depth forward
-            }
-            
-            geometry.attributes.position.needsUpdate = true;
-            geometry.computeVertexNormals();
-        }
-
-        // --- 6. RENDER LOOP ---
-        function animate() {
-            requestAnimationFrame(animate);
-            material.uniforms.uTime.value = performance.now() * 0.001;
-            renderer.render(scene, camera);
-        }
-
-        document.getElementById('connectBtn').addEventListener('click', async () => {
-            log("Booting Neural Trackers...");
-            await initTesselation();
-            cameraStream.start();
+        document.getElementById('startBtn').addEventListener('click', () => {
+            log("BOOTING SYSTEM...");
+            cam.start();
         });
 
+        function animate() {
+            requestAnimationFrame(animate);
+            matrixMaterial.uniforms.uTime.value = performance.now() * 0.002;
+            renderer.render(scene, camera);
+        }
+        animate();
+
         window.addEventListener('resize', () => {
-            const newAspect = window.innerWidth / window.innerHeight;
-            camera.left = -newAspect;
-            camera.right = newAspect;
+            const nA = window.innerWidth / window.innerHeight;
+            camera.left = -nA; camera.right = nA;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
-        animate();
     </script>
 </body>
 </html>
