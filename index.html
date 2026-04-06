@@ -117,18 +117,21 @@ var vb={mo:0,mc:0,bl:0,eo:1},po={y:0,p:0,r:0},pBL={nr:0.55,yo:0};
 
 // Identity params — what the protocol transmits
 var PARAMS={
-  faceWidth:0.55, faceHeight:0.70,
-  eyeSepX:0.30, eyeY:0.15, eyeDepth:0.12,
-  browY:0.34, browZ:0.05,
-  noseBridgeZ:0.08, noseTipZ:0.15, noseTipY:-0.08,
-  noseWidth:0.09,
-  lipUpperZ:0.06, lipLowerZ:0.05,
-  mouthWidth:0.14, mouthY:-0.26,
-  chinZ:0.07, chinY:-0.58,
-  jawWidth:0.52, jawY:-0.38,
-  cheekZ:0.04, cheekX:0.52,
-  foreheadZ:-0.05,
-  earX:0.88
+  faceWidth:0.55, faceHeight:0.72,
+  eyeSepX:0.30, eyeY:0.16, eyeDepth:0.35,
+  browY:0.34, browZ:0.14,
+  noseBridgeZ:0.18, noseTipZ:0.38, noseTipY:-0.10,
+  noseWidth:0.10,
+  lipUpperZ:0.16, lipLowerZ:0.14,
+  mouthWidth:0.16, mouthY:-0.28,
+  chinZ:0.18, chinY:-0.60,
+  jawWidth:0.52, jawY:-0.40,
+  cheekZ:0.10, cheekX:0.50,
+  foreheadZ:-0.10,
+  earX:0.90,
+  jawTaper:0.08,
+  orbitalRim:0.06,
+  nasalFold:0.04
 };
 // Smoothed display version
 var curParams={};
@@ -179,43 +182,73 @@ function computePos(sn,P,blend){
     if(dist<r){var w=(1-dist/r);w=w*w*blend;x+=dx*w;y+=dy*w;z+=dz*w;}
   }
 
-  // Eye sockets
-  def(-P.eyeSepX,P.eyeY,0.85, 0,0,-P.eyeDepth, 0.18);
-  def(P.eyeSepX,P.eyeY,0.85, 0,0,-P.eyeDepth, 0.18);
-  // Brow ridge
-  def(-P.eyeSepX*0.85,P.browY,0.88, 0,0.02,P.browZ, 0.20);
-  def(P.eyeSepX*0.85,P.browY,0.88, 0,0.02,P.browZ, 0.20);
-  // Nose bridge + tip
-  def(0,0.08,0.96, 0,0,P.noseBridgeZ, 0.10);
-  def(0,P.noseTipY,0.96, 0,-0.02,P.noseTipZ, 0.12);
-  // Nostrils
-  def(-P.noseWidth,-.15,.90, -0.02,0,0.03, 0.08);
-  def(P.noseWidth,-.15,.90, 0.02,0,0.03, 0.08);
-  // Lips
-  def(0,P.mouthY,0.90, 0,0,P.lipUpperZ, P.mouthWidth);
-  def(0,P.mouthY-0.10,0.86, 0,0,P.lipLowerZ, P.mouthWidth*0.85);
-  // Philtrum
-  def(0,-0.19,0.96, 0,0,-0.03, 0.04);
-  // Chin
-  def(0,P.chinY,0.72, 0,-0.03,P.chinZ, 0.16);
-  // Jaw
-  def(-P.jawWidth,P.jawY,0.48, -0.02,0,0, 0.16);
-  def(P.jawWidth,P.jawY,0.48, 0.02,0,0, 0.16);
-  // Cheekbones
-  def(-P.cheekX,0.02,0.74, -0.03,0,P.cheekZ, 0.18);
-  def(P.cheekX,0.02,0.74, 0.03,0,P.cheekZ, 0.18);
-  // Temples
-  def(-0.58,0.32,0.58, 0.02,0,-0.02, 0.16);
-  def(0.58,0.32,0.58, -0.02,0,-0.02, 0.16);
-  // Forehead
-  def(0,0.68,0.62, 0,0.02,P.foreheadZ, 0.28);
-  // Under chin
-  def(0,-0.65,0.18, 0,0,-0.05, 0.22);
+  // Eye sockets — deep indentations
+  def(-P.eyeSepX,P.eyeY,0.82, 0,0,-P.eyeDepth, 0.24);
+  def(P.eyeSepX,P.eyeY,0.82, 0,0,-P.eyeDepth, 0.24);
+  // Orbital rim — ridge around each eye socket
+  def(-P.eyeSepX,P.eyeY+0.12,0.86, 0,0.01,P.orbitalRim, 0.16);
+  def(P.eyeSepX,P.eyeY+0.12,0.86, 0,0.01,P.orbitalRim, 0.16);
+  def(-P.eyeSepX,P.eyeY-0.10,0.84, 0,-0.01,P.orbitalRim*0.7, 0.14);
+  def(P.eyeSepX,P.eyeY-0.10,0.84, 0,-0.01,P.orbitalRim*0.7, 0.14);
+  // Brow ridge — prominent shelf above eyes
+  def(-P.eyeSepX*0.85,P.browY,0.85, 0,0.03,P.browZ, 0.26);
+  def(P.eyeSepX*0.85,P.browY,0.85, 0,0.03,P.browZ, 0.26);
+  def(0,P.browY+0.02,0.90, 0,0.02,P.browZ*0.6, 0.18);
+  // Nose bridge — ridge from brow to tip
+  def(0,0.08,0.94, 0,0,P.noseBridgeZ, 0.14);
+  def(0,0.00,0.95, 0,0,P.noseBridgeZ*0.8, 0.12);
+  // Nose tip — strong forward projection
+  def(0,P.noseTipY,0.92, 0,-0.03,P.noseTipZ, 0.16);
+  // Nose sides — narrow the bridge
+  def(-0.14,0.02,0.88, 0.03,0,-0.04, 0.12);
+  def(0.14,0.02,0.88, -0.03,0,-0.04, 0.12);
+  // Nostrils — flare at base
+  def(-P.noseWidth,-0.16,0.88, -0.03,0,0.05, 0.10);
+  def(P.noseWidth,-0.16,0.88, 0.03,0,0.05, 0.10);
+  // Nasolabial folds — creases from nose to mouth corners
+  def(-0.18,-0.20,0.85, -0.01,-0.01,-P.nasalFold, 0.10);
+  def(0.18,-0.20,0.85, 0.01,-0.01,-P.nasalFold, 0.10);
+  // Upper lip — mound forward
+  def(0,P.mouthY,0.88, 0,0,P.lipUpperZ, P.mouthWidth);
+  // Lower lip
+  def(0,P.mouthY-0.10,0.84, 0,0,P.lipLowerZ, P.mouthWidth*0.85);
+  // Lip crease — slight indent between lips
+  def(0,P.mouthY-0.05,0.92, 0,0,-0.04, 0.06);
+  // Philtrum — groove above upper lip
+  def(0,-0.20,0.94, 0,0,-0.06, 0.05);
+  // Chin — project forward and narrow
+  def(0,P.chinY,0.68, 0,-0.04,P.chinZ, 0.20);
+  def(0,P.chinY+0.06,0.78, 0,0,P.chinZ*0.5, 0.14);
+  // Jaw angles — wide corners
+  def(-P.jawWidth,P.jawY,0.45, -0.04,0,0, 0.20);
+  def(P.jawWidth,P.jawY,0.45, 0.04,0,0, 0.20);
+  // Jaw taper — narrow from cheek to chin
+  def(-0.35,-0.55,0.40, P.jawTaper,0.02,0, 0.18);
+  def(0.35,-0.55,0.40, -P.jawTaper,0.02,0, 0.18);
+  // Under jaw — tuck inward
+  def(0,-0.50,0.30, 0,0.02,-0.06, 0.20);
+  // Cheekbones — prominent lateral
+  def(-P.cheekX,0.00,0.72, -0.04,0,P.cheekZ, 0.22);
+  def(P.cheekX,0.00,0.72, 0.04,0,P.cheekZ, 0.22);
+  // Cheek hollows — indent below cheekbone
+  def(-0.40,-0.12,0.70, 0.02,0,-0.04, 0.14);
+  def(0.40,-0.12,0.70, -0.02,0,-0.04, 0.14);
+  // Temples — indent
+  def(-0.58,0.30,0.55, 0.04,0,-0.04, 0.18);
+  def(0.58,0.30,0.55, -0.04,0,-0.04, 0.18);
+  // Forehead — slopes backward at top
+  def(0,0.70,0.58, 0,0.03,P.foreheadZ, 0.32);
+  def(0,0.55,0.72, 0,0,P.foreheadZ*0.4, 0.22);
+  // Skull taper — narrower at top
+  def(-0.45,0.60,0.30, 0.03,0,0, 0.20);
+  def(0.45,0.60,0.30, -0.03,0,0, 0.20);
+  // Under chin taper
+  def(0,-0.68,0.15, 0,0,-0.08, 0.24);
   // Back of head
-  def(0,0.08,-0.92, 0,0,0.05, 0.32);
+  def(0,0.08,-0.92, 0,0,0.06, 0.35);
   // Ears
-  def(-P.earX,0.02,0.12, -0.05,0,0, 0.12);
-  def(P.earX,0.02,0.12, 0.05,0,0, 0.12);
+  def(-P.earX,0.02,0.10, -0.06,0,0, 0.14);
+  def(P.earX,0.02,0.10, 0.06,0,0, 0.14);
 
   return{x:x,y:y,z:z};
 }
@@ -228,13 +261,13 @@ function applyParams(blend){
     var p=computePos(sphereNormals[i],curParams,blend);
     // Expression offsets (LAYER 2 — gentle)
     var dx=0,dy=0;
-    var mo=vb.mo*3,mc=vb.mc,eo=vb.eo,bl=vb.bl*2;
+    var mo=vb.mo*3.5,mc=vb.mc,eo=vb.eo,bl=vb.bl*2.5;
     switch(regionTags[i]){
-      case R_MOUTH:dy-=mo*0.012;dx+=mc*0.002*(p.x>0?1:-1);dy+=mc*0.004;break;
-      case R_JAW:dy-=mo*0.008;break;
-      case R_EYE_L:case R_EYE_R:dy+=(eo-1)*0.004;break;
-      case R_BROW_L:case R_BROW_R:dy+=bl*0.008;break;
-      case R_NOSE:dy+=mc*0.001;break;
+      case R_MOUTH:dy-=mo*0.018;dx+=mc*0.003*(p.x>0?1:-1);dy+=mc*0.006;break;
+      case R_JAW:dy-=mo*0.012;break;
+      case R_EYE_L:case R_EYE_R:dy+=(eo-1)*0.006;break;
+      case R_BROW_L:case R_BROW_R:dy+=bl*0.010;break;
+      case R_NOSE:dy+=mc*0.002;break;
     }
     var tx=p.x+dx, ty=p.y+dy, tz=p.z;
     currentPos[i*3]=lerp(currentPos[i*3],tx,0.18);
@@ -251,15 +284,16 @@ function applyParams(blend){
 function buildClay(){
   if(clayMesh) scene.remove(clayMesh);
   // Reset params to defaults
-  PARAMS.faceWidth=0.55;PARAMS.faceHeight=0.70;PARAMS.eyeSepX=0.30;PARAMS.eyeY=0.15;
-  PARAMS.eyeDepth=0.12;PARAMS.browY=0.34;PARAMS.browZ=0.05;PARAMS.noseBridgeZ=0.08;
-  PARAMS.noseTipZ=0.15;PARAMS.noseTipY=-0.08;PARAMS.noseWidth=0.09;PARAMS.lipUpperZ=0.06;
-  PARAMS.lipLowerZ=0.05;PARAMS.mouthWidth=0.14;PARAMS.mouthY=-0.26;PARAMS.chinZ=0.07;
-  PARAMS.chinY=-0.58;PARAMS.jawWidth=0.52;PARAMS.jawY=-0.38;PARAMS.cheekZ=0.04;
-  PARAMS.cheekX=0.52;PARAMS.foreheadZ=-0.05;PARAMS.earX=0.88;
+  PARAMS.faceWidth=0.55;PARAMS.faceHeight=0.72;PARAMS.eyeSepX=0.30;PARAMS.eyeY=0.16;
+  PARAMS.eyeDepth=0.35;PARAMS.browY=0.34;PARAMS.browZ=0.14;PARAMS.noseBridgeZ=0.18;
+  PARAMS.noseTipZ=0.38;PARAMS.noseTipY=-0.10;PARAMS.noseWidth=0.10;PARAMS.lipUpperZ=0.16;
+  PARAMS.lipLowerZ=0.14;PARAMS.mouthWidth=0.16;PARAMS.mouthY=-0.28;PARAMS.chinZ=0.18;
+  PARAMS.chinY=-0.60;PARAMS.jawWidth=0.52;PARAMS.jawY=-0.40;PARAMS.cheekZ=0.10;
+  PARAMS.cheekX=0.50;PARAMS.foreheadZ=-0.10;PARAMS.earX=0.90;
+  PARAMS.jawTaper=0.08;PARAMS.orbitalRim=0.06;PARAMS.nasalFold=0.04;
   for(var k2 in PARAMS) curParams[k2]=PARAMS[k2];
 
-  var geo=new THREE.SphereGeometry(1,56,42);
+  var geo=new THREE.SphereGeometry(1,64,48);
   clayGeo=geo;
   var pos=geo.attributes.position;
   nV=pos.count;
@@ -322,45 +356,46 @@ function updateIdentity(lm){
   var fh=Math.max.apply(null,oy)-Math.min.apply(null,oy);
   if(fw<0.01||fh<0.01) return;
 
-  var rate=0.01; // SLOW — the key insight from the diagnosis
+  var rate=0.015; // convergence rate — still slow but stronger base needs slightly faster
   function S(a,b){return lerp(a,b,rate);}
 
   var faceRatio=cl(fw/fh,0.60,1.0);
-  PARAMS.faceWidth=S(PARAMS.faceWidth, 0.50+faceRatio*0.08);
+  PARAMS.faceWidth=S(PARAMS.faceWidth, 0.50+faceRatio*0.10);
   PARAMS.faceHeight=S(PARAMS.faceHeight, 0.78-faceRatio*0.10);
 
   var eyeSep=d2(lm[L.LE],lm[L.RE])/fw;
-  PARAMS.eyeSepX=S(PARAMS.eyeSepX, cl(eyeSep*0.5,0.22,0.38));
+  PARAMS.eyeSepX=S(PARAMS.eyeSepX, cl(eyeSep*0.55,0.22,0.40));
 
   var eyeY=((lm[L.LE].y+lm[L.RE].y)*0.5-fcy)/fh;
-  PARAMS.eyeY=S(PARAMS.eyeY, cl(0.15-eyeY*0.3,0.08,0.22));
+  PARAMS.eyeY=S(PARAMS.eyeY, cl(0.16-eyeY*0.3,0.08,0.24));
 
   var noseZ=-(lm[L.N].z||0);
-  PARAMS.noseTipZ=S(PARAMS.noseTipZ, cl(0.10+noseZ*1.5,0.08,0.22));
-  PARAMS.noseBridgeZ=S(PARAMS.noseBridgeZ, cl(0.06+noseZ*0.8,0.04,0.14));
+  PARAMS.noseTipZ=S(PARAMS.noseTipZ, cl(0.30+noseZ*3.0,0.22,0.50));
+  PARAMS.noseBridgeZ=S(PARAMS.noseBridgeZ, cl(0.14+noseZ*1.5,0.10,0.28));
 
   var noseW=d2(lm[48]||lm[L.N],lm[278]||lm[L.N])/fw;
-  PARAMS.noseWidth=S(PARAMS.noseWidth, cl(noseW*0.3,0.04,0.14));
+  PARAMS.noseWidth=S(PARAMS.noseWidth, cl(noseW*0.35,0.05,0.16));
 
   var mouthW=d2(lm[L.ML],lm[L.MR])/fw;
-  PARAMS.mouthWidth=S(PARAMS.mouthWidth, cl(mouthW*0.25,0.08,0.18));
+  PARAMS.mouthWidth=S(PARAMS.mouthWidth, cl(mouthW*0.28,0.10,0.22));
 
   var mouthY=((lm[L.MT].y+lm[L.MB].y)*0.5-fcy)/fh;
-  PARAMS.mouthY=S(PARAMS.mouthY, cl(-0.20-mouthY*0.15,-0.35,-0.18));
+  PARAMS.mouthY=S(PARAMS.mouthY, cl(-0.22-mouthY*0.18,-0.38,-0.18));
 
   var jawW=d2(lm[132],lm[361])/fw;
-  PARAMS.jawWidth=S(PARAMS.jawWidth, cl(jawW*0.4,0.38,0.58));
+  PARAMS.jawWidth=S(PARAMS.jawWidth, cl(jawW*0.42,0.38,0.62));
 
   var browDist=((lm[L.LE].y+lm[L.RE].y)*0.5-lm[L.LBR].y)/fh;
-  PARAMS.browZ=S(PARAMS.browZ, cl(0.02+browDist*0.4,0.02,0.08));
+  PARAMS.browZ=S(PARAMS.browZ, cl(0.08+browDist*0.8,0.06,0.20));
 
   var lipU=Math.abs(lm[L.MT].y-(lm[0]||lm[L.MT]).y)/fh;
-  PARAMS.lipUpperZ=S(PARAMS.lipUpperZ, cl(0.03+lipU*1.5,0.02,0.08));
+  PARAMS.lipUpperZ=S(PARAMS.lipUpperZ, cl(0.10+lipU*3.0,0.08,0.22));
 
   var chinZ=-(lm[L.CH].z||0);
-  PARAMS.chinZ=S(PARAMS.chinZ, cl(0.04+chinZ*0.8,0.02,0.10));
+  PARAMS.chinZ=S(PARAMS.chinZ, cl(0.12+chinZ*2.0,0.08,0.25));
 
-  PARAMS.cheekX=S(PARAMS.cheekX, cl(jawW*0.35+0.15,0.40,0.55));
+  PARAMS.cheekX=S(PARAMS.cheekX, cl(jawW*0.38+0.12,0.38,0.58));
+  PARAMS.cheekZ=S(PARAMS.cheekZ, cl(0.06+browDist*0.4,0.04,0.16));
 
   totalBytes+=36+32; // expression + identity packet
   frameCount++;
