@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vibe Protocol</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
 <style>
@@ -22,17 +21,16 @@ h1 em{font-style:italic;color:var(--accent)}
 .wrap::before,.wrap::after{content:'';position:absolute;width:10px;height:10px;z-index:3;pointer-events:none}
 .wrap::before{top:0;left:0;border-top:2px solid var(--dk);border-left:2px solid var(--dk)}
 .wrap::after{bottom:0;right:0;border-bottom:2px solid var(--dk);border-right:2px solid var(--dk)}
-#display{display:block;border:1px solid var(--border)}
-#ov{position:absolute;inset:0;background:rgba(10,9,8,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;z-index:5;transition:opacity .5s}
+#c{display:block;border:1px solid var(--border)}
+#ov{position:absolute;inset:0;background:rgba(10,9,8,.90);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;z-index:5;transition:opacity .5s}
 #ov.gone{opacity:0;pointer-events:none}
 .ovt{font-family:'Cormorant Garamond',serif;font-size:1.3rem;color:var(--accent)}
-.ovs{font-size:.44rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;text-align:center;line-height:1.8}
+.ovs{font-size:.44rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
 #go{font-family:'JetBrains Mono',monospace;font-size:.52rem;letter-spacing:.14em;text-transform:uppercase;padding:8px 18px;cursor:pointer;background:var(--accent);border:none;color:var(--bg);font-weight:500}
 #go:hover{opacity:.8}
 #go:disabled{opacity:.4}
-.cbar{width:180px;height:3px;background:var(--border);margin-top:4px;border-radius:2px}
-#cf{height:100%;background:var(--accent);width:0%;transition:width .15s;border-radius:2px}
-.cal-arrow{font-size:2rem;color:var(--accent);margin:6px 0;opacity:0.9}
+.cbar{width:140px;height:2px;background:var(--border);margin-top:2px}
+#cf{height:100%;background:var(--accent);width:0%;transition:width .1s}
 .stat{display:flex;justify-content:space-between;font-size:.42rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:0 2px;margin-top:3px}
 .rc{width:170px;display:flex;flex-direction:column;gap:6px}
 .pip{position:relative;border:1px solid var(--border);overflow:hidden}
@@ -52,30 +50,30 @@ h1 em{font-style:italic;color:var(--accent)}
 .bf{height:100%;background:var(--dk);position:absolute;left:0;transition:width .06s}
 .ar{font-size:.34rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:4px;padding-top:4px;border-top:1px solid var(--border)}
 .ar span{color:var(--accent)}
-.ctrls{position:relative;z-index:1;margin-top:8px}
+.ctrls{position:relative;z-index:1;margin-top:8px;display:flex;gap:6px}
 .btn{font-family:'JetBrains Mono',monospace;font-size:.44rem;letter-spacing:.1em;text-transform:uppercase;padding:4px 8px;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer}
 .btn:hover{border-color:var(--dk);color:var(--text)}
+.btn.on{border-color:var(--green);color:var(--green)}
 </style>
 </head>
 <body>
 <header>
   <div class="ey">Vibe Protocol</div>
-  <h1>Living <em>Clay</em></h1>
-  <div class="sub">Guided calibration | Profile depth | Smooth fields</div>
+  <h1>Optical <em>Presence</em></h1>
+  <div class="sub">Photo warp | Chuck Close grid | 36 bytes/frame</div>
 </header>
 <div class="stage">
   <div>
     <div class="wrap">
-      <canvas id="display" width="480" height="580"></canvas>
+      <canvas id="c" width="480" height="580"></canvas>
       <div id="ov">
         <div class="ovt" id="ovt">Vibe Protocol</div>
         <div class="ovs" id="ovs">Camera access needed</div>
-        <div class="cal-arrow" id="calArrow"></div>
         <button id="go">Enable Camera</button>
         <div class="cbar" id="cbar2" style="display:none"><div id="cf"></div></div>
       </div>
     </div>
-    <div class="stat"><span id="sp">Waiting</span><span id="ss">--</span><span id="sl">--</span></div>
+    <div class="stat"><span id="sp">Waiting</span><span id="st">--</span><span id="sx">--</span></div>
   </div>
   <div class="rc">
     <div class="pip"><video id="vid" playsinline muted></video><div class="bdg w" id="badge">Wait</div></div>
@@ -85,501 +83,394 @@ h1 em{font-style:italic;color:var(--accent)}
       <div class="pr"><div class="pl">Smile <span class="pv" id="vs2">0.00</span></div><div class="bt"><div class="bf" id="bs2"></div></div></div>
       <div class="pr"><div class="pl">Eyes <span class="pv" id="ve">1.00</span></div><div class="bt"><div class="bf" id="be"></div></div></div>
       <div class="pr"><div class="pl">Yaw <span class="pv" id="vy">0.00</span></div><div class="bt"><div class="bf" id="by2"></div></div></div>
-      <div class="ar"><span id="phLbl">--</span> | <span id="ac">0</span>b</div>
+      <div class="ar">Textures: <span id="ac">1</span> | <span id="ak">36</span> b/frame</div>
     </div>
   </div>
 </div>
-<div class="ctrls"><button class="btn" id="recal">Reset</button></div>
+<div class="ctrls">
+  <button class="btn" id="recal">Recalibrate</button>
+  <button class="btn on" id="gridBtn">Grid ON</button>
+</div>
 
 <script>
-var CW=480,CH=580,NL=468;
+var CW=480,CH=580,VW=640,VH=480,CFRAMES=45,NL=468;
 var OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
 var LK={N:1,CH:152,T:10,LE:33,RE:263,LT:159,LB:145,RT:386,RB:374,LBR:105,RBR:334,MT:13,MB:14,ML:61,MR:291};
 function cl(v,a,b){return v<a?a:v>b?b:v;}
 function lerp(a,b,t){return a+(b-a)*t;}
-function d2(a,b){return Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));}
 
-var phase='w',calLM=null,browBL=null;
-var vb={mo:0,mc:0,bl:0,eo:1},po={y:0,p:0,r:0},pBL={nr:0.55,yo:0};
+// ═══ STATE ═══
+var phase='w',calCnt=0,calLM=null,browBL=null;
+var vb={mo:0,mc:0,bl:0,eo:1};
+var po={y:0,p:0,r:0};
+var pBL={nr:0.55,yo:0};
+var pal={sk:[170,135,110],hr:[50,38,28],bg:[35,30,25]};
 
-// ═══ CALIBRATION STATE ═══
-// Guided sequence: front(30f) → "turn left"(40f) → "turn right"(40f) → done
-var calStep=0; // 0=waiting, 1=front, 2=left, 3=right, 4=done
-var calFrames=0;
-var calData={front:null, left:null, right:null}; // accumulated landmark snapshots
+// Avatar mesh
+var snapImg=null;       // calibration snapshot canvas
+var triIdx=null;        // [[a,b,c],...] triangles
+var srcPts=null;        // [{x,y}] in snapshot pixel coords
+var calScreen=null;     // [{x,y}] calibration screen positions
+var dstPts=null;        // [{x,y}] current animated screen positions
+var calFW=1,calFH=1;    // calibration face width/height for normalization
 
-// Identity params
-var P={
-  faceW:0.55, faceH:0.72,
-  eyeSepX:0.30, eyeY:0.16, eyeDepth:0.35,
-  browY:0.34, browZ:0.14,
-  noseBridgeZ:0.18, noseTipZ:0.38, noseTipY:-0.10,
-  noseW:0.10,
-  lipUZ:0.16, lipLZ:0.14,
-  mouthW:0.16, mouthY:-0.28,
-  chinZ:0.18, chinY:-0.60,
-  jawW:0.52, jawY:-0.40,
-  cheekZ:0.10, cheekX:0.50,
-  foreheadZ:-0.10, earX:0.90,
-  jawTaper:0.08, orbRim:0.06, nasalFold:0.04
-};
-var curP={};for(var kk in P)curP[kk]=P[kk];
-var HYoff=0.06;
+// Progressive textures
+var exTex=[],lastCap=0;
+var gridOn=true;
 
-var clayMesh=null,clayGeo=null,nV=0;
-var sphN=null,curPos=null,colors=null,rTags=null;
-var formBlend=0,totalBytes=0;
-var identityLocked=false;
+// Offscreen canvas for grid post-process
+var offCvs=document.createElement('canvas');
+offCvs.width=CW;offCvs.height=CH;
+var offCtx=offCvs.getContext('2d');
 
-var CLAY=[0.72,0.58,0.45];
-var R_NONE=0,R_MOUTH=1,R_JAW=2,R_EYE_L=3,R_EYE_R=4,R_BROW_L=5,R_BROW_R=6,R_NOSE=7,R_CHEEK=8,R_FH=9;
+var cvs=document.getElementById('c');
+var ctx=cvs.getContext('2d');
+var vid=document.getElementById('vid');
 
-// ═══ THREE.JS ═══
-var display=document.getElementById('display');
-var ren=new THREE.WebGLRenderer({canvas:display,antialias:true});
-ren.setSize(CW,CH,false);ren.setClearColor(0x0a0908);
-ren.toneMapping=THREE.ACESFilmicToneMapping;ren.toneMappingExposure=1.1;
-var scene=new THREE.Scene();
-var bgC=document.createElement('canvas');bgC.width=2;bgC.height=256;
-var bx2=bgC.getContext('2d');var bgG=bx2.createLinearGradient(0,0,0,256);
-bgG.addColorStop(0,'#1a1612');bgG.addColorStop(0.4,'#110f0d');bgG.addColorStop(1,'#080706');
-bx2.fillStyle=bgG;bx2.fillRect(0,0,2,256);scene.background=new THREE.CanvasTexture(bgC);
-var cam=new THREE.PerspectiveCamera(30,CW/CH,0.1,100);cam.position.set(0,0,3.8);
-scene.add(new THREE.AmbientLight(0xffe0c8,0.35));
-var kl=new THREE.DirectionalLight(0xfff0e0,0.6);kl.position.set(-2,2.5,3);scene.add(kl);
-var fl3=new THREE.DirectionalLight(0xc8d8f0,0.25);fl3.position.set(2,0.5,2);scene.add(fl3);
-var rl2=new THREE.DirectionalLight(0xffd0a0,0.2);rl2.position.set(0,1,-3);scene.add(rl2);
+// Layout constants
+var SCALE_X=CW*0.30, SCALE_Y=CH*0.28;
+var CENTER_X=CW*0.5, CENTER_Y=CH*0.40;
+var MAX_DISP=22; // max pixel displacement per vertex — prevents explosion
 
-// ═══ DEFORMATION SYSTEM — smoothstep falloff ═══
-function computePos(sn,PP,blend){
-  var x=sn.x*PP.faceW, y=sn.y*PP.faceH+HYoff, z=sn.z*0.52;
-
-  function def(cx,cy,cz, dx,dy,dz, r){
-    var ex=sn.x-cx,ey=sn.y-cy,ez=sn.z-cz;
-    var dist=Math.sqrt(ex*ex+ey*ey+ez*ez);
-    if(dist>=r) return;
-    var t=1-dist/r;
-    // Smoothstep: spreads effect much broader than quadratic
-    var w=t*t*(3-2*t)*blend;
-    x+=dx*w; y+=dy*w; z+=dz*w;
-  }
-
-  // Eye sockets — deep
-  def(-PP.eyeSepX,PP.eyeY,0.80, 0,0,-PP.eyeDepth, 0.26);
-  def(PP.eyeSepX,PP.eyeY,0.80, 0,0,-PP.eyeDepth, 0.26);
-  // Orbital rim
-  def(-PP.eyeSepX,PP.eyeY+0.14,0.84, 0,0.015,PP.orbRim, 0.18);
-  def(PP.eyeSepX,PP.eyeY+0.14,0.84, 0,0.015,PP.orbRim, 0.18);
-  def(-PP.eyeSepX,PP.eyeY-0.12,0.82, 0,-0.01,PP.orbRim*0.7, 0.16);
-  def(PP.eyeSepX,PP.eyeY-0.12,0.82, 0,-0.01,PP.orbRim*0.7, 0.16);
-  // Brow ridge
-  def(-PP.eyeSepX*0.85,PP.browY,0.84, 0,0.03,PP.browZ, 0.28);
-  def(PP.eyeSepX*0.85,PP.browY,0.84, 0,0.03,PP.browZ, 0.28);
-  def(0,PP.browY+0.02,0.88, 0,0.02,PP.browZ*0.5, 0.20);
-  // Nose bridge
-  def(0,0.08,0.92, 0,0,PP.noseBridgeZ, 0.16);
-  def(0,-0.01,0.93, 0,0,PP.noseBridgeZ*0.8, 0.14);
-  // Nose tip
-  def(0,PP.noseTipY,0.90, 0,-0.03,PP.noseTipZ, 0.18);
-  // Nose sides — pinch
-  def(-0.15,0.02,0.86, 0.04,0,-0.05, 0.14);
-  def(0.15,0.02,0.86, -0.04,0,-0.05, 0.14);
-  // Nostrils
-  def(-PP.noseW,-0.16,0.86, -0.03,0,0.06, 0.12);
-  def(PP.noseW,-0.16,0.86, 0.03,0,0.06, 0.12);
-  // Nasolabial
-  def(-0.20,-0.20,0.82, -0.01,-0.01,-PP.nasalFold, 0.12);
-  def(0.20,-0.20,0.82, 0.01,-0.01,-PP.nasalFold, 0.12);
-  // Upper lip
-  def(0,PP.mouthY,0.86, 0,0,PP.lipUZ, PP.mouthW);
-  // Lower lip
-  def(0,PP.mouthY-0.10,0.82, 0,0,PP.lipLZ, PP.mouthW*0.85);
-  // Lip crease
-  def(0,PP.mouthY-0.05,0.90, 0,0,-0.05, 0.07);
-  // Philtrum
-  def(0,-0.20,0.92, 0,0,-0.07, 0.06);
-  // Chin
-  def(0,PP.chinY,0.65, 0,-0.05,PP.chinZ, 0.22);
-  def(0,PP.chinY+0.08,0.75, 0,0,PP.chinZ*0.4, 0.16);
-  // Jaw
-  def(-PP.jawW,PP.jawY,0.42, -0.05,0,0, 0.22);
-  def(PP.jawW,PP.jawY,0.42, 0.05,0,0, 0.22);
-  // Jaw taper
-  def(-0.38,-0.56,0.36, PP.jawTaper,0.02,0, 0.20);
-  def(0.38,-0.56,0.36, -PP.jawTaper,0.02,0, 0.20);
-  // Under jaw
-  def(0,-0.52,0.28, 0,0.03,-0.08, 0.22);
-  // Cheekbones
-  def(-PP.cheekX,-0.02,0.70, -0.05,0,PP.cheekZ, 0.24);
-  def(PP.cheekX,-0.02,0.70, 0.05,0,PP.cheekZ, 0.24);
-  // Cheek hollows
-  def(-0.42,-0.14,0.68, 0.03,0,-0.05, 0.16);
-  def(0.42,-0.14,0.68, -0.03,0,-0.05, 0.16);
-  // Temples
-  def(-0.60,0.30,0.52, 0.05,0,-0.05, 0.20);
-  def(0.60,0.30,0.52, -0.05,0,-0.05, 0.20);
-  // Forehead
-  def(0,0.72,0.55, 0,0.03,PP.foreheadZ, 0.34);
-  def(0,0.56,0.70, 0,0,PP.foreheadZ*0.4, 0.24);
-  // Skull taper
-  def(-0.46,0.62,0.28, 0.04,0,0, 0.22);
-  def(0.46,0.62,0.28, -0.04,0,0, 0.22);
-  // Under chin taper
-  def(0,-0.70,0.12, 0,0,-0.10, 0.26);
-  // Back of head
-  def(0,0.08,-0.92, 0,0,0.07, 0.38);
-  // Ears
-  def(-PP.earX,0.02,0.08, -0.07,0,0, 0.15);
-  def(PP.earX,0.02,0.08, 0.07,0,0, 0.15);
-
-  return{x:x,y:y,z:z};
+// ═══ DELAUNAY ═══
+function delaunay(pts){
+  var n=pts.length,i,j,k,e;if(n<3)return[];
+  var mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;
+  for(i=0;i<n;i++){if(pts[i].x<mnx)mnx=pts[i].x;if(pts[i].y<mny)mny=pts[i].y;if(pts[i].x>mxx)mxx=pts[i].x;if(pts[i].y>mxy)mxy=pts[i].y;}
+  var dm=Math.max(mxx-mnx||1,mxy-mny||1)*10;
+  var sp=[{x:mnx-dm,y:mny-dm},{x:mnx+dm*3,y:mny-dm},{x:mnx+(mxx-mnx)*0.5,y:mny+dm*3}];
+  var all=pts.concat(sp);
+  function mk(a,b,c){var ax=all[a].x,ay=all[a].y,bx=all[b].x,by=all[b].y,cx=all[c].x,cy=all[c].y;var D=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));if(Math.abs(D)<1e-12)return{v:[a,b,c],cx:0,cy:0,r2:-1};var ux=((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/D;var uy=((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/D;return{v:[a,b,c],cx:ux,cy:uy,r2:(ax-ux)*(ax-ux)+(ay-uy)*(ay-uy)};}
+  var ts=[mk(n,n+1,n+2)];
+  for(i=0;i<n;i++){var px=pts[i].x,py=pts[i].y,bad=[],good=[];for(j=0;j<ts.length;j++){var t=ts[j];if(t.r2>=0&&(px-t.cx)*(px-t.cx)+(py-t.cy)*(py-t.cy)<t.r2*1.000001)bad.push(t);else good.push(t);}var edges=[];for(j=0;j<bad.length;j++){var v=bad[j].v;for(e=0;e<3;e++){var a=v[e],b=v[(e+1)%3],sh=false;for(k=0;k<bad.length;k++){if(k===j)continue;var ov=bad[k].v;if((ov[0]===a||ov[1]===a||ov[2]===a)&&(ov[0]===b||ov[1]===b||ov[2]===b)){sh=true;break;}}if(!sh)edges.push([a,b]);}}ts=good;for(j=0;j<edges.length;j++)ts.push(mk(i,edges[j][0],edges[j][1]));}
+  var out=[];for(i=0;i<ts.length;i++){var tv=ts[i].v;if(tv[0]<n&&tv[1]<n&&tv[2]<n&&ts[i].r2>=0)out.push(tv);}return out;
 }
 
-function applyShape(blend){
-  if(!clayGeo)return;
-  var pos=clayGeo.attributes.position;
-  var mo=vb.mo*3.5,mc=vb.mc,eo=vb.eo,bl=vb.bl*2.5;
-  for(var i=0;i<nV;i++){
-    var p=computePos(sphN[i],curP,blend);
-    var dx=0,dy=0;
-    switch(rTags[i]){
-      case R_MOUTH:dy-=mo*0.018;dx+=mc*0.003*(p.x>0?1:-1);dy+=mc*0.006;break;
-      case R_JAW:dy-=mo*0.012;break;
-      case R_EYE_L:case R_EYE_R:dy+=(eo-1)*0.006;break;
-      case R_BROW_L:case R_BROW_R:dy+=bl*0.010;break;
-      case R_NOSE:dy+=mc*0.002;break;
-    }
-    var tx=p.x+dx,ty=p.y+dy,tz=p.z;
-    curPos[i*3]=lerp(curPos[i*3],tx,0.18);
-    curPos[i*3+1]=lerp(curPos[i*3+1],ty,0.18);
-    curPos[i*3+2]=lerp(curPos[i*3+2],tz,0.18);
-    pos.setXYZ(i,curPos[i*3],curPos[i*3+1],curPos[i*3+2]);
-  }
-  pos.needsUpdate=true;
-  clayGeo.attributes.color.needsUpdate=true;
-  clayGeo.computeVertexNormals();
+// ═══ TRIANGLE WARP — the core ═══
+// Maps source triangle from snapshot to destination triangle on canvas
+// via Canvas 2D affine transform + clip
+function warpTri(dc,img,s0,s1,s2,d0,d1,d2){
+  var A=s0.x-s2.x,B=s1.x-s2.x,C=s0.y-s2.y,D=s1.y-s2.y;
+  var det=A*D-B*C;
+  if(Math.abs(det)<0.5)return;
+  var id=1/det;
+  var a=(D*(d0.x-d2.x)-B*(d1.x-d2.x))*id;
+  var b=(D*(d0.y-d2.y)-B*(d1.y-d2.y))*id;
+  var c2=(A*(d1.x-d2.x)-C*(d0.x-d2.x))*id;
+  var d2v=(A*(d1.y-d2.y)-C*(d0.y-d2.y))*id;
+  var e=d0.x-a*s0.x-c2*s0.y;
+  var f=d0.y-b*s0.x-d2v*s0.y;
+  dc.save();
+  dc.beginPath();
+  dc.moveTo(d0.x,d0.y);dc.lineTo(d1.x,d1.y);dc.lineTo(d2.x,d2.y);
+  dc.closePath();dc.clip();
+  dc.setTransform(a,b,c2,d2v,e,f);
+  dc.drawImage(img,0,0);
+  dc.restore();
 }
 
-// ═══ BUILD CLAY ═══
-function buildClay(){
-  if(clayMesh)scene.remove(clayMesh);
-  P.faceW=0.55;P.faceH=0.72;P.eyeSepX=0.30;P.eyeY=0.16;P.eyeDepth=0.35;
-  P.browY=0.34;P.browZ=0.14;P.noseBridgeZ=0.18;P.noseTipZ=0.38;P.noseTipY=-0.10;
-  P.noseW=0.10;P.lipUZ=0.16;P.lipLZ=0.14;P.mouthW=0.16;P.mouthY=-0.28;
-  P.chinZ=0.18;P.chinY=-0.60;P.jawW=0.52;P.jawY=-0.40;P.cheekZ=0.10;
-  P.cheekX=0.50;P.foreheadZ=-0.10;P.earX=0.90;P.jawTaper=0.08;P.orbRim=0.06;P.nasalFold=0.04;
-  for(var k2 in P)curP[k2]=P[k2];
+// ═══ BUILD AVATAR ═══
+function buildAvatar(lm,snapshot){
+  snapImg=snapshot;
 
-  var geo=new THREE.SphereGeometry(1,64,48);
-  clayGeo=geo;var pos=geo.attributes.position;nV=pos.count;
-  sphN=[];curPos=new Float32Array(nV*3);colors=new Float32Array(nV*3);rTags=new Uint8Array(nV);
-
-  for(var i=0;i<nV;i++){
-    var ox=pos.getX(i),oy=pos.getY(i),oz=pos.getZ(i);
-    sphN.push({x:ox,y:oy,z:oz});
-    var hx=ox*0.55,hy=oy*0.72+HYoff,hz=oz*0.52;
-    curPos[i*3]=hx;curPos[i*3+1]=hy;curPos[i*3+2]=hz;
-    pos.setXYZ(i,hx,hy,hz);
-    colors[i*3]=CLAY[0];colors[i*3+1]=CLAY[1];colors[i*3+2]=CLAY[2];
-    var front=oz>0.3;
-    if(front&&oy<-0.15&&oy>-0.50&&Math.abs(ox)<0.30)rTags[i]=R_MOUTH;
-    else if(oy<=-0.50)rTags[i]=R_JAW;
-    else if(front&&oy>0.05&&oy<0.30&&ox<-0.10)rTags[i]=R_EYE_L;
-    else if(front&&oy>0.05&&oy<0.30&&ox>0.10)rTags[i]=R_EYE_R;
-    else if(front&&oy>=0.30&&oy<0.50&&ox<0)rTags[i]=R_BROW_L;
-    else if(front&&oy>=0.30&&oy<0.50&&ox>0)rTags[i]=R_BROW_R;
-    else if(front&&oy>-0.15&&oy<0.12&&Math.abs(ox)<0.22)rTags[i]=R_NOSE;
-    else if(front&&oy>=0.50)rTags[i]=R_FH;
-    else if(front&&Math.abs(ox)>0.30)rTags[i]=R_CHEEK;
-    else rTags[i]=R_NONE;
-  }
-  geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
-  geo.computeVertexNormals();
-  var mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.80,metalness:0.02});
-  clayMesh=new THREE.Mesh(geo,mat);clayMesh.rotation.order='YXZ';
-
-  var skinM=new THREE.MeshStandardMaterial({color:new THREE.Color(CLAY[0]*0.7,CLAY[1]*0.7,CLAY[2]*0.7),roughness:0.85});
-  var clothM=new THREE.MeshStandardMaterial({color:new THREE.Color(0.10,0.09,0.08),roughness:0.9});
-  var neck=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.16,0.26,16),skinM);
-  neck.position.set(0,-0.74,0);clayMesh.add(neck);
-  var sh=new THREE.Mesh(new THREE.SphereGeometry(0.48,16,8,0,Math.PI*2,0,Math.PI*0.5),clothM);
-  sh.position.set(0,-0.90,0);sh.scale.set(1.1,0.36,0.46);sh.rotation.x=Math.PI;clayMesh.add(sh);
-  var torso=new THREE.Mesh(new THREE.CylinderGeometry(0.43,0.38,0.48,16),clothM);
-  torso.position.set(0,-1.14,0);torso.scale.set(1,1,0.36);clayMesh.add(torso);
-
-  scene.add(clayMesh);
-  formBlend=0;totalBytes=0;identityLocked=false;
-  calStep=0;calFrames=0;calData={front:null,left:null,right:null};
-}
-
-// ═══════════════════════════════════════
-//  GUIDED CALIBRATION
-//  Step 1: Look straight (30 frames) — face proportions
-//  Step 2: Turn left (40 frames) — profile depths (nose, chin, brow)
-//  Step 3: Turn right (40 frames) — confirm + average
-// ═══════════════════════════════════════
-
-function accCal(lm, target){
-  if(!target){
-    target=[];
-    for(var i=0;i<lm.length;i++)target.push({x:lm[i].x,y:lm[i].y,z:lm[i].z||0});
-    return target;
-  }
-  for(var j=0;j<lm.length;j++){
-    target[j].x=target[j].x*0.80+lm[j].x*0.20;
-    target[j].y=target[j].y*0.80+lm[j].y*0.20;
-    target[j].z=target[j].z*0.80+(lm[j].z||0)*0.20;
-  }
-  return target;
-}
-
-function detectYaw(lm){
-  var n=lm[LK.N],le=lm[LK.LE],re=lm[LK.RE];
-  var emx=(le.x+re.x)*0.5,es=Math.abs(re.x-le.x);
-  if(es<0.01)return 0;
-  return(n.x-emx)/es;
-}
-
-function runCalibration(lm){
-  var ov=document.getElementById('ov'),ot=document.getElementById('ovt'),os=document.getElementById('ovs');
-  var arrow=document.getElementById('calArrow'),bar=document.getElementById('cbar2'),fill=document.getElementById('cf');
-  var yaw=detectYaw(lm);
-
-  if(calStep===0){
-    // Start front calibration
-    calStep=1;calFrames=0;
-    ov.classList.remove('gone');
-    ot.textContent='Look straight';os.textContent='Face the camera directly';
-    arrow.textContent='';bar.style.display='block';
-  }
-
-  if(calStep===1){
-    // Front: need roughly centered face (yaw near 0)
-    if(Math.abs(yaw)<0.15){
-      calData.front=accCal(lm,calData.front);
-      calFrames++;
-      fill.style.width=(calFrames/30*33)+'%';
-    }
-    if(calFrames>=30){
-      calStep=2;calFrames=0;
-      ot.textContent='Turn left';os.textContent='Slowly turn your head left';
-      arrow.textContent='<<<';
-    }
-    return false;
-  }
-
-  if(calStep===2){
-    // Left turn: need yaw > 0.2 (nose right of center = turned left in mirror)
-    if(yaw>0.15){
-      calData.left=accCal(lm,calData.left);
-      calFrames++;
-      fill.style.width=(33+calFrames/40*33)+'%';
-    }
-    if(calFrames>=40){
-      calStep=3;calFrames=0;
-      ot.textContent='Turn right';os.textContent='Slowly turn your head right';
-      arrow.textContent='>>>';
-    }
-    return false;
-  }
-
-  if(calStep===3){
-    // Right turn: need yaw < -0.2
-    if(yaw<-0.15){
-      calData.right=accCal(lm,calData.right);
-      calFrames++;
-      fill.style.width=(66+calFrames/40*34)+'%';
-    }
-    if(calFrames>=40){
-      calStep=4;
-      ov.classList.add('gone');
-      bar.style.display='none';
-      document.getElementById('badge').className='bdg l';
-      document.getElementById('badge').textContent='Live';
-      document.getElementById('pdot').className='dot on';
-
-      // Extract measurements from all three views
-      extractFromCalibration();
-
-      // Set pose baseline from front view
-      var fl=calData.front;
-      var n=fl[LK.N],le=fl[LK.LE],re=fl[LK.RE],ch=fl[LK.CH];
-      var es=Math.abs(re.x-le.x);
-      pBL.yo=es>0.01?(n.x-(le.x+re.x)*0.5)/es:0;
-      var emy=(le.y+re.y)*0.5;
-      pBL.nr=(ch.y-emy)>0.01?(n.y-emy)/(ch.y-emy):0.55;
-
-      var bd=(fl[159].y+fl[386].y)*0.5-(fl[105].y+fl[334].y)*0.5;
-      browBL=bd;
-
-      phase='l';
-      document.getElementById('sp').textContent='Live';
-      return true;
-    }
-    return false;
-  }
-  return calStep===4;
-}
-
-// ═══════════════════════════════════════
-//  EXTRACT MEASUREMENTS from 3-view calibration
-//  Front view: proportions, widths
-//  Profile views: DEPTH — nose projection, chin, brow ridge
-//  Profile depth = how far the nose tip sticks past the face center in X
-// ═══════════════════════════════════════
-function extractFromCalibration(){
-  var F=calData.front;
-  var L2=calData.left;
-  var R=calData.right;
-  if(!F)return;
-
-  // ── FRONT VIEW measurements ──
-  var ox=OVAL.map(function(i){return F[i].x;}),oy=OVAL.map(function(i){return F[i].y;});
-  var fcx=(Math.min.apply(null,ox)+Math.max.apply(null,ox))*0.5;
-  var fcy=(Math.min.apply(null,oy)+Math.max.apply(null,oy))*0.5;
-  var fw=Math.max.apply(null,ox)-Math.min.apply(null,ox);
-  var fh=Math.max.apply(null,oy)-Math.min.apply(null,oy);
-  if(fw<0.01||fh<0.01)return;
-
-  var fR=cl(fw/fh,0.60,1.0);
-  P.faceW=0.50+fR*0.10;
-  P.faceH=0.78-fR*0.10;
-
-  var eyeSep=d2(F[LK.LE],F[LK.RE])/fw;
-  P.eyeSepX=cl(eyeSep*0.55,0.22,0.40);
-
-  var eyeYn=((F[LK.LE].y+F[LK.RE].y)*0.5-fcy)/fh;
-  P.eyeY=cl(0.16-eyeYn*0.3,0.08,0.24);
-
-  var mouthWn=d2(F[LK.ML],F[LK.MR])/fw;
-  P.mouthW=cl(mouthWn*0.28,0.10,0.22);
-
-  var mouthYn=((F[LK.MT].y+F[LK.MB].y)*0.5-fcy)/fh;
-  P.mouthY=cl(-0.22-mouthYn*0.18,-0.38,-0.18);
-
-  var jawWn=d2(F[132],F[361])/fw;
-  P.jawW=cl(jawWn*0.42,0.38,0.62);
-
-  var noseWn=d2(F[48]||F[LK.N],F[278]||F[LK.N])/fw;
-  P.noseW=cl(noseWn*0.35,0.05,0.16);
-
-  var browDist=((F[LK.LE].y+F[LK.RE].y)*0.5-F[LK.LBR].y)/fh;
-  P.browZ=cl(0.08+browDist*0.8,0.06,0.22);
-
-  var lipUn=Math.abs(F[LK.MT].y-(F[0]||F[LK.MT]).y)/fh;
-  P.lipUZ=cl(0.10+lipUn*3.0,0.08,0.24);
-
-  P.cheekX=cl(jawWn*0.38+0.12,0.38,0.58);
-
-  // ── PROFILE VIEW measurements ──
-  // When turned left, the nose tip's X position relative to the face center
-  // directly reveals nose projection. Same for chin, brow ridge.
-  if(L2){
-    var Lox=OVAL.map(function(i){return L2[i].x;}),Loy=OVAL.map(function(i){return L2[i].y;});
-    var Lfcx=(Math.min.apply(null,Lox)+Math.max.apply(null,Lox))*0.5;
-    var Lfw=Math.max.apply(null,Lox)-Math.min.apply(null,Lox);
-    if(Lfw>0.01){
-      // Nose: how far tip extends past face center (turned left = nose goes right)
-      var noseExt=(L2[LK.N].x-Lfcx)/Lfw;
-      P.noseTipZ=cl(0.20+noseExt*1.2,0.22,0.55);
-      P.noseBridgeZ=cl(0.10+noseExt*0.6,0.10,0.30);
-
-      // Chin projection
-      var chinExt=(L2[LK.CH].x-Lfcx)/Lfw;
-      P.chinZ=cl(0.10+chinExt*0.8,0.08,0.30);
-
-      // Brow ridge (brow extends forward in profile)
-      var browExt=(L2[LK.LBR].x-Lfcx)/Lfw;
-      P.browZ=cl(P.browZ*0.5+(0.08+browExt*0.6)*0.5, 0.06,0.22);
-    }
-  }
-
-  // Average with right profile if available
-  if(R){
-    var Rox=OVAL.map(function(i){return R[i].x;}),Roy=OVAL.map(function(i){return R[i].y;});
-    var Rfcx=(Math.min.apply(null,Rox)+Math.max.apply(null,Rox))*0.5;
-    var Rfw=Math.max.apply(null,Rox)-Math.min.apply(null,Rox);
-    if(Rfw>0.01){
-      // Right turn: nose goes left, so extension is negative
-      var noseExtR=-(R[LK.N].x-Rfcx)/Rfw;
-      P.noseTipZ=(P.noseTipZ+cl(0.20+noseExtR*1.2,0.22,0.55))*0.5;
-      P.noseBridgeZ=(P.noseBridgeZ+cl(0.10+noseExtR*0.6,0.10,0.30))*0.5;
-
-      var chinExtR=-(R[LK.CH].x-Rfcx)/Rfw;
-      P.chinZ=(P.chinZ+cl(0.10+chinExtR*0.8,0.08,0.30))*0.5;
-    }
-  }
-
-  // Eye depth from front view z
-  var eyeZavg=-((F[LK.LT].z||0)+(F[LK.RT].z||0))*0.5;
-  P.eyeDepth=cl(0.25+eyeZavg*2,0.20,0.50);
-
-  totalBytes+=26*4; // 26 params * 4 bytes each
-  document.getElementById('ac').textContent=totalBytes;
-  document.getElementById('phLbl').textContent='Identity set';
-}
-
-// ═══ COLOR SAMPLING ═══
-function updateColor(lm,vid2){
-  if(!clayGeo)return;
+  // Face bounding box from oval landmarks
   var ox=OVAL.map(function(i){return lm[i].x;}),oy=OVAL.map(function(i){return lm[i].y;});
   var fcx=(Math.min.apply(null,ox)+Math.max.apply(null,ox))*0.5;
   var fcy=(Math.min.apply(null,oy)+Math.max.apply(null,oy))*0.5;
   var fw=(Math.max.apply(null,ox)-Math.min.apply(null,ox))*0.5||0.001;
   var fh=(Math.max.apply(null,oy)-Math.min.apply(null,oy))*0.5||0.001;
+  calFW=fw;calFH=fh;
 
-  var cc=document.createElement('canvas');cc.width=640;cc.height=480;
-  var ccx=cc.getContext('2d');
-  try{ccx.drawImage(vid2,0,0,640,480);}catch(e){return;}
+  srcPts=[];calScreen=[];dstPts=[];
+  for(var i=0;i<NL;i++){
+    // Source: pixel coords in snapshot
+    srcPts.push({x:lm[i].x*VW, y:lm[i].y*VH});
 
-  for(var si=0;si<10;si++){
-    var sli=Math.floor(Math.random()*NL);
-    var slp=lm[sli];
-    var px=cl(Math.round(slp.x*640),0,639),py=cl(Math.round(slp.y*480),0,479);
-    var pd;try{pd=ccx.getImageData(px,py,1,1).data;}catch(e2){continue;}
-    var snx=(slp.x-fcx)/fw,sny=-(slp.y-fcy)/fh;
-    for(var vi=0;vi<nV;vi++){
-      var sn=sphN[vi];if(sn.z<0.15)continue;
-      var ddx=sn.x-snx,ddy=sn.y-sny;
-      var dd=Math.sqrt(ddx*ddx+ddy*ddy);
-      if(dd<0.24){var w=0.014*(1-dd/0.24);colors[vi*3]=lerp(colors[vi*3],pd[0]/255,w);colors[vi*3+1]=lerp(colors[vi*3+1],pd[1]/255,w);colors[vi*3+2]=lerp(colors[vi*3+2],pd[2]/255,w);}
+    // Screen position (mirrored X)
+    var nx=(lm[i].x-fcx)/fw;
+    var ny=(lm[i].y-fcy)/fh;
+    var sx=CENTER_X-nx*SCALE_X; // mirrored
+    var sy=CENTER_Y+ny*SCALE_Y;
+    calScreen.push({x:sx,y:sy});
+    dstPts.push({x:sx,y:sy});
+  }
+
+  // Triangulate on screen positions with jitter
+  var jit=[];
+  for(i=0;i<NL;i++){
+    jit.push({x:calScreen[i].x+((i*7919)%100-50)*1e-6,y:calScreen[i].y+((i*6271)%100-50)*1e-6});
+  }
+  var raw=delaunay(jit);
+
+  // Filter oversized triangles (hull artifacts)
+  triIdx=[];
+  for(i=0;i<raw.length;i++){
+    var t=raw[i];
+    var p0=calScreen[t[0]],p1=calScreen[t[1]],p2=calScreen[t[2]];
+    var area=Math.abs((p1.x-p0.x)*(p2.y-p0.y)-(p2.x-p0.x)*(p1.y-p0.y))*0.5;
+    if(area<600&&area>0.3)triIdx.push(t);
+  }
+
+  document.getElementById('st').textContent=triIdx.length+' tris';
+}
+
+// ═══ UPDATE POSITIONS from live landmarks ═══
+function updateAvatar(liveLM){
+  if(!calLM||!calScreen)return;
+
+  // Live face center
+  var lox=OVAL.map(function(i){return liveLM[i].x;}),loy=OVAL.map(function(i){return liveLM[i].y;});
+  var lfx=(Math.min.apply(null,lox)+Math.max.apply(null,lox))*0.5;
+  var lfy=(Math.min.apply(null,loy)+Math.max.apply(null,loy))*0.5;
+
+  // Calibration face center
+  var cox=OVAL.map(function(i){return calLM[i].x;}),coy=OVAL.map(function(i){return calLM[i].y;});
+  var cfx=(Math.min.apply(null,cox)+Math.max.apply(null,cox))*0.5;
+  var cfy=(Math.min.apply(null,coy)+Math.max.apply(null,coy))*0.5;
+
+  for(var i=0;i<NL;i++){
+    // Both normalized by CALIBRATION face width (lesson: prevents scale mismatch)
+    var lnx=(liveLM[i].x-lfx)/calFW;
+    var lny=(liveLM[i].y-lfy)/calFH;
+    var cnx=(calLM[i].x-cfx)/calFW;
+    var cny=(calLM[i].y-cfy)/calFH;
+
+    // Expression displacement in screen pixels (mirrored X)
+    var dx=-(lnx-cnx)*SCALE_X;
+    var dy=(lny-cny)*SCALE_Y;
+
+    // Clamp — lesson: prevents mouth explosion
+    dx=cl(dx,-MAX_DISP,MAX_DISP);
+    dy=cl(dy,-MAX_DISP,MAX_DISP);
+
+    var tgtX=calScreen[i].x+dx;
+    var tgtY=calScreen[i].y+dy;
+
+    // EMA smooth — lesson: 0.20 is sweet spot (responsive but stable)
+    dstPts[i].x=lerp(dstPts[i].x,tgtX,0.20);
+    dstPts[i].y=lerp(dstPts[i].y,tgtY,0.20);
+  }
+}
+
+// ═══ RENDER ═══
+function renderAvatar(){
+  var rc=gridOn?offCtx:ctx;
+  rc.clearRect(0,0,CW,CH);
+
+  // Background gradient (from sampled environment colors)
+  var bgr=rc.createRadialGradient(CW*0.5,CH*0.38,10,CW*0.5,CH*0.38,CH*0.55);
+  bgr.addColorStop(0,'rgb('+(pal.bg[0]*0.30|0)+','+(pal.bg[1]*0.30|0)+','+(pal.bg[2]*0.30|0)+')');
+  bgr.addColorStop(0.5,'rgb('+(pal.bg[0]*0.10|0)+','+(pal.bg[1]*0.10|0)+','+(pal.bg[2]*0.10|0)+')');
+  bgr.addColorStop(1,'rgb(8,7,6)');
+  rc.fillStyle=bgr;rc.fillRect(0,0,CW,CH);
+
+  // Head silhouette (hair-colored ellipse behind face)
+  rc.save();rc.beginPath();
+  rc.ellipse(CW*0.5,CH*0.38,CW*0.28,CH*0.29,0,0,Math.PI*2);
+  var hg=rc.createRadialGradient(CW*0.5,CH*0.33,10,CW*0.5,CH*0.38,CH*0.29);
+  hg.addColorStop(0,'rgb('+(pal.hr[0]*0.28|0)+','+(pal.hr[1]*0.28|0)+','+(pal.hr[2]*0.28|0)+')');
+  hg.addColorStop(0.8,'rgb('+(pal.hr[0]*0.14|0)+','+(pal.hr[1]*0.14|0)+','+(pal.hr[2]*0.14|0)+')');
+  hg.addColorStop(1,'rgb('+(pal.hr[0]*0.05|0)+','+(pal.hr[1]*0.05|0)+','+(pal.hr[2]*0.05|0)+')');
+  rc.fillStyle=hg;rc.fill();rc.restore();
+
+  // Neck
+  rc.fillStyle='rgb('+(pal.sk[0]*0.20|0)+','+(pal.sk[1]*0.20|0)+','+(pal.sk[2]*0.20|0)+')';
+  rc.beginPath();rc.ellipse(CW*0.5,CH*0.66,CW*0.10,CH*0.045,0,0,Math.PI*2);rc.fill();
+
+  // Shoulders
+  rc.beginPath();rc.ellipse(CW*0.5,CH*0.73,CW*0.34,CH*0.08,0,0,Math.PI*2);
+  rc.fillStyle='rgb(14,13,12)';rc.fill();
+
+  if(!triIdx||!snapImg||!srcPts||!dstPts)return;
+
+  // Select best-matching texture
+  var texSrc=snapImg;
+  if(exTex.length>0){
+    var bestD=vb.mo*10+Math.abs(vb.mc)+Math.abs(1-vb.eo)+Math.abs(po.y)*0.5;
+    for(var ei=0;ei<exTex.length;ei++){
+      var e=exTex[ei];
+      var dd=Math.abs(e.mo-vb.mo)*10+Math.abs(e.mc-vb.mc)+Math.abs(e.eo-vb.eo)+Math.abs(e.ya-po.y)*0.5;
+      if(dd<bestD){bestD=dd;texSrc=e.cvs;}
+    }
+  }
+
+  // Warp every triangle
+  for(var i=0;i<triIdx.length;i++){
+    var t=triIdx[i];
+    warpTri(rc,texSrc,srcPts[t[0]],srcPts[t[1]],srcPts[t[2]],dstPts[t[0]],dstPts[t[1]],dstPts[t[2]]);
+  }
+
+  // Grid post-process
+  if(gridOn) renderGrid();
+}
+
+// ═══ CHUCK CLOSE GRID ═══
+// Reads offscreen warped face, renders as variable-density circles
+var GRID=7;
+
+function renderGrid(){
+  ctx.clearRect(0,0,CW,CH);
+  var imgData=offCtx.getImageData(0,0,CW,CH);
+  var px=imgData.data;
+  var cols=Math.ceil(CW/GRID),rows=Math.ceil(CH/GRID);
+  var half=GRID*0.5;
+
+  ctx.fillStyle='rgb(8,7,6)';ctx.fillRect(0,0,CW,CH);
+
+  for(var r=0;r<rows;r++){
+    for(var c=0;c<cols;c++){
+      var cx2=c*GRID+half, cy2=r*GRID+half;
+      var sx2=Math.min(Math.round(cx2),CW-1);
+      var sy2=Math.min(Math.round(cy2),CH-1);
+      var idx=(sy2*CW+sx2)*4;
+      var cr=px[idx],cg=px[idx+1],cb=px[idx+2],ca=px[idx+3];
+      if(ca<10)continue;
+
+      // Luminance modulates dot size (brighter=larger)
+      var lum=(cr*0.299+cg*0.587+cb*0.114)/255;
+      var dotR=half*(0.50+lum*0.45);
+
+      // Outer ring (darker, slightly larger) for depth
+      ctx.beginPath();ctx.arc(cx2,cy2,dotR*1.12,0,Math.PI*2);
+      ctx.fillStyle='rgb('+(cr*0.35|0)+','+(cg*0.35|0)+','+(cb*0.35|0)+')';
+      ctx.fill();
+
+      // Main circle
+      ctx.beginPath();ctx.arc(cx2,cy2,dotR,0,Math.PI*2);
+      ctx.fillStyle='rgb('+cr+','+cg+','+cb+')';
+      ctx.fill();
+
+      // Highlight on larger dots
+      if(dotR>2.5){
+        ctx.beginPath();ctx.arc(cx2-dotR*0.15,cy2-dotR*0.2,dotR*0.35,0,Math.PI*2);
+        ctx.fillStyle='rgba('+cl(cr+25,0,255)+','+cl(cg+20,0,255)+','+cl(cb+15,0,255)+',0.15)';
+        ctx.fill();
+      }
     }
   }
 }
 
-// ═══ POSE & VIBE ═══
+// ═══ TEXTURE ACCUMULATION ═══
+function tryCapture(){
+  var now=Date.now();if(now-lastCap<1500||exTex.length>=12)return;
+  var mo=vb.mo,mc=vb.mc,eo=vb.eo,ya=po.y;
+  var isDiff=true;
+  for(var i=0;i<exTex.length;i++){
+    var e=exTex[i];
+    if(!(Math.abs(e.mo-mo)>0.015||Math.abs(e.mc-mc)>0.15||Math.abs(e.eo-eo)>0.2||Math.abs(e.ya-ya)>0.15)){isDiff=false;break;}
+  }
+  if(!isDiff)return;
+  if(!(mo>0.025||Math.abs(mc)>0.15||eo<0.7||eo>1.1||Math.abs(ya)>0.2))return;
+
+  var cc=document.createElement('canvas');cc.width=VW;cc.height=VH;
+  cc.getContext('2d').drawImage(vid,0,0,VW,VH);
+  exTex.push({cvs:cc,mo:mo,mc:mc,eo:eo,ya:ya});
+  lastCap=now;
+  var tot=1+exTex.length;
+  document.getElementById('sx').textContent=tot+' tex';
+  document.getElementById('ac').textContent=tot;
+}
+
+// ═══ POSE & EXPRESSION ═══
 function dz(v,t){if(Math.abs(v)<t)return 0;return(v>0?1:-1)*(Math.abs(v)-t)/(1-t);}
-function getPose(lm){var n=lm[LK.N],le=lm[LK.LE],re=lm[LK.RE],ch=lm[LK.CH];var emx=(le.x+re.x)*0.5,es=Math.abs(re.x-le.x);var ry=es>0.01?(n.x-emx)/es:0;var yaw=dz(ry-pBL.yo,0.03)*Math.PI*0.72;var emy=(le.y+re.y)*0.5,fh=ch.y-emy;var nr=fh>0.01?(n.y-emy)/fh:0.55;var pitch=dz(nr-pBL.nr,0.012)*Math.PI*1.2;var dx=re.x-le.x,dy=re.y-le.y;var roll=dz(-Math.atan2(dy,dx),0.015)*0.65;return{y:cl(yaw,-0.9,0.9),p:cl(pitch,-0.65,0.65),r:cl(roll,-0.4,0.4)};}
-function getVibe(lm){var fH=Math.sqrt(Math.pow(lm[LK.T].x-lm[LK.CH].x,2)+Math.pow(lm[LK.T].y-lm[LK.CH].y,2));if(fH<0.01)return null;var mO=Math.sqrt(Math.pow(lm[LK.MT].x-lm[LK.MB].x,2)+Math.pow(lm[LK.MT].y-lm[LK.MB].y,2))/fH;var cY=(lm[LK.ML].y+lm[LK.MR].y)*0.5,mY=(lm[LK.MT].y+lm[LK.MB].y)*0.5;var mC=cl((mY-cY)/(fH*0.055),-1,1);var bY=(lm[LK.LBR].y+lm[LK.RBR].y)*0.5,eY=(lm[LK.LT].y+lm[LK.RT].y)*0.5;var bd=eY-bY,bl2=0;if(browBL!==null)bl2=cl((bd-browBL)/(fH*0.16)*0.058,-0.055,0.075);var lE=Math.abs(lm[LK.LT].y-lm[LK.LB].y),rE=Math.abs(lm[LK.RT].y-lm[LK.RB].y);var eo=cl((lE+rE)/(fH*0.095),0,1.35);return{mo:cl(mO*1.85-0.04,0,0.12),mc:mC,bl:bl2,eo:eo};}
+
+function getPose(lm){
+  var n=lm[LK.N],le=lm[LK.LE],re=lm[LK.RE],ch=lm[LK.CH];
+  var emx=(le.x+re.x)*0.5,es=Math.abs(re.x-le.x);
+  var ry=es>0.01?(n.x-emx)/es:0;
+  var yaw=dz(ry-pBL.yo,0.03)*Math.PI*0.72;
+  var emy=(le.y+re.y)*0.5,fh=ch.y-emy;
+  var nr=fh>0.01?(n.y-emy)/fh:0.55;
+  var pitch=dz(nr-pBL.nr,0.012)*Math.PI*1.2;
+  var ddx=re.x-le.x,ddy=re.y-le.y;
+  var roll=dz(-Math.atan2(ddy,ddx),0.015)*0.65;
+  return{y:cl(yaw,-0.9,0.9),p:cl(pitch,-0.65,0.65),r:cl(roll,-0.4,0.4)};
+}
+
+function getVibe(lm){
+  var fH=Math.sqrt(Math.pow(lm[LK.T].x-lm[LK.CH].x,2)+Math.pow(lm[LK.T].y-lm[LK.CH].y,2));
+  if(fH<0.01)return null;
+  var mO=Math.sqrt(Math.pow(lm[LK.MT].x-lm[LK.MB].x,2)+Math.pow(lm[LK.MT].y-lm[LK.MB].y,2))/fH;
+  var cY=(lm[LK.ML].y+lm[LK.MR].y)*0.5,mY=(lm[LK.MT].y+lm[LK.MB].y)*0.5;
+  var mC=cl((mY-cY)/(fH*0.055),-1,1);
+  var bY=(lm[LK.LBR].y+lm[LK.RBR].y)*0.5,eY=(lm[LK.LT].y+lm[LK.RT].y)*0.5;
+  var bd=eY-bY,bl2=0;
+  if(browBL!==null)bl2=cl((bd-browBL)/(fH*0.16)*0.058,-0.055,0.075);
+  var lE=Math.abs(lm[LK.LT].y-lm[LK.LB].y),rE=Math.abs(lm[LK.RT].y-lm[LK.RB].y);
+  var eo=cl((lE+rE)/(fH*0.095),0,1.35);
+  return{mo:cl(mO*1.85-0.04,0,0.12),mc:mC,bl:bl2,eo:eo};
+}
+
+// ═══ CALIBRATION ═══
+function accLM(lm){
+  if(!calLM){calLM=[];for(var i=0;i<lm.length;i++)calLM.push({x:lm[i].x,y:lm[i].y,z:lm[i].z||0});}
+  else{for(var j=0;j<lm.length;j++){calLM[j].x=calLM[j].x*0.82+lm[j].x*0.18;calLM[j].y=calLM[j].y*0.82+lm[j].y*0.18;}}
+}
+
+function finishCal(){
+  if(!calLM)return;
+  // Snapshot
+  var snap=document.createElement('canvas');snap.width=VW;snap.height=VH;
+  snap.getContext('2d').drawImage(vid,0,0,VW,VH);
+
+  // Sample colors for head/neck/bg
+  try{
+    var sc=snap.getContext('2d');
+    var sp=sc.getImageData(cl(Math.round(calLM[116].x*VW)-3,0,VW),cl(Math.round(calLM[116].y*VH)-3,0,VH),7,7).data;
+    var sr=0,sg=0,sb=0,sn=0;
+    for(var q=0;q<sp.length;q+=4){sr+=sp[q];sg+=sp[q+1];sb+=sp[q+2];sn++;}
+    if(sn>0)pal.sk=[sr/sn|0,sg/sn|0,sb/sn|0];
+    var hp=sc.getImageData(cl(Math.round(calLM[10].x*VW)-4,0,VW),cl(Math.round((calLM[10].y-0.04)*VH)-4,0,VH),9,9).data;
+    var hr=0,hg=0,hb=0,hn=0;
+    for(q=0;q<hp.length;q+=4){hr+=hp[q];hg+=hp[q+1];hb+=hp[q+2];hn++;}
+    if(hn>0)pal.hr=[hr/hn|0,hg/hn|0,hb/hn|0];
+    var bp=sc.getImageData(5,5,10,10).data;
+    var br2=0,bg2=0,bb2=0,bn=0;
+    for(q=0;q<bp.length;q+=4){br2+=bp[q];bg2+=bp[q+1];bb2+=bp[q+2];bn++;}
+    if(bn>0)pal.bg=[br2/bn|0,bg2/bn|0,bb2/bn|0];
+  }catch(e){}
+
+  buildAvatar(calLM,snap);
+
+  // Pose baseline
+  var n=calLM[LK.N],le=calLM[LK.LE],re=calLM[LK.RE],ch=calLM[LK.CH];
+  var es=Math.abs(re.x-le.x);
+  pBL.yo=es>0.01?(n.x-(le.x+re.x)*0.5)/es:0;
+  var emy=(le.y+re.y)*0.5;
+  pBL.nr=(ch.y-emy)>0.01?(n.y-emy)/(ch.y-emy):0.55;
+  exTex=[];lastCap=Date.now();
+}
+
+// ═══ PHASE ═══
+function setP(p){
+  phase=p;
+  var ov=document.getElementById('ov'),ot=document.getElementById('ovt'),os=document.getElementById('ovs');
+  var cb=document.getElementById('cbar2'),btn=document.getElementById('go'),bdg=document.getElementById('badge');
+  document.getElementById('sp').textContent=p==='w'?'Waiting':p==='s'?'Searching':p==='c'?'Calibrating':'Live';
+  btn.style.display=p==='w'?'':'none';
+  if(p==='w'){ov.classList.remove('gone');ot.textContent='Vibe Protocol';os.textContent='Camera access needed';cb.style.display='none';bdg.className='bdg w';bdg.textContent='Wait';}
+  else if(p==='s'){ov.classList.remove('gone');ot.textContent='Searching';os.textContent='Show your face';cb.style.display='none';bdg.className='bdg w';bdg.textContent='Search';}
+  else if(p==='c'){ov.classList.remove('gone');ot.textContent='Calibrating';os.textContent='Hold still';cb.style.display='block';bdg.className='bdg w';bdg.textContent='Cal';}
+  else if(p==='l'){ov.classList.add('gone');bdg.className='bdg l';bdg.textContent='Live';document.getElementById('pdot').className='dot on';}
+}
+function startCal(){calCnt=0;calLM=null;browBL=null;pBL={nr:0.55,yo:0};exTex=[];setP('c');}
 
 // ═══ MAIN LOOP ═══
-var vid=document.getElementById('vid');
 var fm;
 function onRes(results){
   if(!results.multiFaceLandmarks||!results.multiFaceLandmarks.length){
-    if(phase==='l'){document.getElementById('sp').textContent='Lost';}
-    return;
+    if(phase!=='w'&&phase!=='c')setP('s');return;
   }
   var lm=results.multiFaceLandmarks[0];
+  if(phase==='s'||phase==='w')startCal();
 
-  // Start calibration on first face detection
-  if(phase==='w'){phase='c';calStep=0;calFrames=0;}
-
-  // Calibration phase
   if(phase==='c'){
-    var done=runCalibration(lm);
-    if(done) phase='l';
-    // During calibration, still morph the form
-    formBlend=cl(formBlend+0.02,0,1);
-    var eased=formBlend<0.5?2*formBlend*formBlend:1-Math.pow(-2*formBlend+2,2)/2;
-    for(var k3 in P)curP[k3]=lerp(curP[k3],P[k3],0.05);
-    applyShape(eased);
-    if(clayMesh){
-      var cy=detectYaw(lm);
-      clayMesh.rotation.y=-cy*0.5; // mirror head turn during cal
-      clayMesh.rotation.x=0;clayMesh.rotation.z=0;
-    }
-    ren.render(scene,cam);
+    calCnt++;
+    document.getElementById('cf').style.width=(calCnt/CFRAMES*100)+'%';
+    accLM(lm);
+    var bd=(lm[159].y+lm[386].y)*0.5-(lm[105].y+lm[334].y)*0.5;
+    browBL=browBL===null?bd:browBL*0.88+bd*0.12;
+    if(calCnt>=CFRAMES){try{finishCal();}catch(e){console.error(e);}setP('l');}
     return;
   }
 
@@ -589,44 +480,47 @@ function onRes(results){
   var nv=getVibe(lm);
   if(nv){vb.mo=lerp(vb.mo,nv.mo,0.18);vb.mc=lerp(vb.mc,nv.mc,0.18);vb.bl=lerp(vb.bl,nv.bl,0.18);vb.eo=lerp(vb.eo,nv.eo,0.14);}
 
-  formBlend=cl(formBlend+0.03,0,1);
-  var eased2=formBlend<0.5?2*formBlend*formBlend:1-Math.pow(-2*formBlend+2,2)/2;
+  updateAvatar(lm);
+  tryCapture();
+  renderAvatar();
 
-  // Smooth params toward target
-  for(var k4 in P)curP[k4]=lerp(curP[k4],P[k4],0.06);
-
-  applyShape(eased2);
-  updateColor(lm,vid);
-
-  // Breathing
-  if(clayMesh){
-    var breath=Math.sin(performance.now()*0.002)*0.006;
-    clayMesh.scale.set(1+breath,1+breath*0.4,1+breath);
-    clayMesh.rotation.y=-po.y;clayMesh.rotation.x=po.p;clayMesh.rotation.z=po.r;
-  }
-  ren.render(scene,cam);
-
+  // UI
   var f=function(v){return(v>=0?'+':'')+v.toFixed(2);};
   document.getElementById('vm').textContent=vb.mo.toFixed(2);document.getElementById('bm').style.width=cl(vb.mo/0.12*100,0,100)+'%';
   document.getElementById('vs2').textContent=f(vb.mc);document.getElementById('bs2').style.width=cl(Math.abs(vb.mc)*50,0,100)+'%';
   document.getElementById('ve').textContent=vb.eo.toFixed(2);document.getElementById('be').style.width=cl(vb.eo/1.35*100,0,100)+'%';
   document.getElementById('vy').textContent=f(po.y);document.getElementById('by2').style.width=cl(Math.abs(po.y)/1.5*100,0,100)+'%';
-  document.getElementById('ss').textContent='F'+(calStep===4?'done':'cal');
 }
 
 // ═══ CAMERA ═══
 var pumpOn=false;
 function pump(){if(!pumpOn)return;if(vid.readyState>=2&&!vid.paused){try{fm.send({image:vid});}catch(e){}}requestAnimationFrame(pump);}
-function startCam(){var btn=document.getElementById('go');btn.textContent='Starting...';btn.disabled=true;
-navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false})
-.then(function(stream){vid.srcObject=stream;return vid.play();})
-.then(function(){document.getElementById('ovt').textContent='Loading';document.getElementById('ovs').textContent='Downloading model...';fm=new FaceMesh({locateFile:function(f){return 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/'+f;}});fm.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});fm.onResults(onRes);return fm.initialize();})
-.then(function(){pumpOn=true;document.getElementById('sp').textContent='Searching';document.getElementById('ovt').textContent='Searching';document.getElementById('ovs').textContent='Show your face';requestAnimationFrame(pump);})
-.catch(function(e){console.error(e);document.getElementById('ovt').textContent='Error';document.getElementById('ovs').textContent=e.message||'Failed';btn.textContent='Retry';btn.disabled=false;btn.onclick=startCam;});}
+function startCam(){
+  var btn=document.getElementById('go');btn.textContent='Starting...';btn.disabled=true;
+  navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false})
+  .then(function(stream){vid.srcObject=stream;return vid.play();})
+  .then(function(){
+    document.getElementById('ovt').textContent='Loading';
+    document.getElementById('ovs').textContent='Downloading model...';
+    fm=new FaceMesh({locateFile:function(f){return 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/'+f;}});
+    fm.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
+    fm.onResults(onRes);return fm.initialize();
+  })
+  .then(function(){pumpOn=true;setP('s');requestAnimationFrame(pump);})
+  .catch(function(e){console.error(e);document.getElementById('ovt').textContent='Error';document.getElementById('ovs').textContent=e.message||'Failed';btn.textContent='Retry';btn.disabled=false;btn.onclick=startCam;});
+}
 
-buildClay();ren.render(scene,cam);
+// ═══ INIT ═══
+setP('w');
+ctx.fillStyle='#0a0908';ctx.fillRect(0,0,CW,CH);
+
 document.getElementById('go').addEventListener('click',startCam);
-document.getElementById('recal').addEventListener('click',function(){if(phase==='l'){buildClay();phase='w';document.getElementById('sp').textContent='Waiting';document.getElementById('ov').classList.remove('gone');document.getElementById('ovt').textContent='Searching';document.getElementById('ovs').textContent='Show your face';document.getElementById('badge').className='bdg w';document.getElementById('badge').textContent='Wait';document.getElementById('go').style.display='none';}});
+document.getElementById('recal').addEventListener('click',function(){if(phase==='l')startCal();});
+document.getElementById('gridBtn').addEventListener('click',function(){
+  gridOn=!gridOn;
+  this.textContent='Grid '+(gridOn?'ON':'OFF');
+  this.className=gridOn?'btn on':'btn';
+});
 </script>
 </body>
 </html>
