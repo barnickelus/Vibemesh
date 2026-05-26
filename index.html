@@ -1,1164 +1,438 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>VibeMesh · Geometry in Time</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>ONEIRIC · live dream filter</title>
 <style>
-:root{
-  --cyan:#00f0ff; --mag:#ff00aa; --grn:#00ff88; --amber:#ffaa00;
-  --dim:#3a3a44; --dim2:#555; --bg:#040407;
-  --mono:'SF Mono',ui-monospace,Consolas,monospace;
-}
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{width:100%;height:100%;overflow:hidden}
-body{
-  background:radial-gradient(circle at 50% 35%,#0b0b14 0%,var(--bg) 75%);
-  color:#e8e8ee;font-family:var(--mono);
-  position:fixed;touch-action:none;
-}
-canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,400&family=Space+Mono:wght@400;700&display=swap');
 
-/* ── Top status strip ── */
-.topbar{
-  position:fixed;top:0;left:0;right:0;z-index:30;
-  display:flex;justify-content:space-between;align-items:center;
-  padding:10px 14px;font-size:.55rem;letter-spacing:2px;text-transform:uppercase;
-  pointer-events:none;
-}
-.topbar .brand{color:var(--cyan);font-weight:600}
-.topbar .brand b{color:#fff;font-weight:800}
-.topbar .telem{color:var(--dim2);text-align:right;line-height:1.7}
-.topbar .telem b{color:var(--cyan);font-weight:600}
-.topbar .telem .good{color:var(--grn)}
+  :root{
+    --bg:#0c0a09;
+    --ink:#f4ece1;
+    --terra:#d7682f;
+    --terra-soft:#e89a5c;
+    --line:rgba(231,154,92,.22);
+    --panel:rgba(20,16,13,.82);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Space Mono',monospace;overflow:hidden;}
 
-/* ── Lore line ── */
-.lore{
-  position:fixed;top:50%;left:0;right:0;text-align:center;z-index:5;
-  font-size:.6rem;letter-spacing:4px;text-transform:uppercase;color:#15151c;
-  pointer-events:none;transition:opacity 1s;transform:translateY(-50%);
-}
+  /* film-grain + vignette atmosphere */
+  body::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:40;
+    background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55) 100%);
+    mix-blend-mode:multiply;
+  }
 
-/* ── Bottom control dock ── */
-.dock{
-  position:fixed;bottom:0;left:0;right:0;z-index:30;
-  padding:14px 14px calc(14px + env(safe-area-inset-bottom));
-  background:linear-gradient(transparent,rgba(4,4,7,.85)35%);
-  display:flex;flex-direction:column;gap:12px;
-}
-.row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
-.row.center{justify-content:center}
+  #stage{position:fixed;inset:0;display:grid;place-items:center;}
+  canvas{
+    max-width:100%;max-height:100%;display:block;
+    box-shadow:0 0 120px rgba(215,104,47,.18);
+    background:#000;
+  }
+  video{display:none;}
 
-.btn{
-  flex:0 0 auto;padding:10px 14px;background:rgba(255,255,255,.035);
-  border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#aaa;
-  font-family:var(--mono);font-size:.62rem;letter-spacing:1.5px;text-transform:uppercase;
-  cursor:pointer;transition:.18s;white-space:nowrap;
-}
-.btn:active{transform:scale(.96)}
-.btn.on{background:rgba(0,240,255,.14);border-color:var(--cyan);color:var(--cyan);
-  box-shadow:0 0 18px rgba(0,240,255,.18)}
-.btn.go{background:rgba(0,255,136,.13);border-color:var(--grn);color:var(--grn)}
-.btn.warn{background:rgba(255,0,170,.12);border-color:var(--mag);color:var(--mag)}
-.btn:disabled{opacity:.28;pointer-events:none}
-.btn.primary{background:linear-gradient(135deg,rgba(0,240,255,.2),rgba(255,0,170,.15));
-  border-color:var(--cyan);color:#fff}
+  /* ---- intro gate ---- */
+  #gate{
+    position:fixed;inset:0;z-index:50;display:grid;place-items:center;
+    background:
+      radial-gradient(circle at 30% 20%,rgba(215,104,47,.10),transparent 60%),
+      radial-gradient(circle at 75% 80%,rgba(120,80,180,.08),transparent 55%),
+      var(--bg);
+    transition:opacity .9s ease, visibility .9s;
+  }
+  #gate.hidden{opacity:0;visibility:hidden;}
+  .gate-inner{text-align:center;padding:32px;max-width:540px;}
+  .kicker{font-size:11px;letter-spacing:.5em;text-transform:uppercase;color:var(--terra-soft);opacity:.8;}
+  h1{
+    font-family:'Fraunces',serif;font-weight:300;font-style:italic;
+    font-size:clamp(48px,13vw,108px);line-height:.92;margin:.18em 0 .1em;
+    color:var(--ink);letter-spacing:-.01em;
+  }
+  h1 b{font-weight:600;font-style:normal;color:var(--terra);}
+  .blurb{font-size:13px;line-height:1.7;opacity:.62;max-width:420px;margin:0 auto 30px;}
+  .start{
+    appearance:none;border:1px solid var(--terra);background:transparent;color:var(--ink);
+    font-family:'Space Mono',monospace;font-size:13px;letter-spacing:.28em;text-transform:uppercase;
+    padding:18px 40px;cursor:pointer;position:relative;overflow:hidden;transition:color .35s;
+  }
+  .start span{position:relative;z-index:2;}
+  .start::before{content:"";position:absolute;inset:0;background:var(--terra);transform:translateY(101%);transition:transform .35s cubic-bezier(.2,.8,.2,1);}
+  .start:hover{color:#1a0f08;}
+  .start:hover::before{transform:translateY(0);}
+  .err{margin-top:22px;font-size:11px;color:#e88;min-height:14px;letter-spacing:.04em;}
 
-/* mode pills */
-.pill{
-  flex:0 0 auto;padding:7px 11px;background:rgba(255,255,255,.03);
-  border:1px solid rgba(255,255,255,.08);border-radius:20px;color:var(--dim2);
-  font-family:var(--mono);font-size:.56rem;letter-spacing:1px;text-transform:uppercase;
-  cursor:pointer;transition:.15s;
-}
-.pill:active{transform:scale(.95)}
-.pill.on{background:rgba(0,240,255,.12);border-color:rgba(0,240,255,.45);color:var(--cyan)}
+  /* ---- controls ---- */
+  #ui{
+    position:fixed;left:0;right:0;bottom:0;z-index:45;
+    padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+    background:linear-gradient(to top,rgba(12,10,9,.92),rgba(12,10,9,.55) 70%,transparent);
+    transform:translateY(0);transition:transform .5s cubic-bezier(.2,.8,.2,1);
+  }
+  #ui.tucked{transform:translateY(calc(100% - 52px));}
+  .bar{display:flex;align-items:center;gap:14px;justify-content:space-between;}
+  .brand{font-family:'Fraunces',serif;font-style:italic;font-size:17px;color:var(--terra-soft);white-space:nowrap;}
+  .toolbtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+  .tb{
+    font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    border:1px solid var(--line);background:rgba(255,255,255,.02);color:var(--ink);
+    padding:9px 12px;cursor:pointer;transition:.2s;white-space:nowrap;
+  }
+  .tb:hover{border-color:var(--terra);color:var(--terra-soft);}
+  .tb.on{background:var(--terra);color:#1a0f08;border-color:var(--terra);}
 
-/* sliders */
-.sliders{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px}
-@media(max-width:520px){.sliders{grid-template-columns:1fr}}
-.sl{display:flex;align-items:center;gap:9px}
-.sl label{font-size:.52rem;letter-spacing:1px;text-transform:uppercase;color:var(--dim2);
-  min-width:78px}
-.sl input{flex:1;-webkit-appearance:none;height:2px;background:rgba(255,255,255,.15);
-  border-radius:2px;cursor:pointer}
-.sl input::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;
-  background:var(--cyan);box-shadow:0 0 8px var(--cyan);cursor:pointer}
-.sl input::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--cyan);
-  border:none;box-shadow:0 0 8px var(--cyan)}
-.sl .v{font-size:.55rem;color:var(--cyan);min-width:30px;text-align:right}
+  .sliders{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 22px;
+    margin-top:14px;padding-top:14px;border-top:1px solid var(--line);
+  }
+  .ctl label{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.7;margin-bottom:7px;}
+  .ctl label b{color:var(--terra-soft);font-weight:400;}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:2px;background:var(--line);outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--terra);
+    cursor:pointer;box-shadow:0 0 0 4px rgba(215,104,47,.18);
+  }
+  input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:50%;background:var(--terra);cursor:pointer;}
 
-.collapse{max-height:0;overflow:hidden;transition:max-height .35s ease}
-.collapse.open{max-height:240px}
+  .presets{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+  .pz{font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:7px 11px;border:1px solid var(--line);cursor:pointer;color:var(--ink);opacity:.85;transition:.2s;}
+  .pz:hover{border-color:var(--terra);color:var(--terra-soft);}
 
-.pip{position:fixed;right:12px;z-index:31;width:62px;height:80px;border-radius:8px;
-  overflow:hidden;border:1px solid rgba(255,255,255,.12);opacity:.5;
-  bottom:calc(170px + env(safe-area-inset-bottom));transition:opacity .3s}
-.pip:active{opacity:.9}
-.pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-video#cam{position:fixed;top:-9999px;left:-9999px;width:640px;height:480px}
-
-.hint{position:fixed;left:0;right:0;bottom:calc(180px + env(safe-area-inset-bottom));
-  text-align:center;font-size:.52rem;letter-spacing:1px;color:var(--amber);
-  z-index:20;pointer-events:none;opacity:0;transition:opacity .4s;text-transform:uppercase}
-.hint.show{opacity:.85}
+  .handle{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:42px;height:4px;border-radius:3px;background:var(--line);}
+  @media(max-width:520px){ .brand{font-size:14px;} .sliders{gap:10px 16px;} }
 </style>
 </head>
 <body>
-<canvas id="gl"></canvas>
 
-<div class="topbar">
-  <div class="brand">VIBE<b>MESH</b></div>
-  <div class="telem" id="telem">
-    <div>TRACK <b id="t-track">—</b></div>
-    <div>POSE <b id="t-pose">—</b> · <b id="t-fps">0</b>fps</div>
-    <div>TX <b id="t-bw" class="good">0</b></div>
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <video id="vid" playsinline muted autoplay></video>
+</div>
+
+<!-- intro -->
+<div id="gate">
+  <div class="gate-inner">
+    <div class="kicker">live neural-dream skin</div>
+    <h1>One<b>i</b>ric</h1>
+    <p class="blurb">A real-time filter that re-dreams your face into a mosaic of breathing cells &amp; little eyes — the Inception look, running on your camera. Nothing is uploaded; all processing stays on your device.</p>
+    <button class="start" id="startBtn"><span>▸ &nbsp; Begin Dreaming</span></button>
+    <div class="err" id="err"></div>
   </div>
 </div>
 
-<div class="lore" id="lore">atoms aren't particles · stable knots in time</div>
-<div class="hint" id="hint"></div>
-
-<div class="pip"><video id="pip" autoplay muted playsinline></video></div>
-<video id="cam" autoplay muted playsinline></video>
-
-<div class="dock">
-  <div class="row center" id="modes">
-    <div class="pill on" data-mode="filter">Close Filter</div>
-    <div class="pill" data-mode="skin">Close 3D</div>
-    <div class="pill" data-mode="knots">Knots</div>
-    <div class="pill" data-mode="splat">Splat</div>
-    <div class="pill" data-mode="realist">Realist</div>
-    <div class="pill" data-mode="wire">Wire</div>
-  </div>
-
-  <div class="collapse" id="advpanel">
-    <div class="sliders">
-      <div class="sl"><label>Depth</label><input type="range" id="s-depth" min="0.3" max="5" step="0.1" value="2.0"><span class="v" id="v-depth">2.0</span></div>
-      <div class="sl"><label>Knot Amt</label><input type="range" id="s-amt" min="80" max="936" step="20" value="936"><span class="v" id="v-amt">936</span></div>
-      <div class="sl"><label>Pulse</label><input type="range" id="s-pulse" min="0" max="3" step="0.05" value="0.6"><span class="v" id="v-pulse">0.6</span></div>
-      <div class="sl"><label>Grid</label><input type="range" id="s-grid" min="4" max="30" step="1" value="18"><span class="v" id="v-grid">18</span></div>
-      <div class="sl"><label>Opacity</label><input type="range" id="s-op" min="0.1" max="1" step="0.05" value="0.95"><span class="v" id="v-op">0.95</span></div>
-      <div class="sl"><label>Smooth</label><input type="range" id="s-smooth" min="0.05" max="0.8" step="0.05" value="0.35"><span class="v" id="v-smooth">0.35</span></div>
+<!-- controls -->
+<div id="ui" class="tucked">
+  <div class="handle"></div>
+  <div class="bar">
+    <div class="brand">oneiric ✦ camera</div>
+    <div class="toolbtns">
+      <button class="tb" id="flip">⟲ Flip cam</button>
+      <button class="tb" id="freeze">❚❚ Freeze</button>
+      <button class="tb" id="shot">⤓ Capture</button>
+      <button class="tb on" id="toggleUI">Controls</button>
     </div>
   </div>
 
-  <div class="row center">
-    <button class="btn primary" id="b-init">Init Optics</button>
-    <button class="btn" id="b-snap" disabled>Calibrate</button>
-    <button class="btn" id="b-stack">Stack</button>
-    <button class="btn" id="b-adv">Tune</button>
-    <button class="btn" id="b-recenter" disabled>Recenter</button>
+  <div id="panel">
+    <div class="sliders">
+      <div class="ctl"><label>Cell density <b id="vDensity"></b></label><input type="range" id="density" min="14" max="120" step="1"></div>
+      <div class="ctl"><label>Contour warp <b id="vWarp"></b></label><input type="range" id="warp" min="0" max="100" step="1"></div>
+      <div class="ctl"><label>Eye / blob <b id="vBlob"></b></label><input type="range" id="blob" min="0" max="100" step="1"></div>
+      <div class="ctl"><label>Ring detail <b id="vRing"></b></label><input type="range" id="ring" min="2" max="60" step="1"></div>
+      <div class="ctl"><label>Dream intensity <b id="vMix"></b></label><input type="range" id="mix" min="0" max="100" step="1"></div>
+      <div class="ctl"><label>Warmth <b id="vWarm"></b></label><input type="range" id="warm" min="0" max="100" step="1"></div>
+      <div class="ctl"><label>Drift speed <b id="vSpeed"></b></label><input type="range" id="speed" min="0" max="100" step="1"></div>
+    </div>
+    <div class="presets">
+      <div class="pz" data-p="inception">Inception</div>
+      <div class="pz" data-p="reptile">Reptile skin</div>
+      <div class="pz" data-p="mosaic">Tile mosaic</div>
+      <div class="pz" data-p="subtle">Whisper</div>
+      <div class="pz" data-p="fever">Fever</div>
+    </div>
   </div>
 </div>
 
 <script>
-'use strict';
-// ═══════════════════════════════════════════════════════════════
-//  VibeMesh — reworked core
-//  1. FIXED normalization captured at calibration (no per-frame drift)
-//  2. Rigid head pose via quaternion Kabsch (Horn's method)
-//  3. Expression = residual after removing rigid pose
-//  4. All visual modes share ONE stable point buffer
-// ═══════════════════════════════════════════════════════════════
-
-const V = {
-  sub:(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],
-  add:(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],
-  scale:(a,s)=>[a[0]*s,a[1]*s,a[2]*s],
-  dot:(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],
-  norm:a=>{const l=Math.hypot(a[0],a[1],a[2])||1;return [a[0]/l,a[1]/l,a[2]/l];},
-  cross:(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],
-};
-
-const RIGID_IDX = [33,263,1,168,6,197,195,5,4,193,417,122,351,234,454];
-const OVAL_IDX = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,
-  379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
-
-// ---- Horn's quaternion method for optimal rotation P -> Q ----
-// Returns rotation matrix (row-major 9) that best maps centered P onto Q.
-function kabsch(P, Q){
-  // Cross-covariance M = sum p_i q_i^T
-  let Sxx=0,Sxy=0,Sxz=0,Syx=0,Syy=0,Syz=0,Szx=0,Szy=0,Szz=0;
-  for(let i=0;i<P.length;i++){
-    const p=P[i], q=Q[i];
-    Sxx+=p[0]*q[0]; Sxy+=p[0]*q[1]; Sxz+=p[0]*q[2];
-    Syx+=p[1]*q[0]; Syy+=p[1]*q[1]; Syz+=p[1]*q[2];
-    Szx+=p[2]*q[0]; Szy+=p[2]*q[1]; Szz+=p[2]*q[2];
-  }
-  // Symmetric 4x4 N matrix (Horn 1987)
-  const N=[
-    [Sxx+Syy+Szz, Syz-Szy,      Szx-Sxz,      Sxy-Syx],
-    [Syz-Szy,     Sxx-Syy-Szz,  Sxy+Syx,      Szx+Sxz],
-    [Szx-Sxz,     Sxy+Syx,      -Sxx+Syy-Szz, Syz+Szy],
-    [Sxy-Syx,     Szx+Sxz,      Syz+Szy,      -Sxx-Syy+Szz]
-  ];
-  // Largest eigenvector via power iteration (4x4, converges fast)
-  let v=[1,0,0,0];
-  for(let it=0;it<32;it++){
-    const nv=[
-      N[0][0]*v[0]+N[0][1]*v[1]+N[0][2]*v[2]+N[0][3]*v[3],
-      N[1][0]*v[0]+N[1][1]*v[1]+N[1][2]*v[2]+N[1][3]*v[3],
-      N[2][0]*v[0]+N[2][1]*v[1]+N[2][2]*v[2]+N[2][3]*v[3],
-      N[3][0]*v[0]+N[3][1]*v[1]+N[3][2]*v[2]+N[3][3]*v[3]
-    ];
-    const l=Math.hypot(nv[0],nv[1],nv[2],nv[3])||1;
-    v=[nv[0]/l,nv[1]/l,nv[2]/l,nv[3]/l];
-  }
-  // quaternion (w,x,y,z) -> rotation matrix
-  const [w,x,y,z]=v;
-  return [
-    1-2*(y*y+z*z), 2*(x*y-w*z),   2*(x*z+w*y),
-    2*(x*y+w*z),   1-2*(x*x+z*z), 2*(y*z-w*x),
-    2*(x*z-w*y),   2*(y*z+w*x),   1-2*(x*x+y*y)
-  ];
-}
-function mat3mulVec(m,v){
-  return [m[0]*v[0]+m[1]*v[1]+m[2]*v[2],
-          m[3]*v[0]+m[4]*v[1]+m[5]*v[2],
-          m[6]*v[0]+m[7]*v[1]+m[8]*v[2]];
-}
-function transpose(m){return [m[0],m[3],m[6],m[1],m[4],m[7],m[2],m[5],m[8]];}
-function matToEuler(m){
-  const pitch=Math.asin(Math.max(-1,Math.min(1,-m[7])));
-  const yaw=Math.atan2(m[6],m[8]);
-  const roll=Math.atan2(m[1],m[4]);
-  const d=180/Math.PI;
-  return [yaw*d,pitch*d,roll*d];
-}
-
-// ═══ MediaPipe Face Tessellation ═══
-const TESS = [
-  [127,34,139],[11,0,37],[232,231,120],[72,37,39],[128,121,47],[232,120,100],
-  [213,215,138],[149,170,176],[209,198,92],[2,94,141],[49,64,98],[173,139,247],
-  [149,176,148],[150,136,172],[139,34,127],[11,37,72],[37,232,120],[128,47,121],
-  [215,213,138],[150,148,176],[209,92,57],[2,141,94],[64,49,98],[173,247,139],
-  [356,389,251],[389,356,454],[10,109,67],[10,67,54],[10,54,21],[10,21,162],
-  [10,162,127],[10,127,234],[10,234,93],[10,93,132],[10,132,58],[10,58,172],
-  [10,172,136],[10,136,150],[10,150,149],[10,149,176],[10,176,148],[10,148,152],
-  [10,152,377],[10,377,400],[10,400,378],[10,378,379],[10,379,365],[10,365,397],
-  [10,397,288],[10,288,361],[10,361,323],[10,323,454],[10,454,356],[10,356,389],
-  [10,389,251],[10,251,284],[10,284,332],[10,332,297],[10,297,338],
-  [33,7,163],[163,144,33],[33,144,145],[145,153,33],[153,154,33],[33,154,155],
-  [155,133,33],[33,133,246],[246,161,33],[33,161,160],[160,159,33],[33,159,158],
-  [158,157,33],[157,173,33],[33,173,133],
-  [263,249,390],[390,373,263],[263,373,374],[374,380,263],[263,380,381],[381,382,263],
-  [382,362,263],[263,362,466],[466,388,263],[263,388,387],[387,386,263],[263,386,385],
-  [385,384,263],[384,398,263],[263,398,362],
-  [0,267,269],[269,270,267],[270,409,267],[409,291,267],[291,375,267],
-  [375,321,267],[321,405,267],[405,314,267],[314,17,267],[17,84,267],
-  [84,181,267],[181,91,267],[91,146,267],[146,61,267],[61,185,267],
-  [185,40,267],[40,39,267],[39,37,267],[37,0,267],
-  [78,95,88],[95,78,191],[191,80,95],[80,81,95],[81,82,95],[82,13,95],
-  [13,312,95],[312,311,95],[311,310,95],[310,415,95],[415,308,95],[308,324,95],
-  [324,318,95],[318,402,95],[402,317,95],[317,14,95],[14,87,95],[87,178,95],
-  [178,88,95],
-  [454,323,361],[323,454,356],[234,127,162],[127,234,93],[93,132,127],
-  [58,132,172],[172,149,148],[148,152,149],[152,148,377],[377,378,148],
-  [378,400,148],[400,379,148],[379,365,148],[365,397,148],[397,288,148],
-  [288,361,148],[361,454,148],
-  [356,389,251],[389,251,284],[251,284,332],[284,332,297],[332,297,338],
-  [356,454,323],[454,323,361],[323,361,288],[361,288,397],[288,397,365],
-  [397,365,379],[365,379,378],[379,378,400],[378,400,377],[400,377,152],
-  [377,152,148],[152,148,176],[148,176,149],[176,149,150],[149,150,136],
-  [150,136,172],[136,172,58],[172,58,132],[58,132,93],[132,93,234],
-  [93,234,127],[234,127,162],[127,162,21],[162,21,54],[21,54,103],
-  [54,103,67],[103,67,109],[67,109,10],
-  [33,246,161],[246,161,160],[161,160,159],[160,159,158],[159,158,157],
-  [158,157,173],[157,173,133],[173,133,155],[133,155,154],[155,154,153],
-  [154,153,145],[153,145,144],[145,144,163],[144,163,7],[163,7,33],
-  [263,466,388],[466,388,387],[388,387,386],[387,386,385],[386,385,384],
-  [385,384,398],[384,398,362],[398,362,382],[362,382,381],[382,381,380],
-  [381,380,374],[380,374,373],[374,373,390],[373,390,249],[390,249,263],
-];
-
-// ═══════════════════════════════════════════════════════════════
-//  STATE
-// ═══════════════════════════════════════════════════════════════
-const ST = {
-  mode:'filter', stack:false, advOpen:false,
-  depth:2.0, amt:936, pulse:0.6, grid:18, opacity:0.95, smooth:0.35,
-  running:false, calibrated:false,
-  // calibration baselines (captured once, FIXED — this kills drift)
-  neutral:null,        // [468][3] raw landmark positions at calibration
-  neutralCentroid:null,// center of rigid points at calibration
-  neutralScale:1,      // face scale at calibration (inter-ocular dist)
-  zRange:1, zMin:0,    // FIXED depth normalization from calibration
-  colors:null,         // Float32 [468*3] sampled face color
-  // live solved state
-  poseR:[1,0,0,0,1,0,0,0,1],   // current head rotation (smoothed)
-  poseT:[0,0,0],               // current head translation (smoothed)
-  // smoothed display points in canonical space [468][3]
-  canonPts:null,
-  fps:0, bw:0,
-};
-
-let latest=null;       // latest raw MediaPipe landmarks
-let scene,camera,renderer,gl;
-let frameN=0,lastFps=performance.now();
-
-// ═══════════════════════════════════════════════════════════════
-//  CALIBRATION — capture neutral pose + fixed normalization
-//  This is called once. Everything downstream references these
-//  baselines so the mapping NEVER rescales per-frame.
-// ═══════════════════════════════════════════════════════════════
-function calibrate(){
-  if(!latest) return false;
-  const lm=latest;
-
-  ST.neutral = lm.map(p=>[p.x,p.y,p.z]);
-
-  let c=[0,0,0];
-  for(const i of RIGID_IDX){ c[0]+=lm[i].x; c[1]+=lm[i].y; c[2]+=lm[i].z; }
-  c=V.scale(c,1/RIGID_IDX.length);
-  ST.neutralCentroid=c;
-
-  // Face scale = inter-ocular distance (≈0.06 in MediaPipe normalized units)
-  ST.neutralScale = Math.hypot(
-    lm[33].x-lm[263].x, lm[33].y-lm[263].y, lm[33].z-lm[263].z) || 0.1;
-
-  let zmin=Infinity,zmax=-Infinity;
-  for(let i=0;i<lm.length;i++){ if(lm[i].z<zmin)zmin=lm[i].z; if(lm[i].z>zmax)zmax=lm[i].z; }
-  ST.zMin=zmin; ST.zRange=Math.max(1e-3,zmax-zmin);
-
-  // Canonical points: normalize so inter-ocular = 1 unit.
-  // Face is then ~3 units wide, ~4 tall. Z (depth) is naturally ~0.5 of that.
-  // We do NOT pre-multiply by neutralScale inverse blindly — instead target a
-  // fixed display size so the face frames nicely regardless of camera distance.
-  const inv = 1/ST.neutralScale;
-  ST.canonPts = lm.map(p=>[
-    (p.x-c[0])*inv,
-    (p.y-c[1])*inv,
-    (p.z-c[2])*inv,
-  ]);
-
-  ST.calibrated=true;
-  return true;
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  PER-FRAME SOLVE
-//  1. Solve rigid head pose (R,T) aligning current rigid pts to neutral
-//  2. Remove pose -> get expression in canonical frame
-//  3. Smooth canonical points (stable, low noise)
-//  4. Re-apply pose for display (head turns rotate the model in 3D)
-// ═══════════════════════════════════════════════════════════════
-function solveFrame(lm){
-  if(!ST.calibrated) return;
-
-  // Current rigid centroid
-  let c=[0,0,0];
-  for(const i of RIGID_IDX){ c[0]+=lm[i].x; c[1]+=lm[i].y; c[2]+=lm[i].z; }
-  c=V.scale(c,1/RIGID_IDX.length);
-
-  const curScale=Math.hypot(lm[33].x-lm[263].x,lm[33].y-lm[263].y,lm[33].z-lm[263].z)||ST.neutralScale;
-  const sInv=1/curScale;
-
-  // Build centered, scale-normalized rigid point sets
-  const Pcur=[], Pneu=[];
-  for(const i of RIGID_IDX){
-    Pcur.push([(lm[i].x-c[0])*sInv,(lm[i].y-c[1])*sInv,(lm[i].z-c[2])*sInv]);
-    const n=ST.neutral[i];
-    Pneu.push([(n[0]-ST.neutralCentroid[0])/ST.neutralScale,
-               (n[1]-ST.neutralCentroid[1])/ST.neutralScale,
-               (n[2]-ST.neutralCentroid[2])/ST.neutralScale]);
-  }
-
-  // R maps current-canonical rigid pts onto neutral-canonical
-  // i.e. removing head rotation. We want display rotation = R^T.
-  const Rremove=kabsch(Pcur,Pneu);
-  const Rdisp=transpose(Rremove);
-
-  // Smooth pose rotation (slerp-ish via matrix lerp + reorthonormalize)
-  const a=ST.smooth;
-  for(let k=0;k<9;k++) ST.poseR[k]=ST.poseR[k]*(1-a)+Rdisp[k]*a;
-  ST.poseR=reorthonormalize(ST.poseR);
-
-  // Euler for telemetry
-  const e=matToEuler(ST.poseR);
-  ST._euler=e;
-
-  // For every landmark: compute canonical position (pose removed),
-  // smooth it, store. Expression lives here, denoised & pose-free.
-  const cp=ST.canonPts;
-  for(let i=0;i<lm.length;i++){
-    const pc=[(lm[i].x-c[0])*sInv,(lm[i].y-c[1])*sInv,(lm[i].z-c[2])*sInv];
-    const canon=mat3mulVec(Rremove,pc); // remove head rotation
-    cp[i][0]+=(canon[0]-cp[i][0])*a;
-    cp[i][1]+=(canon[1]-cp[i][1])*a;
-    cp[i][2]+=(canon[2]-cp[i][2])*a;
-  }
-}
-
-function reorthonormalize(m){
-  let x=V.norm([m[0],m[3],m[6]]);
-  let y=[m[1],m[4],m[7]];
-  y=V.sub(y,V.scale(x,V.dot(x,y))); y=V.norm(y);
-  let z=V.cross(x,y);
-  return [x[0],y[0],z[0], x[1],y[1],z[1], x[2],y[2],z[2]];
-}
-
-// World-space position for landmark i (canonical -> display rotation -> scale)
-// Mirrored X for selfie view. Returns [x,y,z] in scene units.
-function worldPos(i){
-  const cp=ST.canonPts[i];
-  const r=mat3mulVec(ST.poseR,cp);
-  // Fixed XY scale: 1 canonical unit (inter-ocular) -> 0.5 scene units.
-  // Face ends ~1.6 wide, frames nicely in 40deg camera at z=4.2.
-  const S=0.5;
-  // Z relief is shallow. depth slider scales ONLY the forward/back relief,
-  // not the whole head — so features stay readable and head never balloons.
-  const zRelief=0.30*ST.depth;
-  return [ -r[0]*S, -r[1]*S, -r[2]*zRelief ];
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  SHADERS — instanced splat billboards (shared by all point modes)
-// ═══════════════════════════════════════════════════════════════
-const SPLAT_VERT=`
-attribute vec2 aUV;
-attribute vec3 iPos;
-attribute vec3 iCol;
-attribute float iSize;
-attribute float iComp;
-attribute float iPhase;
-attribute float iCent;
-varying vec2 vUV; varying vec3 vCol; varying float vComp; varying float vPhase; varying float vCent;
-uniform float uTime; uniform float uPulse;
-void main(){
-  vUV=aUV; vCol=iCol; vComp=iComp; vPhase=iPhase; vCent=iCent;
-  vec4 mv=modelViewMatrix*vec4(iPos,1.0);
-  float pulse=1.0+sin(uTime*uPulse+iPhase)*0.12*iComp;
-  float sz=iSize*(0.5+iComp*0.5)*pulse;
-  mv.xy+=aUV*sz;
-  gl_Position=projectionMatrix*mv;
-}`;
-
-// Knots: concentric RGB-frequency rings
-const KNOT_FRAG=`
-varying vec2 vUV; varying vec3 vCol; varying float vComp; varying float vPhase; varying float vCent;
-uniform float uTime; uniform float uPulse; uniform float uOpacity;
-void main(){
-  float d=length(vUV); if(d>1.0)discard;
-  float r=1.0-d;
-  float rA=vCol.r,gA=vCol.g,bA=vCol.b;
-  float rC=max(1.0,floor(rA*(2.0+vComp*2.0)));
-  float gC=max(1.0,floor(gA*(3.0+vComp*3.0)));
-  float bC=max(1.0,floor(bA*(4.0+vComp*5.0)));
-  float rP=fract(r*rC+uTime*uPulse*0.5+vPhase*0.15);
-  float gP=fract(r*gC+uTime*uPulse*1.0+vPhase*0.12);
-  float bP=fract(r*bC+uTime*uPulse*1.8+vPhase*0.10);
-  float bw=0.42+vComp*0.06;
-  float rB=step(rP,bw)*rA*rA*2.0, gB=step(gP,bw)*gA*gA*1.8, bB=step(bP,bw)*bA*bA*1.6;
-  vec3 col=vec3(1.5,0.04,0.0)*rB+vec3(0.04,1.3,0.08)*gB+vec3(0.0,0.16,1.6)*bB;
-  float core=exp(-d*d*120.0)*(0.7+vComp*0.3); col+=vCol*core*2.2;
-  col*=0.45+vComp*0.55;
-  if(vCent>0.5){col*=0.6;}
-  float lum=dot(col,vec3(0.299,0.587,0.114));
-  float a=lum*exp(-d*d*3.0)*uOpacity;
-  if(a<0.008)discard;
-  gl_FragColor=vec4(col,a);
-}`;
-
-// Splat: clean gaussian in face color
-const SPLAT_FRAG=`
-varying vec2 vUV; varying vec3 vCol; varying float vComp; varying float vPhase; varying float vCent;
-uniform float uTime; uniform float uPulse; uniform float uOpacity;
-void main(){
-  float d=length(vUV); if(d>1.0)discard;
-  float g=exp(-d*d*8.0);
-  vec3 col=pow(max(vCol,vec3(0.02)),vec3(0.85));
-  col*=mix(vec3(0.9,0.95,1.05),vec3(1.06,0.97,0.9),vComp);
-  float spec=exp(-d*d*30.0)*vComp*vComp*0.3; col+=vec3(spec);
-  if(vCent>0.5)col*=0.85;
-  float a=g*uOpacity;
-  if(a<0.005)discard;
-  gl_FragColor=vec4(col,a);
-}`;
-
-// Realist: tight gaussian, warm/cool depth, gamma lift
-const REALIST_FRAG=`
-varying vec2 vUV; varying vec3 vCol; varying float vComp; varying float vPhase; varying float vCent;
-uniform float uTime; uniform float uPulse; uniform float uOpacity;
-void main(){
-  float d=length(vUV); if(d>1.0)discard;
-  float g=exp(-d*d*6.0);
-  vec3 col=pow(max(vCol,vec3(0.02)),vec3(0.82));
-  col*=mix(vec3(0.86,0.93,1.07),vec3(1.08,0.98,0.88),vComp);
-  float spec=exp(-d*d*22.0)*vComp*vComp*0.35; col+=vec3(spec*1.05,spec*0.95,spec*0.82);
-  if(vCent>0.5)col*=0.9;
-  float a=g*uOpacity;
-  if(a<0.004)discard;
-  gl_FragColor=vec4(col,a);
-}`;
-
-// Skin: continuous mesh, crosshair-reticle tile grid (from sketch)
-// ═══════════════════════════════════════════════════════════════
-//  CHUCK CLOSE GRID — the core essence
-//  A rigid grid LOCKED to the face surface (canonical UV, so it
-//  rotates in 3D with the head instead of swimming). Each cell is
-//  an abstract high-chroma mark — concentric oval rings on a
-//  contrasting ground — whose colors are a decomposition of the
-//  sampled skin tone into surprising hues that OPTICALLY AVERAGE
-//  back to flesh at viewing distance. This is Close's actual method.
-// ═══════════════════════════════════════════════════════════════
-const SKIN_VERT=`
-attribute vec3 sCol; attribute float sComp; attribute vec2 sUV;
-varying vec3 fCol; varying float fComp; varying vec2 fUV;
-uniform float uTime; uniform float uPulse;
-void main(){
-  fCol=sCol; fComp=sComp;
-  fUV=sUV;                         // canonical face-space coord — grid tattooed to face
-  vec3 p=position;                 // world position (rotates with head pose)
-  p.z+=sin(uTime*uPulse*0.5+sUV.x*4.0+sUV.y*3.0)*0.008*sComp;
-  gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);
-}`;
-
-const SKIN_FRAG=`
-varying vec3 fCol; varying float fComp; varying vec2 fUV;
-uniform float uTime; uniform float uPulse; uniform float uOpacity; uniform float uGrid;
-
-vec3 rgb2hsv(vec3 c){
-  vec4 K=vec4(0.0,-1.0/3.0,2.0/3.0,-1.0);
-  vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g));
-  vec4 q=mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r));
-  float d=q.x-min(q.w,q.y);
-  return vec3(abs(q.z+(q.w-q.y)/(6.0*d+1e-10)), d/(q.x+1e-10), q.x);
-}
-vec3 hsv2rgb(vec3 c){
-  vec3 p=abs(fract(c.xxx+vec3(0.0,1.0/3.0,2.0/3.0))*6.0-3.0);
-  return c.z*mix(vec3(1.0),clamp(p-1.0,0.0,1.0),c.y);
-}
-float hash(vec2 c){ return fract(sin(dot(c,vec2(127.1,311.7)))*43758.5453); }
-
-void main(){
-  // ── Tilted grid (Close's diagonal lattice) ──
-  float ang=0.20;                              // ~11.5° tilt
-  float ca=cos(ang), sa=sin(ang);
-  vec2 uvR=vec2(fUV.x*ca-fUV.y*sa, fUV.x*sa+fUV.y*ca);
-
-  vec2 sc=uvR*uGrid;
-  vec2 cell=floor(sc);
-  vec2 p=(sc-cell-0.5)*2.0;                     // -1..1 within cell
-
-  // Per-cell randomness → hand-built irregularity
-  float h1=hash(cell);
-  float h2=hash(cell+19.7);
-  float h3=hash(cell+47.3);
-
-  // ── Sample skin tone for this cell, lift from dark video ──
-  vec3 fc=max(fCol,vec3(0.02));
-  vec3 hsv=rgb2hsv(fc);
-  hsv.y=clamp(hsv.y*1.5+0.15,0.0,1.0);          // punch saturation
-  hsv.z=pow(hsv.z,0.7)*1.15;                     // lift value
-
-  // ── COLOR DECOMPOSITION (the Close trick) ──
-  // Three hues that optically average back to the skin tone:
-  //  ground = hue jittered, dark, saturated
-  //  ring   = complementary-ish, mid
-  //  core   = same hue, bright
-  float hueJit=(h1-0.5)*0.12;                    // per-cell hue wobble
-  vec3 ground = hsv2rgb(vec3(fract(hsv.x+hueJit+0.03), min(1.0,hsv.y*1.1), hsv.z*0.30));
-  vec3 ringA  = hsv2rgb(vec3(fract(hsv.x+0.45+hueJit), 0.95,             hsv.z*0.9 ));
-  vec3 ringB  = hsv2rgb(vec3(fract(hsv.x-0.08+hueJit), 0.9,              hsv.z*1.0 ));
-  vec3 core   = hsv2rgb(vec3(fract(hsv.x+hueJit),      min(1.0,hsv.y*0.8),min(1.0,hsv.z*1.4)));
-
-  // ── Oval nucleus — per-cell aspect + rotation (Close's lozenges) ──
-  float cellRot=(h2-0.5)*1.2;
-  float cr=cos(cellRot), sr=sin(cellRot);
-  vec2 rp=vec2(cr*p.x-sr*p.y, sr*p.x+cr*p.y);
-  float aspect=0.78+h3*0.5;                       // ovalness varies
-  vec2 op=vec2(rp.x/aspect, rp.y*aspect);
-  float d=length(op);
-
-  // ── Build cell: ground fills whole square (NO GAPS) ──
-  vec3 col=ground;
-
-  // breathing pulse on ring radius
-  float pul=sin(uTime*uPulse*0.9+h1*6.28)*0.5+0.5;
-
-  // concentric oval rings
-  float rad1=0.30+0.04*pul;
-  float rad2=0.55;
-  float rad3=0.80;
-  float rw=0.13;
-  float ring1=1.0-smoothstep(rw,rw+0.10,abs(d-rad1));
-  float ring2=1.0-smoothstep(rw,rw+0.10,abs(d-rad2));
-  float ring3=1.0-smoothstep(rw,rw+0.10,abs(d-rad3));
-
-  col=mix(col,ringB,ring3*0.9);
-  col=mix(col,ringA,ring2*0.95);
-  col=mix(col,ringB,ring1*0.95);
-
-  // bright core nucleus
-  float coreM=1.0-smoothstep(0.12,0.20,d);
-  col=mix(col,core,coreM);
-
-  // tiny hot center dot
-  float dot=1.0-smoothstep(0.04,0.08,d);
-  col=mix(col,min(core*1.5+0.1,1.0),dot);
-
-  // subtle cell separation — thin dark gutter only at very edge (keeps grid legible, minimal gap)
-  float edge=max(abs(p.x),abs(p.y));
-  float gut=smoothstep(0.93,1.0,edge);
-  col*=1.0-gut*0.45;
-
-  // depth shading — recessed cells slightly darker/cooler
-  col*=mix(0.7,1.12,fComp);
-
-  col=clamp(col,0.0,1.0);
-  gl_FragColor=vec4(col,uOpacity);
-}`;
-
-// ═══════════════════════════════════════════════════════════════
-//  TWO-TIER POINT INDEXING (landmarks + centroids)
-// ═══════════════════════════════════════════════════════════════
-let knotSys=null, skinMesh=null;
-const NLM=468;
-
-function buildPointSystem(){
-  if(knotSys){scene.remove(knotSys);knotSys.geometry.dispose();knotSys.material.dispose();knotSys=null;}
-  if(!ST.calibrated) return;
-
-  const tris=TESS;
-  const nTri=tris.length;
-  const total=NLM+nTri;
-
-  const iPos=new Float32Array(total*3);
-  const iCol=new Float32Array(total*3);
-  const iSize=new Float32Array(total);
-  const iComp=new Float32Array(total);
-  const iPhase=new Float32Array(total);
-  const iCent=new Float32Array(total);
-
-  fillPointAttributes(iPos,iCol,iSize,iComp,iPhase,iCent,tris);
-
-  const base=new THREE.BufferGeometry();
-  base.setAttribute('position',new THREE.Float32BufferAttribute([-1,-1,0,1,-1,0,1,1,0,-1,1,0],3));
-  base.setAttribute('aUV',new THREE.Float32BufferAttribute([-1,-1,1,-1,1,1,-1,1],2));
-  base.setIndex(new THREE.BufferAttribute(new Uint16Array([0,1,2,0,2,3]),1));
-
-  const geo=new THREE.InstancedBufferGeometry();
-  geo.instanceCount=total;
-  geo.setAttribute('position',base.attributes.position);
-  geo.setAttribute('aUV',base.attributes.aUV);
-  geo.setIndex(base.index);
-  geo.setAttribute('iPos',new THREE.InstancedBufferAttribute(iPos,3));
-  geo.setAttribute('iCol',new THREE.InstancedBufferAttribute(iCol,3));
-  geo.setAttribute('iSize',new THREE.InstancedBufferAttribute(iSize,1));
-  geo.setAttribute('iComp',new THREE.InstancedBufferAttribute(iComp,1));
-  geo.setAttribute('iPhase',new THREE.InstancedBufferAttribute(iPhase,1));
-  geo.setAttribute('iCent',new THREE.InstancedBufferAttribute(iCent,1));
-
-  const frag = ST.mode==='splat'?SPLAT_FRAG : ST.mode==='realist'?REALIST_FRAG : KNOT_FRAG;
-  const mat=new THREE.ShaderMaterial({
-    vertexShader:SPLAT_VERT, fragmentShader:frag,
-    transparent:true, depthWrite:false,
-    blending: ST.mode==='realist'?THREE.NormalBlending:THREE.AdditiveBlending,
-    uniforms:{uTime:{value:0},uPulse:{value:ST.pulse},uOpacity:{value:ST.opacity}}
-  });
-  knotSys=new THREE.Mesh(geo,mat);
-  knotSys.frustumCulled=false;
-  scene.add(knotSys);
-}
-
-// Fill/refresh instance attributes from current canonical+pose state
-function fillPointAttributes(iPos,iCol,iSize,iComp,iPhase,iCent,tris){
-  const C=ST.colors;
-  const lmTarget=Math.min(NLM,ST.amt);
-  const centTarget=Math.max(0,ST.amt-NLM);
-  const lmStep=Math.max(1,Math.floor(NLM/lmTarget));
-  const centStep=centTarget>0?Math.max(1,Math.floor(tris.length/centTarget)):1e9;
-
-  const lmSize = ST.mode==='realist'?0.16:0.12;
-  const centSize = ST.mode==='realist'?0.11:0.08;
-
-  // landmarks
-  for(let i=0;i<NLM;i++){
-    const w=worldPos(i);
-    iPos[i*3]=w[0]; iPos[i*3+1]=w[1]; iPos[i*3+2]=w[2];
-    if(C){iCol[i*3]=C[i*3];iCol[i*3+1]=C[i*3+1];iCol[i*3+2]=C[i*3+2];}
-    else {iCol[i*3]=0.2;iCol[i*3+1]=0.7;iCol[i*3+2]=0.9;}
-    // compression from canonical Z (stable, not per-frame renormalized)
-    const cz=ST.canonPts[i][2];
-    iComp[i]=Math.max(0,Math.min(1,0.5 - cz*1.5));
-    iPhase[i]=(i*0.618033)%(Math.PI*2);
-    iCent[i]=0;
-    iSize[i]=(i%lmStep===0)?lmSize:0;
-  }
-  // centroids
-  for(let t=0;t<tris.length;t++){
-    const [a,b,c]=tris[t]; const idx=NLM+t;
-    if(a>=NLM||b>=NLM||c>=NLM){iSize[idx]=0;continue;}
-    iPos[idx*3]=(iPos[a*3]+iPos[b*3]+iPos[c*3])/3;
-    iPos[idx*3+1]=(iPos[a*3+1]+iPos[b*3+1]+iPos[c*3+1])/3;
-    iPos[idx*3+2]=(iPos[a*3+2]+iPos[b*3+2]+iPos[c*3+2])/3;
-    iCol[idx*3]=(iCol[a*3]+iCol[b*3]+iCol[c*3])/3;
-    iCol[idx*3+1]=(iCol[a*3+1]+iCol[b*3+1]+iCol[c*3+1])/3;
-    iCol[idx*3+2]=(iCol[a*3+2]+iCol[b*3+2]+iCol[c*3+2])/3;
-    iComp[idx]=(iComp[a]+iComp[b]+iComp[c])/3;
-    iPhase[idx]=((a+b+c)*0.23)%(Math.PI*2);
-    iCent[idx]=1;
-    iSize[idx]=(t%centStep===0)?centSize:0;
-  }
-}
-
-// Fast per-frame update of existing buffers (no realloc)
-function updatePointSystem(){
-  if(!knotSys)return;
-  const g=knotSys.geometry;
-  fillPointAttributes(
-    g.attributes.iPos.array,g.attributes.iCol.array,g.attributes.iSize.array,
-    g.attributes.iComp.array,g.attributes.iPhase.array,g.attributes.iCent.array,TESS);
-  g.attributes.iPos.needsUpdate=true;
-  g.attributes.iSize.needsUpdate=true;
-  g.attributes.iComp.needsUpdate=true;
-  knotSys.material.uniforms.uPulse.value=ST.pulse;
-  knotSys.material.uniforms.uOpacity.value=ST.opacity;
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  SKIN MESH (continuous surface)
-// ═══════════════════════════════════════════════════════════════
-function buildSkinMesh(){
-  if(skinMesh){scene.remove(skinMesh);skinMesh.geometry.dispose();skinMesh.material.dispose();skinMesh=null;}
-  if(!ST.calibrated)return;
-  const pos=new Float32Array(NLM*3);
-  const col=new Float32Array(NLM*3);
-  const comp=new Float32Array(NLM);
-  const uv=new Float32Array(NLM*2);
-  const C=ST.colors;
-  for(let i=0;i<NLM;i++){
-    const w=worldPos(i);
-    pos[i*3]=w[0];pos[i*3+1]=w[1];pos[i*3+2]=w[2];
-    if(C){col[i*3]=C[i*3];col[i*3+1]=C[i*3+1];col[i*3+2]=C[i*3+2];}
-    const cz=ST.canonPts[i][2];
-    comp[i]=Math.max(0,Math.min(1,0.5-cz*1.5));
-    // canonical face-space UV — stable, grid stays locked to face & rotates in 3D
-    uv[i*2]=ST.canonPts[i][0];
-    uv[i*2+1]=ST.canonPts[i][1];
-  }
-  const idx=[];
-  for(const [a,b,c] of TESS){ if(a<NLM&&b<NLM&&c<NLM) idx.push(a,b,c); }
-  const geo=new THREE.BufferGeometry();
-  geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
-  geo.setAttribute('sCol',new THREE.Float32BufferAttribute(col,3));
-  geo.setAttribute('sComp',new THREE.Float32BufferAttribute(comp,1));
-  geo.setAttribute('sUV',new THREE.Float32BufferAttribute(uv,2));
-  geo.setIndex(idx);
-  const mat=new THREE.ShaderMaterial({
-    vertexShader:SKIN_VERT,fragmentShader:SKIN_FRAG,
-    transparent:true,side:THREE.DoubleSide,depthWrite:true,
-    uniforms:{uTime:{value:0},uPulse:{value:ST.pulse},uOpacity:{value:ST.opacity},uGrid:{value:ST.grid}}
-  });
-  skinMesh=new THREE.Mesh(geo,mat);
-  skinMesh.frustumCulled=false;
-  scene.add(skinMesh);
-}
-function updateSkinMesh(){
-  if(!skinMesh)return;
-  const pos=skinMesh.geometry.attributes.position;
-  const comp=skinMesh.geometry.attributes.sComp;
-  const uv=skinMesh.geometry.attributes.sUV;
-  for(let i=0;i<NLM;i++){
-    const w=worldPos(i);
-    pos.array[i*3]=w[0];pos.array[i*3+1]=w[1];pos.array[i*3+2]=w[2];
-    const cz=ST.canonPts[i][2];
-    comp.array[i]=Math.max(0,Math.min(1,0.5-cz*1.5));
-    uv.array[i*2]=ST.canonPts[i][0];
-    uv.array[i*2+1]=ST.canonPts[i][1];
-  }
-  pos.needsUpdate=true; comp.needsUpdate=true; uv.needsUpdate=true;
-  skinMesh.geometry.computeVertexNormals();
-  const u=skinMesh.material.uniforms;
-  u.uPulse.value=ST.pulse;u.uOpacity.value=ST.opacity;u.uGrid.value=ST.grid;
-}
-
-function setWire(on){ if(skinMesh) skinMesh.material.wireframe=on; }
-
-// ═══════════════════════════════════════════════════════════════
-//  VISIBILITY — mode + stack
-// ═══════════════════════════════════════════════════════════════
-function applyMode(){
-  const pointMode = (ST.mode==='knots'||ST.mode==='splat'||ST.mode==='realist');
-  const meshMode  = (ST.mode==='skin'||ST.mode==='wire');
-
-  // rebuild appropriate systems
-  if(pointMode){ buildPointSystem(); if(ST.stack) buildSkinMesh(); }
-  else { buildSkinMesh(); if(ST.stack) buildPointSystem(); setWire(ST.mode==='wire'); }
-
-  if(knotSys) knotSys.visible = pointMode || ST.stack;
-  if(skinMesh) skinMesh.visible = meshMode || ST.stack;
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  COLOR SAMPLING (selfie-mirrored)
-// ═══════════════════════════════════════════════════════════════
-let capCanvas,capCtx;
-function sampleColors(){
-  if(!latest)return;
-  const vid=document.getElementById('cam');
-  if(!vid.videoWidth)return;
-  capCtx.drawImage(vid,0,0,640,480);
-  const px=capCtx.getImageData(0,0,640,480).data;
-  ST.colors=new Float32Array(NLM*3);
-  for(let i=0;i<NLM;i++){
-    const x=Math.min(639,Math.max(0,Math.floor((1-latest[i].x)*640)));
-    const y=Math.min(479,Math.max(0,Math.floor(latest[i].y*480)));
-    const o=(y*640+x)*4;
-    ST.colors[i*3]=px[o]/255;ST.colors[i*3+1]=px[o+1]/255;ST.colors[i*3+2]=px[o+2]/255;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  THREE SETUP + RENDER LOOP
-// ═══════════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════════
-//  CLOSE FILTER — 2D screen-space video filter (matches reference)
-//  Live video → Chuck Close cell mosaic. Detailed areas (eyes, lips,
-//  nostrils) stay photographic; flat skin becomes colored lozenges.
-// ═══════════════════════════════════════════════════════════════
-const FILTER_VERT=`
-varying vec2 vUv;
-void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }
+const cvs = document.getElementById('gl');
+const gl  = cvs.getContext('webgl') || cvs.getContext('experimental-webgl');
+const vid = document.getElementById('vid');
+
+if(!gl){ document.getElementById('err').textContent='WebGL not supported on this device.'; }
+
+/* ---------------- shaders ---------------- */
+const VERT = `
+attribute vec2 p;
+varying vec2 uv;
+void main(){ uv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }
 `;
-const FILTER_FRAG=`
+
+const FRAG = `
 precision highp float;
-varying vec2 vUv;
-uniform sampler2D uTex;
-uniform vec2  uRes;
-uniform vec2  uVidRes;
-uniform float uTime;
-uniform float uGrid;
-uniform float uStyle;
-uniform float uMirror;
-uniform vec2  uFaceC;
-uniform vec2  uFaceR;
-uniform float uHasFace;
-vec3 rgb2hsv(vec3 c){
-  vec4 K=vec4(0.,-1./3.,2./3.,-1.);
-  vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g));
-  vec4 q=mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r));
-  float d=q.x-min(q.w,q.y);
-  return vec3(abs(q.z+(q.w-q.y)/(6.*d+1e-10)),d/(q.x+1e-10),q.x);
+varying vec2 uv;
+uniform sampler2D tex;
+uniform vec2  res;       // canvas resolution
+uniform float time;
+uniform float density;   // cells across
+uniform float warpAmt;   // contour warp 0..1
+uniform float blobAmt;   // eye/blob strength 0..1
+uniform float ringFreq;  // concentric ring detail
+uniform float dreamMix;  // 0..1 blend with reality
+uniform float warmth;    // 0..1 palette push
+uniform float speed;     // drift
+uniform float flip;      // mirror x
+
+float lum(vec3 c){ return dot(c, vec3(0.299,0.587,0.114)); }
+
+// cheap hash + value noise
+float hash(vec2 p){ return fract(sin(dot(p,vec2(41.3,289.1)))*43758.5453); }
+float noise(vec2 p){
+  vec2 i=floor(p), f=fract(p);
+  f=f*f*(3.-2.*f);
+  float a=hash(i), b=hash(i+vec2(1,0)), c=hash(i+vec2(0,1)), d=hash(i+vec2(1,1));
+  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
 }
-vec3 hsv2rgb(vec3 c){
-  vec3 p=abs(fract(c.xxx+vec3(0.,1./3.,2./3.))*6.-3.);
-  return c.z*mix(vec3(1.),clamp(p-1.,0.,1.),c.y);
+float fbm(vec2 p){
+  float s=0., a=.5;
+  for(int i=0;i<4;i++){ s+=a*noise(p); p*=2.03; a*=.5; }
+  return s;
 }
-float hash(vec2 c){ return fract(sin(dot(c,vec2(127.1,311.7)))*43758.5453); }
-vec2 mapUV(vec2 uv){
-  float screenA=uRes.x/uRes.y;
-  float vidA=uVidRes.x/uVidRes.y;
-  vec2 t=uv;
-  if(screenA>vidA){ t.y=(uv.y-0.5)*(screenA/vidA)+0.5; }
-  else { t.x=(uv.x-0.5)*(vidA/screenA)+0.5; }
-  if(uMirror>0.5) t.x=1.0-t.x;
-  return t;
+
+vec3 sampleCam(vec2 c){
+  c.x = mix(c.x, 1.0-c.x, flip);
+  // cover fit handled by aspect in JS coords; clamp safe
+  return texture2D(tex, clamp(c,0.001,0.999)).rgb;
 }
+
 void main(){
-  vec2 baseUV=mapUV(vUv);
-  if(baseUV.x<0.0||baseUV.x>1.0||baseUV.y<0.0||baseUV.y>1.0){ gl_FragColor=vec4(0.02,0.02,0.03,1.); return; }
-  vec3 photo=texture2D(uTex,baseUV).rgb;
+  vec2 px = 1.0/res;
+  vec2 c0 = uv;
 
-  // ── Face mask: soft ellipse around the detected face ──
-  // baseUV (after mapUV) is in RAW video-sample space — same space as the
-  // landmark-derived uFaceC. Compare directly, no extra mirror.
-  vec2 dF=(baseUV-uFaceC)/uFaceR;
-  float fd=length(dF);
-  float mask=uHasFace*(1.0-smoothstep(0.85,1.15,fd));
+  // --- 1. contour-following warp (flow along luminance gradient) ---
+  float e = 2.5*px.x;
+  float lx = lum(sampleCam(c0+vec2(e,0.))) - lum(sampleCam(c0-vec2(e,0.)));
+  float ly = lum(sampleCam(c0+vec2(0.,e))) - lum(sampleCam(c0-vec2(0.,e)));
+  vec2 grad = vec2(lx,ly);
+  vec2 flow = vec2(-grad.y, grad.x);              // perpendicular = follow edges
+  float t = time*speed;
+  vec2 n = vec2(fbm(c0*6.0+t*0.3), fbm(c0*6.0+17.7-t*0.3))-0.5;
+  vec2 warped = c0 + warpAmt*(flow*0.9 + n*0.18);
 
-  // ── Cell grid (only matters inside mask) ──
-  float ang=0.18; float ca=cos(ang),sa=sin(ang);
-  vec2 g=vec2(baseUV.x*ca-baseUV.y*sa, baseUV.x*sa+baseUV.y*ca);
-  g.x*=uVidRes.x/uVidRes.y;
-  vec2 sc=g*uGrid;
-  vec2 cell=floor(sc);
-  vec2 p=(fract(sc)-0.5)*2.0;
-  vec2 ccG=(cell+0.5)/uGrid;
-  ccG.x/=uVidRes.x/uVidRes.y;
-  vec2 cc=vec2(ccG.x*ca+ccG.y*sa, -ccG.x*sa+ccG.y*ca);
-  vec3 cellCol=texture2D(uTex,clamp(cc,0.0,1.0)).rgb;
+  vec3 base = sampleCam(warped);
+  float L = lum(base);
 
-  // Close color decomposition
-  vec3 hsv=rgb2hsv(max(cellCol,vec3(0.02)));
-  hsv.y=clamp(hsv.y*1.35+0.10,0.0,1.0);
-  hsv.z=pow(hsv.z,0.9)*1.05;
-  float h1=hash(cell), h2=hash(cell+19.7), h3=hash(cell+47.3);
-  float hj=(h1-0.5)*0.08;
-  vec3 ground=hsv2rgb(vec3(fract(hsv.x+hj+0.02),min(1.0,hsv.y*1.05),hsv.z*0.5));
-  vec3 ringA =hsv2rgb(vec3(fract(hsv.x+0.42+hj),0.85,hsv.z*0.95));
-  vec3 ringB =hsv2rgb(vec3(fract(hsv.x-0.05+hj),0.8,hsv.z));
-  vec3 core  =hsv2rgb(vec3(fract(hsv.x+hj),min(1.0,hsv.y*0.85),min(1.0,hsv.z*1.25)));
+  // --- 2. cellular grid keyed to the image ---
+  vec2 g = warped*density;
+  vec2 cell = floor(g);
+  vec2 fp = fract(g)-0.5;
+  // jitter cell so it isn't a rigid square grid (organic)
+  float jx = (hash(cell)-0.5);
+  float jy = (hash(cell+3.1)-0.5);
+  fp += 0.18*vec2(jx,jy);
 
-  float rot=(h2-0.5)*1.0; float cr=cos(rot),sr=sin(rot);
-  vec2 rp=vec2(cr*p.x-sr*p.y, sr*p.x+cr*p.y);
-  float asp=0.82+h3*0.36; vec2 op=vec2(rp.x/asp,rp.y*asp);
-  float d=length(op);
+  vec3 cellCol = sampleCam((cell+0.5)/density);
+  float cL = lum(cellCol);
 
-  vec3 mark=ground;
-  float r1=1.0-smoothstep(0.12,0.22,abs(d-0.30));
-  float r2=1.0-smoothstep(0.12,0.22,abs(d-0.56));
-  mark=mix(mark,ringA,r2*0.9);
-  mark=mix(mark,ringB,r1*0.9);
-  float coreM=1.0-smoothstep(0.10,0.17,d);
-  mark=mix(mark,core,coreM);
-  float edge=max(abs(p.x),abs(p.y));
-  mark*=1.0-smoothstep(0.90,1.0,edge)*0.35;
+  float d = length(fp);
 
-  // Multiply mark by photo luminance so the face's own light/shadow/form shows
-  float pl=dot(photo,vec3(0.299,0.587,0.114));
-  vec3 mosaic=mark*(0.5+pl*0.9);
+  // concentric rings -> the "growth ring / eye" texture
+  float rings = 0.5+0.5*sin(d*ringFreq*(0.6+cL*1.2) - t*2.0 + cL*9.0);
+  rings = pow(rings, 1.4);
 
-  // ── Compose ──
-  // Inside face: blend photo->mosaic by uStyle*mask.
-  // Outside face: dark, with photo barely visible.
-  vec3 faceOut=mix(photo, mosaic, uStyle*mask);
-  vec3 bg=photo*0.12;                 // dim background so the portrait pops
-  vec3 outc=mix(bg, faceOut, mask);
-  // keep a thin photographic vignette of the real face under low style
-  outc=mix(outc, photo, (1.0-uStyle)*mask*0.0);
+  // central blob (pupil-like) sized by local brightness
+  float r = 0.12 + 0.32*blobAmt + 0.16*cL;
+  float blob = smoothstep(r, r-0.14, d);
+  float pupil = smoothstep(0.07, 0.0, d) * blobAmt;
 
-  gl_FragColor=vec4(outc,1.0);
+  // cell border darkening (grout lines)
+  float border = smoothstep(0.46,0.5,max(abs(fp.x),abs(fp.y)));
+
+  // --- 3. build the dreamed color from the palette of the face ---
+  vec3 warm = mix(cellCol, cellCol*vec3(1.5,0.95,0.45)+vec3(0.12,0.04,0.0), warmth);
+  float light = 0.45 + 0.95*rings;
+  light = mix(light, light+0.5, blob);            // blobs glow
+  vec3 dream = warm*light;
+  dream = mix(dream, dream*vec3(0.35,0.22,0.18), pupil);   // dark pupil
+  dream *= (1.0-0.55*border);                              // grout
+  // rim highlight on rings (the creamy edges)
+  dream += vec3(1.0,0.85,0.6)*0.18*smoothstep(0.45,0.85,rings)*(1.0-blob*0.4);
+
+  // --- 4. let saturated reds (lips) & bright eyes punch through ---
+  float mx = max(max(base.r,base.g),base.b);
+  float mn = min(min(base.r,base.g),base.b);
+  float sat = (mx-mn)/(mx+0.001);
+  float keepReal = smoothstep(0.45,0.72,sat);     // vivid areas stay real
+  float localMix = dreamMix*(1.0-keepReal*0.85);
+
+  vec3 outc = mix(base, dream, localMix);
+
+  // gentle filmic contrast + warm grade
+  outc = pow(outc, vec3(0.92));
+  outc *= vec3(1.04,1.0,0.96);
+
+  gl_FragColor = vec4(outc,1.0);
 }
 `;
-let filterScene=null,filterCam=null,filterMat=null,videoTex=null;
 
-function initThree(){
-  gl=document.getElementById('gl');
-  scene=new THREE.Scene();
-  camera=new THREE.PerspectiveCamera(40,innerWidth/innerHeight,0.01,100);
-  camera.position.z=4.2;
-  renderer=new THREE.WebGLRenderer({canvas:gl,antialias:true,alpha:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-  renderer.setSize(innerWidth,innerHeight);
-  renderer.setClearColor(0,0);
+/* ---------------- gl setup ---------------- */
+function sh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(s));return s;}
+let prog;
+if(gl){
+  prog=gl.createProgram();
+  gl.attachShader(prog,sh(gl.VERTEX_SHADER,VERT));
+  gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FRAG));
+  gl.linkProgram(prog);gl.useProgram(prog);
 
-  // ── Fullscreen filter pass (Close video filter) ──
-  filterScene=new THREE.Scene();
-  filterCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
-  const vid=document.getElementById('cam');
-  videoTex=new THREE.VideoTexture(vid);
-  videoTex.minFilter=THREE.LinearFilter;
-  videoTex.magFilter=THREE.LinearFilter;
-  filterMat=new THREE.ShaderMaterial({
-    vertexShader:FILTER_VERT, fragmentShader:FILTER_FRAG,
-    uniforms:{
-      uTex:{value:videoTex},
-      uRes:{value:new THREE.Vector2(innerWidth,innerHeight)},
-      uVidRes:{value:new THREE.Vector2(640,480)},
-      uTime:{value:0}, uGrid:{value:ST.grid*2.2},
-      uStyle:{value:1.0}, uMirror:{value:1.0},
-      uFaceC:{value:new THREE.Vector2(0.5,0.5)},
-      uFaceR:{value:new THREE.Vector2(0.25,0.32)},
-      uHasFace:{value:0.0},
-    },
-    depthTest:false, depthWrite:false,
-  });
-  const fq=new THREE.Mesh(new THREE.PlaneGeometry(2,2), filterMat);
-  filterScene.add(fq);
-
-  addEventListener('resize',()=>{
-    camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth,innerHeight);
-    if(filterMat) filterMat.uniforms.uRes.value.set(innerWidth,innerHeight);
-  });
-  const clock=new THREE.Clock();
-  (function loop(){
-    requestAnimationFrame(loop);
-    const t=clock.getElapsedTime();
-    if(ST.mode==='filter'){
-      // 2D video filter pass — no mesh, no calibration needed
-      if(filterMat){
-        filterMat.uniforms.uTime.value=t;
-        filterMat.uniforms.uGrid.value=ST.grid*2.2;
-        const vid=document.getElementById('cam');
-        if(vid.videoWidth) filterMat.uniforms.uVidRes.value.set(vid.videoWidth,vid.videoHeight);
-      }
-      renderer.render(filterScene,filterCam);
-    } else {
-      if(knotSys&&knotSys.visible){knotSys.material.uniforms.uTime.value=t;}
-      if(skinMesh&&skinMesh.visible){skinMesh.material.uniforms.uTime.value=t;}
-      renderer.render(scene,camera);
-    }
-    frameN++;
-    const now=performance.now();
-    if(now-lastFps>500){
-      ST.fps=Math.round(frameN*1000/(now-lastFps));frameN=0;lastFps=now;
-      updateTelem();
-    }
-  })();
+  const buf=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+  const loc=gl.getAttribLocation(prog,'p');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
 }
 
-function updateTelem(){
-  document.getElementById('t-fps').textContent=ST.fps;
-  document.getElementById('t-track').textContent=ST.calibrated?'LOCK':(latest?'SEEK':'—');
-  if(ST._euler){
-    const[y,p,r]=ST._euler;
-    document.getElementById('t-pose').textContent=`${y.toFixed(0)}°`;
-  }
-  // bitrate estimate: 28 anchors * 3 * int8 delta @ fps
-  ST.bw=Math.round(28*3*ST.fps/1000*8); // kbps
-  document.getElementById('t-bw').textContent=ST.bw+'k';
+const tex = gl && gl.createTexture();
+if(tex){
+  gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
 }
+const U = name => gl.getUniformLocation(prog,name);
+const uni = {};
+if(gl)['res','time','density','warpAmt','blobAmt','ringFreq','dreamMix','warmth','speed','flip']
+  .forEach(k=>uni[k]=U(k.replace('Amt','').replace('warp','warpAmt').replace('blob','blobAmt')));
+// simpler explicit grab:
+function loc(n){return gl.getUniformLocation(prog,n);}
 
-// ═══════════════════════════════════════════════════════════════
-//  CAMERA + MEDIAPIPE
-// ═══════════════════════════════════════════════════════════════
-async function initOptics(){
-  const btn=document.getElementById('b-init');
-  btn.textContent='Init…'; btn.disabled=true;
-  if(typeof THREE==='undefined'||typeof FaceMesh==='undefined'||typeof Camera==='undefined'){
-    btn.textContent='Deps missing'; btn.disabled=false; return;
-  }
-  initThree();
-  capCanvas=document.createElement('canvas');capCanvas.width=640;capCanvas.height=480;
-  capCtx=capCanvas.getContext('2d',{willReadFrequently:true});
+/* ---------------- state ---------------- */
+const P = {density:46, warp:55, blob:55, ring:26, mix:88, warm:62, speed:35};
+let facing='user', frozen=false, stream=null, camReady=false;
 
-  let stream;
+/* ---------------- camera ---------------- */
+async function startCam(){
   try{
-    btn.textContent='Camera…';
-    stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'},audio:false});
-  }catch(e){ btn.textContent='Cam denied'; btn.disabled=false; return; }
-
-  const pip=document.getElementById('pip'), cam=document.getElementById('cam');
-  pip.srcObject=stream; cam.srcObject=stream;
-  try{pip.play();}catch(_){}; try{cam.play();}catch(_){}
-  await new Promise(r=>{ if(cam.readyState>=2)return r(); cam.onloadeddata=r; setTimeout(r,5000); });
-
-  btn.textContent='Mesh…';
-  let fm;
-  try{
-    fm=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
-    fm.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
-    fm.onResults(onResults);
-  }catch(e){ btn.textContent='Mesh err'; btn.disabled=false; return; }
-
-  try{
-    let busy=false;
-    const mp=new Camera(cam,{onFrame:async()=>{if(busy)return;busy=true;try{await fm.send({image:cam});}catch(_){}finally{busy=false;}},width:640,height:480});
-    await mp.start();
-  }catch(e){ btn.textContent='Stream err'; btn.disabled=false; return; }
-
-  ST.running=true;
-  btn.textContent='Live'; btn.classList.add('go'); btn.disabled=false;
-  document.getElementById('b-snap').disabled=false;
-  document.getElementById('lore').style.opacity='0';
-  if(ST.mode==='filter') showHint('Close filter live · adjust Grid to taste');
-  else showHint('Hold still & face forward, then tap Calibrate');
-}
-
-function onResults(res){
-  if(!res.multiFaceLandmarks?.[0])return;
-  latest=res.multiFaceLandmarks[0];
-
-  // ── Always compute face mask bounds (filter needs this, no calibration req) ──
-  if(filterMat){
-    // Face oval bounding box in video UV space
-    let minx=9,maxx=-9,miny=9,maxy=-9;
-    for(const i of OVAL_IDX){
-      const x=latest[i].x, y=latest[i].y;
-      if(x<minx)minx=x; if(x>maxx)maxx=x;
-      if(y<miny)miny=y; if(y>maxy)maxy=y;
-    }
-    // center + radii, padded slightly to include full face
-    const cx=(minx+maxx)*0.5, cy=(miny+maxy)*0.5;
-    const rx=(maxx-minx)*0.62, ry=(maxy-miny)*0.60;
-    // smooth to avoid jitter
-    const F=ST._mask||(ST._mask={cx,cy,rx,ry});
-    const k=0.4;
-    F.cx+=(cx-F.cx)*k; F.cy+=(cy-F.cy)*k;
-    F.rx+=(rx-F.rx)*k; F.ry+=(ry-F.ry)*k;
-    filterMat.uniforms.uFaceC.value.set(F.cx,F.cy);
-    filterMat.uniforms.uFaceR.value.set(F.rx,F.ry);
-    filterMat.uniforms.uHasFace.value=1.0;
-  }
-
-  if(!ST.calibrated)return;
-  solveFrame(latest);
-  const pointMode=(ST.mode==='knots'||ST.mode==='splat'||ST.mode==='realist');
-  if(pointMode||ST.stack) updatePointSystem();
-  if(ST.mode==='skin'||ST.mode==='wire'||ST.stack) updateSkinMesh();
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  UI WIRING
-// ═══════════════════════════════════════════════════════════════
-function showHint(txt){
-  const h=document.getElementById('hint');
-  h.textContent=txt; h.classList.add('show');
-  clearTimeout(showHint._t); showHint._t=setTimeout(()=>h.classList.remove('show'),3500);
-}
-
-function doCalibrate(){
-  if(!latest){showHint('No face detected');return;}
-  if(calibrate()){
-    sampleColors();
-    applyMode();
-    document.getElementById('b-recenter').disabled=false;
-    document.getElementById('b-snap').textContent='Recalibrate';
-    document.getElementById('b-snap').classList.add('on');
-    document.getElementById('lore').style.opacity='0';
-    showHint('Calibrated · turn your head, open your mouth');
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:facing, width:{ideal:1280}, height:{ideal:720}}, audio:false});
+    vid.srcObject = stream;
+    await vid.play();
+    camReady=true;
+    document.getElementById('err').textContent='';
+    return true;
+  }catch(e){
+    document.getElementById('err').textContent='Camera blocked or unavailable — check permissions.';
+    return false;
   }
 }
 
-function wireUI(){
-  document.getElementById('b-init').onclick=initOptics;
-  document.getElementById('b-snap').onclick=doCalibrate;
+/* ---------------- sizing (cover) ---------------- */
+function resize(){
+  if(!camReady) return;
+  const vw=vid.videoWidth, vh=vid.videoHeight;
+  if(!vw) return;
+  // fit canvas to screen keeping video aspect (cover the stage area)
+  const sw=window.innerWidth, sh_=window.innerHeight;
+  const vAsp=vw/vh, sAsp=sw/sh_;
+  let w,h;
+  if(sAsp>vAsp){ w=sw; h=sw/vAsp; } else { h=sh_; w=sh_*vAsp; }
+  const dpr=Math.min(window.devicePixelRatio||1, 2);
+  cvs.style.width=w+'px'; cvs.style.height=h+'px';
+  cvs.width=Math.round(w*dpr); cvs.height=Math.round(h*dpr);
+  gl.viewport(0,0,cvs.width,cvs.height);
+}
+window.addEventListener('resize',resize);
 
-  document.getElementById('b-recenter').onclick=()=>{
-    if(latest){calibrate();sampleColors();applyMode();showHint('Recentered');}
-  };
+/* ---------------- render loop ---------------- */
+let t0=performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  if(!camReady||!gl) return;
+  if(cvs.width===0) resize();
+  if(!frozen && vid.readyState>=2){
+    try{ gl.bindTexture(gl.TEXTURE_2D,tex);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,vid);}catch(e){}
+  }
+  const t=(now-t0)/1000;
+  gl.useProgram(prog);
+  gl.uniform2f(loc('res'),cvs.width,cvs.height);
+  gl.uniform1f(loc('time'),t);
+  gl.uniform1f(loc('density'),P.density);
+  gl.uniform1f(loc('warpAmt'),P.warp/100*0.12);
+  gl.uniform1f(loc('blobAmt'),P.blob/100);
+  gl.uniform1f(loc('ringFreq'),P.ring);
+  gl.uniform1f(loc('dreamMix'),P.mix/100);
+  gl.uniform1f(loc('warmth'),P.warm/100);
+  gl.uniform1f(loc('speed'),P.speed/100*0.5);
+  gl.uniform1f(loc('flip'), facing==='user'?1.0:0.0);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+}
+requestAnimationFrame(frame);
 
-  document.getElementById('b-stack').onclick=()=>{
-    ST.stack=!ST.stack;
-    document.getElementById('b-stack').classList.toggle('on',ST.stack);
-    if(ST.calibrated)applyMode();
-  };
-
-  document.getElementById('b-adv').onclick=()=>{
-    ST.advOpen=!ST.advOpen;
-    document.getElementById('advpanel').classList.toggle('open',ST.advOpen);
-    document.getElementById('b-adv').classList.toggle('on',ST.advOpen);
-  };
-
-  document.querySelectorAll('#modes .pill').forEach(pill=>{
-    pill.onclick=()=>{
-      document.querySelectorAll('#modes .pill').forEach(p=>p.classList.remove('on'));
-      pill.classList.add('on');
-      ST.mode=pill.dataset.mode;
-      if(ST.calibrated)applyMode();
-    };
+/* ---------------- UI wiring ---------------- */
+const ids={density:'density',warp:'warp',blob:'blob',ring:'ring',mix:'mix',warm:'warm',speed:'speed'};
+const valIds={density:'vDensity',warp:'vWarp',blob:'vBlob',ring:'vRing',mix:'vMix',warm:'vWarm',speed:'vSpeed'};
+function syncUI(){
+  for(const k in ids){
+    const el=document.getElementById(ids[k]); el.value=P[k];
+    document.getElementById(valIds[k]).textContent=Math.round(P[k]);
+  }
+}
+for(const k in ids){
+  document.getElementById(ids[k]).addEventListener('input',e=>{
+    P[k]=parseFloat(e.target.value);
+    document.getElementById(valIds[k]).textContent=Math.round(P[k]);
   });
-
-  const bind=(id,key,fmt)=>{
-    const el=document.getElementById(id), v=document.getElementById('v-'+id.slice(2));
-    el.oninput=()=>{ST[key]=+el.value; if(v)v.textContent=fmt?fmt(+el.value):el.value;
-      // filter mode: opacity slider drives photo<->mosaic blend
-      if(key==='opacity'&&filterMat) filterMat.uniforms.uStyle.value=+el.value;
-      if(ST.calibrated){
-        if(key==='amt'){ if(knotSys)buildPointSystem(); }
-      }
-    };
-  };
-  bind('s-depth','depth'); bind('s-amt','amt'); bind('s-pulse','pulse');
-  bind('s-grid','grid'); bind('s-op','opacity'); bind('s-smooth','smooth');
-  // init filter style from opacity default
-  setTimeout(()=>{ if(filterMat) filterMat.uniforms.uStyle.value=ST.opacity; },100);
 }
 
-// boot
-addEventListener('load',()=>{
-  wireUI();
-  const btn=document.getElementById('b-init');
-  const miss=[typeof THREE==='undefined'&&'three',typeof FaceMesh==='undefined'&&'facemesh',typeof Camera==='undefined'&&'camera'].filter(Boolean);
-  if(miss.length){btn.textContent='Load: '+miss.join(',');}
+const presets={
+  inception:{density:46,warp:55,blob:55,ring:26,mix:88,warm:62,speed:35},
+  reptile:  {density:70,warp:38,blob:30,ring:40,mix:92,warm:48,speed:22},
+  mosaic:   {density:90,warp:18,blob:18,ring:14,mix:95,warm:55,speed:14},
+  subtle:   {density:34,warp:35,blob:45,ring:22,mix:42,warm:40,speed:28},
+  fever:    {density:30,warp:90,blob:80,ring:34,mix:100,warm:85,speed:70},
+};
+document.querySelectorAll('.pz').forEach(b=>b.addEventListener('click',()=>{
+  Object.assign(P,presets[b.dataset.p]); syncUI();
+}));
+
+document.getElementById('flip').addEventListener('click',async()=>{
+  facing = facing==='user'?'environment':'user';
+  await startCam(); resize();
 });
-window.onerror=(m,s,l)=>{console.error('ERR',m,l);const b=document.getElementById('b-init');if(b&&b.disabled&&!b.classList.contains('go')){b.textContent='Err—see console';b.disabled=false;}};
+document.getElementById('freeze').addEventListener('click',e=>{
+  frozen=!frozen; e.target.classList.toggle('on',frozen);
+  e.target.textContent = frozen?'▶ Resume':'❚❚ Freeze';
+});
+document.getElementById('shot').addEventListener('click',()=>{
+  const a=document.createElement('a');
+  a.download='oneiric-'+Date.now()+'.png';
+  a.href=cvs.toDataURL('image/png'); a.click();
+});
+const ui=document.getElementById('ui');
+document.getElementById('toggleUI').addEventListener('click',e=>{
+  ui.classList.toggle('tucked');
+  e.target.classList.toggle('on', !ui.classList.contains('tucked'));
+});
+document.querySelector('.handle').addEventListener('click',()=>ui.classList.toggle('tucked'));
+
+/* ---------------- launch ---------------- */
+document.getElementById('startBtn').addEventListener('click',async()=>{
+  const ok=await startCam();
+  if(ok){
+    document.getElementById('gate').classList.add('hidden');
+    ui.classList.remove('tucked');
+    syncUI();
+    // wait a beat for video metadata then size
+    const wait=setInterval(()=>{ if(vid.videoWidth){ resize(); clearInterval(wait);} },80);
+  }
+});
+syncUI();
 </script>
 </body>
 </html>
