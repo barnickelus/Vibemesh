@@ -6,144 +6,96 @@
 <title>ONEIRIC · live dream filter</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,400&family=Space+Mono:wght@400;700&display=swap');
-
   :root{
-    --bg:#0c0a09;
-    --ink:#f4ece1;
-    --terra:#d7682f;
-    --terra-soft:#e89a5c;
+    --bg:#0c0a09;--ink:#f4ece1;--terra:#d7682f;--terra-soft:#e89a5c;
     --line:rgba(231,154,92,.22);
-    --panel:rgba(20,16,13,.82);
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Space Mono',monospace;overflow:hidden;}
-
-  /* film-grain + vignette atmosphere */
-  body::after{
-    content:"";position:fixed;inset:0;pointer-events:none;z-index:40;
-    background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55) 100%);
-    mix-blend-mode:multiply;
-  }
-
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:40;
+    background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.5) 100%);mix-blend-mode:multiply;}
   #stage{position:fixed;inset:0;display:grid;place-items:center;}
-  canvas{
-    max-width:100%;max-height:100%;display:block;
-    box-shadow:0 0 120px rgba(215,104,47,.18);
-    background:#000;
-  }
+  canvas{max-width:100%;max-height:100%;display:block;box-shadow:0 0 120px rgba(215,104,47,.18);background:#000;}
   video{display:none;}
 
-  /* ---- intro gate ---- */
-  #gate{
-    position:fixed;inset:0;z-index:50;display:grid;place-items:center;
-    background:
-      radial-gradient(circle at 30% 20%,rgba(215,104,47,.10),transparent 60%),
-      radial-gradient(circle at 75% 80%,rgba(120,80,180,.08),transparent 55%),
-      var(--bg);
-    transition:opacity .9s ease, visibility .9s;
-  }
+  #gate{position:fixed;inset:0;z-index:50;display:grid;place-items:center;
+    background:radial-gradient(circle at 30% 20%,rgba(215,104,47,.10),transparent 60%),
+      radial-gradient(circle at 75% 80%,rgba(120,80,180,.08),transparent 55%),var(--bg);
+    transition:opacity .9s ease,visibility .9s;}
   #gate.hidden{opacity:0;visibility:hidden;}
   .gate-inner{text-align:center;padding:32px;max-width:540px;}
   .kicker{font-size:11px;letter-spacing:.5em;text-transform:uppercase;color:var(--terra-soft);opacity:.8;}
-  h1{
-    font-family:'Fraunces',serif;font-weight:300;font-style:italic;
-    font-size:clamp(48px,13vw,108px);line-height:.92;margin:.18em 0 .1em;
-    color:var(--ink);letter-spacing:-.01em;
-  }
+  h1{font-family:'Fraunces',serif;font-weight:300;font-style:italic;font-size:clamp(48px,13vw,108px);
+    line-height:.92;margin:.18em 0 .1em;letter-spacing:-.01em;}
   h1 b{font-weight:600;font-style:normal;color:var(--terra);}
   .blurb{font-size:13px;line-height:1.7;opacity:.62;max-width:420px;margin:0 auto 30px;}
-  .start{
-    appearance:none;border:1px solid var(--terra);background:transparent;color:var(--ink);
+  .start{appearance:none;border:1px solid var(--terra);background:transparent;color:var(--ink);
     font-family:'Space Mono',monospace;font-size:13px;letter-spacing:.28em;text-transform:uppercase;
-    padding:18px 40px;cursor:pointer;position:relative;overflow:hidden;transition:color .35s;
-  }
+    padding:18px 40px;cursor:pointer;position:relative;overflow:hidden;transition:color .35s;}
   .start span{position:relative;z-index:2;}
-  .start::before{content:"";position:absolute;inset:0;background:var(--terra);transform:translateY(101%);transition:transform .35s cubic-bezier(.2,.8,.2,1);}
-  .start:hover{color:#1a0f08;}
-  .start:hover::before{transform:translateY(0);}
+  .start::before{content:"";position:absolute;inset:0;background:var(--terra);transform:translateY(101%);
+    transition:transform .35s cubic-bezier(.2,.8,.2,1);}
+  .start:hover{color:#1a0f08;}.start:hover::before{transform:translateY(0);}
   .err{margin-top:22px;font-size:11px;color:#e88;min-height:14px;letter-spacing:.04em;}
 
-  /* ---- controls ---- */
-  #ui{
-    position:fixed;left:0;right:0;bottom:0;z-index:45;
-    padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+  #ui{position:fixed;left:0;right:0;bottom:0;z-index:45;padding:14px 16px calc(14px + env(safe-area-inset-bottom));
     background:linear-gradient(to top,rgba(12,10,9,.92),rgba(12,10,9,.55) 70%,transparent);
-    transform:translateY(0);transition:transform .5s cubic-bezier(.2,.8,.2,1);
-  }
+    transform:translateY(0);transition:transform .5s cubic-bezier(.2,.8,.2,1);}
   #ui.tucked{transform:translateY(calc(100% - 52px));}
   .bar{display:flex;align-items:center;gap:14px;justify-content:space-between;}
   .brand{font-family:'Fraunces',serif;font-style:italic;font-size:17px;color:var(--terra-soft);white-space:nowrap;}
   .toolbtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
-  .tb{
-    font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
-    border:1px solid var(--line);background:rgba(255,255,255,.02);color:var(--ink);
-    padding:9px 12px;cursor:pointer;transition:.2s;white-space:nowrap;
-  }
+  .tb{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    border:1px solid var(--line);background:rgba(255,255,255,.02);color:var(--ink);padding:9px 12px;cursor:pointer;transition:.2s;white-space:nowrap;}
   .tb:hover{border-color:var(--terra);color:var(--terra-soft);}
   .tb.on{background:var(--terra);color:#1a0f08;border-color:var(--terra);}
-
-  .sliders{
-    display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 22px;
-    margin-top:14px;padding-top:14px;border-top:1px solid var(--line);
-  }
+  .sliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 22px;
+    margin-top:14px;padding-top:14px;border-top:1px solid var(--line);}
   .ctl label{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.7;margin-bottom:7px;}
   .ctl label b{color:var(--terra-soft);font-weight:400;}
-  input[type=range]{
-    -webkit-appearance:none;appearance:none;width:100%;height:2px;background:var(--line);outline:none;
-  }
-  input[type=range]::-webkit-slider-thumb{
-    -webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--terra);
-    cursor:pointer;box-shadow:0 0 0 4px rgba(215,104,47,.18);
-  }
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:2px;background:var(--line);outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--terra);cursor:pointer;box-shadow:0 0 0 4px rgba(215,104,47,.18);}
   input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:50%;background:var(--terra);cursor:pointer;}
-
   .presets{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
   .pz{font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:7px 11px;border:1px solid var(--line);cursor:pointer;color:var(--ink);opacity:.85;transition:.2s;}
   .pz:hover{border-color:var(--terra);color:var(--terra-soft);}
-
+  .swatches{display:flex;gap:0;margin-top:12px;height:10px;border:1px solid var(--line);}
+  .swatches i{flex:1;display:block;}
   .handle{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:42px;height:4px;border-radius:3px;background:var(--line);}
-  @media(max-width:520px){ .brand{font-size:14px;} .sliders{gap:10px 16px;} }
+  @media(max-width:520px){.brand{font-size:14px;}.sliders{gap:10px 16px;}}
 </style>
 </head>
 <body>
+<div id="stage"><canvas id="gl"></canvas><video id="vid" playsinline muted autoplay></video></div>
 
-<div id="stage">
-  <canvas id="gl"></canvas>
-  <video id="vid" playsinline muted autoplay></video>
-</div>
+<div id="gate"><div class="gate-inner">
+  <div class="kicker">live optical-blend dream skin</div>
+  <h1>One<b>i</b>ric</h1>
+  <p class="blurb">A real-time filter that re-paints your camera in pure pigment. Every cell is built from blobs of fixed palette colors mixed optically — in proportion to what's actually under it. The Inception look, divisionist-style. All processing stays on your device.</p>
+  <button class="start" id="startBtn"><span>▸ &nbsp; Begin Dreaming</span></button>
+  <div class="err" id="err"></div>
+</div></div>
 
-<!-- intro -->
-<div id="gate">
-  <div class="gate-inner">
-    <div class="kicker">live neural-dream skin</div>
-    <h1>One<b>i</b>ric</h1>
-    <p class="blurb">A real-time filter that re-dreams your face into a mosaic of breathing cells &amp; little eyes — the Inception look, running on your camera. Nothing is uploaded; all processing stays on your device.</p>
-    <button class="start" id="startBtn"><span>▸ &nbsp; Begin Dreaming</span></button>
-    <div class="err" id="err"></div>
-  </div>
-</div>
-
-<!-- controls -->
 <div id="ui" class="tucked">
   <div class="handle"></div>
   <div class="bar">
     <div class="brand">oneiric ✦ camera</div>
     <div class="toolbtns">
       <button class="tb" id="flip">⟲ Flip cam</button>
+      <button class="tb" id="rotate">↕ Rotate</button>
       <button class="tb" id="freeze">❚❚ Freeze</button>
       <button class="tb" id="shot">⤓ Capture</button>
       <button class="tb on" id="toggleUI">Controls</button>
     </div>
   </div>
-
   <div id="panel">
     <div class="sliders">
-      <div class="ctl"><label>Cell density <b id="vDensity"></b></label><input type="range" id="density" min="14" max="120" step="1"></div>
+      <div class="ctl"><label>Cell density <b id="vDensity"></b></label><input type="range" id="density" min="14" max="130" step="1"></div>
       <div class="ctl"><label>Contour warp <b id="vWarp"></b></label><input type="range" id="warp" min="0" max="100" step="1"></div>
       <div class="ctl"><label>Eye / blob <b id="vBlob"></b></label><input type="range" id="blob" min="0" max="100" step="1"></div>
       <div class="ctl"><label>Ring detail <b id="vRing"></b></label><input type="range" id="ring" min="2" max="60" step="1"></div>
       <div class="ctl"><label>Dream intensity <b id="vMix"></b></label><input type="range" id="mix" min="0" max="100" step="1"></div>
-      <div class="ctl"><label>Warmth <b id="vWarm"></b></label><input type="range" id="warm" min="0" max="100" step="1"></div>
+      <div class="ctl"><label>Color purity <b id="vPurity"></b></label><input type="range" id="purity" min="0" max="100" step="1"></div>
       <div class="ctl"><label>Drift speed <b id="vSpeed"></b></label><input type="range" id="speed" min="0" max="100" step="1"></div>
     </div>
     <div class="presets">
@@ -153,213 +105,191 @@
       <div class="pz" data-p="subtle">Whisper</div>
       <div class="pz" data-p="fever">Fever</div>
     </div>
+    <div class="swatches" id="swatches" title="palette sampled from your reference images"></div>
   </div>
 </div>
 
 <script>
-const cvs = document.getElementById('gl');
-const gl  = cvs.getContext('webgl') || cvs.getContext('experimental-webgl');
-const vid = document.getElementById('vid');
+const cvs=document.getElementById('gl');
+const gl=cvs.getContext('webgl')||cvs.getContext('experimental-webgl');
+const vid=document.getElementById('vid');
+if(!gl)document.getElementById('err').textContent='WebGL not supported on this device.';
 
-if(!gl){ document.getElementById('err').textContent='WebGL not supported on this device.'; }
+/* palette sampled from the reference images (pure pigments) */
+const PALETTE=[
+  [0.74,0.33,0.15], // burnt terracotta
+  [0.91,0.46,0.18], // bright orange
+  [0.96,0.89,0.74], // cream
+  [0.89,0.74,0.42], // ochre gold
+  [0.45,0.49,0.55], // slate blue-grey
+  [0.71,0.23,0.16], // brick red
+  [0.86,0.30,0.24], // lip vermilion
+  [0.30,0.17,0.11], // dark umber
+];
 
-/* ---------------- shaders ---------------- */
-const VERT = `
-attribute vec2 p;
-varying vec2 uv;
-void main(){ uv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }
-`;
+const VERT=`attribute vec2 p;varying vec2 uv;void main(){uv=p*0.5+0.5;gl_Position=vec4(p,0.,1.);}`;
 
-const FRAG = `
+const FRAG=`
 precision highp float;
 varying vec2 uv;
 uniform sampler2D tex;
-uniform vec2  res;       // canvas resolution
-uniform float time;
-uniform float density;   // cells across
-uniform float warpAmt;   // contour warp 0..1
-uniform float blobAmt;   // eye/blob strength 0..1
-uniform float ringFreq;  // concentric ring detail
-uniform float dreamMix;  // 0..1 blend with reality
-uniform float warmth;    // 0..1 palette push
-uniform float speed;     // drift
-uniform float flip;      // mirror x
+uniform vec2 res;
+uniform float time,density,warpAmt,blobAmt,ringFreq,dreamMix,purity,speed,flipX,flipY;
+uniform vec3 pal[8];
 
-float lum(vec3 c){ return dot(c, vec3(0.299,0.587,0.114)); }
-
-// cheap hash + value noise
-float hash(vec2 p){ return fract(sin(dot(p,vec2(41.3,289.1)))*43758.5453); }
-float noise(vec2 p){
-  vec2 i=floor(p), f=fract(p);
-  f=f*f*(3.-2.*f);
-  float a=hash(i), b=hash(i+vec2(1,0)), c=hash(i+vec2(0,1)), d=hash(i+vec2(1,1));
-  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
-}
-float fbm(vec2 p){
-  float s=0., a=.5;
-  for(int i=0;i<4;i++){ s+=a*noise(p); p*=2.03; a*=.5; }
-  return s;
-}
+float lum(vec3 c){return dot(c,vec3(0.299,0.587,0.114));}
+float hash(vec2 p){return fract(sin(dot(p,vec2(41.3,289.1)))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  float a=hash(i),b=hash(i+vec2(1,0)),c=hash(i+vec2(0,1)),d=hash(i+vec2(1,1));
+  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}
+float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<4;i++){s+=a*noise(p);p*=2.03;a*=.5;}return s;}
 
 vec3 sampleCam(vec2 c){
-  c.x = mix(c.x, 1.0-c.x, flip);
-  // cover fit handled by aspect in JS coords; clamp safe
-  return texture2D(tex, clamp(c,0.001,0.999)).rgb;
+  c.x=mix(c.x,1.0-c.x,flipX);
+  c.y=mix(c.y,1.0-c.y,flipY);
+  return texture2D(tex,clamp(c,0.001,0.999)).rgb;
+}
+
+// weight of palette color i for camera color cam (gaussian in RGB), K = sharpness
+float wfor(vec3 cam,int i,float K){
+  vec3 pc=pal[i];
+  vec3 dd=cam-pc;
+  return exp(-dot(dd,dd)*K);
+}
+float totW(vec3 cam,float K){
+  float s=1e-4;
+  for(int i=0;i<8;i++) s+=wfor(cam,i,K);
+  return s;
+}
+// stochastic pick: returns palette color whose cumulative weight contains r (0..1)
+vec3 pickCol(vec3 cam,float K,float r){
+  float tot=totW(cam,K);
+  float acc=0.0; vec3 c=pal[0]; bool done=false;
+  for(int i=0;i<8;i++){
+    acc+=wfor(cam,i,K)/tot;
+    if(!done && r<=acc){c=pal[i];done=true;}
+  }
+  return c;
 }
 
 void main(){
-  vec2 px = 1.0/res;
-  vec2 c0 = uv;
+  vec2 px=1.0/res;
+  vec2 c0=uv;
 
-  // --- 1. contour-following warp (flow along luminance gradient) ---
-  float e = 2.5*px.x;
-  float lx = lum(sampleCam(c0+vec2(e,0.))) - lum(sampleCam(c0-vec2(e,0.)));
-  float ly = lum(sampleCam(c0+vec2(0.,e))) - lum(sampleCam(c0-vec2(0.,e)));
-  vec2 grad = vec2(lx,ly);
-  vec2 flow = vec2(-grad.y, grad.x);              // perpendicular = follow edges
-  float t = time*speed;
-  vec2 n = vec2(fbm(c0*6.0+t*0.3), fbm(c0*6.0+17.7-t*0.3))-0.5;
-  vec2 warped = c0 + warpAmt*(flow*0.9 + n*0.18);
+  // 1. contour-following warp
+  float e=2.5*px.x;
+  float lx=lum(sampleCam(c0+vec2(e,0.)))-lum(sampleCam(c0-vec2(e,0.)));
+  float ly=lum(sampleCam(c0+vec2(0.,e)))-lum(sampleCam(c0-vec2(0.,e)));
+  vec2 grad=vec2(lx,ly);
+  vec2 flow=vec2(-grad.y,grad.x);
+  float t=time*speed;
+  vec2 n=vec2(fbm(c0*6.0+t*0.3),fbm(c0*6.0+17.7-t*0.3))-0.5;
+  vec2 warped=c0+warpAmt*(flow*0.9+n*0.18);
 
-  vec3 base = sampleCam(warped);
-  float L = lum(base);
+  vec3 base=sampleCam(warped);
 
-  // --- 2. cellular grid keyed to the image ---
-  vec2 g = warped*density;
-  vec2 cell = floor(g);
-  vec2 fp = fract(g)-0.5;
-  // jitter cell so it isn't a rigid square grid (organic)
-  float jx = (hash(cell)-0.5);
-  float jy = (hash(cell+3.1)-0.5);
-  fp += 0.18*vec2(jx,jy);
+  // 2. organic cellular grid
+  vec2 g=warped*density;
+  vec2 cell=floor(g);
+  vec2 fp=fract(g)-0.5;
+  fp+=0.18*vec2(hash(cell)-0.5,hash(cell+3.1)-0.5);
 
-  vec3 cellCol = sampleCam((cell+0.5)/density);
-  float cL = lum(cellCol);
+  // camera color sampled at this cell -> its palette composition
+  vec3 camCol=sampleCam((cell+0.5)/density);
+  float L=lum(camCol);
 
-  float d = length(fp);
+  // 3. OPTICAL BLENDING: draw pure-color blobs in proportion to composition.
+  //    sharpness K rises with purity -> fewer, purer pigments dominate per cell.
+  float K=5.0+purity*55.0;
+  vec3 primary  =pickCol(camCol,K,hash(cell+0.7));
+  vec3 secondary=pickCol(camCol,K,hash(cell+19.3));
 
-  // concentric rings -> the "growth ring / eye" texture
-  float rings = 0.5+0.5*sin(d*ringFreq*(0.6+cL*1.2) - t*2.0 + cL*9.0);
-  rings = pow(rings, 1.4);
+  float d=length(fp);
+  // concentric rings between the two drawn pigments -> the "eye / target" cell
+  float ph=d*ringFreq*(0.6+0.8*hash(cell+7.7))-t*1.5+L*6.0;
+  float ring=smoothstep(0.2,0.8,0.5+0.5*sin(ph));
+  vec3 cc=mix(primary,secondary,ring);
 
-  // central blob (pupil-like) sized by local brightness
-  float r = 0.12 + 0.32*blobAmt + 0.16*cL;
-  float blob = smoothstep(r, r-0.14, d);
-  float pupil = smoothstep(0.07, 0.0, d) * blobAmt;
+  // central pupil + central blob glow
+  float pupil=smoothstep(0.14,0.0,d)*(0.4+0.6*blobAmt);
+  cc=mix(cc,cc*0.30,pupil);
+  float glow=smoothstep(0.10+0.30*blobAmt,0.0,d)*blobAmt;
+  cc+=primary*glow*0.5;
 
-  // cell border darkening (grout lines)
-  float border = smoothstep(0.46,0.5,max(abs(fp.x),abs(fp.y)));
+  // creamy rim + dark grout outline (rounded cell)
+  cc=mix(cc,vec3(0.97,0.91,0.78),smoothstep(0.33,0.5,d)*0.30);
+  cc*=(1.0-0.55*smoothstep(0.46,0.52,d));
 
-  // --- 3. build the dreamed color from the palette of the face ---
-  vec3 warm = mix(cellCol, cellCol*vec3(1.5,0.95,0.45)+vec3(0.12,0.04,0.0), warmth);
-  float light = 0.45 + 0.95*rings;
-  light = mix(light, light+0.5, blob);            // blobs glow
-  vec3 dream = warm*light;
-  dream = mix(dream, dream*vec3(0.35,0.22,0.18), pupil);   // dark pupil
-  dream *= (1.0-0.55*border);                              // grout
-  // rim highlight on rings (the creamy edges)
-  dream += vec3(1.0,0.85,0.6)*0.18*smoothstep(0.45,0.85,rings)*(1.0-blob*0.4);
+  // keep facial value structure so it still reads as a face
+  cc*=(0.42+1.0*L);
 
-  // --- 4. let saturated reds (lips) & bright eyes punch through ---
-  float mx = max(max(base.r,base.g),base.b);
-  float mn = min(min(base.r,base.g),base.b);
-  float sat = (mx-mn)/(mx+0.001);
-  float keepReal = smoothstep(0.45,0.72,sat);     // vivid areas stay real
-  float localMix = dreamMix*(1.0-keepReal*0.85);
+  // pointillist vibration: tiny per-pixel jitter toward a neighbour pigment
+  vec3 jitterCol=pickCol(camCol,K,hash(floor(g*3.0)+t));
+  cc=mix(cc,jitterCol*(0.42+1.0*L),0.12*purity);
 
-  vec3 outc = mix(base, dream, localMix);
+  // 4. blend with reality; let very saturated reds (lips) keep some realism
+  float mx=max(max(base.r,base.g),base.b),mn=min(min(base.r,base.g),base.b);
+  float sat=(mx-mn)/(mx+0.001);
+  float keepReal=smoothstep(0.55,0.8,sat)*0.5;
+  float localMix=dreamMix*(1.0-keepReal);
 
-  // gentle filmic contrast + warm grade
-  outc = pow(outc, vec3(0.92));
-  outc *= vec3(1.04,1.0,0.96);
-
-  gl_FragColor = vec4(outc,1.0);
+  vec3 outc=mix(base,cc,localMix);
+  outc=pow(outc,vec3(0.92));
+  gl_FragColor=vec4(outc,1.0);
 }
 `;
 
-/* ---------------- gl setup ---------------- */
 function sh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
   if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(s));return s;}
 let prog;
-if(gl){
-  prog=gl.createProgram();
-  gl.attachShader(prog,sh(gl.VERTEX_SHADER,VERT));
-  gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FRAG));
-  gl.linkProgram(prog);gl.useProgram(prog);
-
-  const buf=gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+if(gl){prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,VERT));
+  gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FRAG));gl.linkProgram(prog);gl.useProgram(prog);
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(prog));
+  const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
-  const loc=gl.getAttribLocation(prog,'p');
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  const a=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(a);
+  gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);
+  // upload palette
+  const flat=[];PALETTE.forEach(c=>flat.push(c[0],c[1],c[2]));
+  gl.uniform3fv(gl.getUniformLocation(prog,'pal'),new Float32Array(flat));
 }
-
-const tex = gl && gl.createTexture();
-if(tex){
-  gl.bindTexture(gl.TEXTURE_2D,tex);
+const tex=gl&&gl.createTexture();
+if(tex){gl.bindTexture(gl.TEXTURE_2D,tex);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-}
-const U = name => gl.getUniformLocation(prog,name);
-const uni = {};
-if(gl)['res','time','density','warpAmt','blobAmt','ringFreq','dreamMix','warmth','speed','flip']
-  .forEach(k=>uni[k]=U(k.replace('Amt','').replace('warp','warpAmt').replace('blob','blobAmt')));
-// simpler explicit grab:
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);}
 function loc(n){return gl.getUniformLocation(prog,n);}
 
-/* ---------------- state ---------------- */
-const P = {density:46, warp:55, blob:55, ring:26, mix:88, warm:62, speed:35};
-let facing='user', frozen=false, stream=null, camReady=false;
+const P={density:48,warp:55,blob:55,ring:26,mix:90,purity:70,speed:35};
+let facing='user',frozen=false,stream=null,camReady=false,flipY=1.0;
 
-/* ---------------- camera ---------------- */
 async function startCam(){
   try{
-    if(stream) stream.getTracks().forEach(t=>t.stop());
-    stream = await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:facing, width:{ideal:1280}, height:{ideal:720}}, audio:false});
-    vid.srcObject = stream;
-    await vid.play();
-    camReady=true;
-    document.getElementById('err').textContent='';
-    return true;
-  }catch(e){
-    document.getElementById('err').textContent='Camera blocked or unavailable — check permissions.';
-    return false;
-  }
+    if(stream)stream.getTracks().forEach(t=>t.stop());
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}},audio:false});
+    vid.srcObject=stream;await vid.play();camReady=true;
+    document.getElementById('err').textContent='';return true;
+  }catch(e){document.getElementById('err').textContent='Camera blocked or unavailable — check permissions.';return false;}
 }
-
-/* ---------------- sizing (cover) ---------------- */
 function resize(){
-  if(!camReady) return;
-  const vw=vid.videoWidth, vh=vid.videoHeight;
-  if(!vw) return;
-  // fit canvas to screen keeping video aspect (cover the stage area)
-  const sw=window.innerWidth, sh_=window.innerHeight;
-  const vAsp=vw/vh, sAsp=sw/sh_;
-  let w,h;
-  if(sAsp>vAsp){ w=sw; h=sw/vAsp; } else { h=sh_; w=sh_*vAsp; }
-  const dpr=Math.min(window.devicePixelRatio||1, 2);
-  cvs.style.width=w+'px'; cvs.style.height=h+'px';
-  cvs.width=Math.round(w*dpr); cvs.height=Math.round(h*dpr);
+  if(!camReady)return;const vw=vid.videoWidth,vh=vid.videoHeight;if(!vw)return;
+  const sw=window.innerWidth,sh_=window.innerHeight,vAsp=vw/vh,sAsp=sw/sh_;let w,h;
+  if(sAsp>vAsp){w=sw;h=sw/vAsp;}else{h=sh_;w=sh_*vAsp;}
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  cvs.style.width=w+'px';cvs.style.height=h+'px';
+  cvs.width=Math.round(w*dpr);cvs.height=Math.round(h*dpr);
   gl.viewport(0,0,cvs.width,cvs.height);
 }
 window.addEventListener('resize',resize);
 
-/* ---------------- render loop ---------------- */
 let t0=performance.now();
 function frame(now){
   requestAnimationFrame(frame);
-  if(!camReady||!gl) return;
-  if(cvs.width===0) resize();
-  if(!frozen && vid.readyState>=2){
-    try{ gl.bindTexture(gl.TEXTURE_2D,tex);
-      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,vid);}catch(e){}
-  }
-  const t=(now-t0)/1000;
-  gl.useProgram(prog);
+  if(!camReady||!gl)return;if(cvs.width===0)resize();
+  if(!frozen&&vid.readyState>=2){try{gl.bindTexture(gl.TEXTURE_2D,tex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,vid);}catch(e){}}
+  const t=(now-t0)/1000;gl.useProgram(prog);
   gl.uniform2f(loc('res'),cvs.width,cvs.height);
   gl.uniform1f(loc('time'),t);
   gl.uniform1f(loc('density'),P.density);
@@ -367,70 +297,46 @@ function frame(now){
   gl.uniform1f(loc('blobAmt'),P.blob/100);
   gl.uniform1f(loc('ringFreq'),P.ring);
   gl.uniform1f(loc('dreamMix'),P.mix/100);
-  gl.uniform1f(loc('warmth'),P.warm/100);
+  gl.uniform1f(loc('purity'),P.purity/100);
   gl.uniform1f(loc('speed'),P.speed/100*0.5);
-  gl.uniform1f(loc('flip'), facing==='user'?1.0:0.0);
+  gl.uniform1f(loc('flipX'),facing==='user'?1.0:0.0);
+  gl.uniform1f(loc('flipY'),flipY);
   gl.drawArrays(gl.TRIANGLES,0,3);
 }
 requestAnimationFrame(frame);
 
-/* ---------------- UI wiring ---------------- */
-const ids={density:'density',warp:'warp',blob:'blob',ring:'ring',mix:'mix',warm:'warm',speed:'speed'};
-const valIds={density:'vDensity',warp:'vWarp',blob:'vBlob',ring:'vRing',mix:'vMix',warm:'vWarm',speed:'vSpeed'};
-function syncUI(){
-  for(const k in ids){
-    const el=document.getElementById(ids[k]); el.value=P[k];
-    document.getElementById(valIds[k]).textContent=Math.round(P[k]);
-  }
-}
-for(const k in ids){
-  document.getElementById(ids[k]).addEventListener('input',e=>{
-    P[k]=parseFloat(e.target.value);
-    document.getElementById(valIds[k]).textContent=Math.round(P[k]);
-  });
-}
+const ids={density:'density',warp:'warp',blob:'blob',ring:'ring',mix:'mix',purity:'purity',speed:'speed'};
+const valIds={density:'vDensity',warp:'vWarp',blob:'vBlob',ring:'vRing',mix:'vMix',purity:'vPurity',speed:'vSpeed'};
+function syncUI(){for(const k in ids){const el=document.getElementById(ids[k]);el.value=P[k];
+  document.getElementById(valIds[k]).textContent=Math.round(P[k]);}}
+for(const k in ids){document.getElementById(ids[k]).addEventListener('input',e=>{
+  P[k]=parseFloat(e.target.value);document.getElementById(valIds[k]).textContent=Math.round(P[k]);});}
 
 const presets={
-  inception:{density:46,warp:55,blob:55,ring:26,mix:88,warm:62,speed:35},
-  reptile:  {density:70,warp:38,blob:30,ring:40,mix:92,warm:48,speed:22},
-  mosaic:   {density:90,warp:18,blob:18,ring:14,mix:95,warm:55,speed:14},
-  subtle:   {density:34,warp:35,blob:45,ring:22,mix:42,warm:40,speed:28},
-  fever:    {density:30,warp:90,blob:80,ring:34,mix:100,warm:85,speed:70},
+  inception:{density:48,warp:55,blob:55,ring:26,mix:90,purity:70,speed:35},
+  reptile:  {density:72,warp:38,blob:30,ring:40,mix:94,purity:80,speed:22},
+  mosaic:   {density:100,warp:16,blob:18,ring:14,mix:96,purity:88,speed:12},
+  subtle:   {density:36,warp:35,blob:45,ring:22,mix:46,purity:50,speed:28},
+  fever:    {density:30,warp:90,blob:80,ring:34,mix:100,purity:95,speed:70},
 };
-document.querySelectorAll('.pz').forEach(b=>b.addEventListener('click',()=>{
-  Object.assign(P,presets[b.dataset.p]); syncUI();
-}));
+document.querySelectorAll('.pz').forEach(b=>b.addEventListener('click',()=>{Object.assign(P,presets[b.dataset.p]);syncUI();}));
 
-document.getElementById('flip').addEventListener('click',async()=>{
-  facing = facing==='user'?'environment':'user';
-  await startCam(); resize();
-});
-document.getElementById('freeze').addEventListener('click',e=>{
-  frozen=!frozen; e.target.classList.toggle('on',frozen);
-  e.target.textContent = frozen?'▶ Resume':'❚❚ Freeze';
-});
-document.getElementById('shot').addEventListener('click',()=>{
-  const a=document.createElement('a');
-  a.download='oneiric-'+Date.now()+'.png';
-  a.href=cvs.toDataURL('image/png'); a.click();
-});
+document.getElementById('flip').addEventListener('click',async()=>{facing=facing==='user'?'environment':'user';await startCam();resize();});
+document.getElementById('rotate').addEventListener('click',e=>{flipY=flipY>0.5?0.0:1.0;e.target.classList.toggle('on',flipY<0.5);});
+document.getElementById('freeze').addEventListener('click',e=>{frozen=!frozen;e.target.classList.toggle('on',frozen);e.target.textContent=frozen?'▶ Resume':'❚❚ Freeze';});
+document.getElementById('shot').addEventListener('click',()=>{const a=document.createElement('a');a.download='oneiric-'+Date.now()+'.png';a.href=cvs.toDataURL('image/png');a.click();});
 const ui=document.getElementById('ui');
-document.getElementById('toggleUI').addEventListener('click',e=>{
-  ui.classList.toggle('tucked');
-  e.target.classList.toggle('on', !ui.classList.contains('tucked'));
-});
+document.getElementById('toggleUI').addEventListener('click',e=>{ui.classList.toggle('tucked');e.target.classList.toggle('on',!ui.classList.contains('tucked'));});
 document.querySelector('.handle').addEventListener('click',()=>ui.classList.toggle('tucked'));
 
-/* ---------------- launch ---------------- */
+// palette swatches
+const sw=document.getElementById('swatches');
+PALETTE.forEach(c=>{const i=document.createElement('i');i.style.background='rgb('+(c[0]*255|0)+','+(c[1]*255|0)+','+(c[2]*255|0)+')';sw.appendChild(i);});
+
 document.getElementById('startBtn').addEventListener('click',async()=>{
   const ok=await startCam();
-  if(ok){
-    document.getElementById('gate').classList.add('hidden');
-    ui.classList.remove('tucked');
-    syncUI();
-    // wait a beat for video metadata then size
-    const wait=setInterval(()=>{ if(vid.videoWidth){ resize(); clearInterval(wait);} },80);
-  }
+  if(ok){document.getElementById('gate').classList.add('hidden');ui.classList.remove('tucked');syncUI();
+    const wait=setInterval(()=>{if(vid.videoWidth){resize();clearInterval(wait);}},80);}
 });
 syncUI();
 </script>
