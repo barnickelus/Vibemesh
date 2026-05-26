@@ -150,15 +150,16 @@ vec3 sampleCam(vec2 c){
   return texture2D(tex,clamp(c,0.001,0.999)).rgb;
 }
 
-// weight of palette color i for camera color cam (gaussian in RGB), K = sharpness
-float wfor(vec3 cam,int i,float K){
-  vec3 pc=pal[i];
+// weight of a palette color (passed by value) for camera color cam. K = sharpness.
+// NOTE: take the color as a vec3, never an index — indexing pal[] inside a function
+// by a parameter is illegal in GLSL ES 1.00 (iOS Safari) and fails to compile.
+float wcol(vec3 cam,vec3 pc,float K){
   vec3 dd=cam-pc;
   return exp(-dot(dd,dd)*K);
 }
 float totW(vec3 cam,float K){
   float s=1e-4;
-  for(int i=0;i<8;i++) s+=wfor(cam,i,K);
+  for(int i=0;i<8;i++) s+=wcol(cam,pal[i],K);   // pal[i] indexed by loop var = legal
   return s;
 }
 // stochastic pick: returns palette color whose cumulative weight contains r (0..1)
@@ -166,7 +167,7 @@ vec3 pickCol(vec3 cam,float K,float r){
   float tot=totW(cam,K);
   float acc=0.0; vec3 c=pal[0]; bool done=false;
   for(int i=0;i<8;i++){
-    acc+=wfor(cam,i,K)/tot;
+    acc+=wcol(cam,pal[i],K)/tot;
     if(!done && r<=acc){c=pal[i];done=true;}
   }
   return c;
@@ -244,7 +245,11 @@ function sh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.co
 let prog;
 if(gl){prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,VERT));
   gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FRAG));gl.linkProgram(prog);gl.useProgram(prog);
-  if(!gl.getProgramParameter(prog,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(prog));
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS)){
+    console.error(gl.getProgramInfoLog(prog));
+    var ee=document.getElementById('err');
+    if(ee) ee.textContent='Shader failed to compile on this device.';
+  }
   const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
   const a=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(a);
