@@ -95,6 +95,7 @@
       <div class="ctl"><label>Eye / blob <b id="vBlob"></b></label><input type="range" id="blob" min="0" max="100" step="1"></div>
       <div class="ctl"><label>Ring detail <b id="vRing"></b></label><input type="range" id="ring" min="2" max="60" step="1"></div>
       <div class="ctl"><label>Dream intensity <b id="vMix"></b></label><input type="range" id="mix" min="0" max="100" step="1"></div>
+      <div class="ctl"><label>Lattice flow <b id="vFlow"></b></label><input type="range" id="flow" min="0" max="100" step="1"></div>
       <div class="ctl"><label>Color purity <b id="vPurity"></b></label><input type="range" id="purity" min="0" max="100" step="1"></div>
       <div class="ctl"><label>Drift speed <b id="vSpeed"></b></label><input type="range" id="speed" min="0" max="100" step="1"></div>
     </div>
@@ -134,7 +135,7 @@ precision highp float;
 varying vec2 uv;
 uniform sampler2D tex;
 uniform vec2 res;
-uniform float time,density,warpAmt,blobAmt,ringFreq,dreamMix,purity,speed,flipX,flipY;
+uniform float time,density,warpAmt,blobAmt,ringFreq,dreamMix,purity,speed,flipX,flipY,flowAlign;
 uniform vec3 pal[8];
 
 float lum(vec3 c){return dot(c,vec3(0.299,0.587,0.114));}
@@ -177,61 +178,83 @@ void main(){
   vec2 px=1.0/res;
   vec2 c0=uv;
 
-  // 1. contour-following warp
+  float t=time*speed;
+
+  // 1. contour-following warp (fine scale) — melts cells along edges
   float e=2.5*px.x;
   float lx=lum(sampleCam(c0+vec2(e,0.)))-lum(sampleCam(c0-vec2(e,0.)));
   float ly=lum(sampleCam(c0+vec2(0.,e)))-lum(sampleCam(c0-vec2(0.,e)));
-  vec2 grad=vec2(lx,ly);
-  vec2 flow=vec2(-grad.y,grad.x);
-  float t=time*speed;
+  vec2 flow=vec2(-ly,lx);
   vec2 n=vec2(fbm(c0*6.0+t*0.3),fbm(c0*6.0+17.7-t*0.3))-0.5;
   vec2 warped=c0+warpAmt*(flow*0.9+n*0.18);
-
   vec3 base=sampleCam(warped);
 
-  // 2. organic cellular grid
-  vec2 g=warped*density;
+  // 2. FORM ORIENTATION FIELD (structure tensor at a coarse scale).
+  //    Gives the dominant direction of each facial plane so the lattice can
+  //    rotate to follow form — different surfaces -> different lattice angles.
+  float E=7.0*px.x;
+  float Sx=lum(sampleCam(warped+vec2(E,0.)))-lum(sampleCam(warped-vec2(E,0.)));
+  float Sy=lum(sampleCam(warped+vec2(0.,E)))-lum(sampleCam(warped-vec2(0.,E)));
+  // doubled-angle keeps orientation stable (mod 180°, no flipping)
+  float orient=0.5*atan(2.0*Sx*Sy, Sx*Sx-Sy*Sy+1e-5);
+  // quantize into patches so neighbouring planes SNAP to distinct directions
+  float steps=5.0;
+  float oq=floor(orient/3.14159*steps+0.5)/steps*3.14159;
+  float orientMix=mix(orient,oq,0.55);
+  // base diagonal (45°) + form-driven rotation (flowAlign slider)
+  float ang=0.7854 + flowAlign*orientMix*1.7;
+  float ca=cos(ang), sa=sin(ang);
+  mat2 R =mat2(ca,-sa,sa,ca);   // screen -> lattice
+  mat2 Ri=mat2(ca, sa,-sa,ca);  // lattice -> screen
+
+  // 3. build the rotated lattice
+  vec2 g=R*(warped-0.5)*density;
   vec2 cell=floor(g);
   vec2 fp=fract(g)-0.5;
-  fp+=0.18*vec2(hash(cell)-0.5,hash(cell+3.1)-0.5);
+  fp+=0.16*vec2(hash(cell)-0.5,hash(cell+3.1)-0.5);   // organic jitter
 
-  // camera color sampled at this cell -> its palette composition
-  vec3 camCol=sampleCam((cell+0.5)/density);
-  float L=lum(camCol);
+  // sample camera at this cell's true screen position (un-rotate the center)
+  vec2 cellScreen=Ri*((cell+0.5)/density)+0.5;
+  vec3 camCol=sampleCam(cellScreen);
+  float L=clamp(lum(camCol),0.0,1.0);
 
-  // 3. OPTICAL BLENDING: draw pure-color blobs in proportion to composition.
-  //    sharpness K rises with purity -> fewer, purer pigments dominate per cell.
+  // 4. OPTICAL BLENDING — pure pigments chosen in proportion to composition
   float K=5.0+purity*55.0;
   vec3 primary  =pickCol(camCol,K,hash(cell+0.7));
   vec3 secondary=pickCol(camCol,K,hash(cell+19.3));
 
-  float d=length(fp);
-  // concentric rings between the two drawn pigments -> the "eye / target" cell
+  // ROUNDED tile shape (superellipse) — reads as a lava-lamp pigment blob,
+  // gently breathing in size with local brightness & time.
+  float pw=3.0;
+  float rd=pow(pow(abs(fp.x),pw)+pow(abs(fp.y),pw),1.0/pw);
+  float breathe=0.04*sin(t*1.2+hash(cell+5.0)*6.28);
+  float d=rd*(1.0-0.12*L)+breathe;
+
+  // concentric rings inside the blob -> the "eye / target" pattern
   float ph=d*ringFreq*(0.6+0.8*hash(cell+7.7))-t*1.5+L*6.0;
   float ring=smoothstep(0.2,0.8,0.5+0.5*sin(ph));
   vec3 cc=mix(primary,secondary,ring);
 
-  // central pupil + central blob glow
-  float pupil=smoothstep(0.14,0.0,d)*(0.4+0.6*blobAmt);
+  // central pupil + blob glow
+  float pupil=smoothstep(0.13,0.0,d)*(0.4+0.6*blobAmt);
   cc=mix(cc,cc*0.30,pupil);
-  float glow=smoothstep(0.10+0.30*blobAmt,0.0,d)*blobAmt;
-  cc+=primary*glow*0.5;
+  cc+=primary*smoothstep(0.10+0.30*blobAmt,0.0,d)*blobAmt*0.5;
 
-  // creamy rim + dark grout outline (rounded cell)
-  cc=mix(cc,vec3(0.97,0.91,0.78),smoothstep(0.33,0.5,d)*0.30);
-  cc*=(1.0-0.55*smoothstep(0.46,0.52,d));
+  // creamy rim highlight + dark grout between tiles (the lattice weave)
+  cc=mix(cc,vec3(0.97,0.91,0.78),smoothstep(0.30,0.46,d)*0.32);
+  float grout=smoothstep(0.44,0.52,d);
+  cc*=(1.0-0.6*grout);
 
-  // keep facial value structure so it still reads as a face
-  cc*=(0.42+1.0*L);
+  // preserve facial value structure so it still reads as a face
+  cc*=(0.45+0.85*L);
+  // keep pigments vivid (push saturation a touch)
+  float g0=lum(cc);
+  cc=clamp(mix(vec3(g0),cc,1.18),0.0,1.0);
 
-  // pointillist vibration: tiny per-pixel jitter toward a neighbour pigment
-  vec3 jitterCol=pickCol(camCol,K,hash(floor(g*3.0)+t));
-  cc=mix(cc,jitterCol*(0.42+1.0*L),0.12*purity);
-
-  // 4. blend with reality; let very saturated reds (lips) keep some realism
+  // 5. blend with reality; let very saturated reds (lips) keep some realism
   float mx=max(max(base.r,base.g),base.b),mn=min(min(base.r,base.g),base.b);
   float sat=(mx-mn)/(mx+0.001);
-  float keepReal=smoothstep(0.55,0.8,sat)*0.5;
+  float keepReal=smoothstep(0.55,0.8,sat)*0.45;
   float localMix=dreamMix*(1.0-keepReal);
 
   vec3 outc=mix(base,cc,localMix);
@@ -266,7 +289,7 @@ if(tex){gl.bindTexture(gl.TEXTURE_2D,tex);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);}
 function loc(n){return gl.getUniformLocation(prog,n);}
 
-const P={density:48,warp:55,blob:55,ring:26,mix:90,purity:70,speed:35};
+const P={density:48,warp:55,blob:55,ring:26,mix:90,purity:70,speed:35,flow:70};
 let facing='user',frozen=false,stream=null,camReady=false,flipY=1.0;
 
 async function startCam(){
@@ -304,25 +327,26 @@ function frame(now){
   gl.uniform1f(loc('dreamMix'),P.mix/100);
   gl.uniform1f(loc('purity'),P.purity/100);
   gl.uniform1f(loc('speed'),P.speed/100*0.5);
+  gl.uniform1f(loc('flowAlign'),P.flow/100);
   gl.uniform1f(loc('flipX'),facing==='user'?1.0:0.0);
   gl.uniform1f(loc('flipY'),flipY);
   gl.drawArrays(gl.TRIANGLES,0,3);
 }
 requestAnimationFrame(frame);
 
-const ids={density:'density',warp:'warp',blob:'blob',ring:'ring',mix:'mix',purity:'purity',speed:'speed'};
-const valIds={density:'vDensity',warp:'vWarp',blob:'vBlob',ring:'vRing',mix:'vMix',purity:'vPurity',speed:'vSpeed'};
+const ids={density:'density',warp:'warp',blob:'blob',ring:'ring',mix:'mix',purity:'purity',speed:'speed',flow:'flow'};
+const valIds={density:'vDensity',warp:'vWarp',blob:'vBlob',ring:'vRing',mix:'vMix',purity:'vPurity',speed:'vSpeed',flow:'vFlow'};
 function syncUI(){for(const k in ids){const el=document.getElementById(ids[k]);el.value=P[k];
   document.getElementById(valIds[k]).textContent=Math.round(P[k]);}}
 for(const k in ids){document.getElementById(ids[k]).addEventListener('input',e=>{
   P[k]=parseFloat(e.target.value);document.getElementById(valIds[k]).textContent=Math.round(P[k]);});}
 
 const presets={
-  inception:{density:48,warp:55,blob:55,ring:26,mix:90,purity:70,speed:35},
-  reptile:  {density:72,warp:38,blob:30,ring:40,mix:94,purity:80,speed:22},
-  mosaic:   {density:100,warp:16,blob:18,ring:14,mix:96,purity:88,speed:12},
-  subtle:   {density:36,warp:35,blob:45,ring:22,mix:46,purity:50,speed:28},
-  fever:    {density:30,warp:90,blob:80,ring:34,mix:100,purity:95,speed:70},
+  inception:{density:46,warp:48,blob:50,ring:24,mix:90,purity:70,speed:30,flow:75},
+  reptile:  {density:64,warp:34,blob:28,ring:38,mix:94,purity:82,speed:20,flow:90},
+  mosaic:   {density:88,warp:14,blob:16,ring:13,mix:96,purity:88,speed:10,flow:55},
+  subtle:   {density:36,warp:32,blob:42,ring:20,mix:48,purity:50,speed:24,flow:60},
+  fever:    {density:30,warp:85,blob:78,ring:32,mix:100,purity:95,speed:65,flow:100},
 };
 document.querySelectorAll('.pz').forEach(b=>b.addEventListener('click',()=>{Object.assign(P,presets[b.dataset.p]);syncUI();}));
 
