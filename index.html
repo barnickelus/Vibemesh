@@ -82,6 +82,7 @@
     <div class="brand">oneiric ✦ face mesh</div>
     <div class="toolbtns">
       <button class="tb" id="flip">⟲ Flip cam</button>
+      <button class="tb" id="rotate">↻ Rotate 180°</button>
       <button class="tb" id="mesh">◇ Show mesh</button>
       <button class="tb" id="freeze">❚❚ Freeze</button>
       <button class="tb" id="shot">⤓ Capture</button>
@@ -131,10 +132,53 @@ if(!gl)document.getElementById('err').textContent='WebGL not supported on this d
 
 // ---- backdrop shader ----
 const BG_V=`attribute vec2 p;varying vec2 uv;void main(){uv=p*0.5+0.5;gl_Position=vec4(p,0.,1.);}`;
+// Full-frame diagonal RGB-blob lattice — filters EVERYTHING (user + background).
+// The face mesh lattice is drawn on top of this for the geometry-locked version.
 const BG_F=`
-precision highp float;varying vec2 uv;uniform sampler2D tex;uniform float flipX,flipY,dim;
-void main(){vec2 c=uv;c.x=mix(c.x,1.0-c.x,flipX);c.y=mix(c.y,1.0-c.y,flipY);
-  vec3 col=texture2D(tex,clamp(c,0.001,0.999)).rgb; gl_FragColor=vec4(col*dim,1.0);}`;
+precision highp float;
+varying vec2 uv;
+uniform sampler2D tex;
+uniform vec2 res;
+uniform float flipX,flipY,dim,time;
+uniform float bgDensity,bgPurity,bgMix,bgSpeed,bgRing;
+uniform vec3 pal[8];
+float lum(vec3 c){return dot(c,vec3(0.299,0.587,0.114));}
+float hash(vec2 p){return fract(sin(dot(p,vec2(41.3,289.1)))*43758.5453);}
+float wcol(vec3 cam,vec3 pc,float K){vec3 d=cam-pc;return exp(-dot(d,d)*K);}
+float totW(vec3 cam,float K){float s=1e-4;for(int i=0;i<8;i++)s+=wcol(cam,pal[i],K);return s;}
+vec3 pickCol(vec3 cam,float K,float r){
+  float tot=totW(cam,K);float acc=0.0;vec3 c=pal[0];bool done=false;
+  for(int i=0;i<8;i++){acc+=wcol(cam,pal[i],K)/tot;if(!done&&r<=acc){c=pal[i];done=true;}}
+  return c;}
+void main(){
+  vec2 c=uv; c.x=mix(c.x,1.0-c.x,flipX); c.y=mix(c.y,1.0-c.y,flipY);
+  vec3 base=texture2D(tex,clamp(c,0.001,0.999)).rgb;
+  float L=clamp(lum(base),0.0,1.0);
+  float t=time*bgSpeed;
+  // DIAGONAL lattice (rotate the sampling grid 45°)
+  float a=0.7854, ca=cos(a), sa=sin(a);
+  vec2 rc=vec2(c.x*ca-c.y*sa, c.x*sa+c.y*ca);
+  vec2 g=rc*bgDensity;
+  vec2 cell=floor(g);
+  vec2 fp=fract(g)-0.5;
+  fp+=0.14*vec2(hash(cell)-0.5,hash(cell+3.1)-0.5);
+  // optical-blend pure pigments in proportion to composition
+  float K=5.0+bgPurity*55.0;
+  vec3 primary  =pickCol(base,K,hash(cell+0.7));
+  vec3 secondary=pickCol(base,K,hash(cell+19.3));
+  float pw=3.0;
+  float rd=pow(pow(abs(fp.x),pw)+pow(abs(fp.y),pw),1.0/pw);
+  float d=rd*(1.0-0.12*L)+0.04*sin(t*1.2+hash(cell+5.0)*6.28);
+  float ph=d*bgRing*(0.6+0.8*hash(cell+7.7))-t*1.5+L*6.0;
+  float ring=smoothstep(0.2,0.8,0.5+0.5*sin(ph));
+  vec3 cc=mix(primary,secondary,ring);
+  cc=mix(cc,vec3(0.97,0.91,0.78),smoothstep(0.30,0.46,d)*0.30);
+  cc*=(1.0-0.55*smoothstep(0.46,0.52,d));
+  cc*=(0.45+0.85*L);
+  float g0=lum(cc); cc=clamp(mix(vec3(g0),cc,1.15),0.0,1.0);
+  vec3 outc=mix(base,cc,bgMix);
+  gl_FragColor=vec4(outc*dim,1.0);
+}`;
 
 // ---- mesh shader ----
 const M_V=`
@@ -163,7 +207,7 @@ vec3 pickCol(vec3 cam,float K,float r){
   return c;}
 
 void main(){
-  vec2 sc=vSamp; sc.y=mix(sc.y,1.0-sc.y,flipY);
+  vec2 sc=vSamp;   // already rotated/mirrored in JS to match the raw video texture
   vec3 camCol=texture2D(tex,clamp(sc,0.001,0.999)).rgb;
   float L=clamp(lum(camCol),0.0,1.0);
   float t=time*speed;
@@ -261,12 +305,16 @@ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
 gl.useProgram(meshP);
 {const flat=[];PALETTE.forEach(c=>flat.push(c[0],c[1],c[2]));
  gl.uniform3fv(gl.getUniformLocation(meshP,'pal'),new Float32Array(flat));}
+// upload palette to backdrop program
+gl.useProgram(bgP);
+{const flat=[];PALETTE.forEach(c=>flat.push(c[0],c[1],c[2]));
+ gl.uniform3fv(gl.getUniformLocation(bgP,'pal'),new Float32Array(flat));}
 function L(p,n){return gl.getUniformLocation(p,n);}
 function mix(a,b,t){return a+(b-a)*t;}
 
 /* ---------------- state ---------------- */
 const P={density:34,blob:50,ring:22,mix:92,purity:70,speed:28,focus:50,soft:55,topo:45};
-let facing='user',frozen=false,stream=null,camReady=false,flipY=0.0,showMesh=false;
+let facing='user',frozen=false,stream=null,camReady=false,flipY=0.0,showMesh=false,rot180=false;
 let landmarker=null,haveFace=false,smooth=null;
 
 /* ---------------- load model ---------------- */
@@ -325,10 +373,13 @@ function detect(now){
       for(let i=0;i<NPTS;i++){
         let x=smooth[i*3], y=smooth[i*3+1];
         // video (0..1, y down) -> clip (-1..1, y up). x mirror handled in shader sampling.
-        sampArr[i*2]=x; sampArr[i*2+1]=y;       // raw video uv for color sampling
-        let cx = (facing==='user') ? (1.0-x) : x; // mirror geometry for selfie display
+        // apply optional 180° rotation (camera mounted upside down)
+        let rx=x, ry=y;
+        if(rot180){ rx=1.0-x; ry=1.0-y; }
+        sampArr[i*2]=rx; sampArr[i*2+1]=ry;     // raw video uv for color sampling
+        let cx = (facing==='user') ? (1.0-rx) : rx; // mirror geometry for selfie display
         posArr[i*2]  = cx*2.0-1.0;
-        posArr[i*2+1]= 1.0-y*2.0;
+        posArr[i*2+1]= 1.0-ry*2.0;
         depArr[i]    = (smooth[i*3+2]-zmin)/zr;   // 0 near .. 1 far
       }
       gl.bindBuffer(gl.ARRAY_BUFFER,posBuf);gl.bufferData(gl.ARRAY_BUFFER,posArr,gl.DYNAMIC_DRAW);
@@ -348,14 +399,23 @@ function render(now){
   if(!frozen)detect(now);
 
   const t=(now-t0)/1000;
-  const fX=facing==='user'?1.0:0.0;
+  const selfie=facing==='user';
+  const fX=( selfie !== rot180 )?1.0:0.0;   // XOR: selfie mirror combined with rotation
+  const fY=rot180?1.0:0.0;
 
-  // pass A: backdrop (dim the live feed slightly so the mesh pops)
+  // pass A: full-frame diagonal RGB-blob lattice (filters user + background)
   gl.useProgram(bgP);
   gl.bindBuffer(gl.ARRAY_BUFFER,quad);
   const bp=gl.getAttribLocation(bgP,'p');gl.enableVertexAttribArray(bp);gl.vertexAttribPointer(bp,2,gl.FLOAT,false,0,0);
-  gl.uniform1f(L(bgP,'flipX'),fX);gl.uniform1f(L(bgP,'flipY'),flipY);
-  gl.uniform1f(L(bgP,'dim'),haveFace?0.55:1.0);
+  gl.uniform1f(L(bgP,'flipX'),fX);gl.uniform1f(L(bgP,'flipY'),fY);
+  gl.uniform1f(L(bgP,'dim'),1.0);
+  gl.uniform1f(L(bgP,'time'),t);
+  gl.uniform2f(L(bgP,'res'),cvs.width,cvs.height);
+  gl.uniform1f(L(bgP,'bgDensity'),P.density*1.4);
+  gl.uniform1f(L(bgP,'bgPurity'),P.purity/100);
+  gl.uniform1f(L(bgP,'bgMix'),P.mix/100);
+  gl.uniform1f(L(bgP,'bgSpeed'),P.speed/100*0.5);
+  gl.uniform1f(L(bgP,'bgRing'),P.ring);
   gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tex);gl.uniform1i(L(bgP,'tex'),0);
   gl.disable(gl.BLEND);
   gl.drawArrays(gl.TRIANGLES,0,3);
@@ -381,8 +441,8 @@ function render(now){
     gl.uniform1f(L(meshP,'focusD'),P.focus/100);
     gl.uniform1f(L(meshP,'softness'),P.soft/100);
     gl.uniform1f(L(meshP,'topoAmt'),P.topo/100);
-    gl.uniform1f(L(meshP,'flipX'),fX);
-    gl.uniform1f(L(meshP,'flipY'),flipY);
+    gl.uniform1f(L(meshP,'flipX'),0.0);
+    gl.uniform1f(L(meshP,'flipY'),0.0);
     gl.uniform1f(L(meshP,'meshView'),showMesh?1.0:0.0);
     gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tex);gl.uniform1i(L(meshP,'tex'),0);
     gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
@@ -427,6 +487,7 @@ const presets={
 document.querySelectorAll('.pz').forEach(b=>b.addEventListener('click',()=>{Object.assign(P,presets[b.dataset.p]);syncUI();}));
 
 document.getElementById('flip').addEventListener('click',async()=>{facing=facing==='user'?'environment':'user';await startCam();resize();});
+document.getElementById('rotate').addEventListener('click',e=>{rot180=!rot180;e.target.classList.toggle('on',rot180);});
 document.getElementById('mesh').addEventListener('click',e=>{showMesh=!showMesh;e.target.classList.toggle('on',showMesh);});
 document.getElementById('freeze').addEventListener('click',e=>{frozen=!frozen;e.target.classList.toggle('on',frozen);e.target.textContent=frozen?'▶ Resume':'❚❚ Freeze';});
 document.getElementById('shot').addEventListener('click',()=>{const a=document.createElement('a');a.download='oneiric-'+Date.now()+'.png';a.href=cvs.toDataURL('image/png');a.click();});
