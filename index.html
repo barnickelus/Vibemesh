@@ -265,9 +265,9 @@ void main(){
   cc=clamp(mix(vec3(g0),cc,1.18),0.0,1.0);
 
   float softReveal=mix(1.0-0.5*softness,1.0,foc);
-  float a=dreamMix*softReveal;
-  // feather the very edge of the mesh so it blends into the backdrop
-  gl_FragColor=vec4(cc,a);
+  // mix with raw camera color INTERNALLY (no alpha bleed from backdrop)
+  vec3 final=mix(camCol,cc,clamp(dreamMix*softReveal,0.0,1.0));
+  gl_FragColor=vec4(final,1.0);
 }`;
 
 function sh(t,src){const s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);
@@ -412,7 +412,7 @@ function render(now){
   gl.uniform1f(L(bgP,'dim'),1.0);
   gl.uniform1f(L(bgP,'time'),t);
   gl.uniform2f(L(bgP,'res'),cvs.width,cvs.height);
-  gl.uniform1f(L(bgP,'bgDensity'),P.density*1.4);
+  gl.uniform1f(L(bgP,'bgDensity'),P.density*1.9);
   gl.uniform1f(L(bgP,'bgPurity'),P.purity/100);
   gl.uniform1f(L(bgP,'bgMix'),P.mix/100);
   gl.uniform1f(L(bgP,'bgSpeed'),P.speed/100*0.5);
@@ -433,7 +433,7 @@ function render(now){
     gl.bindBuffer(gl.ARRAY_BUFFER,sampBuf);
     const as=gl.getAttribLocation(meshP,'aSamp');gl.enableVertexAttribArray(as);gl.vertexAttribPointer(as,2,gl.FLOAT,false,0,0);
     gl.uniform1f(L(meshP,'time'),t);
-    gl.uniform1f(L(meshP,'density'),P.density);
+    gl.uniform1f(L(meshP,'density'),P.density*0.45);  // ~3-4x coarser than backdrop -> face reads as foreground
     gl.uniform1f(L(meshP,'blobAmt'),P.blob/100);
     gl.uniform1f(L(meshP,'ringFreq'),P.ring);
     gl.uniform1f(L(meshP,'dreamMix'),P.mix/100);
@@ -446,9 +446,8 @@ function render(now){
     gl.uniform1f(L(meshP,'flipY'),0.0);
     gl.uniform1f(L(meshP,'meshView'),showMesh?1.0:0.0);
     gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tex);gl.uniform1i(L(meshP,'tex'),0);
-    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    gl.disable(gl.BLEND);  // mesh is opaque; backdrop cannot bleed through
     gl.drawElements(gl.TRIANGLES,TRI.length,gl.UNSIGNED_SHORT,0);
-    gl.disable(gl.BLEND);
   }
 
   statusEl.classList.toggle('show',!haveFace);
