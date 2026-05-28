@@ -372,15 +372,15 @@ function detect(now){
       const zr=(zmax-zmin)||1;
       for(let i=0;i<NPTS;i++){
         let x=smooth[i*3], y=smooth[i*3+1];
-        // video (0..1, y down) -> clip (-1..1, y up). x mirror handled in shader sampling.
-        // apply optional 180° rotation (camera mounted upside down)
+        // texture is uploaded with UNPACK_FLIP_Y_WEBGL=true, so sample v = 1-y
+        sampArr[i*2]=x; sampArr[i*2+1]=1.0-y;
+        // geometry: video (0..1, y down) -> clip (-1..1, y up); rotation flips both axes
         let rx=x, ry=y;
         if(rot180){ rx=1.0-x; ry=1.0-y; }
-        sampArr[i*2]=rx; sampArr[i*2+1]=ry;     // raw video uv for color sampling
-        let cx = (facing==='user') ? (1.0-rx) : rx; // mirror geometry for selfie display
+        let cx = (facing==='user') ? (1.0-rx) : rx; // mirror for selfie display
         posArr[i*2]  = cx*2.0-1.0;
         posArr[i*2+1]= 1.0-ry*2.0;
-        depArr[i]    = (smooth[i*3+2]-zmin)/zr;   // 0 near .. 1 far
+        depArr[i]    = (smooth[i*3+2]-zmin)/zr;
       }
       gl.bindBuffer(gl.ARRAY_BUFFER,posBuf);gl.bufferData(gl.ARRAY_BUFFER,posArr,gl.DYNAMIC_DRAW);
       gl.bindBuffer(gl.ARRAY_BUFFER,depBuf);gl.bufferData(gl.ARRAY_BUFFER,depArr,gl.DYNAMIC_DRAW);
@@ -395,6 +395,7 @@ function render(now){
   if(!camReady||!gl)return;
   if(cvs.width===0)resize();
   if(!frozen&&vid.readyState>=2){try{gl.bindTexture(gl.TEXTURE_2D,tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,vid);}catch(e){}}
   if(!frozen)detect(now);
 
