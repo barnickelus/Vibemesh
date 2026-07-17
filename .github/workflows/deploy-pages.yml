@@ -3,7 +3,7 @@ name: Deploy Pages
 on:
   push:
     branches:
-      - claude/vibemesh-low-bandwidth-chat-71ub5q
+      - main
   workflow_dispatch:
 
 permissions:
