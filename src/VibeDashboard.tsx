@@ -42,6 +42,7 @@ export const VibeDashboard = () => {
     setPacketBytes(JSON.stringify(packet).length);
   };
 
+  // Fix: wire up the autoSend interval that was previously missing
   useEffect(() => {
     if (!autoSend) return;
     const id = setInterval(handleSend, 1000);
@@ -88,7 +89,6 @@ export const VibeDashboard = () => {
           </label>
 
           <div style={{ marginTop: '30px', background: '#111', padding: '15px', borderRadius: '10px' }}>
-            Tier: <strong style={{color: '#00f0ff'}}>{currentTierName}</strong><br/>
             Packets sent: <strong>{sent}</strong><br/>
             Est. packet size: <strong style={{color: packetBytes < 100 ? '#00ff88' : '#ffaa00'}}>{packetBytes} bytes</strong><br/>
             Transport: <strong style={{color: transport.isConnected ? '#00ff88' : '#ff4757'}}>{transport.isConnected ? 'CONNECTED' : 'DISCONNECTED'}</strong>

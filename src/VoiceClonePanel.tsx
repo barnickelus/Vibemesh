@@ -10,12 +10,14 @@ export const VoiceClonePanel: React.FC<Props> = ({ state }) => {
     if (!state?.transcribedText || isPlaying) return;
     if (!window.speechSynthesis) return;
 
+    // Cancel any in-progress speech so onend always fires cleanly
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(state.transcribedText);
-    utterance.pitch = 0.8 + (state.valence + 1) * 0.35;
-    utterance.rate = 0.9 + state.arousal * 0.5;
-    utterance.volume = 0.7 + state.arousal * 0.3;
+    // Map valence/arousal from AvatarState to speech parameters
+    utterance.pitch = 0.8 + (state.valence + 1) * 0.35;   // valence [-1,1] → pitch [0.8, 1.5]
+    utterance.rate = 0.9 + state.arousal * 0.5;             // arousal [0,1] → rate [0.9, 1.4]
+    utterance.volume = 0.7 + state.arousal * 0.3;           // arousal [0,1] → volume [0.7, 1.0]
 
     utterance.onend = () => setIsPlaying(false);
     utterance.onerror = () => setIsPlaying(false);

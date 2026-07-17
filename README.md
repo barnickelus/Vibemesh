@@ -12,3 +12,11 @@ Works on 2G, low battery, potato phones. Cross-platform (WebGL + Unity + Unreal 
 5. Send fist pumps and see the other tab react
 
 Built with love in Vancouver + Jersey Shore energy.
+
+### GNM head-model pipeline (in progress)
+
+`gnm/` holds the offline export + online runtime for swapping the live
+landmark-cloud rendering in `index.html` for Google's parametric GNM head
+model — real anatomy by construction instead of per-frame calibration
+hacks. See `gnm/README.md` for the architecture and `gnm/integration.md`
+for wiring steps.
