@@ -13,6 +13,15 @@ Works on 2G, low battery, potato phones. Cross-platform (WebGL + Unity + Unreal 
 
 Built with love in Vancouver + Jersey Shore energy.
 
+### Tesserae renderer (live demo)
+
+`tesserae.html` is the ground-up VibeMesh build: deterministic tier
+negotiation (TEXT → GLYPH → SPRITE → PUPPET → AVATAR3D), ~10–23 byte
+binary AvatarState packets, MediaPipe face capture, and the Tesserae
+voxel-mosaic 3D avatar with adaptive detail and style palettes. Open
+it in two tabs and they pair peer-to-peer over BroadcastChannel.
+Live: https://barnickelus.github.io/Vibemesh/tesserae.html
+
 ### GNM head-model pipeline (in progress)
 
 `gnm/` holds the offline export + online runtime for swapping the live

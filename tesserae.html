@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>VibeMesh · Tesserae</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<style>
+:root{
+  --cyan:#00f0ff; --mag:#ff00aa; --grn:#00ff88; --amber:#ffaa00;
+  --dim:#3a3a44; --dim2:#555; --bg:#040407;
+  --mono:'SF Mono',ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden}
+body{background:radial-gradient(circle at 50% 35%,#0b0b14 0%,var(--bg) 75%);
+  color:#e8e8ee;font-family:var(--mono);position:fixed;touch-action:none}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+/* 2D tier stage (TEXT/GLYPH/SPRITE/PUPPET render here, above the 3D canvas) */
+#stage2d{position:fixed;inset:0;display:none;place-items:center;z-index:8;pointer-events:none}
+#stage2d.show{display:grid}
+#stage2d canvas{max-width:min(92vw,520px);max-height:60vh}
+.glyph{font-size:clamp(90px,28vw,220px);transition:transform .15s;filter:drop-shadow(0 0 40px rgba(0,240,255,.25))}
+.txtpane{width:min(92vw,440px);background:rgba(10,10,18,.85);border:1px solid rgba(0,240,255,.25);
+  border-radius:14px;padding:22px;font-size:.8rem;line-height:1.8}
+.txtpane .who{color:var(--cyan);font-size:.55rem;letter-spacing:2px;text-transform:uppercase}
+.txtpane .msg{min-height:2.2em;color:#fff}
+.dots{display:inline-block;color:var(--grn)}
+.dots i{animation:blink 1.2s infinite;font-style:normal}
+.dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,60%,100%{opacity:.2}30%{opacity:1}}
+
+/* top bar */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:30;display:flex;
+  justify-content:space-between;align-items:flex-start;padding:10px 14px;
+  font-size:.55rem;letter-spacing:2px;text-transform:uppercase;pointer-events:none}
+.topbar .brand{color:var(--cyan);font-weight:600}
+.topbar .brand b{color:#fff;font-weight:800}
+.topbar .brand .sub{display:block;color:var(--dim2);font-size:.48rem;letter-spacing:3px;margin-top:2px}
+.topbar .telem{color:var(--dim2);text-align:right;line-height:1.7}
+.topbar .telem b{color:var(--cyan);font-weight:600}
+.topbar .telem .good{color:var(--grn)}
+.topbar .telem .warn{color:var(--amber)}
+
+/* tier ladder */
+.ladder{position:fixed;top:64px;left:0;right:0;z-index:29;display:flex;gap:5px;
+  justify-content:center;pointer-events:none}
+.rung{padding:4px 8px;border-radius:12px;font-size:.48rem;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--dim);border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.02);transition:.3s}
+.rung.tx{color:var(--cyan);border-color:rgba(0,240,255,.5);background:rgba(0,240,255,.1);
+  box-shadow:0 0 14px rgba(0,240,255,.15)}
+.rung.past{color:var(--dim2)}
+
+/* speech bubble */
+.bubble{position:fixed;left:14px;bottom:calc(210px + env(safe-area-inset-bottom));z-index:20;
+  max-width:64vw;background:rgba(10,10,18,.85);border:1px solid rgba(0,255,136,.3);
+  border-radius:12px;padding:10px 13px;font-size:.68rem;line-height:1.5;color:#dff;
+  opacity:0;transition:opacity .3s;pointer-events:none}
+.bubble.show{opacity:1}
+.bubble .who{color:var(--grn);font-size:.48rem;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:3px}
+
+/* dock */
+.dock{position:fixed;bottom:0;left:0;right:0;z-index:30;
+  padding:12px 14px calc(12px + env(safe-area-inset-bottom));
+  background:linear-gradient(transparent,rgba(4,4,7,.88)30%);
+  display:flex;flex-direction:column;gap:9px}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.row.center{justify-content:center}
+.btn{flex:0 0 auto;padding:9px 13px;background:rgba(255,255,255,.035);
+  border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#aaa;
+  font-family:var(--mono);font-size:.6rem;letter-spacing:1.5px;text-transform:uppercase;
+  cursor:pointer;transition:.18s;white-space:nowrap}
+.btn:active{transform:scale(.96)}
+.btn.on{background:rgba(0,240,255,.14);border-color:var(--cyan);color:var(--cyan)}
+.btn.go{background:rgba(0,255,136,.13);border-color:var(--grn);color:var(--grn)}
+.btn:disabled{opacity:.28;pointer-events:none}
+.btn.primary{background:linear-gradient(135deg,rgba(0,240,255,.2),rgba(255,0,170,.15));
+  border-color:var(--cyan);color:#fff}
+.pill{flex:0 0 auto;padding:6px 10px;background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.08);border-radius:20px;color:var(--dim2);
+  font-family:var(--mono);font-size:.53rem;letter-spacing:1px;text-transform:uppercase;
+  cursor:pointer;transition:.15s}
+.pill.on{background:rgba(0,240,255,.12);border-color:rgba(0,240,255,.45);color:var(--cyan)}
+.sliders{display:grid;grid-template-columns:1fr 1fr;gap:7px 14px}
+@media(max-width:520px){.sliders{grid-template-columns:1fr}}
+.sl{display:flex;align-items:center;gap:8px}
+.sl label{font-size:.5rem;letter-spacing:1px;text-transform:uppercase;color:var(--dim2);min-width:74px}
+.sl input[type=range]{flex:1;-webkit-appearance:none;height:2px;background:rgba(255,255,255,.15);border-radius:2px;cursor:pointer}
+.sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;
+  background:var(--cyan);box-shadow:0 0 8px var(--cyan);cursor:pointer}
+.sl input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--cyan);border:none}
+.sl .v{font-size:.53rem;color:var(--cyan);min-width:44px;text-align:right}
+.collapse{max-height:0;overflow:hidden;transition:max-height .35s ease}
+.collapse.open{max-height:300px}
+.chat{display:flex;gap:6px}
+.chat input[type=text]{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+  border-radius:9px;color:#fff;font-family:var(--mono);font-size:.68rem;padding:9px 12px;outline:none}
+.chat input[type=text]:focus{border-color:rgba(0,240,255,.5)}
+.ck{display:flex;align-items:center;gap:5px;font-size:.5rem;letter-spacing:1px;
+  text-transform:uppercase;color:var(--dim2);cursor:pointer}
+
+/* pip webcam */
+.pip{position:fixed;right:12px;z-index:31;width:62px;height:80px;border-radius:8px;
+  overflow:hidden;border:1px solid rgba(255,255,255,.12);opacity:.55;
+  bottom:calc(210px + env(safe-area-inset-bottom));transition:opacity .3s}
+.pip:active{opacity:.95}
+.pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+video#cam{position:fixed;top:-9999px;left:-9999px;width:640px;height:480px}
+.hint{position:fixed;left:0;right:0;bottom:calc(196px + env(safe-area-inset-bottom));
+  text-align:center;font-size:.52rem;letter-spacing:1px;color:var(--amber);
+  z-index:20;pointer-events:none;opacity:0;transition:opacity .4s;text-transform:uppercase}
+.hint.show{opacity:.85}
+/* packet inspector */
+.pkt{position:fixed;left:14px;top:96px;z-index:20;font-size:.5rem;letter-spacing:.5px;
+  color:var(--dim2);pointer-events:none;line-height:1.7;max-width:70vw}
+.pkt b{color:var(--grn)}
+.pkt .hex{color:#7af;word-break:break-all;display:block;font-size:.48rem;opacity:.8}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="stage2d"></div>
+
+<div class="topbar">
+  <div class="brand">VIBE<b>MESH</b><span class="sub">TESSERAE RENDERER</span></div>
+  <div class="telem">
+    <div>TX <b id="t-tx">—</b> · <b id="t-txbw" class="good">0.0</b> kbps</div>
+    <div>RX <b id="t-rx">—</b> · LINK <b id="t-link" class="warn">SOLO</b></div>
+    <div><b id="t-fps">0</b> fps · <b id="t-vox">0</b> vox · <b id="t-res">—</b></div>
+  </div>
+</div>
+
+<div class="ladder" id="ladder">
+  <div class="rung" data-t="1">Text</div>
+  <div class="rung" data-t="2">Glyph</div>
+  <div class="rung" data-t="3">Sprite</div>
+  <div class="rung" data-t="4">Puppet</div>
+  <div class="rung" data-t="5">Avatar3D</div>
+</div>
+
+<div class="pkt" id="pkt"></div>
+<div class="bubble" id="bubble"><span class="who" id="bubble-who">PEER</span><span id="bubble-msg"></span></div>
+<div class="hint" id="hint"></div>
+<div class="pip"><video id="pip" autoplay muted playsinline></video></div>
+<video id="cam" autoplay muted playsinline></video>
+
+<div class="dock">
+  <div class="row center" id="styles">
+    <div class="pill on" data-style="mosaic">Mosaic</div>
+    <div class="pill" data-style="crystal">Crystal</div>
+    <div class="pill" data-style="industrial">Industrial</div>
+    <div class="pill" data-style="organic">Organic</div>
+    <div class="pill" data-style="pop">Pop</div>
+    <span style="width:10px"></span>
+    <div class="pill on" data-vox="auto">Auto</div>
+    <div class="pill" data-vox="0.016">16mm</div>
+    <div class="pill" data-vox="0.008">8mm</div>
+    <div class="pill" data-vox="0.005">5mm</div>
+    <div class="pill" data-vox="0.0035">3.5mm</div>
+  </div>
+
+  <div class="collapse" id="netpanel">
+    <div class="sliders">
+      <div class="sl"><label>Bandwidth</label><input type="range" id="s-bw" min="5" max="2000" step="5" value="900"><span class="v" id="v-bw">900k</span></div>
+      <div class="sl"><label>RTT</label><input type="range" id="s-rtt" min="20" max="900" step="10" value="40"><span class="v" id="v-rtt">40ms</span></div>
+      <div class="sl"><label>Loss</label><input type="range" id="s-loss" min="0" max="40" step="1" value="0"><span class="v" id="v-loss">0%</span></div>
+      <div class="sl"><label>Battery</label><input type="range" id="s-bat" min="3" max="100" step="1" value="90"><span class="v" id="v-bat">90%</span></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label class="ck"><input type="checkbox" id="c-lowdata"> Low-data mode</label>
+      <label class="ck"><input type="checkbox" id="c-tts"> Speak received text</label>
+    </div>
+  </div>
+
+  <div class="chat">
+    <input type="text" id="msg" placeholder="say something…" maxlength="140">
+    <button class="btn" id="b-send">Send</button>
+  </div>
+
+  <div class="row center">
+    <button class="btn primary" id="b-init">Init Optics</button>
+    <button class="btn" id="b-recenter" disabled>Recenter</button>
+    <button class="btn" id="b-net">Network</button>
+    <button class="btn" data-g="1">Nod</button>
+    <button class="btn" data-g="2">Shake</button>
+    <button class="btn" data-g="3">Laugh</button>
+    <button class="btn" data-g="4">Pump</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ═════════════════════════════════════════════════════════════════
+//  VIBEMESH · TESSERAE — ground-up build
+//
+//  Semantic compression for human presence: instead of video pixels
+//  the wire carries AvatarState — head pose, blendshapes, gaze,
+//  gestures, text, emotion — in ~10–25 byte packets. Each peer
+//  renders the other at a deterministically negotiated fidelity
+//  tier:  TEXT → GLYPH → SPRITE → PUPPET → AVATAR3D.
+//
+//  AVATAR3D is the Tesserae renderer: a bust voxelized from an
+//  implicit head SDF into a mosaic of primitives (cubes, spheres,
+//  diamonds, pyramids), curvature/region-aware, palette-harmonized,
+//  animated by the incoming AvatarState. Voxel size adapts to
+//  device performance; entering the tier refines coarse→fine so a
+//  low-detail avatar appears instantly and upgrades in place.
+//
+//  Transport: BroadcastChannel — open this page in two tabs and the
+//  tabs become peers (capability exchange + deterministic tier
+//  negotiation, no server). Solo, packets loop back through the
+//  same simulated network so degradation is still visible.
+// ═════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────
+//  §1  PROTOCOL — tiers, capability profiles, negotiation, packets
+// ─────────────────────────────────────────────────────────────────
+const Tier = {TEXT:1, GLYPH:2, SPRITE:3, PUPPET:4, AVATAR3D:5};
+const TierName = {1:'TEXT',2:'GLYPH',3:'SPRITE',4:'PUPPET',5:'AVATAR3D'};
+const SendHz  = {1:2, 2:4, 3:10, 4:15, 5:20};      // packet rate per tier
+const Gesture = {NOD:1, SHAKE:2, LAUGH:3, PUMP:4};
+
+// Deterministic negotiation: both peers run the same pure function on
+// the same (exchanged) profiles, so they agree without a coordinator.
+function negotiate(local, remote){
+  const bw   = Math.min(local.bandwidthKbps, remote.bandwidthKbps);
+  const bat  = Math.min(local.battery, remote.battery);
+  const rtt  = Math.max(local.rttMs, remote.rttMs);
+  const low  = local.lowData || remote.lowData;
+  let cap = Tier.AVATAR3D;
+  if      (bw < 10)                        cap = Tier.TEXT;
+  else if (bw < 30  || low)                cap = Tier.GLYPH;
+  else if (bw < 80  || bat < 15)           cap = Tier.SPRITE;
+  else if (bw < 250 || bat < 30 || rtt > 400) cap = Tier.PUPPET;
+  return {
+    sendTier: Math.min(local.maxSendTier,  remote.maxRenderTier, cap),
+    recvTier: Math.min(remote.maxSendTier, local.maxRenderTier,  cap),
+  };
+}
+
+// Real device capability, then the sliders override the network half.
+function detectProfile(){
+  const cores = navigator.hardwareConcurrency || 4;
+  const mem   = navigator.deviceMemory || 4;
+  const cls   = (cores>=8 && mem>=8) ? 3 : (cores>=4 ? 2 : 1);
+  const con   = navigator.connection || {};
+  return {
+    maxSendTier:   Tier.AVATAR3D,
+    maxRenderTier: cls===1 ? Tier.SPRITE : Tier.AVATAR3D,
+    bandwidthKbps: con.downlink ? Math.round(con.downlink*1000) : 900,
+    rttMs:         con.rtt || 40,
+    battery:       90,
+    lowData:       !!con.saveData,
+    deviceClass:   cls,
+    lossPct:       0,
+  };
+}
+
+// ── Binary AvatarState codec ─────────────────────────────────────
+//  [0]  0x56 'V'      [1] 0x42 'B'    [2] ver    [3] tier
+//  [4]  u16 seq
+//  [6]  flags: b0 speaking · b1 hasText · b2..b5 gesture one-shots
+//  [7]  i8 valence·127  [8] u8 arousal·255  [9] u8 dominance·255
+//  tier≥SPRITE:  [10..12] i8 yaw,pitch,roll (deg · 127/90)
+//  tier≥PUPPET:  [13..20] u8 blendshapes ×8
+//                [21..22] i8 gazeX,gazeY (·127)
+//  hasText:      u16 len + utf8 bytes
+//  TEXT ≈ 10 B · GLYPH 10 B · SPRITE 13 B · PUPPET/AVATAR3D 23 B.
+//  AVATAR3D costs no more wire than PUPPET — fidelity is render-side.
+const BS_KEYS = ['jawOpen','smile','frown','browUp','browDown','blinkL','blinkR','pucker'];
+const q8  = v => Math.max(-127, Math.min(127, Math.round(v*127)));
+const qu8 = v => Math.max(0, Math.min(255, Math.round(v*255)));
+
+function encodeState(st, tier, seq){
+  const textBytes = st.textDirty && st.text ? new TextEncoder().encode(st.text) : null;
+  const n = 10 + (tier>=3?3:0) + (tier>=4?10:0) + (textBytes ? 2+textBytes.length : 0);
+  const b = new Uint8Array(n); const dv = new DataView(b.buffer);
+  b[0]=0x56; b[1]=0x42; b[2]=2; b[3]=tier;
+  dv.setUint16(4, seq&0xffff, true);
+  b[6] = (st.speaking?1:0) | (textBytes?2:0) | ((st.gestures&0xF)<<2);
+  b[7] = q8(st.valence)&0xff; b[8]=qu8(st.arousal); b[9]=qu8(st.dominance);
+  let o=10;
+  if(tier>=3){
+    b[o++]=q8(st.yaw/90)&0xff; b[o++]=q8(st.pitch/90)&0xff; b[o++]=q8(st.roll/90)&0xff;
+  }
+  if(tier>=4){
+    for(const k of BS_KEYS) b[o++]=qu8(st.bs[k]||0);
+    b[o++]=q8(st.gazeX)&0xff; b[o++]=q8(st.gazeY)&0xff;
+  }
+  if(textBytes){ dv.setUint16(o, textBytes.length, true); o+=2; b.set(textBytes,o); o+=textBytes.length; }
+  return b;
+}
+
+function decodeState(b){
+  if(b[0]!==0x56||b[1]!==0x42) return null;
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const tier=b[3], flags=b[6];
+  const st = {
+    tier, seq:dv.getUint16(4,true),
+    speaking:!!(flags&1), gestures:(flags>>2)&0xF,
+    valence:(b[7]<<24>>24)/127, arousal:b[8]/255, dominance:b[9]/255,
+    yaw:0,pitch:0,roll:0, bs:{}, gazeX:0, gazeY:0, text:null,
+  };
+  let o=10;
+  if(tier>=3){ st.yaw=(b[o++]<<24>>24)/127*90; st.pitch=(b[o++]<<24>>24)/127*90; st.roll=(b[o++]<<24>>24)/127*90; }
+  if(tier>=4){
+    for(const k of BS_KEYS) st.bs[k]=b[o++]/255;
+    st.gazeX=(b[o++]<<24>>24)/127; st.gazeY=(b[o++]<<24>>24)/127;
+  }
+  if(flags&2){ const len=dv.getUint16(o,true); o+=2; st.text=new TextDecoder().decode(b.subarray(o,o+len)); o+=len; }
+  return st;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  §2  TRANSPORT — BroadcastChannel peers + simulated impairments
+// ─────────────────────────────────────────────────────────────────
+const NET = {
+  chan:null, peerId:null, peerProfile:null, peerSeen:0,
+  myId: Math.random().toString(36).slice(2,8),
+  txBytes:0, rxBytes:0, txKbps:0,
+  bucket:2000, lastTick:performance.now(),
+};
+
+function netInit(){
+  try{ NET.chan = new BroadcastChannel('vibemesh-tesserae'); }catch(_){ return; }
+  NET.chan.onmessage = (ev)=>{
+    const m = ev.data;
+    if(!m || m.from===NET.myId) return;
+    if(m.t==='hello' || m.t==='profile'){
+      const isNew = NET.peerId !== m.from;
+      NET.peerId = m.from; NET.peerProfile = m.profile; NET.peerSeen = performance.now();
+      if(m.t==='hello') sendMeta('profile');
+      if(isNew) showHint('Peer tab linked · negotiating tiers');
+      renegotiate();
+    } else if(m.t==='pkt' && m.from===NET.peerId){
+      NET.peerSeen = performance.now();
+      impair(new Uint8Array(m.bytes), onPacket);
+    } else if(m.t==='bye' && m.from===NET.peerId){
+      NET.peerId=null; NET.peerProfile=null; renegotiate();
+    }
+  };
+  sendMeta('hello');
+  setInterval(()=>{                      // peer liveness + profile refresh
+    if(NET.peerId && performance.now()-NET.peerSeen>5000){
+      NET.peerId=null; NET.peerProfile=null; renegotiate(); showHint('Peer lost · loopback');
+    }
+  }, 2000);
+  addEventListener('beforeunload', ()=>sendMeta('bye'));
+}
+function sendMeta(t){ if(NET.chan) NET.chan.postMessage({t, from:NET.myId, profile:PROF.local}); }
+
+// Receive-side impairment: latency, jitter, loss, bandwidth token bucket.
+function impair(bytes, deliver){
+  const p = PROF.local;
+  if(Math.random()*100 < p.lossPct) return;                    // loss
+  const now = performance.now();
+  NET.bucket = Math.min(8000, NET.bucket + (now-NET.lastTick)*p.bandwidthKbps/8);
+  NET.lastTick = now;
+  if(NET.bucket < bytes.length) return;                        // rate-capped: drop
+  NET.bucket -= bytes.length;
+  const delay = p.rttMs/2 + Math.random()*p.rttMs*0.15;        // latency + jitter
+  setTimeout(()=>deliver(bytes), delay);
+}
+
+function txPacket(bytes){
+  NET.txBytes += bytes.length;
+  lastTx = bytes;
+  if(NET.chan && NET.peerId) NET.chan.postMessage({t:'pkt', from:NET.myId, bytes:bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset+bytes.byteLength)});
+  else impair(bytes, onPacket);                                // solo loopback
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  §3  PROFILES + NEGOTIATION STATE
+// ─────────────────────────────────────────────────────────────────
+const PROF = { local: detectProfile() };
+let AGREED = negotiate(PROF.local, PROF.local);
+
+function renegotiate(){
+  const remote = NET.peerProfile || PROF.local;      // solo: mirror self
+  AGREED = negotiate(PROF.local, remote);
+  document.getElementById('t-tx').textContent = TierName[AGREED.sendTier];
+  document.getElementById('t-rx').textContent = TierName[AGREED.recvTier];
+  document.getElementById('t-link').textContent = NET.peerId ? 'PAIRED' : 'SOLO';
+  document.getElementById('t-link').className = NET.peerId ? 'good' : 'warn';
+  document.querySelectorAll('#ladder .rung').forEach(r=>{
+    const t=+r.dataset.t;
+    r.className = 'rung' + (t===AGREED.recvTier?' tx':(t<AGREED.recvTier?' past':''));
+  });
+  setActiveRenderer(AGREED.recvTier);
+}
+
+if(navigator.getBattery) navigator.getBattery().then(b=>{
+  const set=()=>{ PROF.local.battery = Math.round(b.level*100);
+    const el=document.getElementById('s-bat'); el.value=PROF.local.battery;
+    document.getElementById('v-bat').textContent=PROF.local.battery+'%';
+    sendMeta('profile'); renegotiate(); };
+  set(); b.addEventListener('levelchange', set);
+}).catch(()=>{});
+
+// ─────────────────────────────────────────────────────────────────
+//  §4  CAPTURE — MediaPipe landmarks → AvatarState
+// ─────────────────────────────────────────────────────────────────
+const RIGID_IDX = [33,263,1,168,6,197,195,5,4,193,417,122,351,234,454];
+
+function kabsch(P,Q){                        // Horn 1987 quaternion method
+  let Sxx=0,Sxy=0,Sxz=0,Syx=0,Syy=0,Syz=0,Szx=0,Szy=0,Szz=0;
+  for(let i=0;i<P.length;i++){
+    const p=P[i],q=Q[i];
+    Sxx+=p[0]*q[0];Sxy+=p[0]*q[1];Sxz+=p[0]*q[2];
+    Syx+=p[1]*q[0];Syy+=p[1]*q[1];Syz+=p[1]*q[2];
+    Szx+=p[2]*q[0];Szy+=p[2]*q[1];Szz+=p[2]*q[2];
+  }
+  const N=[[Sxx+Syy+Szz,Syz-Szy,Szx-Sxz,Sxy-Syx],
+           [Syz-Szy,Sxx-Syy-Szz,Sxy+Syx,Szx+Sxz],
+           [Szx-Sxz,Sxy+Syx,-Sxx+Syy-Szz,Syz+Szy],
+           [Sxy-Syx,Szx+Sxz,Syz+Szy,-Sxx-Syy+Szz]];
+  let v=[1,0,0,0];
+  for(let it=0;it<32;it++){
+    const nv=[0,0,0,0];
+    for(let i=0;i<4;i++)for(let j=0;j<4;j++)nv[i]+=N[i][j]*v[j];
+    const l=Math.hypot(...nv)||1; v=nv.map(x=>x/l);
+  }
+  const [w,x,y,z]=v;
+  return [1-2*(y*y+z*z),2*(x*y-w*z),2*(x*z+w*y),
+          2*(x*y+w*z),1-2*(x*x+z*z),2*(y*z-w*x),
+          2*(x*z-w*y),2*(y*z+w*x),1-2*(x*x+y*y)];
+}
+function matToEuler(m){
+  const pitch=Math.asin(Math.max(-1,Math.min(1,-m[7])));
+  const yaw=Math.atan2(m[6],m[8]), roll=Math.atan2(m[1],m[4]);
+  const d=180/Math.PI; return [yaw*d,pitch*d,roll*d];
+}
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+
+const CAP = {
+  latest:null, neutral:null, buf:[],
+  state:{ yaw:0,pitch:0,roll:0, bs:{}, gazeX:0,gazeY:0,
+          valence:0, arousal:0.3, dominance:0.5,
+          speaking:false, gestures:0, text:null, textDirty:false },
+  jawHist:[], motion:0, prevLm:null,
+};
+for(const k of BS_KEYS) CAP.state.bs[k]=0;
+
+function metrics(lm){
+  const iod = dist(lm[33],lm[263]) || 0.08;
+  return {
+    iod,
+    jaw:   dist(lm[13],lm[14])/iod,
+    mw:    dist(lm[61],lm[291])/iod,
+    browL: (lm[159].y-lm[105].y)/iod,
+    browR: (lm[386].y-lm[334].y)/iod,
+    earL:  dist(lm[159],lm[145])/(dist(lm[33],lm[133])||1e-4),
+    earR:  dist(lm[386],lm[374])/(dist(lm[362],lm[263])||1e-4),
+    cornerY: ((lm[61].y+lm[291].y)/2 - lm[13].y)/iod,   // corners above mid-lip = smile
+  };
+}
+
+function captureFrame(lm, dt){
+  // auto-calibrate: median of first ~40 stable frames
+  if(!CAP.neutral){
+    CAP.buf.push(metrics(lm));
+    if(CAP.buf.length>=40){
+      const med=k=>{const a=CAP.buf.map(m=>m[k]).sort((x,y)=>x-y);return a[a.length>>1];};
+      CAP.neutral={jaw:med('jaw'),mw:med('mw'),browL:med('browL'),browR:med('browR'),
+                   earL:med('earL'),earR:med('earR'),cornerY:med('cornerY'),
+                   pts:lm.map(p=>[p.x,p.y,p.z]),
+                   c:null, s:dist(lm[33],lm[263])};
+      let c=[0,0,0];
+      for(const i of RIGID_IDX){c[0]+=lm[i].x;c[1]+=lm[i].y;c[2]+=lm[i].z;}
+      CAP.neutral.c=c.map(v=>v/RIGID_IDX.length);
+      showHint('Locked · you are live');
+      document.getElementById('b-recenter').disabled=false;
+    }
+    return;
+  }
+  const n=CAP.neutral, m=metrics(lm), st=CAP.state;
+
+  // ── rigid pose vs neutral ──
+  let c=[0,0,0];
+  for(const i of RIGID_IDX){c[0]+=lm[i].x;c[1]+=lm[i].y;c[2]+=lm[i].z;}
+  c=c.map(v=>v/RIGID_IDX.length);
+  const cs=dist(lm[33],lm[263])||n.s;
+  const P=[],Q=[];
+  for(const i of RIGID_IDX){
+    P.push([(lm[i].x-c[0])/cs,(lm[i].y-c[1])/cs,(lm[i].z-c[2])/cs]);
+    const q=n.pts[i];
+    Q.push([(q[0]-n.c[0])/n.s,(q[1]-n.c[1])/n.s,(q[2]-n.c[2])/n.s]);
+  }
+  const R=kabsch(P,Q);
+  const [yaw,pitch,roll]=matToEuler([R[0],R[3],R[6],R[1],R[4],R[7],R[2],R[5],R[8]]);
+  const a=0.35;
+  st.yaw  += (-yaw  - st.yaw )*a;      // mirror for selfie
+  st.pitch+= ( pitch- st.pitch)*a;
+  st.roll += (-roll - st.roll)*a;
+
+  // ── blendshapes (neutral-relative, fixed spans) ──
+  const cl=v=>Math.max(0,Math.min(1,v));
+  const tgt={
+    jawOpen: cl((m.jaw-n.jaw-0.012)/0.42),
+    smile:   cl((m.mw-n.mw)/0.16 + (n.cornerY-m.cornerY)/0.10),
+    frown:   cl((m.cornerY-n.cornerY-0.01)/0.10),
+    browUp:  cl(((m.browL-n.browL)+(m.browR-n.browR))/2/0.10),
+    browDown:cl(((n.browL-m.browL)+(n.browR-m.browR))/2/0.08),
+    blinkL:  cl((n.earL-m.earL)/(n.earL-0.06)),
+    blinkR:  cl((n.earR-m.earR)/(n.earR-0.06)),
+    pucker:  cl((n.mw-m.mw-0.02)/0.14),
+  };
+  for(const k of BS_KEYS) st.bs[k]+= (tgt[k]-st.bs[k])*0.45;
+
+  // ── gaze from iris (refineLandmarks) ──
+  if(lm.length>473){
+    const gx=i=>{const eye=(i===468)?[lm[33],lm[133]]:[lm[362],lm[263]];
+      const w=eye[1].x-eye[0].x||1e-4;
+      return ((lm[i].x-eye[0].x)/w-0.5)*2;};
+    const g=-(gx(468)+gx(473))/2;                       // mirrored
+    st.gazeX += (Math.max(-1,Math.min(1,g*2.2))-st.gazeX)*0.3;
+    st.gazeY += (Math.max(-1,Math.min(1,st.pitch/25))-st.gazeY)*0.3;
+  }
+
+  // ── motion energy → arousal; smile/frown → valence ──
+  if(CAP.prevLm){
+    let e=0; for(const i of RIGID_IDX) e+=dist(lm[i],CAP.prevLm[i]);
+    CAP.motion += (Math.min(1,e/RIGID_IDX.length/0.004)-CAP.motion)*0.1;
+  }
+  CAP.prevLm = lm.map(p=>({x:p.x,y:p.y,z:p.z}));
+  st.valence += ((st.bs.smile-0.8*st.bs.frown-0.3*st.bs.browDown)-st.valence)*0.08;
+  st.arousal += ((0.22+0.45*CAP.motion+0.35*st.bs.jawOpen+0.2*st.bs.browUp)-st.arousal)*0.06;
+  st.dominance += ((0.5+st.pitch/70)-st.dominance)*0.05;
+
+  // ── speaking: jaw oscillation over ~0.7 s ──
+  CAP.jawHist.push(st.bs.jawOpen);
+  if(CAP.jawHist.length>22) CAP.jawHist.shift();
+  const mean=CAP.jawHist.reduce((s,v)=>s+v,0)/CAP.jawHist.length;
+  const varc=CAP.jawHist.reduce((s,v)=>s+(v-mean)**2,0)/CAP.jawHist.length;
+  st.speaking = varc>0.004;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  §5  SEND LOOP — tier-rate packets
+// ─────────────────────────────────────────────────────────────────
+let seq=0, lastSend=0, lastTx=null;
+function sendLoop(now){
+  const hz=SendHz[AGREED.sendTier]||10;
+  if(now-lastSend < 1000/hz) return;
+  lastSend=now;
+  if(!CAP.neutral && !CAP.state.textDirty && !CAP.state.gestures) return;
+  const b=encodeState(CAP.state, AGREED.sendTier, seq++);
+  txPacket(b);
+  CAP.state.textDirty=false; CAP.state.gestures=0;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  §6  RECEIVE — drive whichever renderer the negotiated tier picked
+// ─────────────────────────────────────────────────────────────────
+const REMOTE = {                          // smoothed remote state
+  yaw:0,pitch:0,roll:0, bs:{}, gazeX:0,gazeY:0,
+  valence:0,arousal:0.3,dominance:0.5, speaking:false,
+  text:null, textAt:0, gestureAnim:null, lastPkt:0,
+};
+for(const k of BS_KEYS) REMOTE.bs[k]=0;
+
+function onPacket(bytes){
+  const st=decodeState(bytes); if(!st) return;
+  NET.rxBytes += bytes.length;
+  REMOTE.lastPkt=performance.now();
+  REMOTE.target=st;
+  if(st.text){
+    REMOTE.text=st.text; REMOTE.textAt=performance.now();
+    const bb=document.getElementById('bubble');
+    document.getElementById('bubble-who').textContent = NET.peerId?'PEER':'LOOPBACK';
+    document.getElementById('bubble-msg').textContent = st.text;
+    bb.classList.add('show');
+    clearTimeout(onPacket._bt); onPacket._bt=setTimeout(()=>bb.classList.remove('show'),6000);
+    if(document.getElementById('c-tts').checked && window.speechSynthesis){
+      speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(st.text);
+      u.pitch=0.8+(st.valence+1)*0.35; u.rate=0.9+st.arousal*0.5;
+      speechSynthesis.speak(u);
+    }
+  }
+  if(st.gestures){
+    for(const g of [1,2,3,4]) if(st.gestures & (1<<(g-1)))
+      REMOTE.gestureAnim={g, t0:performance.now()};
+  }
+}
+
+function remoteTick(){
+  const t=REMOTE.target; if(!t) return;
+  const a=0.35;
+  REMOTE.yaw+=(t.yaw-REMOTE.yaw)*a; REMOTE.pitch+=(t.pitch-REMOTE.pitch)*a; REMOTE.roll+=(t.roll-REMOTE.roll)*a;
+  for(const k of BS_KEYS) REMOTE.bs[k]+=((t.bs[k]||0)-REMOTE.bs[k])*0.4;
+  REMOTE.gazeX+=(t.gazeX-REMOTE.gazeX)*0.3; REMOTE.gazeY+=(t.gazeY-REMOTE.gazeY)*0.3;
+  REMOTE.valence+=(t.valence-REMOTE.valence)*0.15;
+  REMOTE.arousal+=(t.arousal-REMOTE.arousal)*0.1;
+  REMOTE.dominance+=(t.dominance-REMOTE.dominance)*0.1;
+  REMOTE.speaking=t.speaking;
+}
+
+// gesture overlay: additive pose from one-shot animations
+function gestureOffset(now){
+  const ga=REMOTE.gestureAnim; if(!ga) return {y:0,p:0,r:0,bob:0,jaw:0};
+  const t=(now-ga.t0)/1000;
+  if(t>1.6){ REMOTE.gestureAnim=null; return {y:0,p:0,r:0,bob:0,jaw:0}; }
+  const env=Math.exp(-t*2.2);
+  switch(ga.g){
+    case Gesture.NOD:   return {y:0, p:Math.sin(t*11)*16*env, r:0, bob:0, jaw:0};
+    case Gesture.SHAKE: return {y:Math.sin(t*11)*20*env, p:0, r:0, bob:0, jaw:0};
+    case Gesture.LAUGH: return {y:0, p:6*env, r:Math.sin(t*9)*4*env,
+                                bob:Math.abs(Math.sin(t*9))*0.012*env,
+                                jaw:Math.abs(Math.sin(t*13))*0.5*env};
+    case Gesture.PUMP:  return {y:0, p:-8*env, r:Math.sin(t*6)*6*env,
+                                bob:Math.abs(Math.sin(t*7))*0.03*env, jaw:0.3*env};
+  }
+  return {y:0,p:0,r:0,bob:0,jaw:0};
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  §7  RENDERERS — one per tier, hot-swapped on renegotiation
+// ─────────────────────────────────────────────────────────────────
+const stage2d = document.getElementById('stage2d');
+let activeTier = 0;
+
+function setActiveRenderer(tier){
+  if(tier===activeTier) return;
+  activeTier=tier;
+  stage2d.innerHTML=''; stage2d.classList.toggle('show', tier<Tier.AVATAR3D);
+  if(TES.group) TES.group.visible = (tier===Tier.AVATAR3D);
+  if(renderer && tier!==Tier.AVATAR3D) renderer.clear();
+  if(tier===Tier.TEXT)   R_text.init();
+  if(tier===Tier.GLYPH)  R_glyph.init();
+  if(tier===Tier.SPRITE) R_sprite.init();
+  if(tier===Tier.PUPPET) R_puppet.init();
+  if(tier===Tier.AVATAR3D && THREE_OK && !TES.group) tesInit();
+  if(tier===Tier.AVATAR3D && TES.group){
+    // progressive upgrade: appear coarse instantly, refine in place
+    tesProgressive();
+  }
+}
+
+// ── TEXT ──
+const R_text={
+  el:null,
+  init(){ this.el=document.createElement('div'); this.el.className='txtpane';
+    this.el.innerHTML='<span class="who">peer · text tier</span><div class="msg" id="rt-msg">—</div><div class="dots" id="rt-dots" style="display:none"><i>●</i><i>●</i><i>●</i></div>';
+    stage2d.appendChild(this.el); },
+  update(){ if(!this.el) return;
+    const m=document.getElementById('rt-msg'), d=document.getElementById('rt-dots');
+    if(m) m.textContent = REMOTE.text || '…connected';
+    if(d) d.style.display = REMOTE.speaking?'inline-block':'none'; }
+};
+
+// ── GLYPH ──
+const R_glyph={
+  el:null,
+  init(){ this.el=document.createElement('div'); this.el.className='glyph'; stage2d.appendChild(this.el); },
+  update(now){ if(!this.el) return;
+    const v=REMOTE.valence, ar=REMOTE.arousal;
+    let e = v>0.15 ? (ar>0.5?'😄':'😊') : v<-0.15 ? (ar>0.5?'😠':'😔') : (ar>0.6?'😮':'😐');
+    const ga=REMOTE.gestureAnim;
+    if(ga) e = {1:'🙂',2:'🙅',3:'🤣',4:'🙌'}[ga.g]||e;
+    if(REMOTE.speaking) e+='💬';
+    if(this.el.textContent!==e) this.el.textContent=e;
+    this.el.style.transform=`rotate(${REMOTE.roll*0.4}deg) translateX(${REMOTE.yaw*0.8}px) scale(${1+0.05*Math.sin(now/1000*(1+ar*3))})`; }
+};
+
+// ── shared 2D canvas helper ──
+function mk2dCanvas(){
+  const c=document.createElement('canvas');
+  c.width=480; c.height=480; stage2d.appendChild(c);
+  return c;
+}
+
+// ── SPRITE: flat cartoon, few parameters ──
+const R_sprite={
+  cv:null,
+  init(){ this.cv=mk2dCanvas(); },
+  update(now){
+    if(!this.cv) return; const x=this.cv.getContext('2d');
+    const W=480,H=480; x.clearRect(0,0,W,H); x.save();
+    x.translate(W/2 + REMOTE.yaw*2.2, H/2 + REMOTE.pitch*1.6 + Math.sin(now/600)*4);
+    x.rotate(REMOTE.roll*Math.PI/340);
+    const hue = 190 - REMOTE.valence*60;
+    x.fillStyle=`hsl(${hue},55%,58%)`;
+    x.beginPath(); x.arc(0,0,130,0,7); x.fill();          // head
+    x.fillStyle='#111';
+    const blink = (REMOTE.bs.blinkL+REMOTE.bs.blinkR)/2 > 0.5 || (now%3400<120);
+    for(const s of [-1,1]){                               // eyes
+      if(blink){ x.fillRect(s*52-18,-26,36,6); }
+      else { x.beginPath(); x.arc(s*52,-22,14,0,7); x.fill(); }
+    }
+    x.strokeStyle='#111'; x.lineWidth=9; x.lineCap='round';
+    const sm=REMOTE.valence*36, open=REMOTE.speaking?(10+8*Math.sin(now/60)):REMOTE.bs.jawOpen*40;
+    x.beginPath(); x.moveTo(-46,52);                      // mouth
+    x.quadraticCurveTo(0, 52+sm+open, 46, 52); x.stroke();
+    if(open>6){ x.fillStyle='#611'; x.beginPath();
+      x.moveTo(-40,54); x.quadraticCurveTo(0,54+open,40,54);
+      x.quadraticCurveTo(0,54+sm,-40,54); x.fill(); }
+    x.restore();
+  }
+};
+
+// ── PUPPET: parametric face — the full blendshape set, still 2D ──
+const R_puppet={
+  cv:null,
+  init(){ this.cv=mk2dCanvas(); },
+  update(now){
+    if(!this.cv) return; const x=this.cv.getContext('2d');
+    const W=480,H=480; x.clearRect(0,0,W,H); x.save();
+    const b=REMOTE.bs, g=gestureOffset(now);
+    x.translate(W/2+(REMOTE.yaw+g.y)*2.4, H/2+(REMOTE.pitch+g.p)*1.8 - g.bob*2000);
+    x.rotate((REMOTE.roll+g.r)*Math.PI/300);
+    const squash=1-0.04*REMOTE.arousal*Math.sin(now/180);
+    x.scale(1+REMOTE.yaw/300, squash);
+    // head
+    const grd=x.createRadialGradient(-30,-40,20,0,0,170);
+    grd.addColorStop(0,'#f2cfae'); grd.addColorStop(1,'#caa07e');
+    x.fillStyle=grd; x.beginPath(); x.ellipse(0,6,118,142,0,0,7); x.fill();
+    // blush by arousal
+    x.fillStyle=`rgba(255,90,110,${0.12+REMOTE.arousal*0.25})`;
+    for(const s of [-1,1]){ x.beginPath(); x.ellipse(s*72,44,22,13,0,0,7); x.fill(); }
+    // brows
+    x.strokeStyle='#4a3324'; x.lineWidth=10; x.lineCap='round';
+    const bl=-b.browUp*18+b.browDown*8;
+    for(const s of [-1,1]){
+      x.beginPath(); x.moveTo(s*26,-66+bl+b.browDown*4*s);
+      x.quadraticCurveTo(s*52,-78+bl, s*78,-62+bl-b.browDown*6);
+      x.stroke();
+    }
+    // eyes + gaze + blink
+    for(const s of [-1,1]){
+      const bk=s<0?b.blinkL:b.blinkR;
+      x.fillStyle='#fff'; x.beginPath();
+      x.ellipse(s*52,-30,24,15*(1-bk*0.92),0,0,7); x.fill();
+      if(bk<0.7){ x.fillStyle='#3a5a7a'; x.beginPath();
+        x.arc(s*52+REMOTE.gazeX*10, -30+REMOTE.gazeY*6, 8.5,0,7); x.fill();
+        x.fillStyle='#111'; x.beginPath();
+        x.arc(s*52+REMOTE.gazeX*10, -30+REMOTE.gazeY*6, 4,0,7); x.fill(); }
+    }
+    // nose
+    x.strokeStyle='#b08a68'; x.lineWidth=7;
+    x.beginPath(); x.moveTo(-4,-10); x.quadraticCurveTo(-10,26,6,32); x.stroke();
+    // mouth: jaw + smile + pucker + speaking flutter + gesture jaw
+    let open=(b.jawOpen+g.jaw)*54 + (REMOTE.speaking?6+5*Math.sin(now/55):0);
+    const smile=REMOTE.valence*30 - b.frown*16;
+    const wid=56*(1-b.pucker*0.55);
+    x.fillStyle='#8c3a46'; x.beginPath();
+    x.moveTo(-wid,78-smile*0.3);
+    x.quadraticCurveTo(0,78+smile,wid,78-smile*0.3);
+    x.quadraticCurveTo(0,78+smile+Math.max(4,open),-wid,78-smile*0.3);
+    x.fill();
+    if(open>14){ x.fillStyle='#fff';
+      x.fillRect(-wid*0.5,80+smile*0.4,wid,7); }
+    x.restore();
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────
+//  §8  TESSERAE — AVATAR3D voxel-mosaic renderer
+// ─────────────────────────────────────────────────────────────────
+let scene,camera,renderer,THREE_OK=false;
+const TES = {
+  group:null, meshes:[], cells:[], res:null, targetRes:0.008,
+  regions:{jaw:[],brow:[],eyeL:[],eyeR:[],lips:[]},
+  style:'mosaic', auto:true, orbit:{yaw:0,pitch:0,dist:0.52,drag:null},
+  progTimer:null, fpsEma:60,
+};
+
+// ── implicit head: bust built from smooth-min'd ellipsoids ──
+const smin=(a,b,k)=>{const h=Math.max(0,Math.min(1,0.5+0.5*(b-a)/k));return b+(a-b)*h-k*h*(1-h);};
+function sdEll(x,y,z,cx,cy,cz,rx,ry,rz){
+  const dx=(x-cx)/rx,dy=(y-cy)/ry,dz=(z-cz)/rz;
+  return (Math.sqrt(dx*dx+dy*dy+dz*dz)-1)*Math.min(rx,ry,rz);
+}
+function headSDF(x,y,z){
+  let d=sdEll(x,y,z, 0,0.030,0,      0.082,0.105,0.090);   // skull
+  d=smin(d, sdEll(x,y,z, 0,-0.055,0.018, 0.060,0.075,0.068), 0.028); // jaw
+  d=smin(d, sdEll(x,y,z, 0,-0.010,0.088, 0.016,0.030,0.024), 0.012); // nose
+  d=smin(d, sdEll(x,y,z, 0.083,0.002,0.004, 0.013,0.028,0.020), 0.008); // ears
+  d=smin(d, sdEll(x,y,z,-0.083,0.002,0.004, 0.013,0.028,0.020), 0.008);
+  d=smin(d, sdEll(x,y,z, 0,-0.165,-0.01, 0.105,0.055,0.062), 0.030);  // shoulders
+  return d;
+}
+function sdfNormal(x,y,z){
+  const e=0.004;
+  const nx=headSDF(x+e,y,z)-headSDF(x-e,y,z);
+  const ny=headSDF(x,y+e,z)-headSDF(x,y-e,z);
+  const nz=headSDF(x,y,z+e)-headSDF(x,y,z-e);
+  const l=Math.hypot(nx,ny,nz)||1; return [nx/l,ny/l,nz/l];
+}
+const hash3=(x,y,z)=>{const s=Math.sin(x*127.1+y*311.7+z*74.7)*43758.5453;return s-Math.floor(s);};
+
+const EYE_L=[ 0.033,0.014,0.070], EYE_R=[-0.033,0.014,0.070];
+const JAW_PIVOT=[0,-0.028,0.004];
+
+// region classification + base color (mosaic palette; styles remap)
+function classifyCell(x,y,z,n){
+  const dl=Math.hypot(x-EYE_L[0],y-EYE_L[1],z-EYE_L[2]);
+  const dr=Math.hypot(x-EYE_R[0],y-EYE_R[1],z-EYE_R[2]);
+  if(dl<0.0165 && z>0.045) return dl<0.008?'irisL':'eyeL';
+  if(dr<0.0165 && z>0.045) return dr<0.008?'irisR':'eyeR';
+  if(y>0.032 && y<0.052 && Math.abs(x)>0.012 && Math.abs(x)<0.058 && z>0.055) return 'brow';
+  if(Math.abs(x)<0.034 && y>-0.082 && y<-0.048 && z>0.052) return 'lips';
+  const hairline = 0.052 + (hash3(x*40,0,z*40)-0.5)*0.02;
+  if(y>hairline || (z<-0.028 && y>-0.05) || (Math.abs(x)>0.070 && y>0.012 && z<0.02)) return 'hair';
+  if(y<-0.125) return 'shirt';
+  return 'skin';
+}
+function isJawCell(x,y,z,reg){
+  if(reg==='hair'||reg==='shirt') return false;
+  return (y<-0.060 && z>-0.005) || y<-0.100 && y>-0.125;
+}
+
+// ── style palettes: {ramp(region,l,h1,h2), mat:{metal,rough,opacity}} ──
+const hsl=(h,s,l)=>new THREE.Color().setHSL(((h%1)+1)%1,s,l);
+const STYLES = {
+  mosaic:{ mat:{metalness:0.15,roughness:0.55,opacity:1},
+    ramp(reg,l,h1,h2){
+      switch(reg){
+        case 'skin': return hsl(0.07+(h1-0.5)*0.05, 0.42+h2*0.18, 0.30+l*0.42);
+        case 'hair': return hsl(0.07+(h1-0.5)*0.04, 0.35, 0.10+l*0.16);
+        case 'lips': return hsl(0.97+(h1-0.5)*0.03, 0.55, 0.30+l*0.22);
+        case 'brow': return hsl(0.07, 0.35, 0.10+l*0.12);
+        case 'eyeL': case 'eyeR': return hsl(0.10, 0.08, 0.80+l*0.15);
+        case 'irisL': case 'irisR': return hsl(0.58+(h1-0.5)*0.1, 0.45, 0.30);
+        case 'shirt': return hsl(0.58, 0.25, 0.16+l*0.12);
+      }}},
+  crystal:{ mat:{metalness:0.1,roughness:0.08,opacity:0.85},
+    ramp(reg,l,h1){ const base=0.55+(h1-0.5)*0.08;
+      if(reg==='irisL'||reg==='irisR') return hsl(0.58,0.7,0.4);
+      return hsl(base, 0.25, 0.55+l*0.4); }},
+  industrial:{ mat:{metalness:0.85,roughness:0.35,opacity:1},
+    ramp(reg,l,h1){
+      if(reg==='irisL'||reg==='irisR') return hsl(0.08,0.9,0.55);
+      if(reg==='lips') return hsl(0.02,0.3,0.25+l*0.2);
+      return hsl(0.6+(h1-0.5)*0.02, 0.04, 0.18+l*0.5); }},
+  organic:{ mat:{metalness:0.05,roughness:0.8,opacity:1},
+    ramp(reg,l,h1,h2){
+      if(reg==='hair') return hsl(0.32+(h1-0.5)*0.1, 0.5, 0.15+l*0.2);
+      if(reg==='irisL'||reg==='irisR') return hsl(0.12,0.8,0.4);
+      return hsl(0.24+(h1-0.5)*0.12, 0.35+h2*0.25, 0.22+l*0.35); }},
+  pop:{ mat:{metalness:0.25,roughness:0.4,opacity:1},
+    ramp(reg,l,h1,h2){
+      if(reg==='irisL'||reg==='irisR') return hsl(0.85,0.9,0.5);
+      return hsl(h1, 0.85, 0.35+l*0.35); }},
+};
+
+// primitive geometries: cube · sphere · diamond(octa) · pyramid(tetra)
+function tesGeoms(){
+  return [
+    new THREE.BoxGeometry(1,1,1),
+    new THREE.SphereGeometry(0.62,10,8),
+    new THREE.OctahedronGeometry(0.72),
+    new THREE.ConeGeometry(0.6,1,4),
+  ];
+}
+// curvature/region-aware primitive pick
+function pickPrim(reg,n,h){
+  if(reg==='eyeL'||reg==='eyeR'||reg==='irisL'||reg==='irisR') return 1;   // spheres
+  if(reg==='hair')  return h<0.5?0 : h<0.8?2 : 3;                          // spiky mix
+  const steep = 1-Math.abs(n[2]);                                          // silhouette cells
+  if(steep>0.75) return h<0.6?2:0;                                         // diamonds on curvature
+  return h<0.8?0 : h<0.92?1 : 2;                                           // mostly tiles up front
+}
+
+function tesBuild(res){
+  // dispose previous
+  for(const m of TES.meshes){ TES.group.remove(m); m.geometry.dispose(); m.material.dispose(); }
+  TES.meshes=[]; TES.cells=[];
+  for(const k in TES.regions) TES.regions[k]=[];
+  TES.res=res;
+
+  // collect shell cells
+  const cells=[];
+  for(let x=-0.115;x<=0.115;x+=res)
+  for(let y=-0.185;y<=0.155;y+=res)
+  for(let z=-0.105;z<=0.115;z+=res){
+    const d=headSDF(x,y,z);
+    if(d>res*0.45 || d<-res*1.35) continue;
+    const n=sdfNormal(x,y,z);
+    const reg=classifyCell(x,y,z,n);
+    const h1=hash3(x,y,z), h2=hash3(x+9,y+7,z+3);
+    // hair: bumpy outward extrusion
+    let px=x,py=y,pz=z;
+    if(reg==='hair'){ const e=h1*res*0.8; px+=n[0]*e; py+=n[1]*e; pz+=n[2]*e; }
+    cells.push({x:px,y:py,z:pz,n,reg,h1,h2,
+      prim:pickPrim(reg,n,h2),
+      lum:Math.max(0,0.35+0.65*(n[2]*0.8+n[1]*0.25))*(1+ (d>0?0:d/res*0.25)),
+      jaw:isJawCell(x,y,z,reg)});
+  }
+
+  // bucket per primitive
+  const style=STYLES[TES.style];
+  const geoms=tesGeoms();
+  const byPrim=[[],[],[],[]];
+  for(const c of cells) byPrim[c.prim].push(c);
+
+  const gap = res<0.006 ? 0.96 : res<0.01 ? 0.92 : 0.86;   // reading-distance packing
+  const dummy=new THREE.Object3D();
+  let total=0;
+  for(let p=0;p<4;p++){
+    const list=byPrim[p]; if(!list.length){ geoms[p].dispose(); continue; }
+    const mat=new THREE.MeshStandardMaterial({
+      metalness:style.mat.metalness, roughness:style.mat.roughness,
+      transparent:style.mat.opacity<1, opacity:style.mat.opacity});
+    const im=new THREE.InstancedMesh(geoms[p], mat, list.length);
+    im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    for(let i=0;i<list.length;i++){
+      const c=list[i];
+      const s=res*gap*(0.9+c.h1*0.2);
+      dummy.position.set(c.x,c.y,c.z);
+      dummy.scale.set(s,s,s);
+      dummy.rotation.set(c.h1*0.5-0.25, c.h2*6.28, 0);
+      if(c.prim===3) dummy.lookAt(c.x+c.n[0],c.y+c.n[1],c.z+c.n[2]); // pyramids point out
+      dummy.updateMatrix();
+      im.setMatrixAt(i,dummy.matrix);
+      im.setColorAt(i, style.ramp(c.reg, c.lum, c.h1, c.h2));
+      c.mesh=im; c.idx=i;
+      c.base={p:[c.x,c.y,c.z], s, rx:dummy.rotation.x, ry:dummy.rotation.y, look:c.prim===3};
+      // animation region lists
+      if(c.jaw) TES.regions.jaw.push(c);
+      if(c.reg==='brow') TES.regions.brow.push(c);
+      if(c.reg==='eyeL'||c.reg==='irisL') TES.regions.eyeL.push(c);
+      if(c.reg==='eyeR'||c.reg==='irisR') TES.regions.eyeR.push(c);
+      if(c.reg==='lips') TES.regions.lips.push(c);
+    }
+    im.instanceColor.needsUpdate=true;
+    TES.group.add(im); TES.meshes.push(im);
+    total+=list.length;
+  }
+  TES.cells=cells;
+  document.getElementById('t-vox').textContent=total;
+  document.getElementById('t-res').textContent=(res*1000).toFixed(1)+'mm';
+}
+
+function tesRestyle(){
+  const style=STYLES[TES.style];
+  for(const c of TES.cells){
+    if(!c.mesh) continue;
+    c.mesh.setColorAt(c.idx, style.ramp(c.reg,c.lum,c.h1,c.h2));
+  }
+  for(const m of TES.meshes){
+    m.instanceColor.needsUpdate=true;
+    m.material.metalness=style.mat.metalness;
+    m.material.roughness=style.mat.roughness;
+    m.material.transparent=style.mat.opacity<1;
+    m.material.opacity=style.mat.opacity;
+  }
+}
+
+// progressive upgrade: coarse now, refine toward target
+function tesProgressive(){
+  clearTimeout(TES.progTimer);
+  const steps=[0.016, 0.010, TES.targetRes].filter((r,i,a)=>a.indexOf(r)===i && r>=TES.targetRes);
+  if(!steps.length) steps.push(TES.targetRes);
+  let i=0;
+  const go=()=>{ tesBuild(steps[i]);
+    if(++i<steps.length) TES.progTimer=setTimeout(go, 700); };
+  go();
+}
+
+function tesInit(){
+  TES.group=new THREE.Group();
+  scene.add(TES.group);
+  tesProgressive();
+}
+
+// per-frame Tesserae animation
+const _m4=null;
+function tesTick(now){
+  if(!TES.group || !TES.group.visible) return;
+  const g=gestureOffset(now), b=REMOTE.bs;
+  const rad=Math.PI/180;
+  // head pose + idle sway + gesture bob
+  TES.group.rotation.set(
+    (REMOTE.pitch+g.p)*rad*0.9 + TES.orbit.pitch,
+    (REMOTE.yaw+g.y)*rad*0.9 + Math.sin(now/2600)*0.02 + TES.orbit.yaw,
+    (REMOTE.roll+g.r)*rad*0.7);
+  const breathe=1+Math.sin(now/1000*(0.8+REMOTE.arousal*2.2))*0.006*(0.5+REMOTE.arousal);
+  TES.group.scale.setScalar(breathe);
+  TES.group.position.y = 0.02 + g.bob + Math.sin(now/1400)*0.002;
+
+  const dummy=tesTick._d||(tesTick._d=new THREE.Object3D());
+  const q=tesTick._q||(tesTick._q=new THREE.Quaternion());
+  const jawA=Math.min(1,(b.jawOpen+g.jaw))*0.34;
+  const jq=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), jawA);
+  const touched=new Set();
+
+  // jaw: rotate cells about pivot
+  for(const c of TES.regions.jaw){
+    const [bx,by,bz]=c.base.p;
+    const vx=bx-JAW_PIVOT[0], vy=by-JAW_PIVOT[1], vz=bz-JAW_PIVOT[2];
+    const cy2=Math.cos(jawA), sy2=Math.sin(jawA);
+    const ry=vy*cy2 - vz*sy2, rz2=vy*sy2 + vz*cy2;
+    dummy.position.set(bx, JAW_PIVOT[1]+ry, JAW_PIVOT[2]+rz2);
+    dummy.scale.setScalar(c.base.s);
+    dummy.rotation.set(c.base.rx+jawA, c.base.ry, 0);
+    dummy.updateMatrix();
+    c.mesh.setMatrixAt(c.idx, dummy.matrix); touched.add(c.mesh);
+  }
+  // brows lift/knit
+  const bLift = b.browUp*0.010 - b.browDown*0.005;
+  for(const c of TES.regions.brow){
+    dummy.position.set(c.base.p[0], c.base.p[1]+bLift, c.base.p[2]);
+    dummy.scale.setScalar(c.base.s);
+    dummy.rotation.set(c.base.rx, c.base.ry, 0);
+    dummy.updateMatrix();
+    c.mesh.setMatrixAt(c.idx,dummy.matrix); touched.add(c.mesh);
+  }
+  // eyes: blink squash + gaze shift
+  for(const [list,bk] of [[TES.regions.eyeL,b.blinkL],[TES.regions.eyeR,b.blinkR]]){
+    const sy=1-0.82*bk;
+    for(const c of list){
+      const iris=c.reg==='irisL'||c.reg==='irisR';
+      dummy.position.set(
+        c.base.p[0] + (iris?REMOTE.gazeX*0.006:0),
+        c.base.p[1] + (iris?-REMOTE.gazeY*0.004:0),
+        c.base.p[2]);
+      dummy.scale.set(c.base.s, c.base.s*sy, c.base.s);
+      dummy.rotation.set(c.base.rx, c.base.ry, 0);
+      dummy.updateMatrix();
+      c.mesh.setMatrixAt(c.idx,dummy.matrix); touched.add(c.mesh);
+    }
+  }
+  // lips: speaking shimmer
+  const sp=REMOTE.speaking ? 1+0.10*Math.sin(now/55) : 1;
+  for(const c of TES.regions.lips){
+    dummy.position.set(...c.base.p);
+    dummy.scale.setScalar(c.base.s*sp);
+    dummy.rotation.set(c.base.rx,c.base.ry,0);
+    dummy.updateMatrix();
+    c.mesh.setMatrixAt(c.idx,dummy.matrix); touched.add(c.mesh);
+  }
+  for(const m of touched) m.instanceMatrix.needsUpdate=true;
+
+  // valence → light warmth
+  if(TES.key){
+    const w=REMOTE.valence;
+    TES.key.color.setHSL(w>0?0.09:0.6, 0.25*Math.abs(w)+0.05, 0.95);
+  }
+}
+
+// adaptive detail: downgrade voxel res if fps sags, upgrade when healthy
+function tesAdapt(){
+  if(!TES.auto || !TES.group || !TES.group.visible) return;
+  const LADDER=[0.016,0.010,0.008,0.005];
+  const i=LADDER.indexOf(TES.res);
+  if(TES.fpsEma<24 && i>0){ TES.targetRes=LADDER[i-1]; tesBuild(TES.targetRes); }
+  else if(TES.fpsEma>50 && i>=0 && i<LADDER.length-1 && PROF.local.battery>30){
+    TES.targetRes=LADDER[i+1]; tesBuild(TES.targetRes);
+  }
+}
+setInterval(tesAdapt, 4000);
+
+// ─────────────────────────────────────────────────────────────────
+//  §9  THREE BOOTSTRAP + MAIN LOOP
+// ─────────────────────────────────────────────────────────────────
+let frameN=0,lastFps=performance.now();
+function initThree(){
+  try{
+    renderer=new THREE.WebGLRenderer({canvas:document.getElementById('gl'),antialias:true,alpha:true});
+  }catch(e){ PROF.local.maxRenderTier=Tier.PUPPET; renegotiate(); return; }
+  THREE_OK=true;
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(35,innerWidth/innerHeight,0.01,10);
+  camera.position.set(0,0.02,0.52);
+  scene.add(new THREE.HemisphereLight(0xbfd4ff,0x33261e,0.9));
+  TES.key=new THREE.DirectionalLight(0xffffff,1.15);
+  TES.key.position.set(0.3,0.5,0.8); scene.add(TES.key);
+  const rim=new THREE.PointLight(0x00f0ff,0.5,2); rim.position.set(-0.4,0.15,-0.3); scene.add(rim);
+  const rim2=new THREE.PointLight(0xff00aa,0.35,2); rim2.position.set(0.45,-0.1,-0.2); scene.add(rim2);
+
+  // simple orbit (drag) + zoom (wheel/pinch)
+  const cv=renderer.domElement;
+  cv.addEventListener('pointerdown',e=>{TES.orbit.drag=[e.clientX,e.clientY];});
+  addEventListener('pointerup',()=>TES.orbit.drag=null);
+  addEventListener('pointermove',e=>{
+    if(!TES.orbit.drag) return;
+    TES.orbit.yaw  += (e.clientX-TES.orbit.drag[0])*0.005;
+    TES.orbit.pitch+= (e.clientY-TES.orbit.drag[1])*0.004;
+    TES.orbit.pitch=Math.max(-0.7,Math.min(0.7,TES.orbit.pitch));
+    TES.orbit.drag=[e.clientX,e.clientY];
+  });
+  cv.addEventListener('wheel',e=>{
+    TES.orbit.dist=Math.max(0.3,Math.min(1.1,TES.orbit.dist+e.deltaY*0.0005));
+  },{passive:true});
+
+  addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+  });
+
+  (function loop(){
+    requestAnimationFrame(loop);
+    const now=performance.now();
+    remoteTick();
+    sendLoop(now);
+    camera.position.z += (TES.orbit.dist-camera.position.z)*0.1;
+    if(activeTier===Tier.AVATAR3D){ tesTick(now); renderer.render(scene,camera); }
+    else if(activeTier===Tier.TEXT)   R_text.update(now);
+    else if(activeTier===Tier.GLYPH)  R_glyph.update(now);
+    else if(activeTier===Tier.SPRITE) R_sprite.update(now);
+    else if(activeTier===Tier.PUPPET) R_puppet.update(now);
+    frameN++;
+    if(now-lastFps>500){
+      const fps=Math.round(frameN*1000/(now-lastFps));
+      TES.fpsEma+= (fps-TES.fpsEma)*0.3;
+      document.getElementById('t-fps').textContent=fps;
+      NET.txKbps = NET.txBytes*8/((now-lastFps)/1000)/1000;
+      document.getElementById('t-txbw').textContent=NET.txKbps.toFixed(1);
+      NET.txBytes=0; frameN=0; lastFps=now;
+      if(lastTx){
+        const hex=[...lastTx.slice(0,24)].map(v=>v.toString(16).padStart(2,'0')).join(' ');
+        document.getElementById('pkt').innerHTML=
+          `pkt <b>${lastTx.length} B</b> @ ${SendHz[AGREED.sendTier]} Hz · ${TierName[AGREED.sendTier]}`+
+          `<span class="hex">${hex}${lastTx.length>24?' …':''}</span>`;
+      }
+    }
+  })();
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  §10  CAMERA + MEDIAPIPE
+// ─────────────────────────────────────────────────────────────────
+async function initOptics(){
+  const btn=document.getElementById('b-init');
+  btn.textContent='Init…'; btn.disabled=true;
+  if(typeof FaceMesh==='undefined'||typeof Camera==='undefined'){
+    btn.textContent='Deps missing'; btn.disabled=false; return;
+  }
+  let stream;
+  try{
+    btn.textContent='Camera…';
+    stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'},audio:false});
+  }catch(e){ btn.textContent='Cam denied'; btn.disabled=false; return; }
+  const pip=document.getElementById('pip'), cam=document.getElementById('cam');
+  pip.srcObject=stream; cam.srcObject=stream;
+  try{pip.play();}catch(_){} try{cam.play();}catch(_){}
+  await new Promise(r=>{ if(cam.readyState>=2)return r(); cam.onloadeddata=r; setTimeout(r,5000); });
+
+  btn.textContent='Mesh…';
+  let fm;
+  try{
+    fm=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
+    fm.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
+    let lastT=performance.now();
+    fm.onResults(res=>{
+      if(!res.multiFaceLandmarks?.[0]) return;
+      CAP.latest=res.multiFaceLandmarks[0];
+      const now=performance.now();
+      captureFrame(CAP.latest,(now-lastT)/1000); lastT=now;
+    });
+  }catch(e){ btn.textContent='Mesh err'; btn.disabled=false; return; }
+  try{
+    let busy=false;
+    const mp=new Camera(cam,{onFrame:async()=>{if(busy)return;busy=true;
+      try{await fm.send({image:cam});}catch(_){ }finally{busy=false;}},width:640,height:480});
+    await mp.start();
+  }catch(e){ btn.textContent='Stream err'; btn.disabled=false; return; }
+  btn.textContent='Live'; btn.classList.add('go'); btn.disabled=false;
+  showHint('Face forward a moment · auto-calibrating');
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  §11  UI WIRING
+// ─────────────────────────────────────────────────────────────────
+function showHint(t){
+  const h=document.getElementById('hint');
+  h.textContent=t; h.classList.add('show');
+  clearTimeout(showHint._t); showHint._t=setTimeout(()=>h.classList.remove('show'),3500);
+}
+
+function wireUI(){
+  document.getElementById('b-init').onclick=initOptics;
+  document.getElementById('b-recenter').onclick=()=>{
+    CAP.neutral=null; CAP.buf=[]; showHint('Recentering · face forward');
+  };
+  document.getElementById('b-net').onclick=()=>{
+    const p=document.getElementById('netpanel');
+    p.classList.toggle('open');
+    document.getElementById('b-net').classList.toggle('on');
+  };
+  // style + voxel pills
+  document.querySelectorAll('#styles .pill[data-style]').forEach(p=>p.onclick=()=>{
+    document.querySelectorAll('#styles .pill[data-style]').forEach(q=>q.classList.remove('on'));
+    p.classList.add('on'); TES.style=p.dataset.style;
+    if(TES.cells.length) tesRestyle();
+  });
+  document.querySelectorAll('#styles .pill[data-vox]').forEach(p=>p.onclick=()=>{
+    document.querySelectorAll('#styles .pill[data-vox]').forEach(q=>q.classList.remove('on'));
+    p.classList.add('on');
+    if(p.dataset.vox==='auto'){ TES.auto=true; }
+    else { TES.auto=false; TES.targetRes=+p.dataset.vox;
+      if(TES.group && activeTier===Tier.AVATAR3D) tesBuild(TES.targetRes); }
+  });
+  // network sliders → local profile → re-exchange + renegotiate
+  const bindNet=(id,vid,key,fmt)=>{
+    const el=document.getElementById(id);
+    el.oninput=()=>{
+      PROF.local[key]=+el.value;
+      document.getElementById(vid).textContent=fmt(+el.value);
+      sendMeta('profile'); renegotiate();
+    };
+  };
+  bindNet('s-bw','v-bw','bandwidthKbps',v=>v+'k');
+  bindNet('s-rtt','v-rtt','rttMs',v=>v+'ms');
+  bindNet('s-loss','v-loss','lossPct',v=>v+'%');
+  bindNet('s-bat','v-bat','battery',v=>v+'%');
+  document.getElementById('c-lowdata').onchange=e=>{
+    PROF.local.lowData=e.target.checked; sendMeta('profile'); renegotiate();
+  };
+  // gestures
+  document.querySelectorAll('.btn[data-g]').forEach(b=>b.onclick=()=>{
+    CAP.state.gestures |= 1<<((+b.dataset.g)-1);
+  });
+  // chat
+  const send=()=>{
+    const el=document.getElementById('msg');
+    if(!el.value.trim()) return;
+    CAP.state.text=el.value.trim(); CAP.state.textDirty=true;
+    el.value='';
+  };
+  document.getElementById('b-send').onclick=send;
+  document.getElementById('msg').addEventListener('keydown',e=>{if(e.key==='Enter')send();});
+  // seed profile sliders from detected values
+  document.getElementById('s-bw').value=PROF.local.bandwidthKbps;
+  document.getElementById('v-bw').textContent=PROF.local.bandwidthKbps+'k';
+  document.getElementById('s-rtt').value=PROF.local.rttMs;
+  document.getElementById('v-rtt').textContent=PROF.local.rttMs+'ms';
+}
+
+// boot
+addEventListener('load',()=>{
+  wireUI();
+  netInit();
+  initThree();
+  renegotiate();
+  showHint('Open a 2nd tab to pair · or tap Init Optics');
+});
+window.onerror=(m,s,l)=>{console.error('ERR',m,l);};
+</script>
+</body>
+</html>
