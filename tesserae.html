@@ -156,6 +156,11 @@ video#cam{position:fixed;top:-9999px;left:-9999px;width:640px;height:480px}
     <div class="pill" data-style="organic">Organic</div>
     <div class="pill" data-style="pop">Pop</div>
     <span style="width:10px"></span>
+    <span style="width:10px"></span>
+    <div class="pill" data-hair="buzz">Buzz</div>
+    <div class="pill on" data-hair="short">Short</div>
+    <div class="pill" data-hair="long">Long</div>
+    <span style="width:10px"></span>
     <div class="pill on" data-vox="auto">Auto</div>
     <div class="pill" data-vox="0.016">16mm</div>
     <div class="pill" data-vox="0.008">8mm</div>
@@ -341,7 +346,7 @@ function netInit(){
       if(isNew){ showHint('Peer tab linked · negotiating tiers'); sendIdentity(); }
       renegotiate();
     } else if(m.t==='identity' && m.from===NET.peerId){
-      applyIdentity(m.meas, m.colors, m.lm, m.lmCol);
+      applyIdentity(m);
     } else if(m.t==='pkt' && m.from===NET.peerId){
       NET.peerSeen = performance.now();
       impair(new Uint8Array(m.bytes), onPacket);
@@ -637,39 +642,61 @@ function captureIdentity(lm){
       IDENT.colors.brow = IDENT.colors.brow||{h:s.h,s:s.s*0.8,l:s.l*0.3};
     }
     if(!IDENT.colors.iris) IDENT.colors.iris={h:0.58,s:0.45,l:0.3};
-    // normalize to display range: webcam frames are dim, and the mosaic
-    // ramp multiplies lightness — un-lifted samples render near-black
-    const lift=(c,fl,g=0.62,sb=1.15)=>{ if(!c) return;
-      c.l=Math.max(fl,Math.min(0.85,Math.pow(c.l,g)*1.2));
-      c.s=Math.min(1,c.s*sb+0.05); };
-    lift(IDENT.colors.skin,0.36);
-    lift(IDENT.colors.lips,0.28);
-    lift(IDENT.colors.hair,0.09,0.75,1.05);
-    lift(IDENT.colors.brow,0.07,0.75,1.0);
-    lift(IDENT.colors.iris,0.22,0.8,1.1);
+    // broad generalization, not raw sampling: project every sample into
+    // the plausible human gamut for its region. A noisy dark webcam can
+    // shift WITHIN skin/hair space, never out of it (no green heads).
+    const rawSkinL=IDENT.colors.skin?IDENT.colors.skin.l:0;
+    IDENT.lit = rawSkinL>0.10;                     // was the frame usable?
+    const wrap=h=>h>0.5?h-1:h;                     // reds wrap around 0
+    const gam=(c,hLo,hHi,sLo,sHi,lLo,lHi,fb)=>{
+      if(!c) return fb;
+      const h=Math.max(hLo,Math.min(hHi,wrap(c.h)));
+      return {h:(h+1)%1,
+        s:Math.max(sLo,Math.min(sHi,c.s*1.1+0.03)),
+        l:Math.max(lLo,Math.min(lHi,Math.pow(Math.max(c.l,0.02),0.62)*1.15))};
+    };
+    const gray=IDENT.colors.hair&&IDENT.colors.hair.s<0.12;
+    IDENT.colors={
+      skin:gam(IDENT.lit?IDENT.colors.skin:null, -0.03,0.10, 0.22,0.62, 0.30,0.78, {h:0.07,s:0.42,l:0.55}),
+      lips:gam(IDENT.lit?IDENT.colors.lips:null, -0.06,0.05, 0.28,0.68, 0.28,0.60, {h:0.98,s:0.45,l:0.42}),
+      hair:gray?{h:0.08,s:0.05,l:Math.max(0.06,Math.min(0.7,IDENT.colors.hair.l))}
+          :gam(IDENT.lit?IDENT.colors.hair:null, -0.03,0.12, 0.15,0.70, 0.05,0.55, {h:0.07,s:0.35,l:0.16}),
+      brow:null, iris:gam(IDENT.colors.iris, 0.0,0.65, 0.15,0.80, 0.15,0.50, {h:0.58,s:0.45,l:0.3}),
+    };
+    IDENT.colors.brow={h:IDENT.colors.hair.h, s:IDENT.colors.hair.s, l:IDENT.colors.hair.l*0.8};
+    if(!IDENT.lit) showHint('Frame too dark for color likeness · add light + Recenter');
   }
   sendIdentity();
 }
 
-function applyIdentity(meas,colors,lm,lmCol){
-  RID.meas=meas; RID.colors=colors;
-  if(lm && lmCol){
-    RID.lm=lm; RID.lmCol=lmCol;
-    // jaw hinges just above the real mouth line
-    const mouthY=(lm[13*3+1]+lm[14*3+1])/2;
-    GEO=computeGeo(meas);
+function applyIdentity(id){
+  RID.meas=id.meas; RID.colors=id.colors; RID.lit=!!id.lit;
+  RID.hairstyle=id.hairstyle||'short';
+  GEO=computeGeo(id.meas);
+  if(id.lm){
+    RID.lm=id.lm; RID.lmCol=id.lmCol;
+    const L=id.lm, P=i=>[L[i*3],L[i*3+1],L[i*3+2]];
+    // fine placement: features sit exactly where the scan measured them
+    const eL=P(33),eLi=P(133),eR=P(362),eRi=P(263);
+    GEO.eyeL=[(eL[0]+eLi[0])/2,(eL[1]+eLi[1])/2,0.070];
+    GEO.eyeR=[(eR[0]+eRi[0])/2,(eR[1]+eRi[1])/2,0.070];
+    const mouthY=(P(13)[1]+P(14)[1])/2;
+    GEO.lipY=mouthY;
+    GEO.lipW=Math.abs(P(61)[0]-P(291)[0])/2*1.15;
+    GEO.browY=(P(105)[1]+P(334)[1])/2;
     GEO.jawPivot=[0, mouthY+0.034, 0.004];
-  } else GEO=computeGeo(meas);
+    GEO.jawCutY=mouthY-0.004;
+  }
   if(TES.group && activeTier===Tier.AVATAR3D) tesBuild(TES.res||TES.targetRes);
   else if(TES.cells.length) tesRestyle();
-  showHint(lm?'Likeness scan applied · built from your face':'Likeness applied');
+  showHint(id.lm?'Likeness applied · base form adjusted to your measurements':'Likeness applied');
 }
 function sendIdentity(){
   if(!IDENT.meas) return;
-  if(NET.chan && NET.peerId)
-    NET.chan.postMessage({t:'identity', from:NET.myId, meas:IDENT.meas,
-      colors:IDENT.colors, lm:IDENT.lm, lmCol:IDENT.lmCol});
-  else applyIdentity(IDENT.meas, IDENT.colors, IDENT.lm, IDENT.lmCol);  // loopback
+  const id={meas:IDENT.meas, colors:IDENT.colors, lm:IDENT.lm, lmCol:IDENT.lmCol,
+            lit:IDENT.lit, hairstyle:IDENT.hairstyle||'short'};
+  if(NET.chan && NET.peerId) NET.chan.postMessage({t:'identity', from:NET.myId, ...id});
+  else applyIdentity(id);                            // loopback
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1055,6 +1082,11 @@ function headSDF(x,y,z){
   let d=sdEll(x,y,z, 0,0.030,0, G.skull[0],G.skull[1],G.skull[2]);            // skull
   d=smin(d, sdEll(x,y,z, G.jaw.c[0],G.jaw.c[1],G.jaw.c[2], G.jaw.rad[0],G.jaw.rad[1],G.jaw.rad[2]), 0.028);
   d=smin(d, sdEll(x,y,z, G.nose.c[0],G.nose.c[1],G.nose.c[2], G.nose.rad[0],G.nose.rad[1],G.nose.rad[2]), 0.012);
+  // generic human structure: brow ridge, cheekbones, chin ball
+  d=smin(d, sdEll(x,y,z, 0, G.browY+0.006, 0.072, 0.048,0.011,0.022), 0.010);
+  d=smin(d, sdEll(x,y,z, 0.045,-0.012,0.052, 0.020,0.018,0.022), 0.014);
+  d=smin(d, sdEll(x,y,z,-0.045,-0.012,0.052, 0.020,0.018,0.022), 0.014);
+  d=smin(d, sdEll(x,y,z, 0, G.jaw.c[1]-0.042, 0.052, 0.020,0.015,0.017), 0.012);
   d=smin(d, sdEll(x,y,z, G.earX,0.002,0.004, 0.013,0.028,0.020), 0.008);      // ears
   d=smin(d, sdEll(x,y,z,-G.earX,0.002,0.004, 0.013,0.028,0.020), 0.008);
   d=smin(d, sdEll(x,y,z, 0,-0.165,-0.01, 0.105,0.055,0.062), 0.030);          // shoulders
@@ -1078,8 +1110,18 @@ function classifyCell(x,y,z,n){
   if(dr<0.0122 && z>0.045) return dr<0.0062?'irisR':'eyeR';
   if(y>G.browY-0.010 && y<G.browY+0.010 && Math.abs(x)>0.012 && Math.abs(x)<0.058 && z>0.055) return 'brow';
   if(Math.abs(x)<G.lipW && Math.abs(y-G.lipY)<G.lipH && z>0.052) return 'lips';
+  // broad trait: hairstyle changes the hair-mass rule, not the skull
+  const hs=RID.hairstyle||'short';
   const hairline = 0.052 + (hash3(x*40,0,z*40)-0.5)*0.02;
-  if(y>hairline || (z<-0.028 && y>-0.05) || (Math.abs(x)>0.070*GEO.r.faceW && y>0.012 && z<0.02)) return 'hair';
+  if(hs==='buzz'){
+    if(y>hairline+0.012 && z<0.055) return 'hair';
+  } else if(hs==='long'){
+    if(y>hairline || (z<-0.020 && y>-0.135) ||
+       (Math.abs(x)>0.058*GEO.r.faceW && y<0.045 && y>-0.125 && z<0.050)) return 'hair';
+  } else {
+    if(y>hairline || (z<-0.028 && y>-0.05) ||
+       (Math.abs(x)>0.070*GEO.r.faceW && y>0.012 && z<0.02)) return 'hair';
+  }
   if(y<-0.125) return 'shirt';
   return 'skin';
 }
@@ -1165,192 +1207,72 @@ function gatherProceduralCells(res){
 }
 
 // ═════════════════════════════════════════════════════════════════
-//  SCAN BUILDER — the real likeness path.
-//  RID.lm is the peer's neutral 468-landmark cloud in model space
-//  (a genuine 3D scan of their face), RID.lmCol the video pixel
-//  color at each landmark. We densify the landmark triangulation
-//  into a surface, voxelize it, and color every tile from the real
-//  photo — likeness the way a photo-mosaic gets it. A procedural
-//  cranium is fitted behind the scan for hair/skull/shoulders.
+//  LIKENESS — generic human form first, then measured adjustment.
+//  The base is always the sculpted procedural head (smooth, human by
+//  construction). The peer's landmark scan never renders directly;
+//  it (1) places features exactly (eyes, mouth, brows), (2) supplies
+//  a smoothed displacement field that nudges the base surface toward
+//  the measured face — proportions and placement, not raw lumps —
+//  and (3) tints face tiles with photo color, gamut-constrained so a
+//  bad webcam frame can never turn the head green.
 // ═════════════════════════════════════════════════════════════════
-const TESS = [
-  [127,34,139],[11,0,37],[232,231,120],[72,37,39],[128,121,47],[232,120,100],
-  [213,215,138],[149,170,176],[209,198,92],[2,94,141],[49,64,98],[173,139,247],
-  [149,176,148],[150,136,172],[139,34,127],[11,37,72],[37,232,120],[128,47,121],
-  [215,213,138],[150,148,176],[209,92,57],[2,141,94],[64,49,98],[173,247,139],
-  [356,389,251],[389,356,454],[10,109,67],[10,67,54],[10,54,21],[10,21,162],
-  [10,162,127],[10,127,234],[10,234,93],[10,93,132],[10,132,58],[10,58,172],
-  [10,172,136],[10,136,150],[10,150,149],[10,149,176],[10,176,148],[10,148,152],
-  [10,152,377],[10,377,400],[10,400,378],[10,378,379],[10,379,365],[10,365,397],
-  [10,397,288],[10,288,361],[10,361,323],[10,323,454],[10,454,356],[10,356,389],
-  [10,389,251],[10,251,284],[10,284,332],[10,332,297],[10,297,338],
-  [33,7,163],[163,144,33],[33,144,145],[145,153,33],[153,154,33],[33,154,155],
-  [155,133,33],[33,133,246],[246,161,33],[33,161,160],[160,159,33],[33,159,158],
-  [158,157,33],[157,173,33],[33,173,133],
-  [263,249,390],[390,373,263],[263,373,374],[374,380,263],[263,380,381],[381,382,263],
-  [382,362,263],[263,362,466],[466,388,263],[263,388,387],[387,386,263],[263,386,385],
-  [385,384,263],[384,398,263],[263,398,362],
-  [0,267,269],[269,270,267],[270,409,267],[409,291,267],[291,375,267],
-  [375,321,267],[321,405,267],[405,314,267],[314,17,267],[17,84,267],
-  [84,181,267],[181,91,267],[91,146,267],[146,61,267],[61,185,267],
-  [185,40,267],[40,39,267],[39,37,267],[37,0,267],
-  [78,95,88],[95,78,191],[191,80,95],[80,81,95],[81,82,95],[82,13,95],
-  [13,312,95],[312,311,95],[311,310,95],[310,415,95],[415,308,95],[308,324,95],
-  [324,318,95],[318,402,95],[402,317,95],[317,14,95],[14,87,95],[87,178,95],
-  [178,88,95],
-  [454,323,361],[323,454,356],[234,127,162],[127,234,93],[93,132,127],
-  [58,132,172],[172,149,148],[148,152,149],[152,148,377],[377,378,148],
-  [378,400,148],[400,379,148],[379,365,148],[365,397,148],[397,288,148],
-  [288,361,148],[361,454,148],
-  [356,389,251],[389,251,284],[251,284,332],[284,332,297],[332,297,338],
-  [356,454,323],[454,323,361],[323,361,288],[361,288,397],[288,397,365],
-  [397,365,379],[365,379,378],[379,378,400],[378,400,377],[400,377,152],
-  [377,152,148],[152,148,176],[148,176,149],[176,149,150],[149,150,136],
-  [150,136,172],[136,172,58],[172,58,132],[58,132,93],[132,93,234],
-  [93,234,127],[234,127,162],[127,162,21],[162,21,54],[21,54,103],
-  [54,103,67],[103,67,109],[67,109,10],
-  [33,246,161],[246,161,160],[161,160,159],[160,159,158],[159,158,157],
-  [158,157,173],[157,173,133],[173,133,155],[133,155,154],[155,154,153],
-  [154,153,145],[153,145,144],[145,144,163],[144,163,7],[163,7,33],
-  [263,466,388],[466,388,387],[388,387,386],[387,386,385],[386,385,384],
-  [385,384,398],[384,398,362],[398,362,382],[362,382,381],[382,381,380],
-  [381,380,374],[380,374,373],[374,373,390],[373,390,249],[390,249,263],
-];
-
-
-const LM_LIPS=new Set([61,146,91,181,84,17,314,405,321,375,291,409,270,269,267,0,37,39,40,185,
-  78,95,88,178,87,14,317,402,318,324,308,415,310,311,312,13,82,81,80,191]);
-const LM_BROW=new Set([70,63,105,66,107,55,65,52,53,46,300,293,334,296,336,285,295,282,283,276]);
-const LM_LID_L=new Set([159,145,158,153,160,144,157,154,163,7,246,161,173]);
-const LM_LID_R=new Set([386,374,385,380,387,373,384,381,390,249,466,388,398]);
-
-function gatherScanCells(res){
-  const L=RID.lm, C=RID.lmCol;
-  const cells=[];
-  const map=new Map();                       // voxel accumulation
-  const colBack=new Map();                   // (x,y) column → backmost shell z
-  const ki=v=>Math.round(v/res);
-  const key3=(x,y,z)=>ki(x)*1e6+ki(y)*1e3+ki(z)+5e8;
-  const key2=(x,y)=>ki(x)*1e3+ki(y)+5e5;
-  const P=i=>[L[i*3],L[i*3+1],L[i*3+2]];
-  const mouthY=(L[13*3+1]+L[14*3+1])/2;
-
-  // densify each triangle of the face tessellation into surface points
-  for(const [ia,ib,ic] of TESS){
-    if(ia>=468||ib>=468||ic>=468) continue;
-    const A=P(ia),B=P(ib),Cc=P(ic);
-    const e=Math.max(Math.hypot(B[0]-A[0],B[1]-A[1],B[2]-A[2]),
-                     Math.hypot(Cc[0]-A[0],Cc[1]-A[1],Cc[2]-A[2]),
-                     Math.hypot(Cc[0]-B[0],Cc[1]-B[1],Cc[2]-B[2]));
-    const n=Math.max(1,Math.ceil(e/(res*0.7)));
-    // triangle normal
-    const u=[B[0]-A[0],B[1]-A[1],B[2]-A[2]], v=[Cc[0]-A[0],Cc[1]-A[1],Cc[2]-A[2]];
-    let tn=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
-    const tl=Math.hypot(...tn)||1; tn=tn.map(q=>q/tl);
-    if(tn[2]<0) tn=tn.map(q=>-q);            // face normals point forward
-    for(let a=0;a<=n;a++) for(let b=0;b<=n-a;b++){
-      const w0=a/n, w1=b/n, w2=1-w0-w1;
-      const x=A[0]*w2+B[0]*w0+Cc[0]*w1, y=A[1]*w2+B[1]*w0+Cc[1]*w1, z=A[2]*w2+B[2]*w0+Cc[2]*w1;
-      const li=(w0>=w1&&w0>=w2)?ib:(w1>=w2?ic:ia);   // dominant vertex
-      const k=key3(x,y,z);
-      let m=map.get(k);
-      if(!m){ m={x:0,y:0,z:0,r:0,g:0,b:0,nx:0,ny:0,nz:0,c:0,li}; map.set(k,m); }
-      m.x+=x;m.y+=y;m.z+=z;
-      m.r+=(C[ia*3]*w2+C[ib*3]*w0+C[ic*3]*w1)/255;
-      m.g+=(C[ia*3+1]*w2+C[ib*3+1]*w0+C[ic*3+1]*w1)/255;
-      m.b+=(C[ia*3+2]*w2+C[ib*3+2]*w0+C[ic*3+2]*w1)/255;
-      m.nx+=tn[0];m.ny+=tn[1];m.nz+=tn[2]; m.c++;
-      const k2=key2(x,y);
-      const bz=colBack.get(k2);
-      if(bz===undefined||z<bz) colBack.set(k2,z);
+function gatherLikenessCells(res){
+  const L=RID.lm;
+  // per-landmark displacement: scan point vs base surface along the
+  // ray from head core through the point (raymarched once per build)
+  const C0=[0,0.005,0.008];
+  const deltas=[];
+  for(let i=0;i<468;i++){
+    const p=[L[i*3],L[i*3+1],L[i*3+2]];
+    if(p[2]<0.03) continue;                        // face front only
+    let dx=p[0]-C0[0],dy=p[1]-C0[1],dz=p[2]-C0[2];
+    const dl=Math.hypot(dx,dy,dz)||1; dx/=dl;dy/=dl;dz/=dl;
+    let t=0.02,q=null;
+    for(let s=0;s<70;s++){
+      const px=C0[0]+dx*t,py=C0[1]+dy*t,pz=C0[2]+dz*t;
+      const d=headSDF(px,py,pz);
+      if(d<res*0.3){ q=[px,py,pz]; break; }
+      t+=Math.max(d*0.8,0.0015); if(t>0.22) break;
     }
+    if(!q) continue;
+    const cl=RID.lmCol?[RID.lmCol[i*3]/255,RID.lmCol[i*3+1]/255,RID.lmCol[i*3+2]/255]:null;
+    deltas.push({x:p[0],y:p[1],
+      d:[Math.max(-0.018,Math.min(0.018,p[0]-q[0])),
+         Math.max(-0.018,Math.min(0.018,p[1]-q[1])),
+         Math.max(-0.020,Math.min(0.020,p[2]-q[2]))], cl});
   }
-
-  // shell voxels from accumulated surface samples
-  for(const m of map.values()){
-    const c=m.c, x=m.x/c, y=m.y/c, z=m.z/c;
-    const nl=Math.hypot(m.nx,m.ny,m.nz)||1;
-    const n=[m.nx/nl,m.ny/nl,m.nz/nl];
-    const rc=[m.r/c,m.g/c,m.b/c];
-    // display-range lift for dim webcam pixels
-    const lum0=0.299*rc[0]+0.587*rc[1]+0.114*rc[2];
-    const gain=Math.min(2.4,Math.pow(Math.max(lum0,0.03),0.62)/Math.max(lum0,0.03));
-    const rcl=rc.map(q=>Math.min(1,q*gain*1.12));
-    const li=m.li;
-    let reg='skin';
-    if(LM_LIPS.has(li)) reg='lips';
-    else if(LM_BROW.has(li)) reg='brow';
-    else if(LM_LID_L.has(li)) reg='eyeL';
-    else if(LM_LID_R.has(li)) reg='eyeR';
-    const h1=hash3(x,y,z), h2=hash3(x+9,y+7,z+3);
-    cells.push({x,y,z,n,reg,h1,h2,rc:rcl,
-      prim:pickPrim(reg,n,h2),
-      lum:0.4+0.6*(0.299*rcl[0]+0.587*rcl[1]+0.114*rcl[2]),
-      jaw:(L[li*3+1]<mouthY-0.004)});
-  }
-
-  // eyeballs at the REAL eye centers/size (corners 33/133, 362/263)
-  const eye=(i1,i2,side)=>{
-    const a=P(i1),b=P(i2);
-    const cx=(a[0]+b[0])/2, cy=(a[1]+b[1])/2, cz=(a[2]+b[2])/2-0.004;
-    const r=Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])*0.42;
-    for(let x=cx-r;x<=cx+r;x+=res)for(let y=cy-r;y<=cy+r;y+=res)for(let z=cz-r;z<=cz+r;z+=res){
-      const d=Math.hypot(x-cx,y-cy,z-cz);
-      if(d>r) continue;
-      if(map.has(key3(x,y,z))) continue;
-      const iris = d<r*0.45 && z>cz;
-      const ic=RID.colors&&RID.colors.iris?RID.colors.iris:{h:0.58,s:0.45,l:0.3};
-      const col=iris?hsl(ic.h,ic.s,Math.max(0.22,ic.l)):hsl(0.09,0.10,0.72);
-      cells.push({x,y,z,n:[0,0,1],reg:iris?('iris'+side):('eye'+side),
-        h1:hash3(x,y,z),h2:hash3(x+9,y,z),rc:[col.r,col.g,col.b],
-        prim:1,lum:0.8,jaw:false});
+  const cells=gatherProceduralCells(res);
+  const S2=2*0.013*0.013;                          // gaussian falloff σ=13mm
+  const skin=RID.colors&&RID.colors.skin?RID.colors.skin:{h:0.07,s:0.4,l:0.5};
+  const skinC=hsl(skin.h,skin.s,skin.l);
+  for(const c of cells){
+    if(c.z<0.03||c.reg==='hair'||c.reg==='shirt') continue;
+    let wx=0,wy=0,wz=0,ws=0,tr=0,tg=0,tb=0,wc=0;
+    for(const d of deltas){
+      const ddx=c.x-d.x,ddy=c.y-d.y;
+      const d2=ddx*ddx+ddy*ddy;
+      if(d2>0.0011) continue;
+      const w=Math.exp(-d2/S2);
+      wx+=d.d[0]*w; wy+=d.d[1]*w; wz+=d.d[2]*w; ws+=w;
+      if(d.cl){ tr+=d.cl[0]*w; tg+=d.cl[1]*w; tb+=d.cl[2]*w; wc+=w; }
     }
-  };
-  eye(33,133,'L'); eye(362,263,'R');
-
-  // dark mouth cavity behind the lips (visible when the jaw opens)
-  const mw=Math.abs(P(61)[0]-P(291)[0])*0.4;
-  const mz=P(13)[2]-res*1.5;
-  for(let x=-mw;x<=mw;x+=res)for(let y=mouthY-0.012;y<=mouthY+0.006;y+=res){
-    cells.push({x,y,z:mz,n:[0,0,1],reg:'skin',h1:hash3(x,y,mz),h2:0.5,
-      rc:[0.12,0.04,0.05],prim:0,lum:0.2,jaw:false});
-  }
-
-  // procedural cranium fitted to the scan, masked behind the shell
-  let xW=0, yTop=L[10*3+1], yBot=L[152*3+1];
-  for(let i=0;i<468;i++) xW=Math.max(xW,Math.abs(L[i*3]));
-  const sc={cx:0, cy:(yTop+yBot)/2+0.012, cz:-0.014,
-            rx:xW*1.14, ry:(yTop-yBot)/2*1.3+0.012, rz:0.088*Math.max(0.85,xW/0.062)};
-  const hairC=RID.colors&&RID.colors.hair?RID.colors.hair:{h:0.07,s:0.3,l:0.15};
-  const skinC=RID.colors&&RID.colors.skin?RID.colors.skin:{h:0.07,s:0.4,l:0.45};
-  const cran=(x,y,z)=>{
-    let d=sdEll(x,y,z,sc.cx,sc.cy,sc.cz,sc.rx,sc.ry,sc.rz);
-    d=smin(d, sdEll(x,y,z,0,yBot-0.075,-0.01, 0.105,0.055,0.062), 0.03); // shoulders
-    return d;
-  };
-  for(let x=-0.125;x<=0.125;x+=res)
-  for(let y=yBot-0.11;y<=yTop+0.09;y+=res)
-  for(let z=-0.115;z<=0.115;z+=res){
-    const d=cran(x,y,z);
-    if(d>res*0.45||d<-res*1.35) continue;
-    if(map.has(key3(x,y,z))) continue;
-    const bz=colBack.get(key2(x,y));
-    if(bz!==undefined && z>bz-res*0.6) continue;      // stay behind the scan
-    const e2=0.004;
-    let n=[cran(x+e2,y,z)-cran(x-e2,y,z),cran(x,y+e2,z)-cran(x,y-e2,z),cran(x,y,z+e2)-cran(x,y,z-e2)];
-    const nl=Math.hypot(...n)||1; n=n.map(q=>q/nl);
-    const h1=hash3(x,y,z), h2=hash3(x+9,y+7,z+3);
-    const shirt=y<yBot-0.055;
-    const hairline=yTop-0.006+(hash3(x*40,0,z*40)-0.5)*0.018;
-    const hair=!shirt && (y>hairline || z<-0.02 || Math.abs(x)>xW*0.9);
-    let px=x,py=y,pz=z;
-    if(hair){ const e3=h1*res*0.9; px+=n[0]*e3; py+=n[1]*e3; pz+=n[2]*e3; }
-    const base=hair?hairC:(shirt?{h:0.58,s:0.25,l:0.2}:skinC);
-    const lum=Math.max(0.15,0.35+0.65*(n[2]*0.7+n[1]*0.3));
-    const col=hsl(base.h+(h1-0.5)*0.04, base.s, Math.min(0.9,base.l*(0.6+lum*0.55)));
-    cells.push({x:px,y:py,z:pz,n,reg:hair?'hair':(shirt?'shirt':'skin'),h1,h2,
-      rc:[col.r,col.g,col.b], prim:pickPrim(hair?'hair':'skin',n,h2),
-      lum, jaw:!hair&&!shirt&&y<mouthY-0.008&&z>-0.02});
+    if(ws>0.2){
+      const k=0.55/ws;                             // measured adjustment, not raw scan
+      c.x+=wx*k; c.y+=wy*k; c.z+=(wz/ws)*0.7;
+      // photo tint only when the calibration frame was actually lit,
+      // and always blended over the gamut-constrained skin base
+      if(RID.lit && wc>0.2 && (c.reg==='skin'||c.reg==='lips'||c.reg==='brow')){
+        const pr=tr/wc,pg=tg/wc,pb=tb/wc;
+        const lum=0.299*pr+0.587*pg+0.114*pb;
+        if(lum>0.10&&lum<0.97){
+          const g=Math.min(2.0,Math.pow(Math.max(lum,0.05),0.7)/Math.max(lum,0.05));
+          c.rc=[Math.min(1,skinC.r*0.45+pr*g*0.62),
+                Math.min(1,skinC.g*0.45+pg*g*0.62),
+                Math.min(1,skinC.b*0.45+pb*g*0.62)];
+          c.lum=0.4+0.6*(0.299*c.rc[0]+0.587*c.rc[1]+0.114*c.rc[2]);
+        }
+      }
+    }
   }
   return cells;
 }
@@ -1373,7 +1295,7 @@ function tesBuild(res){
   TES.res=res;
 
   // scan path (real likeness) when the peer's landmarks have arrived
-  const cells = RID.lm ? gatherScanCells(res) : gatherProceduralCells(res);
+  const cells = RID.lm ? gatherLikenessCells(res) : gatherProceduralCells(res);
 
   // bucket per primitive
   const style=STYLES[TES.style];
@@ -1678,6 +1600,13 @@ function wireUI(){
     document.querySelectorAll('#styles .pill[data-style]').forEach(q=>q.classList.remove('on'));
     p.classList.add('on'); TES.style=p.dataset.style;
     if(TES.cells.length) tesRestyle();
+  });
+  document.querySelectorAll('#styles .pill[data-hair]').forEach(p=>p.onclick=()=>{
+    document.querySelectorAll('#styles .pill[data-hair]').forEach(q=>q.classList.remove('on'));
+    p.classList.add('on'); IDENT.hairstyle=p.dataset.hair;
+    if(NET.chan&&NET.peerId&&IDENT.meas) sendIdentity();
+    else { RID.hairstyle=p.dataset.hair;
+      if(TES.group&&activeTier===Tier.AVATAR3D) tesBuild(TES.res||TES.targetRes); }
   });
   document.querySelectorAll('#styles .pill[data-vox]').forEach(p=>p.onclick=()=>{
     document.querySelectorAll('#styles .pill[data-vox]').forEach(q=>q.classList.remove('on'));
