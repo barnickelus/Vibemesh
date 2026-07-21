@@ -183,6 +183,7 @@ video#cam{position:fixed;top:-9999px;left:-9999px;width:640px;height:480px}
 
   <div class="row center">
     <button class="btn primary" id="b-init">Init Optics</button>
+    <button class="btn" id="b-voice">Voice</button>
     <button class="btn" id="b-recenter" disabled>Recenter</button>
     <button class="btn" id="b-net">Network</button>
     <button class="btn" data-g="1">Nod</button>
@@ -277,11 +278,12 @@ const qu8 = v => Math.max(0, Math.min(255, Math.round(v*255)));
 
 function encodeState(st, tier, seq){
   const textBytes = st.textDirty && st.text ? new TextEncoder().encode(st.text) : null;
-  const n = 10 + (tier>=3?3:0) + (tier>=4?10:0) + (textBytes ? 2+textBytes.length : 0);
+  const pros = st.prosody;                                  // {pitch,energy} 0..1
+  const n = 10 + (tier>=3?3:0) + (tier>=4?10:0) + (pros?2:0) + (textBytes ? 2+textBytes.length : 0);
   const b = new Uint8Array(n); const dv = new DataView(b.buffer);
-  b[0]=0x56; b[1]=0x42; b[2]=2; b[3]=tier;
+  b[0]=0x56; b[1]=0x42; b[2]=3; b[3]=tier;
   dv.setUint16(4, seq&0xffff, true);
-  b[6] = (st.speaking?1:0) | (textBytes?2:0) | ((st.gestures&0xF)<<2);
+  b[6] = (st.speaking?1:0) | (textBytes?2:0) | ((st.gestures&0xF)<<2) | (pros?64:0);
   b[7] = q8(st.valence)&0xff; b[8]=qu8(st.arousal); b[9]=qu8(st.dominance);
   let o=10;
   if(tier>=3){
@@ -291,6 +293,7 @@ function encodeState(st, tier, seq){
     for(const k of BS_KEYS) b[o++]=qu8(st.bs[k]||0);
     b[o++]=q8(st.gazeX)&0xff; b[o++]=q8(st.gazeY)&0xff;
   }
+  if(pros){ b[o++]=qu8(pros.pitch); b[o++]=qu8(pros.energy); }
   if(textBytes){ dv.setUint16(o, textBytes.length, true); o+=2; b.set(textBytes,o); o+=textBytes.length; }
   return b;
 }
@@ -311,6 +314,7 @@ function decodeState(b){
     for(const k of BS_KEYS) st.bs[k]=b[o++]/255;
     st.gazeX=(b[o++]<<24>>24)/127; st.gazeY=(b[o++]<<24>>24)/127;
   }
+  if(flags&64){ st.prosody={pitch:b[o++]/255, energy:b[o++]/255}; }
   if(flags&2){ const len=dv.getUint16(o,true); o+=2; st.text=new TextDecoder().decode(b.subarray(o,o+len)); o+=len; }
   return st;
 }
@@ -334,8 +338,10 @@ function netInit(){
       const isNew = NET.peerId !== m.from;
       NET.peerId = m.from; NET.peerProfile = m.profile; NET.peerSeen = performance.now();
       if(m.t==='hello') sendMeta('profile');
-      if(isNew) showHint('Peer tab linked · negotiating tiers');
+      if(isNew){ showHint('Peer tab linked · negotiating tiers'); sendIdentity(); }
       renegotiate();
+    } else if(m.t==='identity' && m.from===NET.peerId){
+      applyIdentity(m.meas, m.colors);
     } else if(m.t==='pkt' && m.from===NET.peerId){
       NET.peerSeen = performance.now();
       impair(new Uint8Array(m.bytes), onPacket);
@@ -472,7 +478,8 @@ function captureFrame(lm, dt){
       let c=[0,0,0];
       for(const i of RIGID_IDX){c[0]+=lm[i].x;c[1]+=lm[i].y;c[2]+=lm[i].z;}
       CAP.neutral.c=c.map(v=>v/RIGID_IDX.length);
-      showHint('Locked · you are live');
+      captureIdentity(lm);
+      showHint('Likeness measured · you are live');
       document.getElementById('b-recenter').disabled=false;
     }
     return;
@@ -540,6 +547,152 @@ function captureFrame(lm, dt){
 }
 
 // ─────────────────────────────────────────────────────────────────
+//  §4b  IDENTITY — real facial measurements + sampled colors.
+//  Captured once at calibration, sent once to the peer (~60 bytes of
+//  ratios+colors): the avatar asset IS the measurement vector. The
+//  peer re-sculpts the SDF clay to these proportions and re-tiles
+//  the mosaic in the sender's own skin/hair/lip/iris colors.
+// ─────────────────────────────────────────────────────────────────
+let sampCv=null, sampCx=null;
+
+function measureFace(lm){
+  const iod = dist(lm[33],lm[263]) || 0.08;
+  const eyeY=(lm[33].y+lm[263].y)/2;
+  return {
+    faceW: dist(lm[234],lm[454])/iod,
+    faceH: dist(lm[10],lm[152])/iod,
+    jawW:  dist(lm[172],lm[397])/iod,
+    noseL: dist(lm[168],lm[2])/iod,
+    noseW: dist(lm[98],lm[327])/iod,
+    mouthW:dist(lm[61],lm[291])/iod,
+    mouthDrop:(((lm[61].y+lm[291].y)/2)-eyeY)/iod,
+    chinDrop:(lm[152].y-eyeY)/iod,
+    browRise:(eyeY-(lm[105].y+lm[334].y)/2)/iod,
+    lipH:  dist(lm[0],lm[17])/iod,
+  };
+}
+
+function samplePx(lm,i,dy=0){
+  if(!sampCx) return null;
+  const x=Math.min(639,Math.max(0,Math.round((1-lm[i].x)*640)));
+  const y=Math.min(479,Math.max(0,Math.round((lm[i].y+dy)*480)));
+  const p=sampCx.getImageData(x,y,1,1).data;
+  return [p[0]/255,p[1]/255,p[2]/255];
+}
+function medColor(samples){
+  const ok=samples.filter(Boolean);
+  if(!ok.length) return null;
+  const c=[0,1,2].map(k=>ok.map(s=>s[k]).sort((a,b)=>a-b)[ok.length>>1]);
+  const o={h:0,s:0,l:0};
+  new THREE.Color(c[0],c[1],c[2]).getHSL(o);
+  return {h:+o.h.toFixed(3), s:+o.s.toFixed(3), l:+o.l.toFixed(3)};
+}
+
+function captureIdentity(lm){
+  IDENT.meas = measureFace(lm);
+  const vid=document.getElementById('cam');
+  if(sampCx && vid.videoWidth){
+    sampCx.drawImage(vid,0,0,640,480);
+    const faceH=dist(lm[10],lm[152]);
+    IDENT.colors={
+      skin: medColor([samplePx(lm,50),samplePx(lm,280),samplePx(lm,101),
+                      samplePx(lm,330),samplePx(lm,108),samplePx(lm,337)]),
+      hair: medColor([samplePx(lm,10,-faceH*0.18),samplePx(lm,109,-faceH*0.15),
+                      samplePx(lm,338,-faceH*0.15)]),
+      lips: medColor([samplePx(lm,13),samplePx(lm,14),samplePx(lm,0),samplePx(lm,17)]),
+      brow: medColor([samplePx(lm,105),samplePx(lm,334)]),
+      iris: medColor([samplePx(lm,468),samplePx(lm,473)]),
+    };
+    for(const k in IDENT.colors) if(!IDENT.colors[k]) delete IDENT.colors[k];
+    // guard: hair sample can hit background; fall back to darkened skin
+    if(!IDENT.colors.hair || !IDENT.colors.brow){
+      const s=IDENT.colors.skin||{h:0.07,s:0.4,l:0.4};
+      IDENT.colors.hair = IDENT.colors.hair||{h:s.h,s:s.s*0.8,l:s.l*0.35};
+      IDENT.colors.brow = IDENT.colors.brow||{h:s.h,s:s.s*0.8,l:s.l*0.3};
+    }
+    if(!IDENT.colors.iris) IDENT.colors.iris={h:0.58,s:0.45,l:0.3};
+  }
+  sendIdentity();
+}
+
+function applyIdentity(meas,colors){
+  RID.meas=meas; RID.colors=colors;
+  GEO=computeGeo(meas);
+  if(TES.group && activeTier===Tier.AVATAR3D) tesBuild(TES.res||TES.targetRes);
+  else if(TES.cells.length) tesRestyle();
+  showHint('Likeness applied · re-sculpted from measurements');
+}
+function sendIdentity(){
+  if(!IDENT.meas) return;
+  if(NET.chan && NET.peerId)
+    NET.chan.postMessage({t:'identity', from:NET.myId, meas:IDENT.meas, colors:IDENT.colors});
+  else applyIdentity(IDENT.meas, IDENT.colors);      // solo loopback
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  §4c  VOICE — on-device transcription + prosody extraction.
+//  Heavy work stays local (speech recognition, pitch tracking); the
+//  wire carries only the transcript + 2 prosody bytes. The peer's
+//  device re-performs it: TTS shaped by prosody, visemes on the face.
+// ─────────────────────────────────────────────────────────────────
+const VOICE={on:false, ctx:null, an:null, buf:null, rec:null, pitch:0.5, energy:0};
+
+async function toggleVoice(){
+  const btn=document.getElementById('b-voice');
+  if(VOICE.on){
+    VOICE.on=false; btn.classList.remove('on');
+    try{VOICE.rec&&VOICE.rec.stop();}catch(_){}
+    try{VOICE.ctx&&VOICE.ctx.close();}catch(_){}
+    VOICE.ctx=null; return;
+  }
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    VOICE.ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const src=VOICE.ctx.createMediaStreamSource(stream);
+    VOICE.an=VOICE.ctx.createAnalyser(); VOICE.an.fftSize=2048;
+    src.connect(VOICE.an);
+    VOICE.buf=new Float32Array(2048);
+  }catch(e){ showHint('Mic denied'); return; }
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(SR){
+    VOICE.rec=new SR();
+    VOICE.rec.continuous=true; VOICE.rec.interimResults=true;
+    VOICE.rec.lang=navigator.language||'en-US';
+    VOICE.rec.onresult=e=>{
+      const r=e.results[e.results.length-1];
+      if(r.isFinal && r[0].transcript.trim()){
+        CAP.state.text=r[0].transcript.trim(); CAP.state.textDirty=true;
+      }
+    };
+    VOICE.rec.onend=()=>{ if(VOICE.on){ try{VOICE.rec.start();}catch(_){} } };
+    try{VOICE.rec.start();}catch(_){}
+  } else showHint('No speech recognition here · prosody only');
+  VOICE.on=true; btn.classList.add('on');
+  showHint('Voice live · speech becomes packets');
+}
+
+// ~10 Hz prosody: RMS energy + autocorrelation pitch (70–350 Hz)
+setInterval(()=>{
+  if(!VOICE.on||!VOICE.an) return;
+  VOICE.an.getFloatTimeDomainData(VOICE.buf);
+  const b=VOICE.buf, n=b.length;
+  let rms=0; for(let i=0;i<n;i++) rms+=b[i]*b[i];
+  rms=Math.sqrt(rms/n);
+  VOICE.energy += (Math.min(1,rms*9)-VOICE.energy)*0.4;
+  if(rms>0.01){
+    const sr=VOICE.ctx.sampleRate;
+    const lo=Math.floor(sr/350), hi=Math.min(n>>1,Math.ceil(sr/70));
+    let best=0,bl=lo;
+    for(let lag=lo;lag<=hi;lag++){
+      let s=0; for(let i=0;i<n-lag;i+=2) s+=b[i]*b[i+lag];
+      if(s>best){best=s;bl=lag;}
+    }
+    const f=VOICE.ctx.sampleRate/bl;
+    VOICE.pitch += (Math.max(0,Math.min(1,(f-70)/280))-VOICE.pitch)*0.3;
+  }
+},100);
+
+// ─────────────────────────────────────────────────────────────────
 //  §5  SEND LOOP — tier-rate packets
 // ─────────────────────────────────────────────────────────────────
 let seq=0, lastSend=0, lastTx=null;
@@ -547,7 +700,11 @@ function sendLoop(now){
   const hz=SendHz[AGREED.sendTier]||10;
   if(now-lastSend < 1000/hz) return;
   lastSend=now;
-  if(!CAP.neutral && !CAP.state.textDirty && !CAP.state.gestures) return;
+  if(!CAP.neutral && !VOICE.on && !CAP.state.textDirty && !CAP.state.gestures) return;
+  if(VOICE.on){                       // mic overrides landmark speech detection
+    CAP.state.prosody={pitch:VOICE.pitch, energy:VOICE.energy};
+    CAP.state.speaking=VOICE.energy>0.10;
+  } else CAP.state.prosody=null;
   const b=encodeState(CAP.state, AGREED.sendTier, seq++);
   txPacket(b);
   CAP.state.textDirty=false; CAP.state.gestures=0;
@@ -568,6 +725,7 @@ function onPacket(bytes){
   NET.rxBytes += bytes.length;
   REMOTE.lastPkt=performance.now();
   REMOTE.target=st;
+  if(st.prosody) REMOTE.prosody=st.prosody;
   if(st.text){
     REMOTE.text=st.text; REMOTE.textAt=performance.now();
     const bb=document.getElementById('bubble');
@@ -575,10 +733,18 @@ function onPacket(bytes){
     document.getElementById('bubble-msg').textContent = st.text;
     bb.classList.add('show');
     clearTimeout(onPacket._bt); onPacket._bt=setTimeout(()=>bb.classList.remove('show'),6000);
+    // text puppets the avatar: compile a viseme timeline and perform it
+    startVisemes(st.text, st.prosody||REMOTE.prosody, st.arousal);
     if(document.getElementById('c-tts').checked && window.speechSynthesis){
       speechSynthesis.cancel();
       const u=new SpeechSynthesisUtterance(st.text);
-      u.pitch=0.8+(st.valence+1)*0.35; u.rate=0.9+st.arousal*0.5;
+      const p=st.prosody||REMOTE.prosody;
+      u.pitch = p ? 0.6+p.pitch*1.0 : 0.8+(st.valence+1)*0.35;   // their melody
+      u.rate  = 0.9+st.arousal*0.5 + (p?p.energy*0.2:0);
+      u.volume= p ? 0.6+p.energy*0.4 : 1;
+      // resync the mouth to actual TTS word boundaries as they fire
+      u.onboundary=e=>{ if(REMOTE.vis && e.charIndex!=null)
+        REMOTE.vis.t0 = performance.now() - (e.charIndex/REMOTE.vis.text.length)*REMOTE.vis.dur*1000; };
       speechSynthesis.speak(u);
     }
   }
@@ -586,6 +752,28 @@ function onPacket(bytes){
     for(const g of [1,2,3,4]) if(st.gestures & (1<<(g-1)))
       REMOTE.gestureAnim={g, t0:performance.now()};
   }
+}
+
+// ── Viseme engine: text → mouth-shape timeline ──────────────────
+// Character-class approximation of phonemes: vowels open the jaw with
+// distinct shapes, closures (m/b/p) shut it, rounding (o/u/w) puckers.
+// Prosody energy scales amplitude; TTS boundary events resync timing.
+const VIS_MAP={a:[.85,0],e:[.5,0],i:[.35,0],o:[.7,.5],u:[.4,.8],y:[.3,.1],
+  m:[.02,.2],b:[.02,.1],p:[.02,.1],f:[.12,0],v:[.12,0],w:[.3,.7],
+  s:[.15,0],r:[.3,.2],l:[.35,0]};
+function startVisemes(text, prosody, arousal){
+  const track=[]; let tm=0;
+  const cps = 13*(0.85 + (arousal||0.3)*0.5);       // chars/sec speech rate
+  for(const ch of text.toLowerCase()){
+    let j=0.22,p=0,d=1/cps;
+    if(ch===' '){ j=0.05; d*=1.6; }
+    else if('.,!?;:'.includes(ch)){ j=0.0; d*=3.5; }
+    else if(VIS_MAP[ch]){ [j,p]=VIS_MAP[ch]; }
+    track.push({t:tm, j, p}); tm+=d;
+  }
+  track.push({t:tm, j:0, p:0});
+  REMOTE.vis={track, dur:tm, t0:performance.now(), text,
+              amp:0.55+(prosody?prosody.energy*0.6:0.3)};
 }
 
 function remoteTick(){
@@ -598,6 +786,23 @@ function remoteTick(){
   REMOTE.arousal+=(t.arousal-REMOTE.arousal)*0.1;
   REMOTE.dominance+=(t.dominance-REMOTE.dominance)*0.1;
   REMOTE.speaking=t.speaking;
+  // viseme playback overrides the mouth while a line is being spoken
+  const v=REMOTE.vis;
+  if(v){
+    const el=(performance.now()-v.t0)/1000;
+    if(el>v.dur+0.3){ REMOTE.vis=null; }
+    else if(el>=0){
+      let cur=v.track[0];
+      for(const k of v.track){ if(k.t<=el) cur=k; else break; }
+      REMOTE.bs.jawOpen += (cur.j*v.amp - REMOTE.bs.jawOpen)*0.55;
+      REMOTE.bs.pucker  += (cur.p - REMOTE.bs.pucker)*0.45;
+      REMOTE.speaking=true;
+    }
+  }
+  // live prosody energy drives mouth when mic is streaming (no text yet)
+  else if(REMOTE.prosody && t.speaking){
+    REMOTE.bs.jawOpen += (REMOTE.prosody.energy*0.7 - REMOTE.bs.jawOpen)*0.4;
+  }
 }
 
 // gesture overlay: additive pose from one-shot animations
@@ -775,13 +980,41 @@ function sdEll(x,y,z,cx,cy,cz,rx,ry,rz){
   const dx=(x-cx)/rx,dy=(y-cy)/ry,dz=(z-cz)/rz;
   return (Math.sqrt(dx*dx+dy*dy+dz*dz)-1)*Math.min(rx,ry,rz);
 }
+// ── Likeness: the head SDF is sculpted from measured face ratios ──
+// All measurements are landmark distances normalized by inter-ocular
+// distance (IOD); REF holds average-face ratios so the default bust is
+// the same as before. computeGeo() clamps each ratio to ±22% and
+// scales the corresponding clay dimension.
+const REF = { faceW:1.85, faceH:2.30, jawW:1.35, noseL:0.85, noseW:0.55,
+              mouthW:0.95, mouthDrop:1.05, chinDrop:1.55, browRise:0.35, lipH:0.28 };
+const IDENT = { meas:null, colors:null };   // mine, captured at calibration
+const RID   = { meas:null, colors:null };   // peer's, drives the rendered bust
+
+function computeGeo(meas){
+  const r={}; for(const k in REF) r[k]=meas?Math.max(0.78,Math.min(1.22,(meas[k]||REF[k])/REF[k])):1;
+  return {
+    r,
+    skull:[0.082*r.faceW, 0.105*r.faceH, 0.090*(r.faceW+r.faceH)/2],
+    jaw:  {c:[0,-0.055*r.chinDrop,0.018], rad:[0.060*r.jawW,0.075*r.chinDrop,0.068]},
+    nose: {c:[0,-0.010,0.088], rad:[0.016*r.noseW,0.030*r.noseL,0.024]},
+    earX: 0.083*r.faceW/1,
+    eyeL:[ 0.033,0.014,0.070], eyeR:[-0.033,0.014,0.070],   // IOD anchors the scale
+    browY: 0.014+0.028*r.browRise,
+    lipY: -0.065*r.mouthDrop, lipW:0.034*r.mouthW, lipH:0.017*r.lipH,
+    jawPivot:[0,-0.028,0.004],
+    jawCutY:-0.060*r.mouthDrop/1.05,
+  };
+}
+let GEO = computeGeo(null);
+
 function headSDF(x,y,z){
-  let d=sdEll(x,y,z, 0,0.030,0,      0.082,0.105,0.090);   // skull
-  d=smin(d, sdEll(x,y,z, 0,-0.055,0.018, 0.060,0.075,0.068), 0.028); // jaw
-  d=smin(d, sdEll(x,y,z, 0,-0.010,0.088, 0.016,0.030,0.024), 0.012); // nose
-  d=smin(d, sdEll(x,y,z, 0.083,0.002,0.004, 0.013,0.028,0.020), 0.008); // ears
-  d=smin(d, sdEll(x,y,z,-0.083,0.002,0.004, 0.013,0.028,0.020), 0.008);
-  d=smin(d, sdEll(x,y,z, 0,-0.165,-0.01, 0.105,0.055,0.062), 0.030);  // shoulders
+  const G=GEO;
+  let d=sdEll(x,y,z, 0,0.030,0, G.skull[0],G.skull[1],G.skull[2]);            // skull
+  d=smin(d, sdEll(x,y,z, G.jaw.c[0],G.jaw.c[1],G.jaw.c[2], G.jaw.rad[0],G.jaw.rad[1],G.jaw.rad[2]), 0.028);
+  d=smin(d, sdEll(x,y,z, G.nose.c[0],G.nose.c[1],G.nose.c[2], G.nose.rad[0],G.nose.rad[1],G.nose.rad[2]), 0.012);
+  d=smin(d, sdEll(x,y,z, G.earX,0.002,0.004, 0.013,0.028,0.020), 0.008);      // ears
+  d=smin(d, sdEll(x,y,z,-G.earX,0.002,0.004, 0.013,0.028,0.020), 0.008);
+  d=smin(d, sdEll(x,y,z, 0,-0.165,-0.01, 0.105,0.055,0.062), 0.030);          // shoulders
   return d;
 }
 function sdfNormal(x,y,z){
@@ -793,25 +1026,23 @@ function sdfNormal(x,y,z){
 }
 const hash3=(x,y,z)=>{const s=Math.sin(x*127.1+y*311.7+z*74.7)*43758.5453;return s-Math.floor(s);};
 
-const EYE_L=[ 0.033,0.014,0.070], EYE_R=[-0.033,0.014,0.070];
-const JAW_PIVOT=[0,-0.028,0.004];
-
 // region classification + base color (mosaic palette; styles remap)
 function classifyCell(x,y,z,n){
-  const dl=Math.hypot(x-EYE_L[0],y-EYE_L[1],z-EYE_L[2]);
-  const dr=Math.hypot(x-EYE_R[0],y-EYE_R[1],z-EYE_R[2]);
+  const G=GEO;
+  const dl=Math.hypot(x-G.eyeL[0],y-G.eyeL[1],z-G.eyeL[2]);
+  const dr=Math.hypot(x-G.eyeR[0],y-G.eyeR[1],z-G.eyeR[2]);
   if(dl<0.0165 && z>0.045) return dl<0.008?'irisL':'eyeL';
   if(dr<0.0165 && z>0.045) return dr<0.008?'irisR':'eyeR';
-  if(y>0.032 && y<0.052 && Math.abs(x)>0.012 && Math.abs(x)<0.058 && z>0.055) return 'brow';
-  if(Math.abs(x)<0.034 && y>-0.082 && y<-0.048 && z>0.052) return 'lips';
+  if(y>G.browY-0.010 && y<G.browY+0.010 && Math.abs(x)>0.012 && Math.abs(x)<0.058 && z>0.055) return 'brow';
+  if(Math.abs(x)<G.lipW && Math.abs(y-G.lipY)<G.lipH && z>0.052) return 'lips';
   const hairline = 0.052 + (hash3(x*40,0,z*40)-0.5)*0.02;
-  if(y>hairline || (z<-0.028 && y>-0.05) || (Math.abs(x)>0.070 && y>0.012 && z<0.02)) return 'hair';
+  if(y>hairline || (z<-0.028 && y>-0.05) || (Math.abs(x)>0.070*GEO.r.faceW && y>0.012 && z<0.02)) return 'hair';
   if(y<-0.125) return 'shirt';
   return 'skin';
 }
 function isJawCell(x,y,z,reg){
   if(reg==='hair'||reg==='shirt') return false;
-  return (y<-0.060 && z>-0.005) || y<-0.100 && y>-0.125;
+  return (y<GEO.jawCutY && z>-0.005) || y<-0.100 && y>-0.125;
 }
 
 // ── style palettes: {ramp(region,l,h1,h2), mat:{metal,rough,opacity}} ──
@@ -819,13 +1050,16 @@ const hsl=(h,s,l)=>new THREE.Color().setHSL(((h%1)+1)%1,s,l);
 const STYLES = {
   mosaic:{ mat:{metalness:0.15,roughness:0.55,opacity:1},
     ramp(reg,l,h1,h2){
+      // likeness: when the peer's sampled colors arrived, tile with THEM
+      const C=RID.colors;
+      const from=(c,jh,js,lspan)=>hsl(c.h+(h1-0.5)*jh, Math.min(1,c.s+h2*js), c.l*(0.55+l*lspan));
       switch(reg){
-        case 'skin': return hsl(0.07+(h1-0.5)*0.05, 0.42+h2*0.18, 0.30+l*0.42);
-        case 'hair': return hsl(0.07+(h1-0.5)*0.04, 0.35, 0.10+l*0.16);
-        case 'lips': return hsl(0.97+(h1-0.5)*0.03, 0.55, 0.30+l*0.22);
-        case 'brow': return hsl(0.07, 0.35, 0.10+l*0.12);
+        case 'skin': return C?from(C.skin,0.05,0.15,0.75):hsl(0.07+(h1-0.5)*0.05, 0.42+h2*0.18, 0.30+l*0.42);
+        case 'hair': return C?from(C.hair,0.04,0.1,0.7):hsl(0.07+(h1-0.5)*0.04, 0.35, 0.10+l*0.16);
+        case 'lips': return C?from(C.lips,0.03,0.1,0.6):hsl(0.97+(h1-0.5)*0.03, 0.55, 0.30+l*0.22);
+        case 'brow': return C?from(C.brow,0.02,0.05,0.5):hsl(0.07, 0.35, 0.10+l*0.12);
         case 'eyeL': case 'eyeR': return hsl(0.10, 0.08, 0.80+l*0.15);
-        case 'irisL': case 'irisR': return hsl(0.58+(h1-0.5)*0.1, 0.45, 0.30);
+        case 'irisL': case 'irisR': return C?hsl(C.iris.h,C.iris.s,C.iris.l):hsl(0.58+(h1-0.5)*0.1, 0.45, 0.30);
         case 'shirt': return hsl(0.58, 0.25, 0.16+l*0.12);
       }}},
   crystal:{ mat:{metalness:0.1,roughness:0.08,opacity:0.85},
@@ -992,10 +1226,11 @@ function tesTick(now){
   // jaw: rotate cells about pivot
   for(const c of TES.regions.jaw){
     const [bx,by,bz]=c.base.p;
-    const vx=bx-JAW_PIVOT[0], vy=by-JAW_PIVOT[1], vz=bz-JAW_PIVOT[2];
+    const JP=GEO.jawPivot;
+    const vx=bx-JP[0], vy=by-JP[1], vz=bz-JP[2];
     const cy2=Math.cos(jawA), sy2=Math.sin(jawA);
     const ry=vy*cy2 - vz*sy2, rz2=vy*sy2 + vz*cy2;
-    dummy.position.set(bx, JAW_PIVOT[1]+ry, JAW_PIVOT[2]+rz2);
+    dummy.position.set(bx, JP[1]+ry, JP[2]+rz2);
     dummy.scale.setScalar(c.base.s);
     dummy.rotation.set(c.base.rx+jawA, c.base.ry, 0);
     dummy.updateMatrix();
@@ -1143,6 +1378,8 @@ async function initOptics(){
   pip.srcObject=stream; cam.srcObject=stream;
   try{pip.play();}catch(_){} try{cam.play();}catch(_){}
   await new Promise(r=>{ if(cam.readyState>=2)return r(); cam.onloadeddata=r; setTimeout(r,5000); });
+  sampCv=document.createElement('canvas'); sampCv.width=640; sampCv.height=480;
+  sampCx=sampCv.getContext('2d',{willReadFrequently:true});
 
   btn.textContent='Mesh…';
   let fm;
@@ -1178,8 +1415,9 @@ function showHint(t){
 
 function wireUI(){
   document.getElementById('b-init').onclick=initOptics;
+  document.getElementById('b-voice').onclick=toggleVoice;
   document.getElementById('b-recenter').onclick=()=>{
-    CAP.neutral=null; CAP.buf=[]; showHint('Recentering · face forward');
+    CAP.neutral=null; CAP.buf=[]; showHint('Re-measuring · face forward');
   };
   document.getElementById('b-net').onclick=()=>{
     const p=document.getElementById('netpanel');
