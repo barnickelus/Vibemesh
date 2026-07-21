@@ -119,6 +119,11 @@ video#cam{position:fixed;top:-9999px;left:-9999px;width:640px;height:480px}
   color:var(--dim2);pointer-events:none;line-height:1.7;max-width:70vw}
 .pkt b{color:var(--grn)}
 .pkt .hex{color:#7af;word-break:break-all;display:block;font-size:.48rem;opacity:.8}
+#calpanel{position:fixed;left:14px;top:150px;z-index:20;display:none;
+  font-size:.52rem;letter-spacing:.5px;color:#9ab;line-height:1.8;
+  background:rgba(8,8,14,.7);border:1px solid rgba(0,240,255,.2);
+  border-radius:10px;padding:10px 13px;pointer-events:none;max-width:60vw}
+#calpanel b{color:var(--cyan);letter-spacing:2px}
 </style>
 </head>
 <body>
@@ -143,6 +148,7 @@ video#cam{position:fixed;top:-9999px;left:-9999px;width:640px;height:480px}
 </div>
 
 <div class="pkt" id="pkt"></div>
+<div id="calpanel"></div>
 <div class="bubble" id="bubble"><span class="who" id="bubble-who">PEER</span><span id="bubble-msg"></span></div>
 <div class="hint" id="hint"></div>
 <div class="pip"><video id="pip" autoplay muted playsinline></video></div>
@@ -189,7 +195,8 @@ video#cam{position:fixed;top:-9999px;left:-9999px;width:640px;height:480px}
   <div class="row center">
     <button class="btn primary" id="b-init">Init Optics</button>
     <button class="btn" id="b-voice">Voice</button>
-    <button class="btn" id="b-recenter" disabled>Recenter</button>
+    <button class="btn" id="b-recenter" disabled>Calibrate</button>
+    <button class="btn" id="b-refine" disabled>Refine</button>
     <button class="btn" id="b-net">Network</button>
     <button class="btn" data-g="1">Nod</button>
     <button class="btn" data-g="2">Shake</button>
@@ -470,23 +477,179 @@ function metrics(lm){
   };
 }
 
-function captureFrame(lm, dt){
-  // auto-calibrate: median of first ~40 stable frames
-  if(!CAP.neutral){
-    CAP.buf.push(metrics(lm));
-    if(CAP.buf.length>=40){
-      const med=k=>{const a=CAP.buf.map(m=>m[k]).sort((x,y)=>x-y);return a[a.length>>1];};
+// ═════════════════════════════════════════════════════════════════
+//  GUIDED CALIBRATOR — turn left/right/up/down. Web pages can't read
+//  the LiDAR/TrueDepth sensor, so side views ARE our depth camera:
+//  a landmark seen from a turned head puts its true depth into
+//  screen parallax, and rigid-aligning each view's cloud back onto
+//  the frontal one triangulates nose height, cheek depth, jaw line.
+//  Every completed session re-fuses and re-sends identity; Refine
+//  runs another session and averages it in — likeness accumulates.
+// ═════════════════════════════════════════════════════════════════
+const CALIB={
+  active:false, step:0, frames:[], buf:[], views:{}, sessions:0, stepStart:0,
+  NEED:14,
+  STEPS:[
+    {id:'center',hint:'Look straight at the camera · hold',
+     test:(y,p)=>true},
+    {id:'left',  hint:'Turn your head LEFT · hold',  test:(y,p)=>y<-16&&y>-50},
+    {id:'right', hint:'Turn your head RIGHT · hold', test:(y,p)=>y>16&&y<50},
+    {id:'up',    hint:'Tilt your chin UP · hold',    test:(y,p)=>p>10},
+    {id:'down',  hint:'Tilt your chin DOWN · hold',  test:(y,p)=>p<-10},
+  ],
+};
+
+function startCalibration(){
+  CALIB.active=true; CALIB.step=0; CALIB.frames=[]; CALIB.buf=[]; CALIB.views={};
+  CALIB.stepStart=performance.now();
+  CAP.neutral=null;
+  calPanel('CALIBRATING','collecting front view…');
+  showHint(CALIB.STEPS[0].hint);
+}
+
+function calibTick(lm){
+  const step=CALIB.STEPS[CALIB.step];
+  if(!step){ finishCalibration(); return; }
+  const ok = CALIB.step===0 ? true : step.test(CAP.state.yaw, CAP.state.pitch);
+  const now=performance.now();
+  if(ok){
+    CALIB.frames.push(lm.map(q=>({x:q.x,y:q.y,z:q.z})));
+    if(CALIB.step===0) CALIB.buf.push(metrics(lm));
+    const pr=Math.min(1,CALIB.frames.length/CALIB.NEED);
+    hintNow(step.hint+' '+'▰'.repeat(Math.round(pr*8))+'▱'.repeat(8-Math.round(pr*8)));
+    if(CALIB.frames.length>=CALIB.NEED) completeStep(false);
+  } else if(now-CALIB.stepStart>9000){
+    completeStep(true);                      // couldn't hold it — skip
+  }
+}
+
+function completeStep(skipped){
+  const step=CALIB.STEPS[CALIB.step];
+  if(!skipped && CALIB.frames.length>=6){
+    const mid=CALIB.frames[CALIB.frames.length>>1];
+    CALIB.views[step.id]=mid;
+    if(step.id==='center'){
+      const med=k=>{const a=CALIB.buf.map(m=>m[k]).sort((x,y)=>x-y);return a[a.length>>1];};
       CAP.neutral={jaw:med('jaw'),mw:med('mw'),browL:med('browL'),browR:med('browR'),
                    earL:med('earL'),earR:med('earR'),cornerY:med('cornerY'),
-                   pts:lm.map(p=>[p.x,p.y,p.z]),
-                   c:null, s:dist(lm[33],lm[263])};
+                   pts:mid.map(p=>[p.x,p.y,p.z]), c:null, s:dist(mid[33],mid[263])};
       let c=[0,0,0];
-      for(const i of RIGID_IDX){c[0]+=lm[i].x;c[1]+=lm[i].y;c[2]+=lm[i].z;}
+      for(const i of RIGID_IDX){c[0]+=mid[i].x;c[1]+=mid[i].y;c[2]+=mid[i].z;}
       CAP.neutral.c=c.map(v=>v/RIGID_IDX.length);
-      captureIdentity(lm);
-      showHint('Likeness measured · you are live');
-      document.getElementById('b-recenter').disabled=false;
+      captureIdentity(mid);                  // v1 identity ships immediately
+      calPanel('CALIBRATING','front ✓ · now the turns add depth');
     }
+  }
+  CALIB.frames=[]; CALIB.step++; CALIB.stepStart=performance.now();
+  const nx=CALIB.STEPS[CALIB.step];
+  if(nx) showHint(nx.hint); else finishCalibration();
+}
+
+// rigid-align one view's model cloud onto the reference (frontal) cloud
+function alignCloud(m, ref){
+  const P=[],Q=[],cP=[0,0,0],cQ=[0,0,0];
+  for(const i of RIGID_IDX) for(let a=0;a<3;a++){ cP[a]+=m[i*3+a]; cQ[a]+=ref[i*3+a]; }
+  for(let a=0;a<3;a++){ cP[a]/=RIGID_IDX.length; cQ[a]/=RIGID_IDX.length; }
+  for(const i of RIGID_IDX){
+    P.push([m[i*3]-cP[0],m[i*3+1]-cP[1],m[i*3+2]-cP[2]]);
+    Q.push([ref[i*3]-cQ[0],ref[i*3+1]-cQ[1],ref[i*3+2]-cQ[2]]);
+  }
+  const R=kabsch(P,Q);
+  const out=new Array(468*3);
+  for(let i=0;i<468;i++){
+    const x=m[i*3]-cP[0], y=m[i*3+1]-cP[1], z=m[i*3+2]-cP[2];
+    out[i*3]  =R[0]*x+R[1]*y+R[2]*z+cQ[0];
+    out[i*3+1]=R[3]*x+R[4]*y+R[5]*z+cQ[1];
+    out[i*3+2]=R[6]*x+R[7]*y+R[8]*z+cQ[2];
+  }
+  return out;
+}
+
+function finishCalibration(){
+  CALIB.active=false;
+  const got=Object.keys(CALIB.views);
+  if(CALIB.views.center && got.length>=2){
+    const fused=fuseViews(CALIB.views);
+    if(IDENT.fused && CALIB.sessions>0){
+      const w=CALIB.sessions/(CALIB.sessions+1);
+      for(let i=0;i<fused.length;i++) fused[i]=IDENT.fused[i]*w+fused[i]*(1-w);
+    }
+    IDENT.fused=fused; CALIB.sessions++;
+    IDENT.lm=fused.map(v=>+v.toFixed(4));
+    IDENT.meas=measureFromModel(fused);
+    calibReport(fused, got.length);
+    sendIdentity();
+    showHint('Fused '+got.length+' views · Refine to keep improving');
+  } else if(CALIB.views.center){
+    calPanel('CALIBRATED','front view only · Refine to add depth');
+  }
+  const br=document.getElementById('b-refine'); if(br) br.disabled=false;
+}
+
+function fuseViews(views){
+  const ref=lmToModel(views.center);
+  const acc=ref.map(v=>v*2); const w=new Array(468*3).fill(2);
+  for(const k of ['left','right','up','down']){
+    if(!views[k]) continue;
+    const al=alignCloud(lmToModel(views[k]), ref);
+    for(let j=0;j<468*3;j++){ acc[j]+=al[j]; w[j]+=1; }
+  }
+  return acc.map((v,j)=>v/w[j]);
+}
+
+// named data points, measured off the fused cloud (model units → mm)
+function measureFromModel(f){
+  const u=0.066, AX=4/3;
+  const D=(i,j)=>Math.hypot(f[i*3]-f[j*3],f[i*3+1]-f[j*3+1],f[i*3+2]-f[j*3+2])/u;
+  const Y=i=>f[i*3+1];
+  const eyeY=(Y(33)+Y(263))/2;
+  return {
+    faceW:D(234,454), faceH:D(10,152)*AX*0.75, jawW:D(172,397),
+    noseL:D(168,2)*AX*0.75, noseW:D(98,327), mouthW:D(61,291),
+    mouthDrop:(eyeY-(Y(61)+Y(291))/2)/u*AX*0.75,
+    chinDrop:(eyeY-Y(152))/u*AX*0.75,
+    browRise:((Y(105)+Y(334))/2-eyeY)/u*AX*0.75,
+    lipH:D(0,17)*AX*0.75,
+  };
+}
+
+function calibReport(f, nviews){
+  const mm=v=>(v*1000).toFixed(1)+'mm';
+  const D=(i,j)=>Math.hypot(f[i*3]-f[j*3],f[i*3+1]-f[j*3+1],f[i*3+2]-f[j*3+2]);
+  const Z=i=>f[i*3+2];
+  const faceH=Math.abs(f[10*3+1]-f[152*3+1]);
+  const noseL=D(168,2), lipW=D(61,291);
+  const noseH=Z(4)-(Z(50)+Z(280))/2;         // tip proud of cheek plane
+  const lines=[
+    'views fused: '+nviews+' · session '+CALIB.sessions,
+    'eye width '+mm(D(33,133))+' ✓',
+    'eye distance '+mm(D(133,362))+' ✓',
+    'lip width '+mm(lipW)+' ✓',
+    'chin→lips '+mm(D(17,152))+' ✓',
+    'nose length '+mm(noseL)+' ✓',
+    'nose height '+mm(noseH)+(nviews>2?' ✓':' ~'),
+    'head = '+(faceH/noseL).toFixed(1)+' nose-lengths',
+    'head = '+(faceH/lipW).toFixed(1)+' lip-widths',
+  ];
+  calPanel('LIKENESS DATA', lines.join('<br>'));
+}
+
+function calPanel(title, body){
+  const el=document.getElementById('calpanel');
+  el.innerHTML='<b>'+title+'</b><br>'+body;
+  el.style.display='block';
+}
+function hintNow(t){
+  const h=document.getElementById('hint');
+  h.textContent=t; h.classList.add('show');
+  clearTimeout(showHint._t); showHint._t=setTimeout(()=>h.classList.remove('show'),2500);
+}
+
+function captureFrame(lm, dt){
+  if(!CAP.neutral && !CALIB.active){ startCalibration(); }
+  if(CALIB.active && !CAP.neutral){
+    // pose solve needs a neutral; center step runs on raw hold
+    calibTick(lm);
     return;
   }
   const n=CAP.neutral, m=metrics(lm), st=CAP.state;
@@ -549,6 +712,8 @@ function captureFrame(lm, dt){
   const mean=CAP.jawHist.reduce((s,v)=>s+v,0)/CAP.jawHist.length;
   const varc=CAP.jawHist.reduce((s,v)=>s+(v-mean)**2,0)/CAP.jawHist.length;
   st.speaking = varc>0.004;
+
+  if(CALIB.active) calibTick(lm);     // pose is solved — guided steps can run
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1106,10 +1271,10 @@ function classifyCell(x,y,z,n){
   const G=GEO;
   const dl=Math.hypot(x-G.eyeL[0],y-G.eyeL[1],z-G.eyeL[2]);
   const dr=Math.hypot(x-G.eyeR[0],y-G.eyeR[1],z-G.eyeR[2]);
-  if(dl<0.0122 && z>0.045) return dl<0.0062?'irisL':'eyeL';
-  if(dr<0.0122 && z>0.045) return dr<0.0062?'irisR':'eyeR';
-  if(y>G.browY-0.010 && y<G.browY+0.010 && Math.abs(x)>0.012 && Math.abs(x)<0.058 && z>0.055) return 'brow';
-  if(Math.abs(x)<G.lipW && Math.abs(y-G.lipY)<G.lipH && z>0.052) return 'lips';
+  if(dl<0.0135 && z>0.040) return dl<0.0068?'irisL':'eyeL';
+  if(dr<0.0135 && z>0.040) return dr<0.0068?'irisR':'eyeR';
+  if(y>G.browY-0.005 && y<G.browY+0.006 && Math.abs(x)>0.014 && Math.abs(x)<0.048 && z>0.055) return 'brow';
+  if(Math.abs(x)<G.lipW*0.9 && Math.abs(y-G.lipY)<G.lipH*0.75 && z>0.052) return 'lips';
   // broad trait: hairstyle changes the hair-mass rule, not the skull
   const hs=RID.hairstyle||'short';
   const hairline = 0.052 + (hash3(x*40,0,z*40)-0.5)*0.02;
@@ -1242,7 +1407,7 @@ function gatherLikenessCells(res){
          Math.max(-0.020,Math.min(0.020,p[2]-q[2]))], cl});
   }
   const cells=gatherProceduralCells(res);
-  const S2=2*0.013*0.013;                          // gaussian falloff σ=13mm
+  const S2=2*0.009*0.009;                          // gaussian falloff σ=9mm
   const skin=RID.colors&&RID.colors.skin?RID.colors.skin:{h:0.07,s:0.4,l:0.5};
   const skinC=hsl(skin.h,skin.s,skin.l);
   for(const c of cells){
@@ -1251,7 +1416,7 @@ function gatherLikenessCells(res){
     for(const d of deltas){
       const ddx=c.x-d.x,ddy=c.y-d.y;
       const d2=ddx*ddx+ddy*ddy;
-      if(d2>0.0011) continue;
+      if(d2>0.0006) continue;
       const w=Math.exp(-d2/S2);
       wx+=d.d[0]*w; wy+=d.d[1]*w; wz+=d.d[2]*w; ws+=w;
       if(d.cl){ tr+=d.cl[0]*w; tg+=d.cl[1]*w; tb+=d.cl[2]*w; wc+=w; }
@@ -1572,7 +1737,8 @@ async function initOptics(){
     await mp.start();
   }catch(e){ btn.textContent='Stream err'; btn.disabled=false; return; }
   btn.textContent='Live'; btn.classList.add('go'); btn.disabled=false;
-  showHint('Face forward a moment · auto-calibrating');
+  document.getElementById('b-recenter').disabled=false;
+  showHint('Face forward · guided calibration starting');
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1587,8 +1753,9 @@ function showHint(t){
 function wireUI(){
   document.getElementById('b-init').onclick=initOptics;
   document.getElementById('b-voice').onclick=toggleVoice;
-  document.getElementById('b-recenter').onclick=()=>{
-    CAP.neutral=null; CAP.buf=[]; showHint('Re-measuring · face forward');
+  document.getElementById('b-recenter').onclick=()=>startCalibration();
+  document.getElementById('b-refine').onclick=()=>{
+    startCalibration(); showHint('Refining · another pass averages in');
   };
   document.getElementById('b-net').onclick=()=>{
     const p=document.getElementById('netpanel');
