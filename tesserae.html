@@ -341,7 +341,7 @@ function netInit(){
       if(isNew){ showHint('Peer tab linked · negotiating tiers'); sendIdentity(); }
       renegotiate();
     } else if(m.t==='identity' && m.from===NET.peerId){
-      applyIdentity(m.meas, m.colors);
+      applyIdentity(m.meas, m.colors, m.lm, m.lmCol);
     } else if(m.t==='pkt' && m.from===NET.peerId){
       NET.peerSeen = performance.now();
       impair(new Uint8Array(m.bytes), onPacket);
@@ -588,11 +588,37 @@ function medColor(samples){
   return {h:+o.h.toFixed(3), s:+o.s.toFixed(3), l:+o.l.toFixed(3)};
 }
 
+// landmarks → model space: mirror for selfie, y up, IOD anchored to
+// 0.066 model units, 4:3 pixel aspect corrected, depth gain 1.15
+function lmToModel(lm){
+  const ax=4/3;
+  const iod=Math.hypot((lm[33].x-lm[263].x)*ax, lm[33].y-lm[263].y, lm[33].z-lm[263].z)||0.08;
+  const s=0.066/iod, ZG=1.15;
+  const cx=(lm[33].x+lm[263].x)/2, cy=(lm[33].y+lm[263].y)/2, cz=(lm[33].z+lm[263].z)/2;
+  const out=new Array(468*3);
+  for(let i=0;i<468;i++){
+    out[i*3]  = +(-(lm[i].x-cx)*ax*s).toFixed(4);
+    out[i*3+1]= +((-(lm[i].y-cy))*s+0.014).toFixed(4);
+    out[i*3+2]= +((-(lm[i].z-cz))*ax*s*ZG+0.062).toFixed(4);
+  }
+  return out;
+}
+
 function captureIdentity(lm){
   IDENT.meas = measureFace(lm);
+  IDENT.lm = lmToModel(lm);
   const vid=document.getElementById('cam');
   if(sampCx && vid.videoWidth){
     sampCx.drawImage(vid,0,0,640,480);
+    // per-landmark photo color — the mosaic's likeness source
+    const img=sampCx.getImageData(0,0,640,480).data;
+    IDENT.lmCol=new Array(468*3);
+    for(let i=0;i<468;i++){
+      const x=Math.min(639,Math.max(0,Math.round((1-lm[i].x)*640)));
+      const y=Math.min(479,Math.max(0,Math.round(lm[i].y*480)));
+      const o=(y*640+x)*4;
+      IDENT.lmCol[i*3]=img[o]; IDENT.lmCol[i*3+1]=img[o+1]; IDENT.lmCol[i*3+2]=img[o+2];
+    }
     const faceH=dist(lm[10],lm[152]);
     IDENT.colors={
       skin: medColor([samplePx(lm,50),samplePx(lm,280),samplePx(lm,101),
@@ -625,18 +651,25 @@ function captureIdentity(lm){
   sendIdentity();
 }
 
-function applyIdentity(meas,colors){
+function applyIdentity(meas,colors,lm,lmCol){
   RID.meas=meas; RID.colors=colors;
-  GEO=computeGeo(meas);
+  if(lm && lmCol){
+    RID.lm=lm; RID.lmCol=lmCol;
+    // jaw hinges just above the real mouth line
+    const mouthY=(lm[13*3+1]+lm[14*3+1])/2;
+    GEO=computeGeo(meas);
+    GEO.jawPivot=[0, mouthY+0.034, 0.004];
+  } else GEO=computeGeo(meas);
   if(TES.group && activeTier===Tier.AVATAR3D) tesBuild(TES.res||TES.targetRes);
   else if(TES.cells.length) tesRestyle();
-  showHint('Likeness applied · re-sculpted from measurements');
+  showHint(lm?'Likeness scan applied · built from your face':'Likeness applied');
 }
 function sendIdentity(){
   if(!IDENT.meas) return;
   if(NET.chan && NET.peerId)
-    NET.chan.postMessage({t:'identity', from:NET.myId, meas:IDENT.meas, colors:IDENT.colors});
-  else applyIdentity(IDENT.meas, IDENT.colors);      // solo loopback
+    NET.chan.postMessage({t:'identity', from:NET.myId, meas:IDENT.meas,
+      colors:IDENT.colors, lm:IDENT.lm, lmCol:IDENT.lmCol});
+  else applyIdentity(IDENT.meas, IDENT.colors, IDENT.lm, IDENT.lmCol);  // loopback
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1110,14 +1143,7 @@ function pickPrim(reg,n,h){
   return h<0.8?0 : h<0.92?1 : 2;                                           // mostly tiles up front
 }
 
-function tesBuild(res){
-  // dispose previous
-  for(const m of TES.meshes){ TES.group.remove(m); m.geometry.dispose(); m.material.dispose(); }
-  TES.meshes=[]; TES.cells=[];
-  for(const k in TES.regions) TES.regions[k]=[];
-  TES.res=res;
-
-  // collect shell cells
+function gatherProceduralCells(res){
   const cells=[];
   for(let x=-0.115;x<=0.115;x+=res)
   for(let y=-0.185;y<=0.155;y+=res)
@@ -1135,6 +1161,219 @@ function tesBuild(res){
       lum:Math.max(0,0.35+0.65*(n[2]*0.8+n[1]*0.25))*(1+ (d>0?0:d/res*0.25)),
       jaw:isJawCell(x,y,z,reg)});
   }
+  return cells;
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  SCAN BUILDER — the real likeness path.
+//  RID.lm is the peer's neutral 468-landmark cloud in model space
+//  (a genuine 3D scan of their face), RID.lmCol the video pixel
+//  color at each landmark. We densify the landmark triangulation
+//  into a surface, voxelize it, and color every tile from the real
+//  photo — likeness the way a photo-mosaic gets it. A procedural
+//  cranium is fitted behind the scan for hair/skull/shoulders.
+// ═════════════════════════════════════════════════════════════════
+const TESS = [
+  [127,34,139],[11,0,37],[232,231,120],[72,37,39],[128,121,47],[232,120,100],
+  [213,215,138],[149,170,176],[209,198,92],[2,94,141],[49,64,98],[173,139,247],
+  [149,176,148],[150,136,172],[139,34,127],[11,37,72],[37,232,120],[128,47,121],
+  [215,213,138],[150,148,176],[209,92,57],[2,141,94],[64,49,98],[173,247,139],
+  [356,389,251],[389,356,454],[10,109,67],[10,67,54],[10,54,21],[10,21,162],
+  [10,162,127],[10,127,234],[10,234,93],[10,93,132],[10,132,58],[10,58,172],
+  [10,172,136],[10,136,150],[10,150,149],[10,149,176],[10,176,148],[10,148,152],
+  [10,152,377],[10,377,400],[10,400,378],[10,378,379],[10,379,365],[10,365,397],
+  [10,397,288],[10,288,361],[10,361,323],[10,323,454],[10,454,356],[10,356,389],
+  [10,389,251],[10,251,284],[10,284,332],[10,332,297],[10,297,338],
+  [33,7,163],[163,144,33],[33,144,145],[145,153,33],[153,154,33],[33,154,155],
+  [155,133,33],[33,133,246],[246,161,33],[33,161,160],[160,159,33],[33,159,158],
+  [158,157,33],[157,173,33],[33,173,133],
+  [263,249,390],[390,373,263],[263,373,374],[374,380,263],[263,380,381],[381,382,263],
+  [382,362,263],[263,362,466],[466,388,263],[263,388,387],[387,386,263],[263,386,385],
+  [385,384,263],[384,398,263],[263,398,362],
+  [0,267,269],[269,270,267],[270,409,267],[409,291,267],[291,375,267],
+  [375,321,267],[321,405,267],[405,314,267],[314,17,267],[17,84,267],
+  [84,181,267],[181,91,267],[91,146,267],[146,61,267],[61,185,267],
+  [185,40,267],[40,39,267],[39,37,267],[37,0,267],
+  [78,95,88],[95,78,191],[191,80,95],[80,81,95],[81,82,95],[82,13,95],
+  [13,312,95],[312,311,95],[311,310,95],[310,415,95],[415,308,95],[308,324,95],
+  [324,318,95],[318,402,95],[402,317,95],[317,14,95],[14,87,95],[87,178,95],
+  [178,88,95],
+  [454,323,361],[323,454,356],[234,127,162],[127,234,93],[93,132,127],
+  [58,132,172],[172,149,148],[148,152,149],[152,148,377],[377,378,148],
+  [378,400,148],[400,379,148],[379,365,148],[365,397,148],[397,288,148],
+  [288,361,148],[361,454,148],
+  [356,389,251],[389,251,284],[251,284,332],[284,332,297],[332,297,338],
+  [356,454,323],[454,323,361],[323,361,288],[361,288,397],[288,397,365],
+  [397,365,379],[365,379,378],[379,378,400],[378,400,377],[400,377,152],
+  [377,152,148],[152,148,176],[148,176,149],[176,149,150],[149,150,136],
+  [150,136,172],[136,172,58],[172,58,132],[58,132,93],[132,93,234],
+  [93,234,127],[234,127,162],[127,162,21],[162,21,54],[21,54,103],
+  [54,103,67],[103,67,109],[67,109,10],
+  [33,246,161],[246,161,160],[161,160,159],[160,159,158],[159,158,157],
+  [158,157,173],[157,173,133],[173,133,155],[133,155,154],[155,154,153],
+  [154,153,145],[153,145,144],[145,144,163],[144,163,7],[163,7,33],
+  [263,466,388],[466,388,387],[388,387,386],[387,386,385],[386,385,384],
+  [385,384,398],[384,398,362],[398,362,382],[362,382,381],[382,381,380],
+  [381,380,374],[380,374,373],[374,373,390],[373,390,249],[390,249,263],
+];
+
+
+const LM_LIPS=new Set([61,146,91,181,84,17,314,405,321,375,291,409,270,269,267,0,37,39,40,185,
+  78,95,88,178,87,14,317,402,318,324,308,415,310,311,312,13,82,81,80,191]);
+const LM_BROW=new Set([70,63,105,66,107,55,65,52,53,46,300,293,334,296,336,285,295,282,283,276]);
+const LM_LID_L=new Set([159,145,158,153,160,144,157,154,163,7,246,161,173]);
+const LM_LID_R=new Set([386,374,385,380,387,373,384,381,390,249,466,388,398]);
+
+function gatherScanCells(res){
+  const L=RID.lm, C=RID.lmCol;
+  const cells=[];
+  const map=new Map();                       // voxel accumulation
+  const colBack=new Map();                   // (x,y) column → backmost shell z
+  const ki=v=>Math.round(v/res);
+  const key3=(x,y,z)=>ki(x)*1e6+ki(y)*1e3+ki(z)+5e8;
+  const key2=(x,y)=>ki(x)*1e3+ki(y)+5e5;
+  const P=i=>[L[i*3],L[i*3+1],L[i*3+2]];
+  const mouthY=(L[13*3+1]+L[14*3+1])/2;
+
+  // densify each triangle of the face tessellation into surface points
+  for(const [ia,ib,ic] of TESS){
+    if(ia>=468||ib>=468||ic>=468) continue;
+    const A=P(ia),B=P(ib),Cc=P(ic);
+    const e=Math.max(Math.hypot(B[0]-A[0],B[1]-A[1],B[2]-A[2]),
+                     Math.hypot(Cc[0]-A[0],Cc[1]-A[1],Cc[2]-A[2]),
+                     Math.hypot(Cc[0]-B[0],Cc[1]-B[1],Cc[2]-B[2]));
+    const n=Math.max(1,Math.ceil(e/(res*0.7)));
+    // triangle normal
+    const u=[B[0]-A[0],B[1]-A[1],B[2]-A[2]], v=[Cc[0]-A[0],Cc[1]-A[1],Cc[2]-A[2]];
+    let tn=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+    const tl=Math.hypot(...tn)||1; tn=tn.map(q=>q/tl);
+    if(tn[2]<0) tn=tn.map(q=>-q);            // face normals point forward
+    for(let a=0;a<=n;a++) for(let b=0;b<=n-a;b++){
+      const w0=a/n, w1=b/n, w2=1-w0-w1;
+      const x=A[0]*w2+B[0]*w0+Cc[0]*w1, y=A[1]*w2+B[1]*w0+Cc[1]*w1, z=A[2]*w2+B[2]*w0+Cc[2]*w1;
+      const li=(w0>=w1&&w0>=w2)?ib:(w1>=w2?ic:ia);   // dominant vertex
+      const k=key3(x,y,z);
+      let m=map.get(k);
+      if(!m){ m={x:0,y:0,z:0,r:0,g:0,b:0,nx:0,ny:0,nz:0,c:0,li}; map.set(k,m); }
+      m.x+=x;m.y+=y;m.z+=z;
+      m.r+=(C[ia*3]*w2+C[ib*3]*w0+C[ic*3]*w1)/255;
+      m.g+=(C[ia*3+1]*w2+C[ib*3+1]*w0+C[ic*3+1]*w1)/255;
+      m.b+=(C[ia*3+2]*w2+C[ib*3+2]*w0+C[ic*3+2]*w1)/255;
+      m.nx+=tn[0];m.ny+=tn[1];m.nz+=tn[2]; m.c++;
+      const k2=key2(x,y);
+      const bz=colBack.get(k2);
+      if(bz===undefined||z<bz) colBack.set(k2,z);
+    }
+  }
+
+  // shell voxels from accumulated surface samples
+  for(const m of map.values()){
+    const c=m.c, x=m.x/c, y=m.y/c, z=m.z/c;
+    const nl=Math.hypot(m.nx,m.ny,m.nz)||1;
+    const n=[m.nx/nl,m.ny/nl,m.nz/nl];
+    const rc=[m.r/c,m.g/c,m.b/c];
+    // display-range lift for dim webcam pixels
+    const lum0=0.299*rc[0]+0.587*rc[1]+0.114*rc[2];
+    const gain=Math.min(2.4,Math.pow(Math.max(lum0,0.03),0.62)/Math.max(lum0,0.03));
+    const rcl=rc.map(q=>Math.min(1,q*gain*1.12));
+    const li=m.li;
+    let reg='skin';
+    if(LM_LIPS.has(li)) reg='lips';
+    else if(LM_BROW.has(li)) reg='brow';
+    else if(LM_LID_L.has(li)) reg='eyeL';
+    else if(LM_LID_R.has(li)) reg='eyeR';
+    const h1=hash3(x,y,z), h2=hash3(x+9,y+7,z+3);
+    cells.push({x,y,z,n,reg,h1,h2,rc:rcl,
+      prim:pickPrim(reg,n,h2),
+      lum:0.4+0.6*(0.299*rcl[0]+0.587*rcl[1]+0.114*rcl[2]),
+      jaw:(L[li*3+1]<mouthY-0.004)});
+  }
+
+  // eyeballs at the REAL eye centers/size (corners 33/133, 362/263)
+  const eye=(i1,i2,side)=>{
+    const a=P(i1),b=P(i2);
+    const cx=(a[0]+b[0])/2, cy=(a[1]+b[1])/2, cz=(a[2]+b[2])/2-0.004;
+    const r=Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])*0.42;
+    for(let x=cx-r;x<=cx+r;x+=res)for(let y=cy-r;y<=cy+r;y+=res)for(let z=cz-r;z<=cz+r;z+=res){
+      const d=Math.hypot(x-cx,y-cy,z-cz);
+      if(d>r) continue;
+      if(map.has(key3(x,y,z))) continue;
+      const iris = d<r*0.45 && z>cz;
+      const ic=RID.colors&&RID.colors.iris?RID.colors.iris:{h:0.58,s:0.45,l:0.3};
+      const col=iris?hsl(ic.h,ic.s,Math.max(0.22,ic.l)):hsl(0.09,0.10,0.72);
+      cells.push({x,y,z,n:[0,0,1],reg:iris?('iris'+side):('eye'+side),
+        h1:hash3(x,y,z),h2:hash3(x+9,y,z),rc:[col.r,col.g,col.b],
+        prim:1,lum:0.8,jaw:false});
+    }
+  };
+  eye(33,133,'L'); eye(362,263,'R');
+
+  // dark mouth cavity behind the lips (visible when the jaw opens)
+  const mw=Math.abs(P(61)[0]-P(291)[0])*0.4;
+  const mz=P(13)[2]-res*1.5;
+  for(let x=-mw;x<=mw;x+=res)for(let y=mouthY-0.012;y<=mouthY+0.006;y+=res){
+    cells.push({x,y,z:mz,n:[0,0,1],reg:'skin',h1:hash3(x,y,mz),h2:0.5,
+      rc:[0.12,0.04,0.05],prim:0,lum:0.2,jaw:false});
+  }
+
+  // procedural cranium fitted to the scan, masked behind the shell
+  let xW=0, yTop=L[10*3+1], yBot=L[152*3+1];
+  for(let i=0;i<468;i++) xW=Math.max(xW,Math.abs(L[i*3]));
+  const sc={cx:0, cy:(yTop+yBot)/2+0.012, cz:-0.014,
+            rx:xW*1.14, ry:(yTop-yBot)/2*1.3+0.012, rz:0.088*Math.max(0.85,xW/0.062)};
+  const hairC=RID.colors&&RID.colors.hair?RID.colors.hair:{h:0.07,s:0.3,l:0.15};
+  const skinC=RID.colors&&RID.colors.skin?RID.colors.skin:{h:0.07,s:0.4,l:0.45};
+  const cran=(x,y,z)=>{
+    let d=sdEll(x,y,z,sc.cx,sc.cy,sc.cz,sc.rx,sc.ry,sc.rz);
+    d=smin(d, sdEll(x,y,z,0,yBot-0.075,-0.01, 0.105,0.055,0.062), 0.03); // shoulders
+    return d;
+  };
+  for(let x=-0.125;x<=0.125;x+=res)
+  for(let y=yBot-0.11;y<=yTop+0.09;y+=res)
+  for(let z=-0.115;z<=0.115;z+=res){
+    const d=cran(x,y,z);
+    if(d>res*0.45||d<-res*1.35) continue;
+    if(map.has(key3(x,y,z))) continue;
+    const bz=colBack.get(key2(x,y));
+    if(bz!==undefined && z>bz-res*0.6) continue;      // stay behind the scan
+    const e2=0.004;
+    let n=[cran(x+e2,y,z)-cran(x-e2,y,z),cran(x,y+e2,z)-cran(x,y-e2,z),cran(x,y,z+e2)-cran(x,y,z-e2)];
+    const nl=Math.hypot(...n)||1; n=n.map(q=>q/nl);
+    const h1=hash3(x,y,z), h2=hash3(x+9,y+7,z+3);
+    const shirt=y<yBot-0.055;
+    const hairline=yTop-0.006+(hash3(x*40,0,z*40)-0.5)*0.018;
+    const hair=!shirt && (y>hairline || z<-0.02 || Math.abs(x)>xW*0.9);
+    let px=x,py=y,pz=z;
+    if(hair){ const e3=h1*res*0.9; px+=n[0]*e3; py+=n[1]*e3; pz+=n[2]*e3; }
+    const base=hair?hairC:(shirt?{h:0.58,s:0.25,l:0.2}:skinC);
+    const lum=Math.max(0.15,0.35+0.65*(n[2]*0.7+n[1]*0.3));
+    const col=hsl(base.h+(h1-0.5)*0.04, base.s, Math.min(0.9,base.l*(0.6+lum*0.55)));
+    cells.push({x:px,y:py,z:pz,n,reg:hair?'hair':(shirt?'shirt':'skin'),h1,h2,
+      rc:[col.r,col.g,col.b], prim:pickPrim(hair?'hair':'skin',n,h2),
+      lum, jaw:!hair&&!shirt&&y<mouthY-0.008&&z>-0.02});
+  }
+  return cells;
+}
+
+// unified per-cell color: scan cells carry real photo color (jittered);
+// non-mosaic styles restyle even scan cells through their palette
+function cellColor(style,c){
+  if(c.rc && TES.style==='mosaic'){
+    const j=0.86+c.h1*0.28;
+    return new THREE.Color(Math.min(1,c.rc[0]*j),Math.min(1,c.rc[1]*j),Math.min(1,c.rc[2]*j));
+  }
+  return style.ramp(c.reg,c.lum,c.h1,c.h2)||new THREE.Color(0.5,0.5,0.5);
+}
+
+function tesBuild(res){
+  // dispose previous
+  for(const m of TES.meshes){ TES.group.remove(m); m.geometry.dispose(); m.material.dispose(); }
+  TES.meshes=[]; TES.cells=[];
+  for(const k in TES.regions) TES.regions[k]=[];
+  TES.res=res;
+
+  // scan path (real likeness) when the peer's landmarks have arrived
+  const cells = RID.lm ? gatherScanCells(res) : gatherProceduralCells(res);
 
   // bucket per primitive
   const style=STYLES[TES.style];
@@ -1161,7 +1400,7 @@ function tesBuild(res){
       if(c.prim===3) dummy.lookAt(c.x+c.n[0],c.y+c.n[1],c.z+c.n[2]); // pyramids point out
       dummy.updateMatrix();
       im.setMatrixAt(i,dummy.matrix);
-      im.setColorAt(i, style.ramp(c.reg, c.lum, c.h1, c.h2));
+      im.setColorAt(i, cellColor(style, c));
       c.mesh=im; c.idx=i;
       c.base={p:[c.x,c.y,c.z], s, rx:dummy.rotation.x, ry:dummy.rotation.y, look:c.prim===3};
       // animation region lists
@@ -1169,7 +1408,7 @@ function tesBuild(res){
       if(c.reg==='brow') TES.regions.brow.push(c);
       if(c.reg==='eyeL'||c.reg==='irisL') TES.regions.eyeL.push(c);
       if(c.reg==='eyeR'||c.reg==='irisR') TES.regions.eyeR.push(c);
-      if(c.reg==='lips') TES.regions.lips.push(c);
+      if(c.reg==='lips' && !c.jaw) TES.regions.lips.push(c);
     }
     im.instanceColor.needsUpdate=true;
     TES.group.add(im); TES.meshes.push(im);
@@ -1184,7 +1423,7 @@ function tesRestyle(){
   const style=STYLES[TES.style];
   for(const c of TES.cells){
     if(!c.mesh) continue;
-    c.mesh.setColorAt(c.idx, style.ramp(c.reg,c.lum,c.h1,c.h2));
+    c.mesh.setColorAt(c.idx, cellColor(style,c));
   }
   for(const m of TES.meshes){
     m.instanceColor.needsUpdate=true;
