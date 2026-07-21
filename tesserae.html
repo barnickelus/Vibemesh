@@ -611,6 +611,16 @@ function captureIdentity(lm){
       IDENT.colors.brow = IDENT.colors.brow||{h:s.h,s:s.s*0.8,l:s.l*0.3};
     }
     if(!IDENT.colors.iris) IDENT.colors.iris={h:0.58,s:0.45,l:0.3};
+    // normalize to display range: webcam frames are dim, and the mosaic
+    // ramp multiplies lightness — un-lifted samples render near-black
+    const lift=(c,fl,g=0.62,sb=1.15)=>{ if(!c) return;
+      c.l=Math.max(fl,Math.min(0.85,Math.pow(c.l,g)*1.2));
+      c.s=Math.min(1,c.s*sb+0.05); };
+    lift(IDENT.colors.skin,0.36);
+    lift(IDENT.colors.lips,0.28);
+    lift(IDENT.colors.hair,0.09,0.75,1.05);
+    lift(IDENT.colors.brow,0.07,0.75,1.0);
+    lift(IDENT.colors.iris,0.22,0.8,1.1);
   }
   sendIdentity();
 }
@@ -1031,8 +1041,8 @@ function classifyCell(x,y,z,n){
   const G=GEO;
   const dl=Math.hypot(x-G.eyeL[0],y-G.eyeL[1],z-G.eyeL[2]);
   const dr=Math.hypot(x-G.eyeR[0],y-G.eyeR[1],z-G.eyeR[2]);
-  if(dl<0.0165 && z>0.045) return dl<0.008?'irisL':'eyeL';
-  if(dr<0.0165 && z>0.045) return dr<0.008?'irisR':'eyeR';
+  if(dl<0.0122 && z>0.045) return dl<0.0062?'irisL':'eyeL';
+  if(dr<0.0122 && z>0.045) return dr<0.0062?'irisR':'eyeR';
   if(y>G.browY-0.010 && y<G.browY+0.010 && Math.abs(x)>0.012 && Math.abs(x)<0.058 && z>0.055) return 'brow';
   if(Math.abs(x)<G.lipW && Math.abs(y-G.lipY)<G.lipH && z>0.052) return 'lips';
   const hairline = 0.052 + (hash3(x*40,0,z*40)-0.5)*0.02;
@@ -1052,13 +1062,13 @@ const STYLES = {
     ramp(reg,l,h1,h2){
       // likeness: when the peer's sampled colors arrived, tile with THEM
       const C=RID.colors;
-      const from=(c,jh,js,lspan)=>hsl(c.h+(h1-0.5)*jh, Math.min(1,c.s+h2*js), c.l*(0.55+l*lspan));
+      const from=(c,jh,js)=>hsl(c.h+(h1-0.5)*jh, Math.min(1,c.s+h2*js), Math.min(0.9,c.l*(0.72+l*0.55)));
       switch(reg){
-        case 'skin': return C?from(C.skin,0.05,0.15,0.75):hsl(0.07+(h1-0.5)*0.05, 0.42+h2*0.18, 0.30+l*0.42);
-        case 'hair': return C?from(C.hair,0.04,0.1,0.7):hsl(0.07+(h1-0.5)*0.04, 0.35, 0.10+l*0.16);
-        case 'lips': return C?from(C.lips,0.03,0.1,0.6):hsl(0.97+(h1-0.5)*0.03, 0.55, 0.30+l*0.22);
-        case 'brow': return C?from(C.brow,0.02,0.05,0.5):hsl(0.07, 0.35, 0.10+l*0.12);
-        case 'eyeL': case 'eyeR': return hsl(0.10, 0.08, 0.80+l*0.15);
+        case 'skin': return C?from(C.skin,0.05,0.15):hsl(0.07+(h1-0.5)*0.05, 0.42+h2*0.18, 0.30+l*0.42);
+        case 'hair': return C?from(C.hair,0.04,0.1):hsl(0.07+(h1-0.5)*0.04, 0.35, 0.10+l*0.16);
+        case 'lips': return C?from(C.lips,0.03,0.1):hsl(0.97+(h1-0.5)*0.03, 0.55, 0.30+l*0.22);
+        case 'brow': return C?from(C.brow,0.02,0.05):hsl(0.07, 0.35, 0.10+l*0.12);
+        case 'eyeL': case 'eyeR': return hsl(0.09, 0.12, 0.58+l*0.18);
         case 'irisL': case 'irisR': return C?hsl(C.iris.h,C.iris.s,C.iris.l):hsl(0.58+(h1-0.5)*0.1, 0.45, 0.30);
         case 'shirt': return hsl(0.58, 0.25, 0.16+l*0.12);
       }}},
