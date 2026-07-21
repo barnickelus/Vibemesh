@@ -494,8 +494,8 @@ const CALIB={
      test:(y,p)=>true},
     {id:'left',  hint:'Turn your head LEFT · hold',  test:(y,p)=>y<-16&&y>-50},
     {id:'right', hint:'Turn your head RIGHT · hold', test:(y,p)=>y>16&&y<50},
-    {id:'up',    hint:'Tilt your chin UP · hold',    test:(y,p)=>p<-10},
-    {id:'down',  hint:'Tilt your chin DOWN · hold',  test:(y,p)=>p>10},
+    {id:'up',    hint:'Tilt your chin UP · hold',    test:(y,p)=>p>10},
+    {id:'down',  hint:'Tilt your chin DOWN · hold',  test:(y,p)=>p<-10},
   ],
 };
 
@@ -669,7 +669,7 @@ function captureFrame(lm, dt){
   const [yaw,pitch,roll]=matToEuler([R[0],R[3],R[6],R[1],R[4],R[7],R[2],R[5],R[8]]);
   const a=0.35;
   st.yaw  += (-yaw  - st.yaw )*a;      // mirror for selfie
-  st.pitch+= ( pitch- st.pitch)*a;
+  st.pitch+= (-pitch- st.pitch)*a;     // flip: chin up = look up
   st.roll += (-roll - st.roll)*a;
 
   // ── blendshapes (neutral-relative, fixed spans) ──
@@ -926,6 +926,33 @@ setInterval(()=>{
     VOICE.pitch += (Math.max(0,Math.min(1,(f-70)/280))-VOICE.pitch)*0.3;
   }
 },100);
+
+// ─────────────────────────────────────────────────────────────────
+//  §4d  NATIVE BRIDGE — an ARKit shell (see ios/) drives capture
+//  directly: TrueDepth blendshapes + pose replace MediaPipe entirely.
+//  The shell calls VMNative.frame(...) at ~30 Hz and optionally
+//  VMNative.identity(...) with a depth-measured scan. Everything
+//  downstream (packets, negotiation, renderers) is unchanged.
+// ─────────────────────────────────────────────────────────────────
+window.VMNative={
+  frame(d){
+    const st=CAP.state;
+    st.yaw=d.yaw||0; st.pitch=d.pitch||0; st.roll=d.roll||0;
+    if(d.bs) for(const k of BS_KEYS) if(d.bs[k]!=null) st.bs[k]=Math.max(0,Math.min(1,d.bs[k]));
+    if(d.gazeX!=null){ st.gazeX=d.gazeX; st.gazeY=d.gazeY||0; }
+    st.valence+=((st.bs.smile-0.8*st.bs.frown-0.3*st.bs.browDown)-st.valence)*0.1;
+    st.arousal+=((0.25+0.45*st.bs.jawOpen+0.25*st.bs.browUp)-st.arousal)*0.08;
+    if(d.speaking!=null) st.speaking=d.speaking;
+    if(!CAP.neutral) CAP.neutral={native:true};    // unlock the send loop
+    CALIB.active=false;                            // ARKit needs no guided turns
+  },
+  identity(id){
+    Object.assign(IDENT,{meas:id.meas||IDENT.meas, colors:id.colors||IDENT.colors,
+      lm:id.lm||IDENT.lm, lmCol:id.lmCol||IDENT.lmCol,
+      hairstyle:id.hairstyle||IDENT.hairstyle, lit:id.lit!==false});
+    sendIdentity();
+  },
+};
 
 // ─────────────────────────────────────────────────────────────────
 //  §5  SEND LOOP — tier-rate packets
