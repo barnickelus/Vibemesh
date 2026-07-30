@@ -1,0 +1,1814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>VibeMesh</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<style>
+:root{--cy:#00e5ff;--mg:#ff3ea5;--gr:#22e08a;--am:#ffb300;--d1:#7a8593;--d2:#454e5a;--bg:#07080c;
+  --mono:'SF Mono',ui-monospace,SFMono-Regular,Consolas,monospace}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden}
+body{background:radial-gradient(ellipse at 50% 30%,#141822 0%,var(--bg) 70%);
+  color:#e6ebf2;font-family:var(--mono);position:fixed;touch-action:none}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+#flat{position:fixed;inset:0;display:none;place-items:center;z-index:8;pointer-events:none}
+#flat.on{display:grid}
+#flat canvas{max-width:min(90vw,460px);max-height:56vh}
+.glyph{font-size:clamp(84px,26vw,200px);filter:drop-shadow(0 0 40px rgba(0,229,255,.2))}
+.tpane{width:min(90vw,420px);background:rgba(12,15,22,.86);border:1px solid rgba(0,229,255,.22);
+  border-radius:16px;padding:20px;font-size:.78rem;line-height:1.75}
+.tpane .w{color:var(--cy);font-size:.52rem;letter-spacing:2.5px;text-transform:uppercase}
+.bar{position:fixed;top:0;left:0;right:0;z-index:30;display:flex;justify-content:space-between;
+  align-items:flex-start;padding:11px 15px;font-size:.53rem;letter-spacing:2px;
+  text-transform:uppercase;pointer-events:none}
+.bar .bd{color:var(--cy);font-weight:700}
+.bar .bd i{color:#fff;font-style:normal}
+.bar .bd s{display:block;color:var(--d2);font-size:.45rem;letter-spacing:3.5px;
+  margin-top:3px;text-decoration:none}
+.bar .tm{color:var(--d2);text-align:right;line-height:1.85}
+.bar .tm b{color:var(--cy);font-weight:600}
+.bar .tm .g{color:var(--gr)}.bar .tm .a{color:var(--am)}
+.ladder{position:fixed;top:66px;left:0;right:0;z-index:29;display:flex;gap:4px;
+  justify-content:center;pointer-events:none}
+.rg{padding:4px 9px;border-radius:12px;font-size:.46rem;letter-spacing:1.6px;text-transform:uppercase;
+  color:var(--d2);border:1px solid rgba(255,255,255,.05);transition:.35s}
+.rg.on{color:var(--cy);border-color:rgba(0,229,255,.55);background:rgba(0,229,255,.1);
+  box-shadow:0 0 16px rgba(0,229,255,.14)}
+.rg.pv{color:var(--d1)}
+#insp{position:fixed;left:15px;top:96px;z-index:20;font-size:.48rem;letter-spacing:.4px;
+  color:var(--d1);line-height:1.8;pointer-events:none;max-width:62vw}
+#insp b{color:var(--gr)}#insp .hx{color:#6da8ff;word-break:break-all;display:block;opacity:.75}
+#card{position:fixed;left:15px;top:auto;bottom:calc(206px + env(safe-area-inset-bottom));z-index:20;
+  display:none;font-size:.48rem;letter-spacing:.4px;color:#94a3b4;line-height:1.85;
+  background:rgba(10,13,20,.72);border:1px solid rgba(0,229,255,.16);border-radius:11px;
+  padding:9px 12px;pointer-events:none;max-width:56vw}
+#card b{color:var(--cy);letter-spacing:2px}#card u{color:var(--gr);text-decoration:none}
+.bub{position:fixed;right:15px;bottom:calc(206px + env(safe-area-inset-bottom));z-index:20;
+  max-width:56vw;background:rgba(12,15,22,.86);border:1px solid rgba(34,224,138,.28);
+  border-radius:13px;padding:10px 13px;font-size:.66rem;line-height:1.55;color:#d8f5e8;
+  opacity:0;transition:opacity .3s;pointer-events:none}
+.bub.on{opacity:1}
+.bub .w{color:var(--gr);font-size:.46rem;letter-spacing:2px;text-transform:uppercase;
+  display:block;margin-bottom:3px}
+.dock{position:fixed;bottom:0;left:0;right:0;z-index:30;
+  padding:12px 14px calc(12px + env(safe-area-inset-bottom));
+  background:linear-gradient(transparent,rgba(7,8,12,.9) 28%);display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:center}
+.btn{padding:9px 13px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);
+  border-radius:9px;color:#9aa6b4;font-family:var(--mono);font-size:.57rem;letter-spacing:1.4px;
+  text-transform:uppercase;cursor:pointer;transition:.16s;white-space:nowrap}
+.btn:active{transform:scale(.96)}
+.btn.on{background:rgba(0,229,255,.13);border-color:var(--cy);color:var(--cy)}
+.btn.go{background:rgba(34,224,138,.12);border-color:var(--gr);color:var(--gr)}
+.btn:disabled{opacity:.25;pointer-events:none}
+.btn.p{background:linear-gradient(135deg,rgba(0,229,255,.2),rgba(255,62,165,.14));
+  border-color:var(--cy);color:#fff}
+.pl{padding:6px 10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
+  border-radius:18px;color:var(--d2);font-family:var(--mono);font-size:.5rem;letter-spacing:1px;
+  text-transform:uppercase;cursor:pointer;transition:.15s}
+.pl.on{background:rgba(0,229,255,.11);border-color:rgba(0,229,255,.42);color:var(--cy)}
+.sep{width:9px;height:1px}
+.cl{max-height:0;overflow:hidden;transition:max-height .32s ease}
+.cl.op{max-height:300px}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+@media(max-width:540px){.sg{grid-template-columns:1fr}}
+.sl{display:flex;align-items:center;gap:8px}
+.sl label{font-size:.47rem;letter-spacing:1px;text-transform:uppercase;color:var(--d2);min-width:70px}
+.sl input[type=range]{flex:1;-webkit-appearance:none;height:2px;background:rgba(255,255,255,.14);
+  border-radius:2px;cursor:pointer}
+.sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;
+  border-radius:50%;background:var(--cy);box-shadow:0 0 8px var(--cy)}
+.sl input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;
+  background:var(--cy);border:none}
+.sl .v{font-size:.5rem;color:var(--cy);min-width:42px;text-align:right}
+.ck{display:flex;align-items:center;gap:5px;font-size:.47rem;letter-spacing:1px;
+  text-transform:uppercase;color:var(--d2);cursor:pointer}
+.chat{display:flex;gap:5px}
+.chat input{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+  border-radius:9px;color:#fff;font-family:var(--mono);font-size:.66rem;padding:9px 12px;outline:none}
+.chat input:focus{border-color:rgba(0,229,255,.45)}
+.pip{position:fixed;right:14px;z-index:31;width:58px;height:76px;border-radius:9px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.1);opacity:.5;
+  bottom:calc(268px + env(safe-area-inset-bottom));transition:opacity .3s}
+.pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+video#cam{position:fixed;top:-9999px;left:-9999px;width:640px;height:480px}
+.hint{position:fixed;left:0;right:0;bottom:calc(190px + env(safe-area-inset-bottom));text-align:center;
+  font-size:.5rem;letter-spacing:1.4px;color:var(--am);z-index:22;pointer-events:none;opacity:0;
+  transition:opacity .3s;text-transform:uppercase}
+.hint.on{opacity:.9}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="flat"></div>
+
+<div class="bar">
+  <div class="bd">VIBE<i>MESH</i><s>PARAMETRIC AVATAR</s></div>
+  <div class="tm">
+    <div>TX <b id="t-tx">—</b> · <b id="t-bw" class="g">0.0</b> kbps</div>
+    <div>RX <b id="t-rx">—</b> · <b id="t-lk" class="a">SOLO</b></div>
+    <div><b id="t-fps">0</b> fps · <b id="t-tri">0</b> tri · <b id="t-fit">base</b></div>
+  </div>
+</div>
+
+<div class="ladder" id="ladder">
+  <div class="rg" data-t="1">Text</div><div class="rg" data-t="2">Glyph</div>
+  <div class="rg" data-t="3">Sprite</div><div class="rg" data-t="4">Puppet</div>
+  <div class="rg" data-t="5">Avatar3D</div>
+</div>
+
+<div id="insp"></div>
+<div id="card"></div>
+<div class="bub" id="bub"><span class="w" id="bub-w">PEER</span><span id="bub-m"></span></div>
+<div class="hint" id="hint"></div>
+<div class="pip"><video id="pip" autoplay muted playsinline></video></div>
+<video id="cam" autoplay muted playsinline></video>
+
+<div class="dock">
+  <div class="row" id="traits">
+    <div class="pl" data-hair="buzz">Buzz</div>
+    <div class="pl on" data-hair="short">Short</div>
+    <div class="pl" data-hair="mid">Mid</div>
+    <div class="pl" data-hair="long">Long</div>
+    <span class="sep"></span>
+    <div class="pl on" data-beard="none">Clean</div>
+    <div class="pl" data-beard="stubble">Stubble</div>
+    <div class="pl" data-beard="full">Beard</div>
+  </div>
+
+  <div class="cl" id="netp">
+    <div class="sg">
+      <div class="sl"><label>Bandwidth</label><input type="range" id="s-bw" min="5" max="2000" step="5" value="900"><span class="v" id="v-bw">900k</span></div>
+      <div class="sl"><label>RTT</label><input type="range" id="s-rtt" min="20" max="900" step="10" value="40"><span class="v" id="v-rtt">40ms</span></div>
+      <div class="sl"><label>Loss</label><input type="range" id="s-ls" min="0" max="40" step="1" value="0"><span class="v" id="v-ls">0%</span></div>
+      <div class="sl"><label>Battery</label><input type="range" id="s-bt" min="3" max="100" step="1" value="90"><span class="v" id="v-bt">90%</span></div>
+    </div>
+    <div class="row" style="margin-top:7px;justify-content:flex-start">
+      <label class="ck"><input type="checkbox" id="c-low"> Low-data</label>
+      <label class="ck"><input type="checkbox" id="c-tts" checked> Speak text</label>
+      <label class="ck"><input type="checkbox" id="c-mirror"> Mirror me</label>
+    </div>
+  </div>
+
+  <div class="chat">
+    <input type="text" id="msg" placeholder="say something…" maxlength="160">
+    <button class="btn" id="b-send">Send</button>
+  </div>
+
+  <div class="row">
+    <button class="btn p" id="b-cam">Start Camera</button>
+    <button class="btn" id="b-cal" disabled>Calibrate</button>
+    <button class="btn" id="b-ref" disabled>Refine</button>
+    <button class="btn" id="b-voice">Voice</button>
+    <button class="btn" id="b-net">Network</button>
+    <button class="btn" data-g="1">Nod</button>
+    <button class="btn" data-g="2">Shake</button>
+    <button class="btn" data-g="3">Laugh</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ═══════════════════════════════════════════════════════════════════════
+   VIBEMESH — semantic-compression presence.
+
+   Wire carries meaning, not pixels: ~10–25 byte AvatarState packets
+   (head pose, blendshapes, gaze, gestures, emotion, text, prosody).
+   Each peer renders the other at a deterministically negotiated tier:
+   TEXT → GLYPH → SPRITE → PUPPET → AVATAR3D.
+
+   AVATAR3D is a self-generating parametric human:
+     · a base humanoid head is GENERATED as a real polygon mesh from a
+       sculpt of anatomical feature fields (brow, sockets, nose, lips,
+       cheeks, jaw) over an ellipsoid — clean topology, smooth normals,
+       true apertures for eyes and mouth;
+     · it is RIGGED — skeleton (root/neck/head/jaw/eyes) with skin
+       weights, plus 8 generated blendshapes — so it is puppeted, not
+       animated frame-by-frame;
+     · likeness is EARNED IN TWO STAGES: broad measured ratios reshape
+       the generator, then a gaussian RBF warp interpolates the base
+       exactly onto the measured landmark cloud. Smooth by construction,
+       so it can refine toward the person instead of falling apart.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const cl01=v=>v<0?0:v>1?1:v;
+const smoothstep=(a,b,x)=>{const t=cl01((x-a)/(b-a||1e-9));return t*t*(3-2*t);};
+const mix=(a,b,t)=>a+(b-a)*t;
+
+/* ═══ §1 PROTOCOL ═════════════════════════════════════════════════════ */
+const Tier={TEXT:1,GLYPH:2,SPRITE:3,PUPPET:4,AVATAR3D:5};
+const TN={1:'TEXT',2:'GLYPH',3:'SPRITE',4:'PUPPET',5:'AVATAR3D'};
+const HZ={1:2,2:4,3:10,4:15,5:20};
+const BS=['jawOpen','smile','frown','browUp','browDown','blinkL','blinkR','pucker'];
+
+// Pure + deterministic: both peers compute the same tier from the same
+// exchanged profiles, so no coordinator is needed.
+function negotiate(L,R){
+  const bw=Math.min(L.bw,R.bw), bat=Math.min(L.bat,R.bat), rtt=Math.max(L.rtt,R.rtt);
+  const low=L.low||R.low;
+  let cap=Tier.AVATAR3D;
+  if(bw<10) cap=Tier.TEXT;
+  else if(bw<30||low) cap=Tier.GLYPH;
+  else if(bw<80||bat<15) cap=Tier.SPRITE;
+  else if(bw<250||bat<30||rtt>400) cap=Tier.PUPPET;
+  return {send:Math.min(L.maxSend,R.maxRender,cap), recv:Math.min(R.maxSend,L.maxRender,cap)};
+}
+function localProfile(){
+  const cores=navigator.hardwareConcurrency||4, mem=navigator.deviceMemory||4;
+  const cls=(cores>=8&&mem>=6)?3:(cores>=4?2:1), c=navigator.connection||{};
+  return {maxSend:Tier.AVATAR3D, maxRender:cls===1?Tier.PUPPET:Tier.AVATAR3D,
+    bw:c.downlink?Math.round(c.downlink*1000):900, rtt:c.rtt||40, bat:90,
+    low:!!c.saveData, cls, loss:0};
+}
+
+/* Binary AvatarState. TEXT/GLYPH 10 B · SPRITE 13 B · PUPPET+ 23 B.
+   AVATAR3D costs no more wire than PUPPET — fidelity is render-side. */
+const q8=v=>clamp(Math.round(v*127),-127,127), qu=v=>clamp(Math.round(v*255),0,255);
+function encode(s,tier,seq){
+  const tb=s.textDirty&&s.text?new TextEncoder().encode(s.text):null, pr=s.pros;
+  const n=10+(tier>=3?3:0)+(tier>=4?10:0)+(pr?2:0)+(tb?2+tb.length:0);
+  const b=new Uint8Array(n), d=new DataView(b.buffer);
+  b[0]=0x56;b[1]=0x4d;b[2]=4;b[3]=tier; d.setUint16(4,seq&0xffff,true);
+  b[6]=(s.speaking?1:0)|(tb?2:0)|((s.gest&0xf)<<2)|(pr?64:0);
+  b[7]=q8(s.val)&0xff; b[8]=qu(s.aro); b[9]=qu(s.dom);
+  let o=10;
+  if(tier>=3){b[o++]=q8(s.yaw/90)&0xff;b[o++]=q8(s.pitch/90)&0xff;b[o++]=q8(s.roll/90)&0xff;}
+  if(tier>=4){for(const k of BS)b[o++]=qu(s.bs[k]||0);b[o++]=q8(s.gx)&0xff;b[o++]=q8(s.gy)&0xff;}
+  if(pr){b[o++]=qu(pr.pitch);b[o++]=qu(pr.energy);}
+  if(tb){d.setUint16(o,tb.length,true);o+=2;b.set(tb,o);}
+  return b;
+}
+function decode(b){
+  if(b[0]!==0x56||b[1]!==0x4d)return null;
+  const d=new DataView(b.buffer,b.byteOffset,b.byteLength), tier=b[3], f=b[6];
+  const s={tier,seq:d.getUint16(4,true),speaking:!!(f&1),gest:(f>>2)&0xf,
+    val:(b[7]<<24>>24)/127,aro:b[8]/255,dom:b[9]/255,
+    yaw:0,pitch:0,roll:0,bs:{},gx:0,gy:0,text:null,pros:null};
+  let o=10;
+  if(tier>=3){s.yaw=(b[o++]<<24>>24)/127*90;s.pitch=(b[o++]<<24>>24)/127*90;s.roll=(b[o++]<<24>>24)/127*90;}
+  if(tier>=4){for(const k of BS)s.bs[k]=b[o++]/255;s.gx=(b[o++]<<24>>24)/127;s.gy=(b[o++]<<24>>24)/127;}
+  if(f&64)s.pros={pitch:b[o++]/255,energy:b[o++]/255};
+  if(f&2){const l=d.getUint16(o,true);o+=2;s.text=new TextDecoder().decode(b.subarray(o,o+l));}
+  return s;
+}
+
+/* ═══ §2 TRANSPORT — two tabs pair as peers; solo loops back ═══════════ */
+const NET={ch:null,peer:null,peerProf:null,seen:0,id:Math.random().toString(36).slice(2,8),
+  tx:0,bucket:3000,last:performance.now(),kbps:0};
+const PROF={me:localProfile()};
+let AGREED=negotiate(PROF.me,PROF.me);
+
+function netInit(){
+  try{NET.ch=new BroadcastChannel('vibemesh-v4');}catch(_){return;}
+  NET.ch.onmessage=e=>{
+    const m=e.data; if(!m||m.from===NET.id)return;
+    if(m.t==='hi'||m.t==='prof'){
+      const fresh=NET.peer!==m.from;
+      NET.peer=m.from; NET.peerProf=m.prof; NET.seen=performance.now();
+      if(m.t==='hi')meta('prof');
+      if(fresh){hint('Peer linked · negotiating');sendIdentity();}
+      renegotiate();
+    } else if(m.t==='id'&&m.from===NET.peer){ applyIdentity(m.id); }
+    else if(m.t==='pk'&&m.from===NET.peer){ NET.seen=performance.now(); impair(new Uint8Array(m.b),onPacket); }
+    else if(m.t==='bye'&&m.from===NET.peer){ NET.peer=null;NET.peerProf=null;renegotiate(); }
+  };
+  meta('hi');
+  setInterval(()=>{ if(NET.peer&&performance.now()-NET.seen>5000){
+    NET.peer=null;NET.peerProf=null;renegotiate();hint('Peer lost · loopback');} },2000);
+  addEventListener('beforeunload',()=>meta('bye'));
+}
+const meta=t=>{ if(NET.ch)NET.ch.postMessage({t,from:NET.id,prof:PROF.me}); };
+
+// Receive-side impairment: loss, bandwidth token bucket, latency + jitter.
+function impair(b,deliver){
+  const p=PROF.me;
+  if(Math.random()*100<p.loss)return;
+  const now=performance.now();
+  NET.bucket=Math.min(9000,NET.bucket+(now-NET.last)*p.bw/8); NET.last=now;
+  if(NET.bucket<b.length)return;
+  NET.bucket-=b.length;
+  setTimeout(()=>deliver(b), p.rtt/2+Math.random()*p.rtt*0.15);
+}
+let lastTx=null;
+function tx(b){
+  NET.tx+=b.length; lastTx=b;
+  if(NET.ch&&NET.peer) NET.ch.postMessage({t:'pk',from:NET.id,
+    b:b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)});
+  else impair(b,onPacket);
+}
+function renegotiate(){
+  AGREED=negotiate(PROF.me,NET.peerProf||PROF.me);
+  el('t-tx').textContent=TN[AGREED.send]; el('t-rx').textContent=TN[AGREED.recv];
+  el('t-lk').textContent=NET.peer?'PAIRED':'SOLO';
+  el('t-lk').className=NET.peer?'g':'a';
+  document.querySelectorAll('#ladder .rg').forEach(r=>{
+    const t=+r.dataset.t; r.className='rg'+(t===AGREED.recv?' on':(t<AGREED.recv?' pv':''));});
+  setRenderer(AGREED.recv);
+}
+const el=id=>document.getElementById(id);
+
+/* ═══ §3 ANATOMY — canonical head space ═══════════════════════════════
+   Metres. Eye line y=0, +z forward, crown +0.115, chin −0.115.
+   Proportions follow standard anthropometry (eye line at half head
+   height, nose base 0.72H from crown, mouth 0.82H, IOD 0.28H).       */
+const AN={
+  A:0.0770, B:0.1150, C:0.0870, CZ:-0.0120,   // base ellipsoid + z offset
+  eyeX:0.0322, mouthY:-0.0736, noseBase:-0.0500, noseTip:-0.0320,
+  browY:0.0210, chinY:-0.1150, IOD:0.0644,
+};
+const DEFAULT_SHAPE={headW:1,headD:1,faceLen:1,jawW:1,jawTaper:1,chinProj:1,
+  noseLen:1,noseW:1,noseProj:1,eyeSpacing:1,eyeSize:1,mouthW:1,lipFull:1,
+  browHeight:1,browProm:1,cheekProm:1};
+
+// Reference ratios of an average face (IOD-normalised), used to turn
+// measurements into generator parameters.
+const REF={faceW:2.32,faceH:3.30,jawW:1.86,noseL:1.06,noseW:0.78,
+  mouthW:0.78,lipH:0.42,browRise:0.33,chinDrop:1.79,mouthDrop:1.14,noseProj:0.42};
+
+function measToShape(m){
+  if(!m)return {...DEFAULT_SHAPE};
+  const r=(k,lo,hi)=>m[k]!=null&&isFinite(m[k])?clamp(m[k]/REF[k],lo,hi):1;
+  return {
+    headW:r('faceW',.80,1.22), headD:1, faceLen:r('chinDrop',.85,1.18),
+    jawW:r('jawW',.82,1.20), jawTaper:clamp(2-r('jawW',.82,1.2),.8,1.2), chinProj:1,
+    noseLen:r('noseL',.78,1.28), noseW:r('noseW',.78,1.30), noseProj:r('noseProj',.7,1.4),
+    eyeSpacing:1, eyeSize:1, mouthW:r('mouthW',.80,1.25), lipFull:r('lipH',.70,1.45),
+    browHeight:r('browRise',.80,1.25), browProm:1, cheekProm:1,
+  };
+}
+
+/* ═══ §4 GENERATOR — build the humanoid head as a real mesh ═══════════
+   A sphere-topology grid is displaced by anatomical feature fields.
+   Everything is analytic, so anchors, region masks, skin weights and
+   blendshapes all fall out of the same parameterisation.            */
+
+// Non-uniform sampling: spend vertices where the face is.
+function cdfRemap(n,dens){
+  const N=256, d=new Float64Array(N+1), c=new Float64Array(N+1);
+  for(let i=0;i<=N;i++)d[i]=dens(i/N);
+  for(let i=1;i<=N;i++)c[i]=c[i-1]+(d[i]+d[i-1])/2;
+  const T=c[N], out=new Float64Array(n+1);
+  for(let k=0;k<=n;k++){
+    const want=T*k/n; let lo=0,hi=N;
+    while(lo<hi-1){const md=(lo+hi)>>1; if(c[md]<want)lo=md;else hi=md;}
+    const seg=c[hi]-c[lo]||1e-12;
+    out[k]=(lo+(want-c[lo])/seg)/N;
+  }
+  return out;
+}
+
+function buildHead(S, opts){
+  const NA=opts.NA, NP=opts.NP;
+  // azimuth: density peaks at u=0.5 so the face is dense, and the wrap
+  // seam (u=0) lands on the back of the head instead of down the nose
+  const uMap=cdfRemap(NA,u=>1+2.8*Math.exp(-((u-0.5)**2)/(0.10*0.10)));
+  // polar: φ=0 crown, φ=π chin — concentrate over the face band
+  const vMap=cdfRemap(NP,v=>1+2.4*Math.exp(-((v-0.62)**2)/(0.052))
+    +1.1*Math.exp(-((v-0.44)**2)/(0.016))+1.9*Math.exp(-((v-0.50)**2)/(0.0035)));
+
+  const A=AN.A*S.headW, B=AN.B, C=AN.C*S.headD, CZ=AN.CZ;
+  const EY=AN.eyeX*S.eyeSpacing;
+  const FL=S.faceLen;
+  const MY=AN.mouthY*FL, NBY=AN.noseBase*FL, NTY=AN.noseTip*FL*S.noseLen;
+  const BY=AN.browY*S.browHeight, CHY=AN.chinY*FL;
+  const LW=0.0245*S.mouthW;
+  const g2=(dx,rx,dy,ry)=>Math.exp(-((dx*dx)/(rx*rx)+(dy*dy)/(ry*ry)));
+
+  const nv=(NA+1)*(NP+1);
+  const pos=new Float32Array(nv*3), canon=new Float32Array(nv*3);
+  const front=new Float32Array(nv), region=new Float32Array(nv*4); // lip, brow, socket, beardable
+  let vi=0;
+  for(let iv=0;iv<=NP;iv++){
+    const phi=Math.PI*vMap[iv], sp=Math.sin(phi), cp=Math.cos(phi);
+    for(let iu=0;iu<=NA;iu++){
+      const th=2*Math.PI*uMap[iu%NA]+(iu===NA?2*Math.PI:0)+Math.PI;
+      const xd=sp*Math.sin(th), yd=cp, zd=sp*Math.cos(th);
+      let x=A*xd, y=B*yd, z=CZ+C*zd;
+      if(y<0)y*=FL;                                  // face length below eye line
+      const f=smoothstep(0.02,0.46,zd);              // frontness
+
+      // ── mandible: taper the lower face, pull the back of the jaw in ──
+      const tj=cl01((-0.015-y)/0.098);
+      const tp=Math.pow(tj,1.35);
+      x*=(1-0.40*tp*S.jawTaper)*(1+(S.jawW-1)*tp*1.1);
+      if(zd<0) z+=0.034*Math.pow(tj,1.55)*(-zd);
+      // neck-ward tuck under the chin
+      z+=0.012*cl01((CHY+0.028-y)/0.03)*(zd<0?-zd:0);
+
+      let dx=0,dy=0,dz=0;
+
+      // ── brow ridge + glabella ──
+      dz+=0.0088*S.browProm*f*g2(x,0.052,y-BY,0.0140);
+      dz-=0.0024*f*g2(x,0.0130,y-(BY-0.008),0.0100);
+      // ── eye sockets ──
+      for(const sx of[1,-1]) dz-=0.0108*f*g2(x-sx*EY,0.0265,y-0.0010,0.0175);
+      // ── nose: bridge → tip → wings → nostril shadow ──
+      {
+        const yN=BY-0.012;
+        if(y<yN+0.02&&y>NBY-0.03){
+          const t=(yN-y)/Math.max(1e-4,(yN-NTY));
+          let prof=0;
+          if(t>0&&t<=1) prof=0.30+0.70*Math.pow(t,1.6);
+          else if(t>1) prof=Math.max(0,1-(t-1)*2.0);
+          const wx=0.0108*S.noseW*(0.55+0.60*cl01(t));
+          dz+=0.0190*S.noseProj*prof*f*Math.exp(-(x*x)/(wx*wx));
+        }
+        dz+=0.0060*S.noseProj*f*g2(x,0.0118,y-(NTY-0.0015),0.0092);   // tip ball
+        for(const sx of[1,-1]){
+          dz+=0.0082*S.noseW*f*g2(x-sx*0.0168*S.noseW,0.0092,y-(NBY+0.004),0.0078);
+          dz-=0.0044*f*g2(x-sx*0.0134*S.noseW,0.0062,y-(NBY-0.0012),0.0040);
+        }
+        dz-=0.0022*f*g2(x,0.0140,y-(NBY-0.008),0.0060);   // under-nose recess
+      }
+      // ── lips ──
+      const lipU=g2(x,LW*1.06,y-(MY+0.0075),0.0078), lipL=g2(x,LW*0.96,y-(MY-0.0108),0.0092);
+      dz+=0.0062*S.lipFull*f*lipU + 0.0074*S.lipFull*f*lipL;
+      dz-=0.0044*f*g2(x,LW*1.18,y-MY,0.0032);
+      dz-=0.0019*f*g2(x,0.0046,y-(MY+0.019),0.0100);      // philtrum
+      for(const sx of[1,-1]) dz-=0.0031*f*g2(x-sx*LW*1.02,0.0082,y-MY,0.0082);
+      // ── chin + mentolabial crease ──
+      dz+=0.0078*S.chinProj*f*g2(x,0.0265,y-(CHY+0.0225),0.0265);
+      dz-=0.0032*f*g2(x,0.0225,y-(MY-0.0265),0.0078);
+      // ── cheekbones, hollows, temples ──
+      for(const sx of[1,-1]){
+        const gk=g2(x-sx*0.048*S.headW,0.0300,y+0.0040,0.0220);
+        dz+=0.0056*S.cheekProm*f*gk; dx+=sx*0.0030*S.cheekProm*gk;
+        dz-=0.0040*f*g2(x-sx*0.0440*S.headW,0.0240,y+0.0480,0.0200);
+        dx-=sx*0.0038*g2(x-sx*0.0660*S.headW,0.0180,y-0.0400,0.0260);
+      }
+      // ── brow hair: two arches, gap at the glabella, proud of the skin ──
+      const ax=Math.abs(x);
+      const browLine=BY+0.0030+0.0042*Math.sin(cl01((ax-0.010)/0.042)*Math.PI);
+      const browM=f*Math.exp(-(((ax-0.0315)/0.0185)**2))*Math.exp(-(((y-browLine)/0.0060)**2));
+      dz+=0.0018*browM;
+
+      x+=dx; y+=dy; z+=dz;
+      pos[vi*3]=x; pos[vi*3+1]=y; pos[vi*3+2]=z;
+      canon[vi*3]=x; canon[vi*3+1]=y; canon[vi*3+2]=z;
+      front[vi]=f;
+      region[vi*4]=smoothstep(0.26,0.70,lipU+lipL)*f;                // lips
+      region[vi*4+1]=browM;                                          // brow hair
+      region[vi*4+2]=f*Math.max(g2(x-EY,0.026,y-0.001,0.017),g2(x+EY,0.026,y-0.001,0.017));
+      region[vi*4+3]=f*smoothstep(MY+0.030,MY-0.010,y);              // beard zone
+      vi++;
+    }
+  }
+
+  // ── apertures: real holes for the eyes and mouth ──────────────
+  // Analytic ellipses. The grid is far too coarse to resolve a 31 mm
+  // eye opening cleanly, so after cutting we project the rim vertices
+  // onto the exact ellipse — the edge then reads as an eyelid at any
+  // resolution instead of a staircase.
+  const EAR=[0.0155*S.eyeSize, 0.0072*S.eyeSize], EYC=0.0008, CANT=0.10;
+  const MAR=[LW*0.90, 0.0013];
+  const eyeR2=(x,y,sx)=>{
+    const dx=(x-sx*EY)/EAR[0], dy=(y-EYC)/EAR[1];
+    const c=Math.cos(sx*CANT), s=Math.sin(sx*CANT);
+    const rx=dx*c-dy*s, ry=dx*s+dy*c;
+    return [rx*rx+ry*ry, rx, ry, c, s];
+  };
+  const eyeAp=(x,y)=>{ for(const sx of[1,-1]) if(eyeR2(x,y,sx)[0]<1) return true; return false; };
+  const mouthAp=(x,y)=>{ const dx=x/MAR[0], dy=(y-MY)/MAR[1]; return dx*dx+dy*dy<1; };
+
+  const idx=[], cut=[];
+  const at=(iu,iv)=>iv*(NA+1)+iu;
+  const inKept=new Uint8Array(nv), inCut=new Uint8Array(nv);
+  for(let iv=0;iv<NP;iv++)for(let iu=0;iu<NA;iu++){
+    const a=at(iu,iv),b=at(iu+1,iv),c=at(iu+1,iv+1),d=at(iu,iv+1);
+    const cx=(canon[a*3]+canon[b*3]+canon[c*3]+canon[d*3])/4;
+    const cy=(canon[a*3+1]+canon[b*3+1]+canon[c*3+1]+canon[d*3+1])/4;
+    const cz=(canon[a*3+2]+canon[b*3+2]+canon[c*3+2]+canon[d*3+2])/4;
+    if(cz>0.02&&(eyeAp(cx,cy)||mouthAp(cx,cy))){
+      inCut[a]=inCut[b]=inCut[c]=inCut[d]=1; cut.push(a);
+      continue;
+    }
+    inKept[a]=inKept[b]=inKept[c]=inKept[d]=1;
+    // u runs toward +x, v runs toward −y, so (a,b,c) faces inward —
+    // reverse it so normals and FrontSide culling point outward.
+    idx.push(a,c,b, a,d,c);
+  }
+  // snap the rim ring onto the analytic aperture boundary
+  for(let i=0;i<nv;i++){
+    if(!(inKept[i]&&inCut[i])) continue;
+    const x=canon[i*3], y=canon[i*3+1];
+    const dL=Math.hypot(x-EY,y-EYC), dR=Math.hypot(x+EY,y-EYC), dM=Math.hypot(x,y-MY);
+    let nx=x, ny=y;
+    if(dM<Math.min(dL,dR)){
+      const dx=x/MAR[0], dy=(y-MY)/MAR[1], r=Math.hypot(dx,dy);
+      if(r>1e-9){ nx=(dx/r)*MAR[0]; ny=MY+(dy/r)*MAR[1]; }
+    } else {
+      const sx=dL<dR?1:-1;
+      const [,rx,ry,c,s]=eyeR2(x,y,sx), r=Math.hypot(rx,ry);
+      if(r>1e-9){
+        const ux=rx/r, uy=ry/r;
+        nx=sx*EY+(ux*c+uy*s)*EAR[0];
+        ny=EYC+(-ux*s+uy*c)*EAR[1];
+      }
+    }
+    pos[i*3]=nx; pos[i*3+1]=ny; canon[i*3]=nx; canon[i*3+1]=ny;
+  }
+
+  return {NA,NP,nv,pos,canon,front,region,idx,
+    P:{A,B,C,CZ,EY,MY,NBY,NTY,BY,CHY,LW,FL,S}};
+}
+
+/* ── Anchors: semantic points shared by the mesh and MediaPipe ──
+   Each is (landmark index, canonical x magnitude, y). The side is taken
+   from the measured landmark itself, so mirroring can't scramble them. */
+function anchorSpecs(P){
+  const {EY,MY,NBY,NTY,BY,CHY,LW,A}=P;
+  return [
+    [4,0,NTY],[6,0,BY-0.020],[168,0,BY-0.008],[2,0,NBY],[1,0,NTY+0.006],
+    [98,0.0170,NBY+0.002],[327,0.0170,NBY+0.002],
+    [33,EY+0.0158,0.0005],[133,EY-0.0148,0.0012],
+    [362,EY-0.0148,0.0012],[263,EY+0.0158,0.0005],
+    [159,EY,0.0088],[145,EY,-0.0072],[386,EY,0.0088],[374,EY,-0.0072],
+    [61,LW,MY],[291,LW,MY],[0,0,MY+0.0108],[17,0,MY-0.0168],
+    [13,0,MY+0.0022],[14,0,MY-0.0026],
+    [152,0,CHY+0.0045],[175,0,CHY+0.0165],
+    [234,A*0.985,-0.0100],[454,A*0.985,-0.0100],
+    [172,0.0500,-0.0755],[397,0.0500,-0.0755],
+    [132,0.0625,-0.0455],[361,0.0625,-0.0455],
+    [58,0.0405,-0.0950],[288,0.0405,-0.0950],
+    [93,0.0700,-0.0300],[323,0.0700,-0.0300],
+    [127,0.0715,0.0100],[356,0.0715,0.0100],
+    [10,0,0.0760],[9,0,0.0430],
+    [105,0.0300,BY+0.0040],[334,0.0300,BY+0.0040],
+    [70,0.0500,BY-0.0010],[300,0.0500,BY-0.0010],
+    [107,0.0125,BY+0.0025],[336,0.0125,BY+0.0025],
+    [205,0.0450,-0.0300],[425,0.0450,-0.0300],
+    [50,0.0520,-0.0125],[280,0.0520,-0.0125],
+    [116,0.0620,-0.0200],[345,0.0620,-0.0200],
+  ];
+}
+// nearest frontmost vertex to a canonical (x,y)
+function findAnchorVerts(H){
+  const specs=anchorSpecs(H.P), out=[];
+  for(const [lm,ax,ay] of specs){
+    for(const sgn of (ax===0?[0]:[1,-1])){
+      const tx=sgn*ax; let best=-1,bd=1e9;
+      for(let i=0;i<H.nv;i++){
+        if(H.front[i]<0.30)continue;
+        const dx=H.canon[i*3]-tx, dy=H.canon[i*3+1]-ay;
+        const d=dx*dx*1.0+dy*dy*1.35;
+        if(d<bd){bd=d;best=i;}
+      }
+      if(best>=0) out.push({lm,side:sgn,vi:best});
+    }
+  }
+  return out;
+}
+
+/* ── RBF warp: interpolate the base mesh onto the measured landmarks ──
+   Gaussian kernel, ridge-regularised, no polynomial term — so the warp
+   decays to zero away from the face and the skull stays generic.     */
+function solveRBF(src,dst,sigma,lam){
+  const n=src.length, K=[];
+  for(let i=0;i<n;i++){
+    const row=new Float64Array(n+3);
+    for(let j=0;j<n;j++){
+      const dx=src[i][0]-src[j][0],dy=src[i][1]-src[j][1],dz=src[i][2]-src[j][2];
+      row[j]=Math.exp(-(dx*dx+dy*dy+dz*dz)/(sigma*sigma));
+    }
+    row[i]+=lam;
+    row[n]=dst[i][0]-src[i][0]; row[n+1]=dst[i][1]-src[i][1]; row[n+2]=dst[i][2]-src[i][2];
+    K.push(row);
+  }
+  for(let c=0;c<n;c++){                       // gaussian elimination, 3 RHS
+    let p=c; for(let r=c+1;r<n;r++) if(Math.abs(K[r][c])>Math.abs(K[p][c]))p=r;
+    if(p!==c){const t=K[p];K[p]=K[c];K[c]=t;}
+    const pv=K[c][c]||1e-9;
+    for(let r=c+1;r<n;r++){
+      const f=K[r][c]/pv; if(!f)continue;
+      for(let k=c;k<n+3;k++) K[r][k]-=f*K[c][k];
+    }
+  }
+  const W=[];
+  for(let i=n-1;i>=0;i--){
+    const row=K[i], w=[row[n],row[n+1],row[n+2]];
+    for(let j=i+1;j<n;j++){const wj=W[j-i-1];for(let k=0;k<3;k++)w[k]-=row[j]*wj[k];}
+    const pv=row[i]||1e-9; for(let k=0;k<3;k++)w[k]/=pv;
+    W.unshift(w);
+  }
+  return W;
+}
+function makeWarp(centers,weights,sigma,gain,cap){
+  const n=centers.length, s2=sigma*sigma;
+  return (x,y,z,out)=>{
+    let ax=0,ay=0,az=0;
+    for(let i=0;i<n;i++){
+      const c=centers[i], dx=x-c[0],dy=y-c[1],dz=z-c[2];
+      const k=Math.exp(-(dx*dx+dy*dy+dz*dz)/s2);
+      if(k<1e-4)continue;
+      const w=weights[i]; ax+=w[0]*k; ay+=w[1]*k; az+=w[2]*k;
+    }
+    out[0]=x+clamp(ax*gain,-cap,cap);
+    out[1]=y+clamp(ay*gain,-cap,cap);
+    out[2]=z+clamp(az*gain,-cap,cap);
+  };
+}
+
+/* ── Blendshapes generated from the same anatomy ── */
+function buildMorphs(H,pos){
+  const {EY,MY,LW,BY}=H.P, n=H.nv, out={};
+  const mk=()=>new Float32Array(n*3);
+  const g2=(dx,rx,dy,ry)=>Math.exp(-((dx*dx)/(rx*rx)+(dy*dy)/(ry*ry)));
+  const smile=mk(),frown=mk(),bUp=mk(),bDn=mk(),blL=mk(),blR=mk(),puck=mk(),wide=mk();
+  for(let i=0;i<n;i++){
+    const x=H.canon[i*3],y=H.canon[i*3+1],z=H.canon[i*3+2],f=H.front[i];
+    const lip=H.region[i*4], brow=H.region[i*4+1];
+    // corners of the mouth
+    for(const sx of[1,-1]){
+      const c=f*g2(x-sx*LW,0.0165,y-MY,0.0135);
+      smile[i*3]+=sx*0.0062*c; smile[i*3+1]+=0.0060*c; smile[i*3+2]-=0.0015*c;
+      frown[i*3]-=sx*0.0012*c; frown[i*3+1]-=0.0070*c; frown[i*3+2]-=0.0008*c;
+      // cheek raise on smile
+      const ck=f*g2(x-sx*0.044,0.0250,y+0.0180,0.0210);
+      smile[i*3+1]+=0.0034*ck; smile[i*3+2]+=0.0022*ck;
+    }
+    // lip body
+    const lb=cl01(lip*1.2);
+    puck[i*3]-=x*0.42*lb; puck[i*3+2]+=0.0080*lb; puck[i*3+1]+=(MY-y)*0.20*lb;
+    wide[i*3]+=x*0.26*lb; wide[i*3+2]-=0.0028*lb; wide[i*3+1]+=(MY-y)*-0.10*lb;
+    // brows
+    const bw=cl01(f*g2(x,0.048,y-BY,0.0165)+brow*1.2);
+    bUp[i*3+1]+=0.0092*bw; bUp[i*3+2]+=0.0012*bw;
+    bDn[i*3+1]-=0.0062*bw; bDn[i*3+2]+=0.0022*bw;
+    bDn[i*3]-=Math.sign(x)*0.0030*bw*smoothstep(0.045,0.010,Math.abs(x));
+    // forehead compresses when brows rise
+    const fh=f*g2(x,0.055,y-(BY+0.045),0.0260);
+    bUp[i*3+1]+=0.0020*fh;
+    // eyelids sweep shut
+    for(const [sx,arr] of [[1,blL],[-1,blR]]){
+      const near=g2(x-sx*EY,0.0230,y-0.0010,0.0165)*f;
+      if(near<0.02)continue;
+      const upper=smoothstep(-0.0005,0.0095,y);      // 0 below eye, 1 at top lid
+      const w=near*upper;
+      arr[i*3+1]-=(y-(-0.0028))*w*1.05;
+      arr[i*3+2]+=0.0022*w;
+    }
+  }
+  out.smile=smile;out.frown=frown;out.browUp=bUp;out.browDown=bDn;
+  out.blinkL=blL;out.blinkR=blR;out.pucker=puck;out.mouthWide=wide;
+  return out;
+}
+
+/* ── Skin weights: head / jaw / neck ── */
+function buildSkin(H){
+  const n=H.nv, si=new Uint16Array(n*4), sw=new Float32Array(n*4);
+  const {MY,CHY}=H.P;
+  for(let i=0;i<n;i++){
+    const x=H.canon[i*3],y=H.canon[i*3+1],z=H.canon[i*3+2],f=H.front[i];
+    // jaw: everything below the mouth line that faces forward, fading
+    // toward the hinge at the back
+    let wj=smoothstep(MY+0.006,MY-0.030,y)*smoothstep(-0.055,0.005,z);
+    wj*=smoothstep(0.085,0.050,Math.abs(x))*0.55+0.45*smoothstep(0.090,0.020,Math.abs(x));
+    wj=cl01(wj);
+    let wn=smoothstep(CHY+0.012,CHY-0.040,y)*(1-f*0.8);   // under-chin toward neck
+    wn=cl01(wn)*0.65;
+    const wh=Math.max(0,1-wj-wn);
+    si[i*4]=2;si[i*4+1]=3;si[i*4+2]=1;si[i*4+3]=0;
+    const t=wh+wj+wn||1;
+    sw[i*4]=wh/t; sw[i*4+1]=wj/t; sw[i*4+2]=wn/t; sw[i*4+3]=0;
+  }
+  return {si,sw};
+}
+
+/* ── Vertex colour: skin, lips, brows, lashes, sockets, beard ── */
+function buildColors(H,pos,COL,traits){
+  const n=H.nv, col=new Float32Array(n*3);
+  const skin=new THREE.Color().setHSL(COL.skin.h,COL.skin.s,COL.skin.l);
+  const lips=new THREE.Color().setHSL(COL.lips.h,COL.lips.s,COL.lips.l);
+  const hair=new THREE.Color().setHSL(COL.hair.h,COL.hair.s,COL.hair.l);
+  const {MY,LW,EY}=H.P;
+  const beardAmt=traits.beard==='full'?1:traits.beard==='stubble'?0.45:0;
+  const c=new THREE.Color();
+  for(let i=0;i<n;i++){
+    const x=H.canon[i*3],y=H.canon[i*3+1],f=H.front[i];
+    const lip=H.region[i*4],brow=H.region[i*4+1],sock=H.region[i*4+2];
+    c.copy(skin);
+    // subtle life: warmer cheeks, cooler forehead, shaded sockets
+    const cheek=Math.exp(-(((Math.abs(x)-0.045)/0.030)**2)-(((y+0.012)/0.028)**2))*f;
+    c.offsetHSL(0.004*cheek,0.05*cheek,0.012*cheek);
+    c.offsetHSL(0,0,-0.055*sock);
+    const underNose=Math.exp(-((x/0.014)**2)-(((y-(H.P.NBY-0.004))/0.005)**2))*f;
+    c.offsetHSL(0,0.02*underNose,-0.075*underNose);
+    if(lip>0.02) c.lerp(lips,cl01(lip*1.25));
+    if(beardAmt>0){
+      const zone=H.region[i*4+3];
+      const mous=Math.exp(-((x/0.024)**2)-(((y-(MY+0.020))/0.010)**2))*f;
+      const jaw=zone*smoothstep(0.075,0.030,Math.abs(x)*0.6+Math.abs(y-MY)*0.4);
+      const b=cl01((Math.max(jaw,mous))*beardAmt)*(1-cl01(lip*1.6));
+      if(b>0.01) c.lerp(hair,b*0.82);
+    }
+    if(brow>0.05) c.lerp(hair,cl01(brow*2.4)*0.92);
+    // lash line just above/below the eye aperture
+    const lash=Math.max(Math.exp(-(((Math.abs(x)-EY)/0.018)**2)-(((y-0.0080)/0.0024)**2)),
+                        Math.exp(-(((Math.abs(x)-EY)/0.016)**2)-(((y+0.0070)/0.0019)**2)))*f;
+    if(lash>0.05) c.lerp(hair,cl01(lash*1.15)*0.80);
+    col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b;
+  }
+  return col;
+}
+
+function computeNormals(pos,idx,n){
+  const nrm=new Float32Array(n*3);
+  for(let t=0;t<idx.length;t+=3){
+    const a=idx[t]*3,b=idx[t+1]*3,c=idx[t+2]*3;
+    const ux=pos[b]-pos[a],uy=pos[b+1]-pos[a+1],uz=pos[b+2]-pos[a+2];
+    const vx=pos[c]-pos[a],vy=pos[c+1]-pos[a+1],vz=pos[c+2]-pos[a+2];
+    const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;
+    nrm[a]+=nx;nrm[a+1]+=ny;nrm[a+2]+=nz;
+    nrm[b]+=nx;nrm[b+1]+=ny;nrm[b+2]+=nz;
+    nrm[c]+=nx;nrm[c+1]+=ny;nrm[c+2]+=nz;
+  }
+  for(let i=0;i<n;i++){
+    const l=Math.hypot(nrm[i*3],nrm[i*3+1],nrm[i*3+2])||1;
+    nrm[i*3]/=l;nrm[i*3+1]/=l;nrm[i*3+2]/=l;
+  }
+  return nrm;
+}
+
+/* ═══ §5 AVATAR ASSEMBLY (three.js) ═══════════════════════════════════ */
+const AV={root:null,head:null,hair:null,neck:null,bones:null,skel:null,
+  morphIdx:{},eyeL:null,eyeR:null,quality:1,tris:0,built:false};
+const COL={skin:{h:0.068,s:0.42,l:0.60},lips:{h:0.985,s:0.42,l:0.46},
+  hair:{h:0.070,s:0.36,l:0.14},iris:{h:0.32,s:0.35,l:0.30}};
+const TRAITS={hair:'short',beard:'none'};
+
+/* Eye: white sclera sphere + a domed iris cap coloured radially in
+   vertex colours (pupil → iris → limbal ring). Avoids projecting a
+   flat texture onto a sphere, which smears the iris across the globe. */
+const EYE_R=0.0136;
+function buildIrisCap(){
+  const HALF=0.52;                                   // ≈12.4 mm iris
+  const g=new THREE.SphereGeometry(EYE_R*1.015,26,14,0,Math.PI*2,0,HALF);
+  g.rotateX(Math.PI/2);                              // pole faces +z
+  const p=g.attributes.position, n=p.count, col=new Float32Array(n*3);
+  const ic=new THREE.Color().setHSL(COL.iris.h,COL.iris.s,COL.iris.l);
+  const c=new THREE.Color();
+  for(let i=0;i<n;i++){
+    const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+    const ang=Math.acos(clamp(z/(Math.hypot(x,y,z)||1e-9),-1,1));
+    const t=cl01(ang/HALF);                          // 0 centre → 1 rim
+    const fib=0.86+0.28*((Math.sin(Math.atan2(y,x)*13.0)+1)/2);
+    if(t<0.34) c.setRGB(0.035,0.028,0.042);          // pupil
+    else if(t>0.93) c.copy(ic).multiplyScalar(0.24); // limbal ring
+    else{
+      const u=(t-0.34)/0.59;
+      c.copy(ic).multiplyScalar((1.34-0.55*u)*fib);
+      c.offsetHSL(0,0.06*(1-u),0);
+    }
+    col[i*3]=Math.min(1,c.r);col[i*3+1]=Math.min(1,c.g);col[i*3+2]=Math.min(1,c.b);
+  }
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  return g;
+}
+
+function buildAvatar(){
+  const t0=performance.now();
+  if(AV.root){ scene.remove(AV.root); disposeTree(AV.root); }
+
+  const S=measToShape(ID.meas);
+  const q=AV.quality;
+  const H=buildHead(S,{NA:Math.round(112*q),NP:Math.round(88*q)});
+
+  // ── stage 2: RBF onto the measured landmark cloud ──
+  let fitted=false;
+  if(ID.lm){
+    const av=findAnchorVerts(H), src=[],dst=[];
+    for(const a of av){
+      const L=ID.lm, i=a.lm;
+      const tx=L[i*3],ty=L[i*3+1],tz=L[i*3+2];
+      if(!isFinite(tx))continue;
+      if(a.side!==0 && Math.sign(tx)!==a.side) continue;   // side from the data
+      src.push([H.canon[a.vi*3],H.canon[a.vi*3+1],H.canon[a.vi*3+2]]);
+      dst.push([tx,ty,tz]);
+    }
+    if(src.length>=18){
+      const W=solveRBF(src,dst,0.030,0.012);
+      const warp=makeWarp(src,W,0.030,0.90,0.016), o=[0,0,0];
+      for(let i=0;i<H.nv;i++){
+        warp(H.pos[i*3],H.pos[i*3+1],H.pos[i*3+2],o);
+        H.pos[i*3]=o[0];H.pos[i*3+1]=o[1];H.pos[i*3+2]=o[2];
+      }
+      H.warp=warp; fitted=true;
+    }
+  }
+  el('t-fit').textContent=fitted?('fit·'+CAL.sessions):'base';
+
+  const nrm=computeNormals(H.pos,H.idx,H.nv);
+  const colors=buildColors(H,H.pos,COL,TRAITS);
+  const morphs=buildMorphs(H,H.pos);
+  const {si,sw}=buildSkin(H);
+
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(H.pos,3));
+  geo.setAttribute('normal',new THREE.BufferAttribute(nrm,3));
+  geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+  geo.setAttribute('skinIndex',new THREE.BufferAttribute(si,4));
+  geo.setAttribute('skinWeight',new THREE.BufferAttribute(sw,4));
+  geo.setIndex(H.idx.length>65535?new THREE.BufferAttribute(new Uint32Array(H.idx),1)
+                                 :new THREE.BufferAttribute(new Uint16Array(H.idx),1));
+  geo.morphAttributes.position=[];
+  AV.morphIdx={};
+  const order=['smile','frown','browUp','browDown','blinkL','blinkR','pucker','mouthWide'];
+  order.forEach((k,i)=>{
+    const d=morphs[k], t=new Float32Array(H.nv*3);
+    for(let j=0;j<H.nv*3;j++) t[j]=H.pos[j]+d[j];
+    geo.morphAttributes.position.push(new THREE.BufferAttribute(t,3));
+    AV.morphIdx[k]=i;
+  });
+
+  // ── skeleton ──────────────────────────────────────────────────
+  // Bone WORLD positions (canonical head space). Locals are derived so
+  // the anatomy reads directly: head pivots at the atlas, jaw at the
+  // condyle, eyes at the eyeball centres.
+  const W={root:[0,-0.300,0], neck:[0,-0.160,-0.020], head:[0,-0.045,-0.022],
+           jaw:[0,-0.008,-0.030], eL:[H.P.EY,0,0.048], eR:[-H.P.EY,0,0.048]};
+  const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+  const root=new THREE.Bone(); root.position.fromArray(W.root);
+  const neck=new THREE.Bone(); neck.position.fromArray(sub(W.neck,W.root)); root.add(neck);
+  const head=new THREE.Bone(); head.position.fromArray(sub(W.head,W.neck)); neck.add(head);
+  const jaw =new THREE.Bone(); jaw.position.fromArray(sub(W.jaw,W.head));   head.add(jaw);
+  const eL=new THREE.Bone(); eL.position.fromArray(sub(W.eL,W.head)); head.add(eL);
+  const eR=new THREE.Bone(); eR.position.fromArray(sub(W.eR,W.head)); head.add(eR);
+  const bones=[root,neck,head,jaw,eL,eR];
+
+  const grp=new THREE.Group();
+  grp.add(root);
+  // Skeleton() snapshots bone.matrixWorld to build the bind inverses, so
+  // the hierarchy MUST be resolved first — otherwise every bone binds
+  // against identity and each region gets sheared by its bone offset.
+  grp.updateMatrixWorld(true);
+  const skel=new THREE.Skeleton(bones);
+
+  const skinMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.62,
+    metalness:0.0,side:THREE.FrontSide});
+  const mesh=new THREE.SkinnedMesh(geo,skinMat);
+  mesh.frustumCulled=false;
+  grp.add(mesh);
+  mesh.bind(skel);
+
+  // ── eyeballs ride the eye bones (cornea near flush with the lids) ──
+  const scleraGeo=new THREE.SphereGeometry(EYE_R,24,18);
+  const scleraMat=new THREE.MeshStandardMaterial({color:0xf2ece6,roughness:0.18,metalness:0});
+  const irisGeo=buildIrisCap();
+  const irisMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.12,metalness:0});
+  const mkEye=()=>{ const g=new THREE.Group();
+    g.add(new THREE.Mesh(scleraGeo,scleraMat));
+    g.add(new THREE.Mesh(irisGeo,irisMat));
+    return g; };
+  AV.eyeL=mkEye(); AV.eyeR=mkEye();
+  eL.add(AV.eyeL); eR.add(AV.eyeR);      // eye bones sit AT the eyeball centres
+  // socket lining: the aperture is wider than the globe's cross-section, so
+  // without this the canthus corners read as black holes into the skull.
+  const socketMat=new THREE.MeshStandardMaterial({color:0x4a2422,roughness:0.85});
+  const socketGeo=new THREE.SphereGeometry(0.0172,18,12);
+  for(const [bone,sgn] of [[eL,1],[eR,-1]]){
+    const sk=new THREE.Mesh(socketGeo,socketMat);
+    sk.scale.set(1.0,0.62,0.55);
+    sk.position.set(sgn*0.0006,-0.0006,-0.0052);
+    bone.add(sk);
+  }
+
+  // ── mouth cavity + teeth (positions are bone-local, hence the offsets) ──
+  const toHead=w=>sub(w,W.head), toJaw=w=>sub(w,W.jaw);
+  const cav=new THREE.Mesh(new THREE.SphereGeometry(0.024,20,14),
+    new THREE.MeshStandardMaterial({color:0x2a0d10,roughness:0.85}));
+  cav.scale.set(1.15,0.72,0.55);
+  cav.position.fromArray(toHead([0,H.P.MY-0.006,0.030])); head.add(cav);
+  const teethMat=new THREE.MeshStandardMaterial({color:0xf2ece2,roughness:0.35});
+  const upT=new THREE.Mesh(new THREE.BoxGeometry(0.028,0.0055,0.007),teethMat);
+  upT.position.fromArray(toHead([0,H.P.MY+0.0024,0.0358])); head.add(upT);
+  const loT=new THREE.Mesh(new THREE.BoxGeometry(0.025,0.0050,0.007),teethMat);
+  loT.position.fromArray(toJaw([0,H.P.MY-0.0068,0.0352])); jaw.add(loT);
+
+  // ── ears (rigid on the head bone) ──
+  const earMat=new THREE.MeshStandardMaterial({
+    color:new THREE.Color().setHSL(COL.skin.h,COL.skin.s,COL.skin.l*0.97),
+    roughness:0.66,metalness:0});
+  const earGeo=new THREE.SphereGeometry(0.0125,16,12);
+  for(const sgn of [1,-1]){
+    const ear=new THREE.Mesh(earGeo,earMat);
+    ear.scale.set(0.30,1.42,0.74);
+    ear.position.fromArray(toHead([sgn*H.P.A*0.965,-0.006,-0.019]));
+    ear.rotation.set(0.10,sgn*0.30,sgn*-0.12);
+    head.add(ear);
+  }
+
+  // ── neck + bust, hair — same skeleton, bound after the world update ──
+  const neckMesh=buildBust(H,COL,skel);
+  grp.add(neckMesh); neckMesh.bind(skel);
+
+  const hairMesh=buildHair(H,nrm,COL,TRAITS,skel);
+  if(hairMesh){ grp.add(hairMesh); hairMesh.bind(skel); }
+
+  scene.add(grp);
+  AV.root=grp; AV.head=mesh; AV.hair=hairMesh; AV.neck=neckMesh;
+  AV.bones={root,neck,head,jaw,eL,eR}; AV.built=true;
+  AV.tris=(H.idx.length/3)|0;
+  el('t-tri').textContent=AV.tris.toLocaleString();
+  AV.buildMs=Math.round(performance.now()-t0);
+}
+
+function disposeTree(o){
+  o.traverse(n=>{ if(n.geometry)n.geometry.dispose();
+    if(n.material){ (Array.isArray(n.material)?n.material:[n.material]).forEach(m=>m.dispose()); } });
+}
+
+// lofted neck + shoulders, skinned to root/neck/head
+function buildBust(H,COL,skel){
+  const SEC=[[-0.300,0.150,0.078,-0.010],[-0.262,0.146,0.075,-0.010],
+    [-0.228,0.132,0.070,-0.012],[-0.202,0.101,0.063,-0.014],
+    [-0.182,0.072,0.056,-0.016],[-0.164,0.052,0.049,-0.018],
+    [-0.146,0.043,0.044,-0.019],[-0.126,0.039,0.041,-0.020],
+    [-0.106,0.038,0.040,-0.021],[-0.090,0.036,0.038,-0.022]];
+  const NR=48, NS=SEC.length;
+  const nv=NR*NS, pos=new Float32Array(nv*3), col=new Float32Array(nv*3);
+  const si=new Uint16Array(nv*4), sw=new Float32Array(nv*4), idx=[];
+  const skin=new THREE.Color().setHSL(COL.skin.h,COL.skin.s,COL.skin.l);
+  const shirt=new THREE.Color().setHSL(0.58,0.22,0.20);
+  for(let s=0;s<NS;s++){
+    const [y,w,d,cz]=SEC[s];
+    for(let r=0;r<NR;r++){
+      const th=r/NR*Math.PI*2, i=s*NR+r;
+      pos[i*3]=Math.sin(th)*w; pos[i*3+1]=y; pos[i*3+2]=cz+Math.cos(th)*d;
+      const c=(y<-0.185)?shirt:(y<-0.165?shirt.clone().lerp(skin,(y+0.185)/0.020):skin);
+      col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b;
+      const t=cl01((y+0.230)/0.140);            // 0 chest → 1 top of neck
+      const wh=cl01((y+0.120)/0.045)*0.75, wn=cl01(t)*(1-wh), wr=Math.max(0,1-wh-wn);
+      const tot=wh+wn+wr||1;
+      si[i*4]=2;si[i*4+1]=1;si[i*4+2]=0;si[i*4+3]=0;
+      sw[i*4]=wh/tot;sw[i*4+1]=wn/tot;sw[i*4+2]=wr/tot;sw[i*4+3]=0;
+    }
+  }
+  for(let s=0;s<NS-1;s++)for(let r=0;r<NR;r++){
+    const a=s*NR+r,b=s*NR+(r+1)%NR,c=(s+1)*NR+(r+1)%NR,d=(s+1)*NR+r;
+    idx.push(a,b,c,a,c,d);
+  }
+  // cap the bottom
+  const base=nv;
+  const capPos=Array.from(pos), capCol=Array.from(col);
+  capPos.push(0,-0.300,-0.010); capCol.push(shirt.r,shirt.g,shirt.b);
+  const si2=new Uint16Array((nv+1)*4), sw2=new Float32Array((nv+1)*4);
+  si2.set(si); sw2.set(sw); sw2[nv*4+2]=1; si2[nv*4]=2;si2[nv*4+1]=1;si2[nv*4+2]=0;
+  for(let r=0;r<NR;r++) idx.push(base,(r+1)%NR,r);
+
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(capPos),3));
+  g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(capCol),3));
+  g.setAttribute('skinIndex',new THREE.BufferAttribute(si2,4));
+  g.setAttribute('skinWeight',new THREE.BufferAttribute(sw2,4));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  const m=new THREE.SkinnedMesh(g,new THREE.MeshStandardMaterial({
+    vertexColors:true,roughness:0.72,metalness:0}));
+  m.frustumCulled=false;
+  return m;
+}
+
+// hair shell grown off the scalp, with a hanging curtain for long styles
+function buildHair(H,nrm,COL,TR,skel){
+  const style=TR.hair;
+  const NA=H.NA,NP=H.NP;
+  const thick={buzz:0.0032,short:0.0105,mid:0.0135,long:0.0150}[style]||0.010;
+  const hairC=new THREE.Color().setHSL(COL.hair.h,COL.hair.s,COL.hair.l);
+  const skinC=new THREE.Color().setHSL(COL.skin.h,COL.skin.s,COL.skin.l);
+  const noise=(x,y,z)=>{const s=Math.sin(x*211.3+y*157.7+z*93.1)*43758.545;return s-Math.floor(s);};
+  const scalpLine=(x,y,z,f)=>{
+    // hairline: high across the brow, lower at the sides and back
+    const back=cl01(-z*8);
+    const front=f;
+    const buzzUp=style==='buzz'?0.012:0;
+    return mix(mix(0.010,-0.030,back),0.052+buzzUp,front*front);
+  };
+  const nv=(NA+1)*(NP+1);
+  const pos=new Float32Array(nv*3), col=new Float32Array(nv*3);
+  const si=new Uint16Array(nv*4), sw=new Float32Array(nv*4);
+  const keep=new Uint8Array(nv);
+  for(let i=0;i<nv;i++){
+    const x=H.pos[i*3],y=H.pos[i*3+1],z=H.pos[i*3+2],f=H.front[i];
+    const line=scalpLine(x,y,z,f);
+    keep[i]=y>line-0.013?1:0;            // extend past the line…
+    const t=cl01((y-line)/0.030);
+    const fade=smoothstep(line-0.011,line+0.015,y);   // …and taper to zero
+    const n0=noise(x*40,y*40,z*40), n1=noise(x*13,y*13,z*13);
+    const th=thick*fade*(0.52+0.48*t)*(0.72+0.5*n0)*(0.85+0.35*n1);
+    pos[i*3]=x+nrm[i*3]*th; pos[i*3+1]=y+nrm[i*3+1]*th; pos[i*3+2]=z+nrm[i*3+2]*th;
+    const sh=0.72+0.45*n1;
+    // blend to skin as thickness vanishes: hides the quantised hairline
+    const bl=cl01(fade*1.35);
+    col[i*3]  =mix(skinC.r,hairC.r*sh,bl);
+    col[i*3+1]=mix(skinC.g,hairC.g*sh,bl);
+    col[i*3+2]=mix(skinC.b,hairC.b*sh,bl);
+    si[i*4]=2;si[i*4+1]=1;sw[i*4]=1;sw[i*4+1]=0;
+  }
+  const idx=[];
+  const at=(iu,iv)=>iv*(NA+1)+iu;
+  for(let iv=0;iv<NP;iv++)for(let iu=0;iu<NA;iu++){
+    const a=at(iu,iv),b=at(iu+1,iv),c=at(iu+1,iv+1),d=at(iu,iv+1);
+    if(keep[a]&&keep[b]&&keep[c]&&keep[d]) idx.push(a,c,b,a,d,c);
+  }
+
+  const P=[...pos], C=[...col], SI=[...si], SW=[...sw];
+  // curtain: hang strands from the scalp boundary for mid/long styles
+  if(style==='mid'||style==='long'){
+    const drop=style==='long'?-0.205:-0.115;
+    const ring=[];
+    for(let iu=0;iu<=NA;iu++){
+      // lowest kept vertex in this column becomes a strand root
+      let best=-1;
+      for(let iv=NP;iv>=0;iv--){ const i=at(iu,iv); if(keep[i]){best=i;break;} }
+      if(best<0){ring.push(null);continue;}
+      const x=P[best*3],y=P[best*3+1],z=P[best*3+2];
+      ring.push(H.front[best]>0.62&&z>0.03?null:[x,y,z,best]);   // keep the face clear
+    }
+    const ROWS=14, baseIdx=P.length/3;
+    let cols=0; const colMap=[];
+    for(let iu=0;iu<=NA;iu++){
+      if(!ring[iu]){colMap.push(-1);continue;}
+      colMap.push(cols++);
+      const [x0,y0,z0]=ring[iu];
+      const rad=Math.hypot(x0,z0+0.012)||1e-6;
+      for(let r=0;r<=ROWS;r++){
+        const t=r/ROWS;
+        const yy=mix(y0,drop,Math.pow(t,0.86));
+        const flare=1+0.16*Math.sin(t*Math.PI)*(1-Math.abs(z0)/0.09);
+        const taper=1-0.30*Math.pow(t,2.4);
+        const sway=noise(x0*30,r*7,z0*30)*0.006*t;
+        const k=flare*taper;
+        P.push(x0*k+sway, yy, (z0+0.012)*k-0.012+sway*0.5);
+        const sh=0.66+0.5*noise(x0*11,r*3,z0*11);
+        C.push(hairC.r*sh,hairC.g*sh,hairC.b*sh);
+        // upper strands follow the head, lower drift toward neck/chest
+        const wh=1-cl01((t-0.25)/0.75)*0.75, wn=(1-wh)*0.6, wr=1-wh-wn;
+        SI.push(2,1,0,0); SW.push(wh,wn,wr,0);
+      }
+    }
+    for(let iu=0;iu<NA;iu++){
+      const c0=colMap[iu],c1=colMap[iu+1];
+      if(c0<0||c1<0)continue;
+      for(let r=0;r<ROWS;r++){
+        const a=baseIdx+c0*(ROWS+1)+r, b=baseIdx+c1*(ROWS+1)+r;
+        idx.push(a,b+1,b, a,a+1,b+1);
+      }
+    }
+  }
+  if(!idx.length) return null;
+
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(P),3));
+  g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(C),3));
+  g.setAttribute('skinIndex',new THREE.BufferAttribute(new Uint16Array(SI),4));
+  g.setAttribute('skinWeight',new THREE.BufferAttribute(new Float32Array(SW),4));
+  g.setIndex(idx.length>65535?new THREE.BufferAttribute(new Uint32Array(idx),1)
+                             :new THREE.BufferAttribute(new Uint16Array(idx),1));
+  g.computeVertexNormals();
+  const m=new THREE.SkinnedMesh(g,new THREE.MeshStandardMaterial({
+    vertexColors:true,roughness:0.58,metalness:0.03,side:THREE.DoubleSide}));
+  m.frustumCulled=false;
+  return m;
+}
+
+/* ═══ §6 PUPPETEERING — drive the rig from remote AvatarState ═════════ */
+const REM={yaw:0,pitch:0,roll:0,bs:{},gx:0,gy:0,val:0,aro:0.3,dom:0.5,
+  speaking:false,text:null,gest:null,pros:null,vis:null,target:null,blinkT:0};
+for(const k of BS) REM.bs[k]=0;
+
+function gestureOffset(now){
+  const g=REM.gest; if(!g) return {y:0,p:0,r:0,bob:0,jaw:0,br:0};
+  const t=(now-g.t0)/1000;
+  if(t>1.7){ REM.gest=null; return {y:0,p:0,r:0,bob:0,jaw:0,br:0}; }
+  const e=Math.exp(-t*2.1);
+  if(g.g===1) return {y:0,p:Math.sin(t*10)*15*e,r:0,bob:0,jaw:0,br:0};
+  if(g.g===2) return {y:Math.sin(t*10)*19*e,p:0,r:0,bob:0,jaw:0,br:0};
+  if(g.g===3) return {y:0,p:-7*e,r:Math.sin(t*8)*4*e,bob:Math.abs(Math.sin(t*8))*0.010*e,
+                      jaw:Math.abs(Math.sin(t*12))*0.55*e,br:0.5*e};
+  return {y:0,p:6*e,r:Math.sin(t*6)*5*e,bob:Math.abs(Math.sin(t*7))*0.02*e,jaw:0.25*e,br:0.6*e};
+}
+
+function puppet(now,dt){
+  if(!AV.built) return;
+  const B=AV.bones, g=gestureOffset(now), R=Math.PI/180;
+  const idleY=Math.sin(now/2900)*1.1, idleP=Math.sin(now/2300+1)*0.8;
+
+  B.head.rotation.set((REM.pitch+g.p+idleP)*R*0.85,(REM.yaw+g.y+idleY)*R*0.80,(REM.roll+g.r)*R*0.75);
+  B.neck.rotation.set((REM.pitch+g.p)*R*0.25,(REM.yaw+g.y)*R*0.28,(REM.roll+g.r)*R*0.20);
+  const breath=Math.sin(now/(1000/(0.55+REM.aro*1.1)))*0.5+0.5;
+  B.root.position.y=-0.30+g.bob+breath*0.0016;
+  B.root.rotation.z=Math.sin(now/4100)*0.012;
+
+  // jaw is a real hinge; visemes and gestures add to it
+  const jaw=cl01((REM.bs.jawOpen||0)+g.jaw);
+  B.jaw.rotation.x=jaw*0.38;
+
+  // gaze
+  B.eL.rotation.set(REM.gy*0.32,-REM.gx*0.42,0);
+  B.eR.rotation.set(REM.gy*0.32,-REM.gx*0.42,0);
+
+  // involuntary blink keeps it alive when tracking is idle
+  REM.blinkT-=dt;
+  let auto=0;
+  if(REM.blinkT<0){ REM.blinkT=2.2+Math.random()*3.4; REM.blinkPhase=0; }
+  if(REM.blinkPhase!=null&&REM.blinkPhase<1){
+    REM.blinkPhase=Math.min(1,(REM.blinkPhase||0)+dt*7.5);
+    auto=Math.sin(REM.blinkPhase*Math.PI);
+  }
+  const inf=AV.head.morphTargetInfluences, M=AV.morphIdx;
+  const set=(k,v)=>{ if(M[k]!=null) inf[M[k]]=cl01(v); };
+  set('smile',REM.bs.smile*1.1+Math.max(0,REM.val)*0.25+g.br*0.5);
+  set('frown',REM.bs.frown+Math.max(0,-REM.val)*0.30);
+  set('browUp',REM.bs.browUp+g.br*0.6+Math.max(0,REM.val)*0.10);
+  set('browDown',REM.bs.browDown);
+  set('blinkL',Math.max(REM.bs.blinkL,auto));
+  set('blinkR',Math.max(REM.bs.blinkR,auto));
+  set('pucker',REM.bs.pucker);
+  set('mouthWide',REM.wide||0);
+}
+
+/* ═══ §7 CAPTURE — MediaPipe → AvatarState ═══════════════════════════ */
+const RIGID=[33,263,1,168,6,197,195,5,4,193,417,122,351,234,454];
+function kabsch(P,Q){
+  let a=0,b=0,c=0,d=0,e=0,f=0,g=0,h=0,i=0;
+  for(let k=0;k<P.length;k++){const p=P[k],q=Q[k];
+    a+=p[0]*q[0];b+=p[0]*q[1];c+=p[0]*q[2];
+    d+=p[1]*q[0];e+=p[1]*q[1];f+=p[1]*q[2];
+    g+=p[2]*q[0];h+=p[2]*q[1];i+=p[2]*q[2];}
+  const N=[[a+e+i,f-h,g-c,b-d],[f-h,a-e-i,b+d,g+c],[g-c,b+d,-a+e-i,f+h],[b-d,g+c,f+h,-a-e+i]];
+  let v=[1,0,0,0];
+  for(let it=0;it<32;it++){
+    const nv=[0,0,0,0];
+    for(let r=0;r<4;r++)for(let s=0;s<4;s++)nv[r]+=N[r][s]*v[s];
+    const l=Math.hypot(nv[0],nv[1],nv[2],nv[3])||1; v=nv.map(z=>z/l);
+  }
+  const [w,x,y,z]=v;
+  return [1-2*(y*y+z*z),2*(x*y-w*z),2*(x*z+w*y),
+          2*(x*y+w*z),1-2*(x*x+z*z),2*(y*z-w*x),
+          2*(x*z-w*y),2*(y*z+w*x),1-2*(x*x+y*y)];
+}
+const D3=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+
+const CAP={neutral:null,latest:null,prev:null,motion:0,jawH:[],
+  st:{yaw:0,pitch:0,roll:0,bs:{},gx:0,gy:0,val:0,aro:0.3,dom:0.5,
+      speaking:false,gest:0,text:null,textDirty:false,pros:null}};
+for(const k of BS) CAP.st.bs[k]=0;
+
+function metrics(lm){
+  const iod=D3(lm[33],lm[263])||0.08, ey=(lm[33].y+lm[263].y)/2;
+  return {iod, jaw:D3(lm[13],lm[14])/iod, mw:D3(lm[61],lm[291])/iod,
+    brL:(lm[159].y-lm[105].y)/iod, brR:(lm[386].y-lm[334].y)/iod,
+    eaL:D3(lm[159],lm[145])/(D3(lm[33],lm[133])||1e-4),
+    eaR:D3(lm[386],lm[374])/(D3(lm[362],lm[263])||1e-4),
+    cor:(((lm[61].y+lm[291].y)/2)-lm[13].y)/iod};
+}
+
+// landmark cloud → canonical model space (eyes at y=0, z≈0.055, IOD fixed)
+function toModel(lm){
+  const ax=4/3;
+  const iod=Math.hypot((lm[33].x-lm[263].x)*ax,lm[33].y-lm[263].y,lm[33].z-lm[263].z)||0.08;
+  const s=AN.IOD/iod, ZG=1.25;
+  const cx=(lm[33].x+lm[263].x)/2, cy=(lm[33].y+lm[263].y)/2, cz=(lm[33].z+lm[263].z)/2;
+  const o=new Float32Array(468*3);
+  for(let i=0;i<468;i++){
+    o[i*3]=-(lm[i].x-cx)*ax*s;
+    o[i*3+1]=-(lm[i].y-cy)*s;
+    o[i*3+2]=-(lm[i].z-cz)*ax*s*ZG+0.055;
+  }
+  return o;
+}
+
+function captureFrame(lm,dt){
+  CAP.latest=lm;
+  if(!CAP.neutral){ if(CAL.active) calibTick(lm,true); return; }
+  const n=CAP.neutral, m=metrics(lm), st=CAP.st;
+
+  let c=[0,0,0];
+  for(const i of RIGID){c[0]+=lm[i].x;c[1]+=lm[i].y;c[2]+=lm[i].z;}
+  c=c.map(v=>v/RIGID.length);
+  const cs=D3(lm[33],lm[263])||n.s;
+  const P=[],Q=[];
+  for(const i of RIGID){
+    P.push([(lm[i].x-c[0])/cs,(lm[i].y-c[1])/cs,(lm[i].z-c[2])/cs]);
+    const q=n.pts[i];
+    Q.push([(q[0]-n.c[0])/n.s,(q[1]-n.c[1])/n.s,(q[2]-n.c[2])/n.s]);
+  }
+  const R=kabsch(P,Q);
+  const mT=[R[0],R[3],R[6],R[1],R[4],R[7],R[2],R[5],R[8]];
+  const pitch=Math.asin(clamp(-mT[7],-1,1))*180/Math.PI;
+  const yaw=Math.atan2(mT[6],mT[8])*180/Math.PI;
+  const roll=Math.atan2(mT[1],mT[4])*180/Math.PI;
+  const a=0.38;
+  st.yaw+=(-yaw-st.yaw)*a; st.pitch+=(-pitch-st.pitch)*a; st.roll+=(-roll-st.roll)*a;
+
+  const tgt={
+    jawOpen:cl01((m.jaw-n.jaw-0.012)/0.42),
+    smile:cl01((m.mw-n.mw)/0.16+(n.cor-m.cor)/0.10),
+    frown:cl01((m.cor-n.cor-0.010)/0.10),
+    browUp:cl01(((m.brL-n.brL)+(m.brR-n.brR))/2/0.10),
+    browDown:cl01(((n.brL-m.brL)+(n.brR-m.brR))/2/0.08),
+    blinkL:cl01((n.eaL-m.eaL)/Math.max(0.02,n.eaL-0.06)),
+    blinkR:cl01((n.eaR-m.eaR)/Math.max(0.02,n.eaR-0.06)),
+    pucker:cl01((n.mw-m.mw-0.02)/0.14),
+  };
+  for(const k of BS) st.bs[k]+=(tgt[k]-st.bs[k])*0.45;
+
+  if(lm.length>473){
+    const gx=i=>{const e=(i===468)?[lm[33],lm[133]]:[lm[362],lm[263]];
+      const w=e[1].x-e[0].x||1e-4; return ((lm[i].x-e[0].x)/w-0.5)*2;};
+    st.gx+=(clamp(-(gx(468)+gx(473))/2*2.0,-1,1)-st.gx)*0.3;
+    st.gy+=(clamp(st.pitch/28,-1,1)-st.gy)*0.3;
+  }
+  if(CAP.prev){ let e=0; for(const i of RIGID) e+=D3(lm[i],CAP.prev[i]);
+    CAP.motion+=(Math.min(1,e/RIGID.length/0.004)-CAP.motion)*0.1; }
+  CAP.prev=lm.map(p=>({x:p.x,y:p.y,z:p.z}));
+  st.val+=((st.bs.smile-0.85*st.bs.frown-0.3*st.bs.browDown)-st.val)*0.08;
+  st.aro+=((0.22+0.45*CAP.motion+0.35*st.bs.jawOpen+0.2*st.bs.browUp)-st.aro)*0.06;
+  st.dom+=((0.5+st.pitch/70)-st.dom)*0.05;
+  CAP.jawH.push(st.bs.jawOpen); if(CAP.jawH.length>22)CAP.jawH.shift();
+  const mu=CAP.jawH.reduce((s,v)=>s+v,0)/CAP.jawH.length;
+  st.speaking=CAP.jawH.reduce((s,v)=>s+(v-mu)**2,0)/CAP.jawH.length>0.004;
+
+  if(CAL.active) calibTick(lm,false);
+}
+
+/* ═══ §8 CALIBRATOR — guided poses, fused into one cloud ══════════════
+   The browser can't reach TrueDepth/LiDAR, so head turns are the depth
+   sensor: each turned view puts real depth into screen parallax, and
+   aligning the views back onto the frontal one triangulates the face.
+   Every session running-averages into the stored cloud, so Refine
+   genuinely converges instead of resetting.                          */
+const CAL={active:false,step:0,frames:[],buf:[],views:{},sessions:0,t0:0,NEED:12,
+  STEPS:[{id:'center',hint:'Look straight ahead · hold'},
+         {id:'left',  hint:'Turn head LEFT · hold',  ok:(y)=>y<-15&&y>-52},
+         {id:'right', hint:'Turn head RIGHT · hold', ok:(y)=>y>15&&y<52},
+         {id:'up',    hint:'Chin UP · hold',   ok:(y,p)=>p>9},
+         {id:'down',  hint:'Chin DOWN · hold', ok:(y,p)=>p<-9}]};
+
+function startCalibration(refine){
+  CAL.active=true; CAL.step=0; CAL.frames=[]; CAL.buf=[]; CAL.views={}; CAL.t0=performance.now();
+  if(!refine){ CAP.neutral=null; }
+  else { CAL.step=0; CAP.neutral=null; }
+  card('CALIBRATING','hold each pose until the bar fills');
+  hint(CAL.STEPS[0].hint);
+}
+function calibTick(lm,preNeutral){
+  const step=CAL.STEPS[CAL.step];
+  if(!step){ finishCalibration(); return; }
+  const ok = CAL.step===0 ? true : (step.ok?step.ok(CAP.st.yaw,CAP.st.pitch):true);
+  if(ok){
+    CAL.frames.push(lm.map(p=>({x:p.x,y:p.y,z:p.z})));
+    if(CAL.step===0) CAL.buf.push(metrics(lm));
+    const p=Math.min(1,CAL.frames.length/CAL.NEED), f=Math.round(p*10);
+    hint(step.hint+'  '+'▰'.repeat(f)+'▱'.repeat(10-f));
+    if(CAL.frames.length>=CAL.NEED) stepDone(false);
+  } else if(performance.now()-CAL.t0>9000) stepDone(true);
+}
+function stepDone(skipped){
+  const step=CAL.STEPS[CAL.step];
+  if(!skipped&&CAL.frames.length>=5){
+    const mid=CAL.frames[CAL.frames.length>>1];
+    CAL.views[step.id]=mid;
+    if(step.id==='center'){
+      const med=k=>{const a=CAL.buf.map(m=>m[k]).sort((x,y)=>x-y);return a[a.length>>1];};
+      CAP.neutral={jaw:med('jaw'),mw:med('mw'),brL:med('brL'),brR:med('brR'),
+        eaL:med('eaL'),eaR:med('eaR'),cor:med('cor'),
+        pts:mid.map(p=>[p.x,p.y,p.z]),c:null,s:D3(mid[33],mid[263])};
+      let c=[0,0,0];
+      for(const i of RIGID){c[0]+=mid[i].x;c[1]+=mid[i].y;c[2]+=mid[i].z;}
+      CAP.neutral.c=c.map(v=>v/RIGID.length);
+      sampleColors(mid);
+      commitIdentity(toModel(mid),1);       // v1 likeness lands immediately
+      card('CALIBRATING','front ✓ · turns add real depth');
+    }
+  }
+  CAL.frames=[]; CAL.step++; CAL.t0=performance.now();
+  const nx=CAL.STEPS[CAL.step];
+  if(nx) hint(nx.hint); else finishCalibration();
+}
+function alignCloud(m,ref){
+  const P=[],Q=[],cP=[0,0,0],cQ=[0,0,0];
+  for(const i of RIGID)for(let a=0;a<3;a++){cP[a]+=m[i*3+a];cQ[a]+=ref[i*3+a];}
+  for(let a=0;a<3;a++){cP[a]/=RIGID.length;cQ[a]/=RIGID.length;}
+  for(const i of RIGID){
+    P.push([m[i*3]-cP[0],m[i*3+1]-cP[1],m[i*3+2]-cP[2]]);
+    Q.push([ref[i*3]-cQ[0],ref[i*3+1]-cQ[1],ref[i*3+2]-cQ[2]]);
+  }
+  const R=kabsch(P,Q), o=new Float32Array(468*3);
+  for(let i=0;i<468;i++){
+    const x=m[i*3]-cP[0],y=m[i*3+1]-cP[1],z=m[i*3+2]-cP[2];
+    o[i*3]=R[0]*x+R[1]*y+R[2]*z+cQ[0];
+    o[i*3+1]=R[3]*x+R[4]*y+R[5]*z+cQ[1];
+    o[i*3+2]=R[6]*x+R[7]*y+R[8]*z+cQ[2];
+  }
+  return o;
+}
+function finishCalibration(){
+  CAL.active=false;
+  const got=Object.keys(CAL.views);
+  if(!CAL.views.center){ card('CALIBRATION','no front view · try again'); return; }
+  const ref=toModel(CAL.views.center);
+  const acc=new Float64Array(468*3), w=new Float64Array(468*3);
+  for(let j=0;j<468*3;j++){acc[j]=ref[j]*2;w[j]=2;}
+  for(const k of ['left','right','up','down']){
+    if(!CAL.views[k])continue;
+    const al=alignCloud(toModel(CAL.views[k]),ref);
+    for(let j=0;j<468*3;j++){acc[j]+=al[j];w[j]+=1;}
+  }
+  const fused=new Float32Array(468*3);
+  for(let j=0;j<468*3;j++) fused[j]=acc[j]/w[j];
+  commitIdentity(fused,got.length);
+  el('b-ref').disabled=false;
+  hint('Fused '+got.length+' views · Refine to keep converging');
+}
+
+// running-average successive sessions so likeness accumulates
+function commitIdentity(cloud,nviews){
+  if(ID.lm&&CAL.sessions>0&&nviews>1){
+    const a=CAL.sessions/(CAL.sessions+1);
+    for(let j=0;j<cloud.length;j++) cloud[j]=ID.lm[j]*a+cloud[j]*(1-a);
+  }
+  if(nviews>1) CAL.sessions++;
+  ID.lm=cloud;
+  ID.meas=measureCloud(cloud);
+  autoTraits(cloud);
+  buildAvatar();
+  reportCard(cloud,nviews);
+  sendIdentity();
+}
+
+function measureCloud(f){
+  const u=AN.IOD;
+  const D=(i,j)=>Math.hypot(f[i*3]-f[j*3],f[i*3+1]-f[j*3+1],f[i*3+2]-f[j*3+2])/u;
+  const Y=i=>f[i*3+1]/u, Z=i=>f[i*3+2]/u;
+  const ey=(Y(33)+Y(263))/2;
+  return {faceW:D(234,454),faceH:Math.abs(Y(10)-Y(152)),jawW:D(172,397),
+    noseL:Math.abs(Y(168)-Y(2)),noseW:D(98,327),mouthW:D(61,291),
+    lipH:Math.abs(Y(0)-Y(17)),browRise:((Y(105)+Y(334))/2-ey),
+    chinDrop:ey-Y(152),mouthDrop:ey-((Y(61)+Y(291))/2),
+    noseProj:Z(4)-(Z(50)+Z(280))/2};
+}
+function reportCard(f,nv){
+  const u=AN.IOD;
+  const mm=v=>isFinite(v)?(v*1000).toFixed(1)+'mm':'—';
+  const rat=(a,b)=>(b>1e-6&&isFinite(a/b))?(a/b).toFixed(2):'—';
+  const D=(i,j)=>Math.hypot(f[i*3]-f[j*3],f[i*3+1]-f[j*3+1],f[i*3+2]-f[j*3+2]);
+  const faceH=Math.abs(f[10*3+1]-f[152*3+1]), noseL=Math.abs(f[168*3+1]-f[2*3+1]);
+  const lipW=D(61,291), deep=nv>2;
+  card('LIKENESS · session '+CAL.sessions,[
+    'views fused <u>'+nv+'</u> · anchors <u>'+(ID.lm?'46':'0')+'</u>',
+    'eye width '+mm(D(33,133))+' · eye gap '+mm(D(133,362)),
+    'lip width '+mm(lipW)+' · chin→lip '+mm(D(17,152)),
+    'nose length '+mm(noseL)+' · nose proj '+(deep?mm(f[4*3+2]-(f[50*3+2]+f[280*3+2])/2):'~'),
+    'head = '+rat(faceH,noseL)+' nose · '+rat(faceH,lipW)+' lip',
+    'mesh '+AV.tris.toLocaleString()+' tri · built '+AV.buildMs+'ms',
+  ].join('<br>'));
+}
+
+/* ── colour sampling, gamut-clamped so a bad frame can't go wild ── */
+let sCv=null,sCx=null;
+function sampleColors(lm){
+  const vid=el('cam'); if(!sCx||!vid.videoWidth) return;
+  sCx.drawImage(vid,0,0,640,480);
+  const px=sCx.getImageData(0,0,640,480).data;
+  const at=(i,dy=0)=>{
+    const x=clamp(Math.round((1-lm[i].x)*640),0,639), y=clamp(Math.round((lm[i].y+dy)*480),0,479);
+    const o=(y*640+x)*4; return [px[o]/255,px[o+1]/255,px[o+2]/255];
+  };
+  const med=(arr)=>{const o={h:0,s:0,l:0};
+    const r=arr.map(s=>s[0]).sort()[arr.length>>1],g=arr.map(s=>s[1]).sort()[arr.length>>1],
+          b=arr.map(s=>s[2]).sort()[arr.length>>1];
+    new THREE.Color(r,g,b).getHSL(o); return o;};
+  const faceH=Math.abs(lm[10].y-lm[152].y);
+  const skin=med([at(50),at(280),at(101),at(330),at(108),at(337),at(5)]);
+  const lips=med([at(13),at(14),at(0),at(17)]);
+  const hair=med([at(10,-faceH*0.16),at(109,-faceH*0.13),at(338,-faceH*0.13)]);
+  const iris=med([at(468),at(473)]);
+  const jawC=med([at(172),at(397),at(152),at(148),at(377)]);
+  const lit=skin.l>0.11;
+  const wrap=h=>h>0.5?h-1:h;
+  const fit=(c,hl,hh,sl,sh,ll,lh,fb)=>{
+    if(!c||!lit) return fb;
+    return {h:((clamp(wrap(c.h),hl,hh))+1)%1, s:clamp(c.s*1.08+0.03,sl,sh),
+            l:clamp(Math.pow(Math.max(c.l,0.02),0.68)*1.12,ll,lh)};
+  };
+  COL.skin=fit(skin,-0.03,0.11,0.20,0.58,0.34,0.80,{h:0.068,s:0.42,l:0.60});
+  COL.lips=fit(lips,-0.07,0.05,0.24,0.62,0.28,0.58,{h:0.985,s:0.42,l:0.46});
+  const grey=hair&&hair.s<0.11;
+  COL.hair=grey?{h:0.09,s:0.05,l:clamp(hair.l,0.08,0.72)}
+               :fit(hair,-0.03,0.13,0.12,0.70,0.05,0.55,{h:0.070,s:0.36,l:0.14});
+  COL.iris=fit(iris,0,0.66,0.12,0.75,0.14,0.50,{h:0.32,s:0.35,l:0.30});
+  ID.lit=lit;
+  // beard: jaw noticeably darker than cheek → facial hair
+  if(lit&&jawC){ ID.beardHint=(skin.l-jawC.l)>0.075?((skin.l-jawC.l)>0.16?'full':'stubble'):'none'; }
+  if(!lit) hint('Frame dark · add light, then Refine');
+}
+function autoTraits(cloud){
+  if(ID.beardHint&&!TRAITS.userBeard){
+    TRAITS.beard=ID.beardHint;
+    document.querySelectorAll('#traits .pl[data-beard]').forEach(p=>
+      p.classList.toggle('on',p.dataset.beard===TRAITS.beard));
+  }
+}
+
+/* ═══ §9 IDENTITY EXCHANGE ═══════════════════════════════════════════ */
+const ID={meas:null,lm:null,lit:false,beardHint:null};
+function sendIdentity(){
+  if(!ID.meas)return;
+  const pack={meas:ID.meas,colors:COL,traits:{hair:TRAITS.hair,beard:TRAITS.beard},
+    lm:Array.from(ID.lm||[],v=>+v.toFixed(4)),lit:ID.lit};
+  if(NET.ch&&NET.peer) NET.ch.postMessage({t:'id',from:NET.id,id:pack});
+}
+function applyIdentity(p){
+  ID.meas=p.meas; ID.lit=p.lit;
+  if(p.lm&&p.lm.length===468*3) ID.lm=Float32Array.from(p.lm);
+  if(p.colors){ for(const k of ['skin','lips','hair','iris']) if(p.colors[k]) COL[k]=p.colors[k]; }
+  if(p.traits){ TRAITS.hair=p.traits.hair||TRAITS.hair; TRAITS.beard=p.traits.beard||TRAITS.beard;
+    document.querySelectorAll('#traits .pl[data-hair]').forEach(q=>
+      q.classList.toggle('on',q.dataset.hair===TRAITS.hair));
+    document.querySelectorAll('#traits .pl[data-beard]').forEach(q=>
+      q.classList.toggle('on',q.dataset.beard===TRAITS.beard)); }
+  buildAvatar();
+  hint('Peer likeness received');
+}
+
+/* ═══ §10 VOICE — transcript + prosody on-device, 2 bytes on the wire ═ */
+const VO={on:false,ctx:null,an:null,buf:null,rec:null,pitch:0.5,energy:0};
+async function toggleVoice(){
+  const b=el('b-voice');
+  if(VO.on){ VO.on=false;b.classList.remove('on');
+    try{VO.rec&&VO.rec.stop();}catch(_){} try{VO.ctx&&VO.ctx.close();}catch(_){}
+    VO.ctx=null; return; }
+  try{
+    const st=await navigator.mediaDevices.getUserMedia({audio:true});
+    VO.ctx=new (window.AudioContext||window.webkitAudioContext)();
+    VO.an=VO.ctx.createAnalyser(); VO.an.fftSize=2048;
+    VO.ctx.createMediaStreamSource(st).connect(VO.an);
+    VO.buf=new Float32Array(2048);
+  }catch(e){ hint('Mic denied'); return; }
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(SR){
+    VO.rec=new SR(); VO.rec.continuous=true; VO.rec.interimResults=true;
+    VO.rec.lang=navigator.language||'en-US';
+    VO.rec.onresult=e=>{const r=e.results[e.results.length-1];
+      if(r.isFinal&&r[0].transcript.trim()){CAP.st.text=r[0].transcript.trim();CAP.st.textDirty=true;}};
+    VO.rec.onend=()=>{ if(VO.on){try{VO.rec.start();}catch(_){}} };
+    try{VO.rec.start();}catch(_){}
+  } else hint('No speech API here · prosody only');
+  VO.on=true; b.classList.add('on'); hint('Voice live · words become packets');
+}
+setInterval(()=>{
+  if(!VO.on||!VO.an)return;
+  VO.an.getFloatTimeDomainData(VO.buf);
+  const b=VO.buf,n=b.length;
+  let rms=0; for(let i=0;i<n;i++)rms+=b[i]*b[i];
+  rms=Math.sqrt(rms/n);
+  VO.energy+=(Math.min(1,rms*9)-VO.energy)*0.4;
+  if(rms>0.01){
+    const sr=VO.ctx.sampleRate, lo=Math.floor(sr/350), hi=Math.min(n>>1,Math.ceil(sr/70));
+    let best=0,bl=lo;
+    for(let l=lo;l<=hi;l++){let s=0;for(let i=0;i<n-l;i+=2)s+=b[i]*b[i+l];if(s>best){best=s;bl=l;}}
+    VO.pitch+=(clamp((sr/bl-70)/280,0,1)-VO.pitch)*0.3;
+  }
+},100);
+
+/* ── visemes: text puppets the mouth on the receiving side ── */
+const VIS={a:[.85,0,.2],e:[.5,0,.55],i:[.3,0,.7],o:[.72,.55,0],u:[.4,.85,0],y:[.3,.1,.4],
+  m:[.02,.25,0],b:[.02,.15,0],p:[.02,.15,0],f:[.12,0,.3],v:[.12,0,.3],w:[.3,.75,0],
+  s:[.14,0,.5],z:[.14,0,.5],r:[.3,.25,.1],l:[.36,0,.3],t:[.2,0,.35],d:[.2,0,.35],
+  n:[.15,.05,.3],k:[.3,0,.2],g:[.3,0,.2],h:[.35,0,.15],c:[.25,0,.35],j:[.28,.2,.2]};
+function startVisemes(text,pros,aro){
+  const tr=[]; let t=0;
+  const cps=13*(0.85+(aro||0.3)*0.5);
+  for(const ch of text.toLowerCase()){
+    let j=0.2,p=0,w=0.3,d=1/cps;
+    if(ch===' '){j=0.05;w=0;d*=1.5;}
+    else if('.,!?;:'.includes(ch)){j=0;w=0;d*=3.2;}
+    else if(VIS[ch]){[j,p,w]=VIS[ch];}
+    tr.push({t,j,p,w}); t+=d;
+  }
+  tr.push({t,j:0,p:0,w:0});
+  REM.vis={tr,dur:t,t0:performance.now(),len:text.length,
+    amp:0.55+(pros?pros.energy*0.6:0.3)};
+}
+
+/* ═══ §11 RECEIVE ════════════════════════════════════════════════════ */
+function onPacket(b){
+  const s=decode(b); if(!s)return;
+  REM.target=s;
+  if(s.pros) REM.pros=s.pros;
+  if(s.gest) for(let g=1;g<=4;g++) if(s.gest&(1<<(g-1))) REM.gest={g,t0:performance.now()};
+  if(s.text){
+    REM.text=s.text;
+    el('bub-w').textContent=NET.peer?'PEER':'LOOPBACK';
+    el('bub-m').textContent=s.text;
+    el('bub').classList.add('on');
+    clearTimeout(onPacket._t); onPacket._t=setTimeout(()=>el('bub').classList.remove('on'),6500);
+    startVisemes(s.text,s.pros||REM.pros,s.aro);
+    if(el('c-tts').checked&&window.speechSynthesis){
+      speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(s.text), p=s.pros||REM.pros;
+      u.pitch=p?0.6+p.pitch*1.0:0.8+(s.val+1)*0.35;
+      u.rate=0.9+s.aro*0.5+(p?p.energy*0.2:0);
+      u.volume=p?0.65+p.energy*0.35:1;
+      u.onboundary=e=>{ if(REM.vis&&e.charIndex!=null)
+        REM.vis.t0=performance.now()-(e.charIndex/REM.vis.len)*REM.vis.dur*1000; };
+      speechSynthesis.speak(u);
+    }
+  }
+}
+function remoteTick(){
+  const t=REM.target; if(!t)return;
+  const a=0.35;
+  REM.yaw+=(t.yaw-REM.yaw)*a; REM.pitch+=(t.pitch-REM.pitch)*a; REM.roll+=(t.roll-REM.roll)*a;
+  for(const k of BS) REM.bs[k]+=((t.bs[k]||0)-REM.bs[k])*0.4;
+  REM.gx+=(t.gx-REM.gx)*0.3; REM.gy+=(t.gy-REM.gy)*0.3;
+  REM.val+=(t.val-REM.val)*0.15; REM.aro+=(t.aro-REM.aro)*0.1; REM.dom+=(t.dom-REM.dom)*0.1;
+  REM.speaking=t.speaking;
+  REM.wide=(REM.wide||0)*0.8;
+  const v=REM.vis;
+  if(v){
+    const e=(performance.now()-v.t0)/1000;
+    if(e>v.dur+0.3) REM.vis=null;
+    else if(e>=0){
+      let cur=v.tr[0];
+      for(const k of v.tr){ if(k.t<=e)cur=k; else break; }
+      REM.bs.jawOpen+=(cur.j*v.amp-REM.bs.jawOpen)*0.55;
+      REM.bs.pucker+=(cur.p-REM.bs.pucker)*0.45;
+      REM.wide=mix(REM.wide,cur.w,0.45);
+      REM.speaking=true;
+    }
+  } else if(REM.pros&&t.speaking){
+    REM.bs.jawOpen+=(REM.pros.energy*0.65-REM.bs.jawOpen)*0.4;
+  }
+}
+
+/* ═══ §12 LOWER TIERS ════════════════════════════════════════════════ */
+const flat=el('flat'); let activeTier=0;
+function setRenderer(t){
+  if(t===activeTier)return;
+  activeTier=t; flat.innerHTML=''; flat.classList.toggle('on',t<Tier.AVATAR3D);
+  if(AV.root) AV.root.visible=(t===Tier.AVATAR3D);
+  if(t===Tier.TEXT){ const d=document.createElement('div'); d.className='tpane';
+    d.innerHTML='<span class="w">peer · text tier</span><div id="rt">…connected</div>';
+    flat.appendChild(d); }
+  if(t===Tier.GLYPH){ const d=document.createElement('div'); d.className='glyph'; flat.appendChild(d); R.g=d; }
+  if(t===Tier.SPRITE||t===Tier.PUPPET){
+    const c=document.createElement('canvas'); c.width=c.height=440; flat.appendChild(c); R.c=c; }
+}
+const R={};
+function drawFlat(now){
+  if(activeTier===Tier.TEXT){ const e=el('rt');
+    if(e) e.textContent=(REM.text||'…connected')+(REM.speaking?' ▍':''); return; }
+  if(activeTier===Tier.GLYPH&&R.g){
+    const v=REM.val,a=REM.aro;
+    let s=v>0.15?(a>0.5?'😄':'🙂'):v<-0.15?(a>0.5?'😠':'😔'):(a>0.6?'😮':'😐');
+    if(REM.gest) s={1:'🙂',2:'🙅',3:'😂',4:'🙌'}[REM.gest.g]||s;
+    if(REM.speaking) s+='💬';
+    if(R.g.textContent!==s) R.g.textContent=s;
+    R.g.style.transform=`rotate(${REM.roll*0.35}deg) translateX(${REM.yaw*0.7}px)`;
+    return;
+  }
+  if(!R.c) return;
+  const x=R.c.getContext('2d'), W=440, H=440, b=REM.bs;
+  x.clearRect(0,0,W,H); x.save();
+  const g=gestureOffset(now);
+  x.translate(W/2+(REM.yaw+g.y)*2.2, H/2+(REM.pitch+g.p)*1.7-g.bob*1800);
+  x.rotate((REM.roll+g.r)*Math.PI/300);
+  const puppet=activeTier===Tier.PUPPET;
+  const sk=new THREE.Color().setHSL(COL.skin.h,COL.skin.s,COL.skin.l);
+  const hx=c=>`rgb(${(c.r*255)|0},${(c.g*255)|0},${(c.b*255)|0})`;
+  if(puppet){
+    const gr=x.createRadialGradient(-26,-34,16,0,0,158);
+    gr.addColorStop(0,hx(sk.clone().offsetHSL(0,0,0.08)));
+    gr.addColorStop(1,hx(sk.clone().offsetHSL(0,0,-0.12)));
+    x.fillStyle=gr;
+  } else x.fillStyle=hx(sk);
+  x.beginPath(); x.ellipse(0,4,108,132,0,0,7); x.fill();
+  if(puppet){
+    const hc=new THREE.Color().setHSL(COL.hair.h,COL.hair.s,COL.hair.l);
+    x.fillStyle=hx(hc);
+    x.beginPath(); x.ellipse(0,-64,110,76,0,Math.PI,0); x.fill();
+    x.strokeStyle=hx(hc); x.lineWidth=9; x.lineCap='round';
+    const bl=-b.browUp*16+b.browDown*7;
+    for(const s of[-1,1]){ x.beginPath(); x.moveTo(s*24,-58+bl);
+      x.quadraticCurveTo(s*48,-70+bl,s*72,-55+bl); x.stroke(); }
+  }
+  for(const s of[-1,1]){
+    const bk=s<0?b.blinkL:b.blinkR;
+    x.fillStyle='#f6f2ec'; x.beginPath();
+    x.ellipse(s*48,-26,22,14*(1-bk*0.92),0,0,7); x.fill();
+    if(bk<0.7){ const ic=new THREE.Color().setHSL(COL.iris.h,COL.iris.s,COL.iris.l);
+      x.fillStyle=hx(ic); x.beginPath();
+      x.arc(s*48+REM.gx*9,-26+REM.gy*5,8,0,7); x.fill();
+      x.fillStyle='#0b0810'; x.beginPath();
+      x.arc(s*48+REM.gx*9,-26+REM.gy*5,3.6,0,7); x.fill(); }
+  }
+  const lc=new THREE.Color().setHSL(COL.lips.h,COL.lips.s,COL.lips.l);
+  const open=(b.jawOpen+g.jaw)*50+(REM.speaking?5:0);
+  const sm=REM.val*26-b.frown*14, wd=52*(1-b.pucker*0.5)*(1+(REM.wide||0)*0.25);
+  x.fillStyle=hx(lc); x.beginPath();
+  x.moveTo(-wd,72-sm*0.3); x.quadraticCurveTo(0,72+sm,wd,72-sm*0.3);
+  x.quadraticCurveTo(0,72+sm+Math.max(4,open),-wd,72-sm*0.3); x.fill();
+  if(open>16){ x.fillStyle='#f2ece2'; x.fillRect(-wd*0.5,74+sm*0.4,wd,6); }
+  x.restore();
+}
+
+/* ═══ §13 SCENE + LOOP ═══════════════════════════════════════════════ */
+let scene,camera,renderer,orbit={yaw:0,pitch:0,dist:0.60,drag:null};
+let frames=0,lastFps=performance.now(),fpsEma=60,lastT=performance.now();
+function initScene(){
+  renderer=new THREE.WebGLRenderer({canvas:el('gl'),antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  if('outputEncoding' in renderer && THREE.sRGBEncoding) renderer.outputEncoding=THREE.sRGBEncoding;
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(33,innerWidth/innerHeight,0.01,10);
+  camera.position.set(0,-0.022,0.60);
+  scene.add(new THREE.HemisphereLight(0x9fb6dd,0x2a2018,0.48));
+  const key=new THREE.DirectionalLight(0xfff3e8,1.05); key.position.set(0.35,0.55,0.95);
+  scene.add(key);
+  const fill=new THREE.DirectionalLight(0xbcd6ff,0.34); fill.position.set(-0.75,0.05,0.45);
+  scene.add(fill);
+  const rim=new THREE.PointLight(0x66d9ff,0.55,2.2); rim.position.set(-0.32,0.22,-0.34);
+  scene.add(rim);
+  const warm=new THREE.PointLight(0xff8a58,0.30,2.0); warm.position.set(0.36,-0.24,-0.18);
+  scene.add(warm);
+  AV.key=key;
+
+  const cv=renderer.domElement;
+  cv.addEventListener('pointerdown',e=>orbit.drag=[e.clientX,e.clientY]);
+  addEventListener('pointerup',()=>orbit.drag=null);
+  addEventListener('pointermove',e=>{
+    if(!orbit.drag)return;
+    orbit.yaw+=(e.clientX-orbit.drag[0])*0.006;
+    orbit.pitch=clamp(orbit.pitch+(e.clientY-orbit.drag[1])*0.004,-0.55,0.55);
+    orbit.drag=[e.clientX,e.clientY];
+  });
+  cv.addEventListener('wheel',e=>{orbit.dist=clamp(orbit.dist+e.deltaY*0.0005,0.26,1.0);},{passive:true});
+  addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+  });
+
+  (function loop(){
+    requestAnimationFrame(loop);
+    const now=performance.now(), dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
+    remoteTick(); sendLoop(now);
+    if(activeTier===Tier.AVATAR3D){
+      puppet(now,dt);
+      if(AV.root){ AV.root.rotation.y=orbit.yaw; AV.root.rotation.x=orbit.pitch; }
+      camera.position.z+=(orbit.dist-camera.position.z)*0.1;
+      if(AV.key) AV.key.color.setHSL(REM.val>0?0.09:0.58,0.10+Math.abs(REM.val)*0.14,0.96);
+      renderer.render(scene,camera);
+    } else { renderer.clear(); drawFlat(now); }
+    frames++;
+    if(now-lastFps>500){
+      const fps=Math.round(frames*1000/(now-lastFps));
+      fpsEma+=(fps-fpsEma)*0.3; el('t-fps').textContent=fps;
+      NET.kbps=NET.tx*8/((now-lastFps)/1000)/1000;
+      el('t-bw').textContent=NET.kbps.toFixed(1);
+      NET.tx=0; frames=0; lastFps=now;
+      if(lastTx){
+        const hx=[...lastTx.slice(0,22)].map(v=>v.toString(16).padStart(2,'0')).join(' ');
+        el('insp').innerHTML=`pkt <b>${lastTx.length} B</b> @ ${HZ[AGREED.send]} Hz · ${TN[AGREED.send]}`+
+          `<span class="hx">${hx}${lastTx.length>22?' …':''}</span>`;
+      }
+      adaptQuality();
+    }
+  })();
+}
+function adaptQuality(){
+  if(!AV.built||activeTier!==Tier.AVATAR3D)return;
+  if(fpsEma<24&&AV.quality>0.55){ AV.quality=0.62; buildAvatar(); fpsEma=45; }
+  else if(fpsEma>52&&AV.quality<1&&PROF.me.bat>30){ AV.quality=1; buildAvatar(); fpsEma=45; }
+}
+
+/* ═══ §14 SEND ═══════════════════════════════════════════════════════ */
+let seq=0,lastSend=0;
+function sendLoop(now){
+  const hz=HZ[AGREED.send]||10;
+  if(now-lastSend<1000/hz)return;
+  lastSend=now;
+  const s=CAP.st;
+  if(!CAP.neutral&&!VO.on&&!s.textDirty&&!s.gest)return;
+  if(VO.on){ s.pros={pitch:VO.pitch,energy:VO.energy}; s.speaking=VO.energy>0.10; }
+  else s.pros=null;
+  tx(encode(s,AGREED.send,seq++));
+  s.textDirty=false; s.gest=0;
+}
+
+/* ═══ §15 NATIVE BRIDGE (ARKit shell drives capture directly) ════════ */
+window.VMNative={
+  frame(d){
+    const s=CAP.st;
+    s.yaw=d.yaw||0; s.pitch=d.pitch||0; s.roll=d.roll||0;
+    if(d.bs) for(const k of BS) if(d.bs[k]!=null) s.bs[k]=cl01(d.bs[k]);
+    if(d.gazeX!=null){ s.gx=d.gazeX; s.gy=d.gazeY||0; }
+    s.val+=((s.bs.smile-0.85*s.bs.frown-0.3*s.bs.browDown)-s.val)*0.1;
+    s.aro+=((0.25+0.45*s.bs.jawOpen+0.25*s.bs.browUp)-s.aro)*0.08;
+    if(d.speaking!=null) s.speaking=d.speaking;
+    if(!CAP.neutral) CAP.neutral={native:true};
+    CAL.active=false;
+  },
+  identity(p){                       // depth-true scan from ARFaceGeometry
+    if(p.lm&&p.lm.length===468*3) ID.lm=Float32Array.from(p.lm);
+    if(p.meas) ID.meas=p.meas; else if(ID.lm) ID.meas=measureCloud(ID.lm);
+    if(p.colors) Object.assign(COL,p.colors);
+    buildAvatar(); sendIdentity();
+  },
+};
+
+/* ═══ §16 UI ═════════════════════════════════════════════════════════ */
+function hint(t){ const h=el('hint'); h.textContent=t; h.classList.add('on');
+  clearTimeout(hint._t); hint._t=setTimeout(()=>h.classList.remove('on'),2600); }
+function card(title,body){ const c=el('card');
+  c.innerHTML='<b>'+title+'</b><br>'+body; c.style.display='block'; }
+
+async function startCamera(){
+  const b=el('b-cam'); b.textContent='Starting…'; b.disabled=true;
+  if(typeof FaceMesh==='undefined'||typeof Camera==='undefined'){
+    b.textContent='Deps missing'; b.disabled=false; return; }
+  let stream;
+  try{ stream=await navigator.mediaDevices.getUserMedia({
+    video:{width:640,height:480,facingMode:'user'},audio:false}); }
+  catch(e){ b.textContent='Denied'; b.disabled=false; return; }
+  const pip=el('pip'), cam=el('cam');
+  pip.srcObject=stream; cam.srcObject=stream;
+  try{pip.play();}catch(_){} try{cam.play();}catch(_){}
+  await new Promise(r=>{ if(cam.readyState>=2)return r(); cam.onloadeddata=r; setTimeout(r,5000); });
+  sCv=document.createElement('canvas'); sCv.width=640; sCv.height=480;
+  sCx=sCv.getContext('2d',{willReadFrequently:true});
+  let fm;
+  try{
+    fm=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
+    fm.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
+    let lt=performance.now();
+    fm.onResults(r=>{ if(!r.multiFaceLandmarks?.[0])return;
+      const now=performance.now(); captureFrame(r.multiFaceLandmarks[0],(now-lt)/1000); lt=now; });
+  }catch(e){ b.textContent='Mesh err'; b.disabled=false; return; }
+  try{
+    let busy=false;
+    await new Camera(cam,{onFrame:async()=>{ if(busy)return; busy=true;
+      try{await fm.send({image:cam});}catch(_){}finally{busy=false;} },width:640,height:480}).start();
+  }catch(e){ b.textContent='Stream err'; b.disabled=false; return; }
+  b.textContent='Live'; b.classList.add('go'); b.disabled=false;
+  el('b-cal').disabled=false;
+  startCalibration(false);
+}
+
+function wire(){
+  el('b-cam').onclick=startCamera;
+  el('b-cal').onclick=()=>startCalibration(false);
+  el('b-ref').onclick=()=>{ startCalibration(true); hint('Refining · averages into your scan'); };
+  el('b-voice').onclick=toggleVoice;
+  el('b-net').onclick=()=>{ el('netp').classList.toggle('op'); el('b-net').classList.toggle('on'); };
+  document.querySelectorAll('#traits .pl[data-hair]').forEach(p=>p.onclick=()=>{
+    document.querySelectorAll('#traits .pl[data-hair]').forEach(q=>q.classList.remove('on'));
+    p.classList.add('on'); TRAITS.hair=p.dataset.hair; buildAvatar(); sendIdentity(); });
+  document.querySelectorAll('#traits .pl[data-beard]').forEach(p=>p.onclick=()=>{
+    document.querySelectorAll('#traits .pl[data-beard]').forEach(q=>q.classList.remove('on'));
+    p.classList.add('on'); TRAITS.beard=p.dataset.beard; TRAITS.userBeard=true;
+    buildAvatar(); sendIdentity(); });
+  const bind=(id,vid,key,fmt)=>{ const e=el(id); e.oninput=()=>{
+    PROF.me[key]=+e.value; el(vid).textContent=fmt(+e.value); meta('prof'); renegotiate(); }; };
+  bind('s-bw','v-bw','bw',v=>v+'k'); bind('s-rtt','v-rtt','rtt',v=>v+'ms');
+  bind('s-ls','v-ls','loss',v=>v+'%'); bind('s-bt','v-bt','bat',v=>v+'%');
+  el('c-low').onchange=e=>{ PROF.me.low=e.target.checked; meta('prof'); renegotiate(); };
+  el('c-mirror').onchange=e=>{ MIRROR=e.target.checked; };
+  document.querySelectorAll('.btn[data-g]').forEach(b=>b.onclick=()=>{
+    CAP.st.gest|=1<<((+b.dataset.g)-1); });
+  const send=()=>{ const i=el('msg'); if(!i.value.trim())return;
+    CAP.st.text=i.value.trim(); CAP.st.textDirty=true; i.value=''; };
+  el('b-send').onclick=send;
+  el('msg').addEventListener('keydown',e=>{ if(e.key==='Enter')send(); });
+  el('s-bw').value=PROF.me.bw; el('v-bw').textContent=PROF.me.bw+'k';
+  el('s-rtt').value=PROF.me.rtt; el('v-rtt').textContent=PROF.me.rtt+'ms';
+}
+let MIRROR=false;
+// "Mirror me" — drive the local avatar from your own capture, so you can
+// see the puppet respond without a second tab.
+setInterval(()=>{
+  if(!MIRROR||!CAP.neutral)return;
+  REM.target={yaw:CAP.st.yaw,pitch:CAP.st.pitch,roll:CAP.st.roll,bs:CAP.st.bs,
+    gx:CAP.st.gx,gy:CAP.st.gy,val:CAP.st.val,aro:CAP.st.aro,dom:CAP.st.dom,
+    speaking:CAP.st.speaking,text:null};
+},50);
+
+addEventListener('load',()=>{
+  wire(); initScene();
+  buildAvatar();                      // base humanoid exists before any camera
+  netInit(); renegotiate();
+  card('BASE HUMANOID','generated · '+AV.tris.toLocaleString()+' tri · rigged<br>'+
+    'Start Camera → guided calibration reshapes it to you');
+  hint('Open a 2nd tab to pair · or Start Camera');
+});
+window.onerror=(m,s,l)=>console.error('ERR',m,l);
+</script>
+</body>
+</html>

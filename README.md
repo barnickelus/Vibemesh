@@ -13,7 +13,19 @@ Works on 2G, low battery, potato phones. Cross-platform (WebGL + Unity + Unreal 
 
 Built with love in Vancouver + Jersey Shore energy.
 
-### Tesserae renderer (live demo)
+### VibeMesh (current build)
+
+`vibemesh.html` is the ground-up rebuild: a **self-generating parametric
+human** — a real polygon head sculpted from anatomical feature fields
+(clean topology, true eye/mouth apertures), **rigged** with a skeleton
+(root/neck/head/jaw/eyes) plus 8 generated blendshapes, and **puppeted**
+from ~23-byte AvatarState packets. Likeness is earned in two stages:
+measured ratios reshape the generator, then a gaussian RBF warp
+interpolates the base onto your measured landmark cloud — smooth by
+construction, so Refine converges instead of falling apart.
+Live: https://barnickelus.github.io/Vibemesh/vibemesh.html
+
+### Tesserae renderer (earlier voxel-mosaic build)
 
 `tesserae.html` is the ground-up VibeMesh build: deterministic tier
 negotiation (TEXT → GLYPH → SPRITE → PUPPET → AVATAR3D), ~10–23 byte
