@@ -74,6 +74,7 @@ canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
 .sep{width:9px;height:1px}
 .cl{max-height:0;overflow:hidden;transition:max-height .32s ease}
 .cl.op{max-height:300px}
+#shapep.op{max-height:270px;overflow-y:auto}
 .sg{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
 @media(max-width:540px){.sg{grid-template-columns:1fr}}
 .sl{display:flex;align-items:center;gap:8px}
@@ -140,6 +141,17 @@ video#cam{position:fixed;top:-9999px;left:-9999px;width:640px;height:480px}
     <div class="pl" data-beard="full">Beard</div>
   </div>
 
+  <div class="cl" id="shapep">
+    <div class="sg" id="shapeGrid"></div>
+    <div class="row" style="margin-top:6px;justify-content:flex-start">
+      <button class="btn" id="b-autofit">Auto-fit</button>
+      <button class="btn" id="b-reset">Reset</button>
+      <label class="ck">Hair <input type="color" id="c-hair" value="#3a2a1c" style="width:26px;height:18px;padding:0;border:none;background:none"></label>
+      <label class="ck">Skin <input type="color" id="c-skin" value="#e0b394" style="width:26px;height:18px;padding:0;border:none;background:none"></label>
+      <label class="ck">Eyes <input type="color" id="c-iris" value="#4c6b3a" style="width:26px;height:18px;padding:0;border:none;background:none"></label>
+    </div>
+  </div>
+
   <div class="cl" id="netp">
     <div class="sg">
       <div class="sl"><label>Bandwidth</label><input type="range" id="s-bw" min="5" max="2000" step="5" value="900"><span class="v" id="v-bw">900k</span></div>
@@ -164,6 +176,7 @@ video#cam{position:fixed;top:-9999px;left:-9999px;width:640px;height:480px}
     <button class="btn" id="b-cal" disabled>Calibrate</button>
     <button class="btn" id="b-ref" disabled>Refine</button>
     <button class="btn" id="b-voice">Voice</button>
+    <button class="btn" id="b-shape">Shape</button>
     <button class="btn" id="b-net">Network</button>
     <button class="btn" data-g="1">Nod</button>
     <button class="btn" data-g="2">Shake</button>
@@ -404,32 +417,25 @@ function cdfRemap(n,dens){
   return out;
 }
 
-function buildHead(S, opts){
-  const NA=opts.NA, NP=opts.NP;
-  // azimuth: density peaks at u=0.5 so the face is dense, and the wrap
-  // seam (u=0) lands on the back of the head instead of down the nose
-  const uMap=cdfRemap(NA,u=>1+2.8*Math.exp(-((u-0.5)**2)/(0.10*0.10)));
-  // polar: φ=0 crown, φ=π chin — concentrate over the face band
-  const vMap=cdfRemap(NP,v=>1+2.4*Math.exp(-((v-0.62)**2)/(0.052))
-    +1.1*Math.exp(-((v-0.44)**2)/(0.016))+1.9*Math.exp(-((v-0.50)**2)/(0.0035)));
+// One source of truth for the sculpt: the same analytic function that
+// builds the mesh also evaluates single points, so the fitter can
+// MEASURE the model cheaply instead of rebuilding it every iteration.
+const g2=(dx,rx,dy,ry)=>Math.exp(-((dx*dx)/(rx*rx)+(dy*dy)/(ry*ry)));
 
+function derived(S){
   const A=AN.A*S.headW, B=AN.B, C=AN.C*S.headD, CZ=AN.CZ;
   const EY=AN.eyeX*S.eyeSpacing;
   const FL=S.faceLen;
   const MY=AN.mouthY*FL, NBY=AN.noseBase*FL, NTY=AN.noseTip*FL*S.noseLen;
   const BY=AN.browY*S.browHeight, CHY=AN.chinY*FL;
   const LW=0.0245*S.mouthW;
-  const g2=(dx,rx,dy,ry)=>Math.exp(-((dx*dx)/(rx*rx)+(dy*dy)/(ry*ry)));
+  return {A,B,C,CZ,EY,FL,MY,NBY,NTY,BY,CHY,LW,S};
+}
 
-  const nv=(NA+1)*(NP+1);
-  const pos=new Float32Array(nv*3), canon=new Float32Array(nv*3);
-  const front=new Float32Array(nv), region=new Float32Array(nv*4); // lip, brow, socket, beardable
-  const anat=new Float32Array(nv);                                  // signed soft-tissue relief
-  let vi=0;
-  for(let iv=0;iv<=NP;iv++){
-    const phi=Math.PI*vMap[iv], sp=Math.sin(phi), cp=Math.cos(phi);
-    for(let iu=0;iu<=NA;iu++){
-      const th=2*Math.PI*uMap[iu%NA]+(iu===NA?2*Math.PI:0)+Math.PI;
+// out: [x,y,z, frontness, lipMask, browMask, anatRelief]
+function sculptPoint(th,phi,S,P,out){
+  const {A,B,C,CZ,EY,FL,MY,NBY,NTY,BY,CHY,LW}=P;
+  const sp=Math.sin(phi), cp=Math.cos(phi);
       const xd=sp*Math.sin(th), yd=cp, zd=sp*Math.cos(th);
       let x=A*xd, y=B*yd, z=CZ+C*zd;
       if(y<0)y*=FL;                                  // face length below eye line
@@ -468,10 +474,17 @@ function buildHead(S, opts){
         }
         dz-=0.0022*f*g2(x,0.0140,y-(NBY-0.008),0.0060);   // under-nose recess
       }
+      // nose widens laterally, not only forward, so nose width is real
+      if(y<BY&&y>NBY-0.03){
+        const nm=Math.exp(-(((y-(NTY+0.006))/0.030)**2))*Math.exp(-((x/0.024)**2))*f;
+        dx+=Math.sign(x||1e-9)*0.0060*(S.noseW-1)*nm;
+      }
       // ── lips ──
       const lipU=g2(x,LW*1.06,y-(MY+0.0075),0.0078), lipL=g2(x,LW*0.96,y-(MY-0.0108),0.0092);
       dz+=0.0062*S.lipFull*f*lipU + 0.0074*S.lipFull*f*lipL;
       dz-=0.0044*f*g2(x,LW*1.18,y-MY,0.0032);
+      // fuller lips are taller as well as more protruding
+      dy+=Math.sign(y-MY||1e-9)*0.0075*(S.lipFull-1)*f*g2(x,LW*1.10,y-MY,0.0135);
       dz-=0.0019*f*g2(x,0.0046,y-(MY+0.019),0.0100);      // philtrum
       for(const sx of[1,-1]) dz-=0.0031*f*g2(x-sx*LW*1.02,0.0082,y-MY,0.0082);
       // ── chin + mentolabial crease ──
@@ -524,11 +537,41 @@ function buildHead(S, opts){
       dx+=xd/rl*dr; dy+=yd/rl*dr; dz+=zd/rl*dr;
 
       x+=dx; y+=dy; z+=dz;
+  out[0]=x; out[1]=y; out[2]=z; out[3]=f;
+  out[4]=lipU+lipL; out[5]=browM; out[6]=dr;
+  return out;
+}
+
+function buildHead(S, opts){
+  const NA=opts.NA, NP=opts.NP;
+  // azimuth: density peaks at u=0.5 so the face is dense, and the wrap
+  // seam (u=0) lands on the back of the head instead of down the nose
+  const uMap=cdfRemap(NA,u=>1+2.8*Math.exp(-((u-0.5)**2)/(0.10*0.10)));
+  // polar: φ=0 crown, φ=π chin — concentrate over the face band
+  const vMap=cdfRemap(NP,v=>1+2.4*Math.exp(-((v-0.62)**2)/(0.052))
+    +1.1*Math.exp(-((v-0.44)**2)/(0.016))+1.9*Math.exp(-((v-0.50)**2)/(0.0035)));
+
+  const P=derived(S);
+  const {A,B,C,CZ,EY,FL,MY,NBY,NTY,BY,CHY,LW}=P;
+  const SP=new Float32Array(8);
+
+  const nv=(NA+1)*(NP+1);
+  const pos=new Float32Array(nv*3), canon=new Float32Array(nv*3);
+  const front=new Float32Array(nv), region=new Float32Array(nv*4); // lip, brow, socket, beardable
+  const anat=new Float32Array(nv);                                  // signed soft-tissue relief
+  let vi=0;
+  for(let iv=0;iv<=NP;iv++){
+    const phi=Math.PI*vMap[iv], sp=Math.sin(phi), cp=Math.cos(phi);
+    for(let iu=0;iu<=NA;iu++){
+      const th=2*Math.PI*uMap[iu%NA]+(iu===NA?2*Math.PI:0)+Math.PI;
+      sculptPoint(th,phi,S,P,SP);
+      const x=SP[0],y=SP[1],z=SP[2],f=SP[3];
+      const dr=SP[6], lipU=SP[4], lipL=0, browM=SP[5];
       anat[vi]=dr;
       pos[vi*3]=x; pos[vi*3+1]=y; pos[vi*3+2]=z;
       canon[vi*3]=x; canon[vi*3+1]=y; canon[vi*3+2]=z;
       front[vi]=f;
-      region[vi*4]=smoothstep(0.26,0.70,lipU+lipL)*f;                // lips
+      region[vi*4]=smoothstep(0.26,0.70,lipU)*f;                     // lips
       region[vi*4+1]=browM;                                          // brow hair
       region[vi*4+2]=f*Math.max(g2(x-EY,0.026,y-0.001,0.017),g2(x+EY,0.026,y-0.001,0.017));
       region[vi*4+3]=f*smoothstep(MY+0.030,MY-0.010,y);              // beard zone
@@ -598,14 +641,14 @@ function buildHead(S, opts){
    Each is (landmark index, canonical x magnitude, y). The side is taken
    from the measured landmark itself, so mirroring can't scramble them. */
 function anchorSpecs(P){
-  const {EY,MY,NBY,NTY,BY,CHY,LW,A}=P;
+  const {EY,MY,NBY,NTY,BY,CHY,LW,A,S}=P;
   return [
     [4,0,NTY],[6,0,BY-0.020],[168,0,BY-0.008],[2,0,NBY],[1,0,NTY+0.006],
-    [98,0.0170,NBY+0.002],[327,0.0170,NBY+0.002],
-    [33,EY+0.0158,0.0005],[133,EY-0.0148,0.0012],
-    [362,EY-0.0148,0.0012],[263,EY+0.0158,0.0005],
+    [98,0.0170*S.noseW,NBY+0.002],[327,0.0170*S.noseW,NBY+0.002],
+    [33,EY+0.0158*S.eyeSize,0.0005],[133,EY-0.0148*S.eyeSize,0.0012],
+    [362,EY-0.0148*S.eyeSize,0.0012],[263,EY+0.0158*S.eyeSize,0.0005],
     [159,EY,0.0088],[145,EY,-0.0072],[386,EY,0.0088],[374,EY,-0.0072],
-    [61,LW,MY],[291,LW,MY],[0,0,MY+0.0108],[17,0,MY-0.0168],
+    [61,LW,MY],[291,LW,MY],[0,0,MY+0.0108*S.lipFull],[17,0,MY-0.0168*S.lipFull],
     [13,0,MY+0.0022],[14,0,MY-0.0026],
     [152,0,CHY+0.0045],[175,0,CHY+0.0165],
     [234,A*0.985,-0.0100],[454,A*0.985,-0.0100],
@@ -623,11 +666,18 @@ function anchorSpecs(P){
     [116,0.0620,-0.0200],[345,0.0620,-0.0200],
   ];
 }
+// Which side of the face each landmark lives on. toModel mirrors x, so a
+// landmark on the subject's right lands at +x. Declaring this removes the
+// ambiguity of generating both sides and letting a measurement collapse.
+const LM_RIGHT=new Set([33,133,159,145,105,70,107,234,172,132,58,93,127,205,50,116,98,61]);
+const LM_LEFT =new Set([263,362,386,374,334,300,336,454,397,361,288,323,356,425,280,345,327,291]);
+const lmSide=lm=>LM_RIGHT.has(lm)?1:(LM_LEFT.has(lm)?-1:0);
+
 // nearest frontmost vertex to a canonical (x,y)
 function findAnchorVerts(H){
   const specs=anchorSpecs(H.P), out=[];
   for(const [lm,ax,ay] of specs){
-    for(const sgn of (ax===0?[0]:[1,-1])){
+    for(const sgn of (ax===0?[0]:[lmSide(lm)||1])){
       const tx=sgn*ax; let best=-1,bd=1e9;
       for(let i=0;i<H.nv;i++){
         if(H.front[i]<0.30)continue;
@@ -814,6 +864,207 @@ function computeNormals(pos,idx,n){
   return nrm;
 }
 
+
+/* ═══ §4b  MEASUREMENT-DRIVEN FITTING ════════════════════════════════
+   The avatar is not warped onto the scan. Instead every shape parameter
+   owns a MEASUREMENT, and the same measurement code runs against both
+   the model and the observed landmarks. Each pass asks, per parameter,
+   "is the model bigger or smaller than the photo?" and steps toward it.
+   Parameters therefore stay inside plausible human ranges by
+   construction — the face can never tear or grow lumps — and repeated
+   passes converge instead of re-warping.                              */
+
+// A measurement is a pure function of a landmark accessor, so the model
+// and the photograph are measured by identical code.
+const D3P=(a,b)=>(a&&b)?Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]):NaN;
+const MEAS={
+  faceW:      g=>D3P(g(234),g(454)),
+  templeW:    g=>D3P(g(127),g(356)),
+  jawW:       g=>D3P(g(172),g(397)),
+  cheekW:     g=>D3P(g(116),g(345)),
+  lowCheekW:  g=>D3P(g(205),g(425)),
+  chinDrop:   g=>(g(33)&&g(152))?((g(33)[1]+g(263)[1])/2-g(152)[1]):NaN,
+  browRise:   g=>(g(105)&&g(33))?((g(105)[1]+g(334)[1])/2-(g(33)[1]+g(263)[1])/2):NaN,
+  noseLen:    g=>(g(168)&&g(4))?Math.abs(g(168)[1]-g(4)[1]):NaN,
+  noseW:      g=>D3P(g(98),g(327)),
+  noseProj:   g=>(g(4)&&g(50))?(g(4)[2]-(g(50)[2]+g(280)[2])/2):NaN,
+  mouthW:     g=>D3P(g(61),g(291)),
+  lipH:       g=>(g(0)&&g(17))?Math.abs(g(0)[1]-g(17)[1]):NaN,
+  mouthDrop:  g=>(g(61)&&g(33))?((g(33)[1]+g(263)[1])/2-(g(61)[1]+g(291)[1])/2):NaN,
+  eyeGap:     g=>D3P(g(133),g(362)),
+  eyeWidth:   g=>D3P(g(33),g(133)),
+  chinProj:   g=>(g(152)&&g(50))?(g(152)[2]-(g(50)[2]+g(280)[2])/2):NaN,
+  cheekProj:  g=>(g(50)&&g(234))?((g(50)[2]+g(280)[2])/2-(g(234)[2]+g(454)[2])/2):NaN,
+  jawlineBow: g=>{   // how far the jaw contour bulges outside chin→gonion
+    const a=g(172),b=g(152),m=g(58);
+    if(!a||!b||!m) return NaN;
+    return Math.hypot(m[0]-(a[0]+b[0])/2, m[1]-(a[1]+b[1])/2);
+  },
+};
+
+// parameter → the measurement it controls, plus its legal range
+const FITP=[
+  ['headW',      'faceW',      0.80,1.24],
+  ['faceLen',    'chinDrop',   0.84,1.20],
+  ['jawW',       'jawW',       0.80,1.24],
+  ['noseLen',    'noseLen',    0.76,1.30],
+  ['noseW',      'noseW',      0.76,1.32],
+  ['noseProj',   'noseProj',   0.65,1.45],
+  ['mouthW',     'mouthW',     0.78,1.28],
+  ['lipFull',    'lipH',       0.65,1.50],
+  ['browHeight', 'browRise',   0.78,1.28],
+  ['eyeSpacing', 'eyeGap',     0.86,1.16],
+  ['eyeSize',    'eyeWidth',   0.84,1.20],
+  ['chinProj',   'chinProj',   0.60,1.55],
+  ['cheekProm',  'cheekProj',  0.55,1.60],
+  ['tempHollow', 'templeW',    0.10,1.90],
+  ['fatMalar',   'cheekW',     0.05,1.00],
+  ['fatBuccal',  'lowCheekW',  0.05,1.00],
+  ['fatJowl',    'jawlineBow', 0.00,1.00],
+];
+
+// Evaluate the model's landmarks. Each anchor is a semantic TARGET in
+// canonical space, not a fixed surface coordinate: invert the base
+// parameterisation to find where that target now sits, then sculpt it.
+// Without this a parameter can move a feature while its anchor stays
+// behind, the measured slope reads zero, and the fitter never budges.
+function modelGetter(S){
+  const P=derived(S), specs=anchorSpecs(P), o=new Float32Array(8), cache={};
+  for(const [lm,ax,ay] of specs){
+    const sgn=ax===0?0:(lmSide(lm)||1), tx=sgn*ax;
+    const yPre=ay<0?ay/P.FL:ay;
+    const phi=Math.acos(clamp(yPre/P.B,-1,1));
+    const sphi=Math.sin(phi)||1e-6;
+    const th=Math.asin(clamp(tx/(P.A*sphi),-1,1));   // front hemisphere
+    sculptPoint(th,phi,S,P,o);
+    cache[lm]=[o[0],o[1],o[2]];
+  }
+  return lm=>cache[lm]||null;
+}
+function cloudGetter(cloud,conf){
+  return lm=>{
+    const i=lm*3;
+    if(!isFinite(cloud[i])) return null;
+    if(conf && isFinite(conf[lm]) && conf[lm]<0.25) return null;   // scattered
+    return [cloud[i],cloud[i+1],cloud[i+2]];
+  };
+}
+
+/* Coordinate-descent with a numeric slope per parameter: measure, ask
+   more-or-less, take a damped Newton step, clamp, repeat. The slope is
+   measured rather than hard-coded, so the loop stays correct if the
+   sculpt changes. */
+// Verify the declared sides against the capture; a non-mirrored feed
+// flips every anchor at once rather than scrambling them individually.
+function orientAnchors(anchors,cloud){
+  let agree=0,total=0;
+  for(const a of anchors){
+    if(!a.side) continue;
+    const t=cloud[a.lm*3];
+    if(!isFinite(t)||Math.abs(t)<1e-4) continue;
+    total++; if(Math.sign(t)===a.side) agree++;
+  }
+  if(total>6&&agree<total*0.4)
+    return anchors.map(a=>({...a,side:-a.side}));
+  return anchors;
+}
+
+function fitShape(cloud, conf, anchors, S0, passes){
+  const S={...S0};
+  const obsG=cloudGetter(cloud,conf), obs={};
+  for(const k in MEAS) obs[k]=MEAS[k](obsG);
+  const log=[];
+  for(let pass=0;pass<passes;pass++){
+    const damp=pass===0?0.55:(pass<3?0.75:0.9);
+    for(const [key,mk,lo,hi] of FITP){
+      const target=obs[mk];
+      if(!isFinite(target)) continue;
+      const m0=MEAS[mk](modelGetter(S));
+      if(!isFinite(m0)) continue;
+      const h=(hi-lo)*0.04;
+      const S1={...S,[key]:clamp(S[key]+h,lo,hi)};
+      const m1=MEAS[mk](modelGetter(S1));
+      const slope=(m1-m0)/((S1[key]-S[key])||1e-9);
+      if(!isFinite(slope)||Math.abs(slope)<1e-7) continue;
+      const step=clamp((target-m0)/slope*damp,-(hi-lo)*0.34,(hi-lo)*0.34);
+      S[key]=clamp(S[key]+step,lo,hi);
+    }
+  }
+  // report the residuals so the panel can show what actually converged
+  const fin=modelGetter(S);
+  for(const [key,mk] of FITP){
+    const t=obs[mk], m=MEAS[mk](fin);
+    if(isFinite(t)&&isFinite(m)) log.push({key,mk,err:(m-t)*1000,target:t*1000});
+  }
+  return {S,log,obs};
+}
+
+/* ── Lens / perspective ──────────────────────────────────────────────
+   A selfie at arm's length magnifies whatever is nearest the lens — the
+   nose grows, the ears shrink. First-order undo is x·(1−z·k) with
+   k = 1/distance. k is not guessed: it is the value that makes the
+   turned views agree once they are aligned, which is only observable
+   because calibration captures more than one angle.                  */
+function undoPerspective(cloud,k){
+  const out=new Float32Array(cloud.length);
+  for(let i=0;i<468;i++){
+    const z=cloud[i*3+2], sc=1-z*k;
+    out[i*3]=cloud[i*3]*sc; out[i*3+1]=cloud[i*3+1]*sc; out[i*3+2]=z;
+  }
+  return out;
+}
+function viewDisagreement(views,k){
+  const ref=undoPerspective(views[0],k);
+  let sum=0,n=0;
+  for(let v=1;v<views.length;v++){
+    const al=alignCloud(undoPerspective(views[v],k),ref);
+    for(let i=0;i<468;i++){
+      const d=Math.hypot(al[i*3]-ref[i*3],al[i*3+1]-ref[i*3+1],al[i*3+2]-ref[i*3+2]);
+      if(!isFinite(d))continue;              // a dropped landmark isn't evidence
+      sum+=d; n++;
+    }
+  }
+  return n>40?sum/n:Infinity;
+}
+function estimateLensK(views){
+  if(views.length<2) return {k:2.2,err:null,est:false};   // default ≈45 cm
+  let best=null,bestE=Infinity;
+  for(let k=0;k<=5.0;k+=0.25){
+    const e=viewDisagreement(views,k);
+    if(e<bestE){bestE=e;best=k;}
+  }
+  if(best===null) return {k:2.2,err:null,est:false};     // no usable overlap
+  for(let k=Math.max(0,best-0.25);k<=best+0.25;k+=0.05){
+    const e=viewDisagreement(views,k);
+    if(e<bestE){bestE=e;best=k;}
+  }
+  return {k:best,err:bestE,est:true};
+}
+
+/* Per-landmark convergence: points that land in the same place from
+   every angle are real triangulated structure; points that scatter are
+   MediaPipe guessing, and are dropped from the measurements. */
+function convergence(views,k,ref){
+  const conf=new Float32Array(468).fill(1);
+  if(views.length<2) return conf;
+  const acc=[];
+  for(let v=0;v<views.length;v++)
+    acc.push(v===0?ref:alignCloud(undoPerspective(views[v],k),ref));
+  for(let i=0;i<468;i++){
+    let mx=0,my=0,mz=0,n=0;
+    for(const a of acc){ if(!isFinite(a[i*3]))continue;
+      mx+=a[i*3]; my+=a[i*3+1]; mz+=a[i*3+2]; n++; }
+    if(n<2){ conf[i]=1; continue; }    // too few sightings to judge — don't punish
+    mx/=n; my/=n; mz/=n;
+    let sp=0;
+    for(const a of acc){ if(!isFinite(a[i*3]))continue;
+      sp+=Math.hypot(a[i*3]-mx,a[i*3+1]-my,a[i*3+2]-mz); }
+    sp/=n;
+    conf[i]=isFinite(sp)?cl01(1-(sp/0.010)):1;   // 10 mm scatter ⇒ worthless
+  }
+  return conf;
+}
+
 /* ═══ §5 AVATAR ASSEMBLY (three.js) ═══════════════════════════════════ */
 const AV={root:null,head:null,hair:null,neck:null,bones:null,skel:null,
   morphIdx:{},eyeL:null,eyeR:null,quality:1,tris:0,built:false};
@@ -854,52 +1105,17 @@ function buildAvatar(){
   const t0=performance.now();
   if(AV.root){ scene.remove(AV.root); disposeTree(AV.root); }
 
-  const S=measToShape(ID.meas);
+  // Shape comes only from parameters now — fitted, then optionally
+  // hand-tuned. Nothing deforms the mesh after generation, so parts
+  // parented to bones can never drift out of the face.
+  const S=Object.assign(measToShape(ID.meas), ID.fit||{}, ID.manual||{});
   AV._adip=S._adip!=null?S._adip:0.5; AV._bone=S._bone!=null?S._bone:0.5;
+  AV.S=S;
   const q=AV.quality;
   const H=buildHead(S,{NA:Math.round(112*q),NP:Math.round(88*q)});
-
-  // ── stage 2: RBF onto the measured landmark cloud ──
-  let fitted=false;
-  if(ID.lm){
-    const av=findAnchorVerts(H), src=[],dst=[];
-    for(const a of av){
-      const L=ID.lm, i=a.lm;
-      const tx=L[i*3],ty=L[i*3+1],tz=L[i*3+2];
-      if(!isFinite(tx))continue;
-      if(a.side!==0 && Math.sign(tx)!==a.side) continue;   // side from the data
-      src.push([H.canon[a.vi*3],H.canon[a.vi*3+1],H.canon[a.vi*3+2]]);
-      dst.push([tx,ty,tz]);
-    }
-    if(src.length>=18){
-      // MediaPipe depth from a single view is unreliable, so trust z only
-      // as far as the calibration actually triangulated it.
-      const zTrust=CAL.sessions>0?0.85:0.45;
-      for(let i=0;i<dst.length;i++)
-        dst[i][2]=src[i][2]+(dst[i][2]-src[i][2])*zTrust;
-      // drop anchors whose displacement is a wild outlier — one bad
-      // landmark otherwise drags a lump across the whole cheek
-      const mag=src.map((p,i)=>Math.hypot(dst[i][0]-p[0],dst[i][1]-p[1],dst[i][2]-p[2]));
-      const med=[...mag].sort((a,b)=>a-b)[mag.length>>1]||0;
-      const lim=Math.max(0.008,med*2.4);
-      for(let i=mag.length-1;i>=0;i--) if(mag[i]>lim){ src.splice(i,1); dst.splice(i,1); }
-    }
-    if(src.length>=18){
-      const W=solveRBF(src,dst,0.034,0.016);
-      const warp=makeWarp(src,W,0.034,0.80,0.014), o=[0,0,0];
-      for(let i=0;i<H.nv;i++){
-        warp(H.pos[i*3],H.pos[i*3+1],H.pos[i*3+2],o);
-        H.pos[i*3]=o[0];H.pos[i*3+1]=o[1];H.pos[i*3+2]=o[2];
-      }
-      H.warp=warp; fitted=true;
-    }
-  }
+  const fitted=!!ID.fit;
   el('t-fit').textContent=fitted?('fit·'+Math.max(1,CAL.sessions)):'base';
-  // The warp moves the face; eyeballs, ears, teeth and the mouth cavity
-  // are parented to bones, so they must be carried along or they end up
-  // hanging outside the head.
-  const wp=(p)=>{ if(!H.warp) return p.slice();
-    const o=[0,0,0]; H.warp(p[0],p[1],p[2],o); return o; };
+  const wp=(p)=>p.slice();      // parametric only — nothing to carry
 
   const nrm=computeNormals(H.pos,H.idx,H.nv);
   const colors=buildColors(H,H.pos,COL,TRAITS);
@@ -1382,7 +1598,7 @@ function stepDone(skipped){
       for(const i of RIGID){c[0]+=mid[i].x;c[1]+=mid[i].y;c[2]+=mid[i].z;}
       CAP.neutral.c=c.map(v=>v/RIGID.length);
       sampleColors(mid);
-      commitIdentity(toModel(mid),1);       // v1 likeness lands immediately
+      commitIdentity(toModel(mid),1,null);  // v1 likeness lands immediately
       card('CALIBRATING','front ✓ · turns add real depth');
     }
   }
@@ -1421,23 +1637,45 @@ function finishCalibration(){
   }
   const fused=new Float32Array(468*3);
   for(let j=0;j<468*3;j++) fused[j]=acc[j]/w[j];
-  commitIdentity(fused,got.length);
+  const raw=got.map(k=>toModel(CAL.views[k]));
+  commitIdentity(fused,got.length,raw);
   el('b-ref').disabled=false;
   hint('Fused '+got.length+' views · Refine to keep converging');
 }
 
 // running-average successive sessions so likeness accumulates
-function commitIdentity(cloud,nviews){
+function commitIdentity(cloud,nviews,views){
+  // 1. lens: undo the close-range magnification before measuring anything
+  if(views&&views.length>1){
+    const est=estimateLensK(views);
+    ID.lensK=est.k; ID.lensErr=est.err;
+  } else if(ID.lensK==null) ID.lensK=2.2;
+  const corr=undoPerspective(cloud,ID.lensK);
+
+  // 2. triangulation confidence from cross-view convergence
+  ID.conf=views&&views.length>1?convergence(views,ID.lensK,corr):null;
+
+  // 3. accumulate across sessions so Refine keeps improving the scan
   if(ID.lm&&CAL.sessions>0&&nviews>1){
     const a=CAL.sessions/(CAL.sessions+1);
-    for(let j=0;j<cloud.length;j++) cloud[j]=ID.lm[j]*a+cloud[j]*(1-a);
+    for(let j=0;j<corr.length;j++) corr[j]=ID.lm[j]*a+corr[j]*(1-a);
   }
   if(nviews>1) CAL.sessions++;
-  ID.lm=cloud;
-  ID.meas=measureCloud(cloud);
-  autoTraits(cloud);
+  ID.lm=corr;
+  ID.meas=measureCloud(corr);
+  autoTraits(corr);
+
+  // 4. per-parameter more/less search against the measurements
+  const S0=Object.assign(measToShape(ID.meas), ID.fit||{});
+  const base=buildHead(S0,{NA:112,NP:88});
+  ID.anchors=orientAnchors(findAnchorVerts(base),corr);
+  const t0=performance.now();
+  const res=fitShape(corr,ID.conf,ID.anchors,S0,6);
+  ID.fit=res.S; ID.fitLog=res.log; ID.fitMs=Math.round(performance.now()-t0);
+
   buildAvatar();
-  reportCard(cloud,nviews);
+  reportCard(corr,nviews);
+  syncSliders();
   sendIdentity();
 }
 
@@ -1466,6 +1704,12 @@ function reportCard(f,nv){
     'nose length '+mm(noseL)+' · nose proj '+(deep?mm(f[4*3+2]-(f[50*3+2]+f[280*3+2])/2):'~'),
     'head = '+rat(faceH,noseL)+' nose · '+rat(faceH,lipW)+' lip',
     'soft tissue '+(AV._adip*100).toFixed(0)+'% · bone '+(AV._bone*100).toFixed(0)+'%',
+    'lens k '+(ID.lensK||0).toFixed(2)+(ID.lensErr!=null?' (solved)':' (assumed)')+
+      ' · conv '+(ID.conf?(100*[...ID.conf].filter(c=>c>0.25).length/468).toFixed(0)+'%':'—'),
+    'fit '+(ID.fitLog?ID.fitLog.length:0)+' params · '+(ID.fitMs||0)+'ms · worst '+
+      (ID.fitLog&&ID.fitLog.length?
+        [...ID.fitLog].sort((a,b)=>Math.abs(b.err)-Math.abs(a.err))[0].mk+' '+
+        [...ID.fitLog].sort((a,b)=>Math.abs(b.err)-Math.abs(a.err))[0].err.toFixed(1)+'mm':'—'),
     'mesh '+AV.tris.toLocaleString()+' tri · built '+AV.buildMs+'ms',
   ].join('<br>'));
 }
@@ -1862,7 +2106,64 @@ async function startCamera(){
   startCalibration(false);
 }
 
+// Every fitted parameter is also a hand control; auto-fit writes into
+// the same values, so tuning and fitting are the same knobs.
+const SLIDERS=[
+  ['headW','Head width',0.80,1.24],['faceLen','Face length',0.84,1.20],
+  ['jawW','Jaw width',0.80,1.24],['jawTaper','Jaw taper',0.80,1.25],
+  ['chinProj','Chin',0.60,1.55],['cheekProm','Cheekbone',0.55,1.60],
+  ['noseLen','Nose length',0.76,1.30],['noseW','Nose width',0.76,1.32],
+  ['noseProj','Nose depth',0.65,1.45],['mouthW','Mouth width',0.78,1.28],
+  ['lipFull','Lip fullness',0.65,1.50],['browHeight','Brow height',0.78,1.28],
+  ['browProm','Brow ridge',0.50,1.60],['eyeSpacing','Eye spacing',0.86,1.16],
+  ['eyeSize','Eye size',0.84,1.20],['zygoProm','Zygomatic',0.20,1.80],
+  ['goniProm','Gonial angle',0.20,1.80],['tempHollow','Temple hollow',0.10,1.90],
+  ['fatMalar','Malar fat',0,1],['fatBuccal','Buccal fat',0,1],
+  ['fatJowl','Jowl',0,1],['fatSubmental','Submental',0,1],
+  ['fatInfraorb','Under-eye fat',0,1],['fatTemporal','Temple fat',0,1],
+  ['foldNasolab','Nasolabial fold',0,1],['foldTear','Tear trough',0,1],
+  ['foldMarion','Marionette',0,1],
+];
+function buildSliders(){
+  const g=el('shapeGrid'); if(!g||g.childElementCount) return;
+  for(const [k,label,lo,hi] of SLIDERS){
+    const d=document.createElement('div'); d.className='sl';
+    d.innerHTML='<label>'+label+'</label><input type="range" min="'+lo+'" max="'+hi+
+      '" step="0.005" data-k="'+k+'"><span class="v"></span>';
+    const inp=d.querySelector('input'), out=d.querySelector('.v');
+    inp.oninput=()=>{ ID.manual=ID.manual||{}; ID.manual[k]=+inp.value;
+      out.textContent=(+inp.value).toFixed(2); buildAvatar(); sendIdentity(); };
+    g.appendChild(d);
+  }
+  syncSliders();
+}
+function syncSliders(){
+  const S=AV.S||measToShape(ID.meas);
+  document.querySelectorAll('#shapeGrid input').forEach(inp=>{
+    const k=inp.dataset.k; if(S[k]==null)return;
+    inp.value=S[k]; inp.parentElement.querySelector('.v').textContent=(+S[k]).toFixed(2);
+  });
+}
+const hex2hsl=h=>{const c=new THREE.Color(h),o={};c.getHSL(o);return {h:o.h,s:o.s,l:o.l};};
+
 function wire(){
+  el('b-shape').onclick=()=>{ buildSliders();
+    el('shapep').classList.toggle('op'); el('b-shape').classList.toggle('on'); };
+  el('b-autofit').onclick=()=>{
+    if(!ID.lm){ hint('Calibrate first — nothing to fit against'); return; }
+    ID.manual=null;
+    const S0=measToShape(ID.meas);
+    const base=buildHead(S0,{NA:112,NP:88});
+    ID.anchors=orientAnchors(findAnchorVerts(base),ID.lm);
+    const r=fitShape(ID.lm,ID.conf,ID.anchors,S0,8);
+    ID.fit=r.S; ID.fitLog=r.log;
+    buildAvatar(); syncSliders(); reportCard(ID.lm,CAL.sessions||1); sendIdentity();
+    hint('Re-fitted '+r.log.length+' parameters');
+  };
+  el('b-reset').onclick=()=>{ ID.manual=null; ID.fit=null;
+    buildAvatar(); syncSliders(); hint('Back to base humanoid'); };
+  for(const [id,key] of [['c-hair','hair'],['c-skin','skin'],['c-iris','iris']])
+    el(id).oninput=e=>{ COL[key]=hex2hsl(e.target.value); buildAvatar(); sendIdentity(); };
   el('b-cam').onclick=startCamera;
   el('b-cal').onclick=()=>startCalibration(false);
   el('b-ref').onclick=()=>{ startCalibration(true); hint('Refining · averages into your scan'); };
