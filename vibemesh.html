@@ -353,14 +353,32 @@ const DEFAULT_SHAPE={headW:1,headD:1,faceLen:1,jawW:1,jawTaper:1,chinProj:1,
   // fascia — retaining-ligament creases
   foldNasolab:0.45,foldTear:0.40,foldMarion:0.28,foldMand:0.35};
 
-// Reference ratios of an average face (IOD-normalised), used to turn
-// measurements into generator parameters.
-const REF={faceW:2.32,faceH:3.30,jawW:1.86,noseL:1.06,noseW:0.78,
-  mouthW:0.78,lipH:0.42,browRise:0.33,chinDrop:1.79,mouthDrop:1.14,noseProj:0.42,
-  templeW:2.22};
+/* Reference ratios of an average face, IOD-normalised. These are NOT
+   hand-entered: they are MEASURED off the generator's own default head
+   with the same MEAS code that measures a capture. A hand-written table
+   drifts out of agreement with the generator the moment the sculpt
+   changes — the previous literal disagreed with the model by up to 39%
+   on noseW and 57% on noseProj, which put every fit's starting point
+   outside the range the fitter is allowed to travel. Lazily computed,
+   because MEAS and modelGetter are defined further down. */
+let _REF=null;
+function refRatios(){
+  if(_REF) return _REF;
+  const g=modelGetter(DEFAULT_SHAPE), u=AN.IOD;
+  const f=v=>isFinite(v)?v/u:null;
+  const faceH=(g(10)&&g(152))?Math.abs(g(10)[1]-g(152)[1])/u:3.30;
+  _REF={faceW:f(MEAS.faceW(g)), faceH, jawW:f(MEAS.jawW(g)),
+    noseL:f(MEAS.noseLen(g)), noseW:f(MEAS.noseW(g)), mouthW:f(MEAS.mouthW(g)),
+    lipH:f(MEAS.lipH(g)), browRise:f(MEAS.browRise(g)),
+    chinDrop:f(MEAS.chinDrop(g)), mouthDrop:f(MEAS.mouthDrop(g)),
+    noseProj:f(MEAS.noseProj(g)), templeW:f(MEAS.templeW(g))};
+  for(const k in _REF) if(!(_REF[k]>1e-6)) _REF[k]=1;   // never divide by 0
+  return _REF;
+}
 
 function measToShape(m){
   if(!m)return {...DEFAULT_SHAPE};
+  const REF=refRatios();
   const r=(k,lo,hi)=>m[k]!=null&&isFinite(m[k])?clamp(m[k]/REF[k],lo,hi):1;
   const safe=(v,d)=>(v!=null&&isFinite(v)&&v>1e-6)?v:d;
   // Adiposity and bone prominence are inferred, not measured directly:
@@ -885,28 +903,40 @@ function computeNormals(pos,idx,n){
 // A measurement is a pure function of a landmark accessor, so the model
 // and the photograph are measured by identical code.
 const D3P=(a,b)=>(a&&b)?Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]):NaN;
+// Fetch every landmark a measurement touches, or give up. Guarding only
+// some of them and dereferencing the rest throws the moment a landmark
+// is dropped — by MediaPipe, or by the convergence filter — which took
+// the whole fit down rather than skipping one measurement.
+const LMS=(g,...ids)=>{
+  const o=[];
+  for(const i of ids){ const p=g(i); if(!p) return null; o.push(p); }
+  return o;
+};
 const MEAS={
   faceW:      g=>D3P(g(234),g(454)),
   templeW:    g=>D3P(g(127),g(356)),
   jawW:       g=>D3P(g(172),g(397)),
   cheekW:     g=>D3P(g(116),g(345)),
   lowCheekW:  g=>D3P(g(205),g(425)),
-  chinDrop:   g=>(g(33)&&g(152))?((g(33)[1]+g(263)[1])/2-g(152)[1]):NaN,
-  browRise:   g=>(g(105)&&g(33))?((g(105)[1]+g(334)[1])/2-(g(33)[1]+g(263)[1])/2):NaN,
-  noseLen:    g=>(g(168)&&g(4))?Math.abs(g(168)[1]-g(4)[1]):NaN,
+  chinDrop:   g=>{const p=LMS(g,33,263,152); return p?((p[0][1]+p[1][1])/2-p[2][1]):NaN;},
+  browRise:   g=>{const p=LMS(g,105,334,33,263);
+                  return p?((p[0][1]+p[1][1])/2-(p[2][1]+p[3][1])/2):NaN;},
+  noseLen:    g=>{const p=LMS(g,168,4); return p?Math.abs(p[0][1]-p[1][1]):NaN;},
   noseW:      g=>D3P(g(98),g(327)),
-  noseProj:   g=>(g(4)&&g(50))?(g(4)[2]-(g(50)[2]+g(280)[2])/2):NaN,
+  noseProj:   g=>{const p=LMS(g,4,50,280); return p?(p[0][2]-(p[1][2]+p[2][2])/2):NaN;},
   mouthW:     g=>D3P(g(61),g(291)),
-  lipH:       g=>(g(0)&&g(17))?Math.abs(g(0)[1]-g(17)[1]):NaN,
-  mouthDrop:  g=>(g(61)&&g(33))?((g(33)[1]+g(263)[1])/2-(g(61)[1]+g(291)[1])/2):NaN,
+  lipH:       g=>{const p=LMS(g,0,17); return p?Math.abs(p[0][1]-p[1][1]):NaN;},
+  mouthDrop:  g=>{const p=LMS(g,33,263,61,291);
+                  return p?((p[0][1]+p[1][1])/2-(p[2][1]+p[3][1])/2):NaN;},
   eyeGap:     g=>D3P(g(133),g(362)),
   eyeWidth:   g=>D3P(g(33),g(133)),
-  chinProj:   g=>(g(152)&&g(50))?(g(152)[2]-(g(50)[2]+g(280)[2])/2):NaN,
-  cheekProj:  g=>(g(50)&&g(234))?((g(50)[2]+g(280)[2])/2-(g(234)[2]+g(454)[2])/2):NaN,
+  chinProj:   g=>{const p=LMS(g,152,50,280); return p?(p[0][2]-(p[1][2]+p[2][2])/2):NaN;},
+  cheekProj:  g=>{const p=LMS(g,50,280,234,454);
+                  return p?((p[0][2]+p[1][2])/2-(p[2][2]+p[3][2])/2):NaN;},
   jawlineBow: g=>{   // how far the jaw contour bulges outside chin→gonion
-    const a=g(172),b=g(152),m=g(58);
-    if(!a||!b||!m) return NaN;
-    return Math.hypot(m[0]-(a[0]+b[0])/2, m[1]-(a[1]+b[1])/2);
+    const p=LMS(g,172,152,58);
+    if(!p) return NaN;
+    return Math.hypot(p[2][0]-(p[0][0]+p[1][0])/2, p[2][1]-(p[0][1]+p[1][1])/2);
   },
 };
 
@@ -1013,19 +1043,54 @@ function fitShape(cloud, conf, anchors, S0, passes){
    k = 1/distance. k is not guessed: it is the value that makes the
    turned views agree once they are aligned, which is only observable
    because calibration captures more than one angle.                  */
-function undoPerspective(cloud,k){
+/* The magnification gradient is radial about the OPTICAL AXIS, but the
+   cloud is centred on the eye midpoint, and those coincide only if the
+   subject is perfectly aligned with the lens. Nobody is: a phone sits
+   below the face, a laptop above it, and the face is rarely centred in
+   frame. The offset contributes a SHEAR, first order in both the
+   off-axis angle and the depth, so it is the same size as the radial
+   term it was missing from.
+
+   For a face centred at (Cx,Cy,Cz) with the camera at the origin and a
+   landmark at depth pz toward the lens:
+       x_measured = (px + a·pz)·(1 + pz·k)     k = 1/Cz,  a = Cx/Cz
+   so the undo is (x − a·pz)·(1 − pz·k). a and b are the tangents of the
+   off-axis angle; they are solved alongside k by the same criterion —
+   whichever camera makes the turned views agree is the camera that took
+   them. a=b=0 reduces to the old radial-only correction.          */
+function undoPerspective(cloud,k,a,b){
+  a=a||0; b=b||0;
+  /* Depth must be measured from the plane the scale was fixed at — the
+     canthal plane — not from the cloud's z origin, which sits 55 mm
+     behind it. Using raw z made the correction scale x and y by
+     (1 − 0.055k) while leaving z untouched: every width read ~11% short
+     and every depth ~12% long, at any camera distance, and the fitter
+     dutifully shrank the face to match. Here sc = 1 at the canthal
+     plane, so the correction is isotropic and introduces no scale. */
+  let z0=(cloud[33*3+2]+cloud[263*3+2])/2;
+  if(!isFinite(z0)) z0=0;
   const out=new Float32Array(cloud.length);
   for(let i=0;i<468;i++){
-    const z=cloud[i*3+2], sc=1-z*k;
-    out[i*3]=cloud[i*3]*sc; out[i*3+1]=cloud[i*3+1]*sc; out[i*3+2]=z;
+    const z=cloud[i*3+2], dz=z-z0, sc=1-dz*k;
+    out[i*3]=(cloud[i*3]-a*dz)*sc;
+    out[i*3+1]=(cloud[i*3+1]-b*dz)*sc;
+    out[i*3+2]=z;
+  }
+  // Safety net: the canthal span is the ruler toModel normalised by, so
+  // guarantee the result is still in the generator's metric space.
+  const d=Math.hypot(out[33*3]-out[263*3],out[33*3+1]-out[263*3+1],
+                     out[33*3+2]-out[263*3+2]);
+  if(d>1e-6&&isFinite(d)){
+    const r=canthalRef()/d;
+    for(let j=0;j<out.length;j++) out[j]*=r;
   }
   return out;
 }
-function viewDisagreement(views,k){
-  const ref=undoPerspective(views[0],k);
+function viewDisagreement(views,k,a,b){
+  const ref=undoPerspective(views[0],k,a,b);
   let sum=0,n=0;
   for(let v=1;v<views.length;v++){
-    const al=alignCloud(undoPerspective(views[v],k),ref);
+    const al=alignCloud(undoPerspective(views[v],k,a,b),ref);
     for(let i=0;i<468;i++){
       const d=Math.hypot(al[i*3]-ref[i*3],al[i*3+1]-ref[i*3+1],al[i*3+2]-ref[i*3+2]);
       if(!isFinite(d))continue;              // a dropped landmark isn't evidence
@@ -1034,30 +1099,44 @@ function viewDisagreement(views,k){
   }
   return n>40?sum/n:Infinity;
 }
-function estimateLensK(views){
-  if(views.length<2) return {k:2.2,err:null,est:false};   // default ≈45 cm
-  let best=null,bestE=Infinity;
-  for(let k=0;k<=5.0;k+=0.25){
-    const e=viewDisagreement(views,k);
-    if(e<bestE){bestE=e;best=k;}
+/* Solve the camera: distance (k) and where the subject sat relative to
+   the lens (a,b). Coarse sweep on k, which dominates, then coordinate
+   descent on all three with a shrinking step. */
+function solveCamera(views){
+  const FAIL={k:2.2,a:0,b:0,err:null,est:false};        // default ≈45 cm
+  if(!views||views.length<2) return FAIL;
+  let k=2.2,a=0,b=0,best=Infinity;
+  for(let t=0;t<=5.0;t+=0.25){
+    const e=viewDisagreement(views,t,0,0);
+    if(e<best){best=e;k=t;}
   }
-  if(best===null) return {k:2.2,err:null,est:false};     // no usable overlap
-  for(let k=Math.max(0,best-0.25);k<=best+0.25;k+=0.05){
-    const e=viewDisagreement(views,k);
-    if(e<bestE){bestE=e;best=k;}
+  if(!isFinite(best)) return FAIL;                      // no usable overlap
+  let step=[0.25,0.08,0.08];
+  for(let it=0;it<40;it++){
+    const tryIt=(dk,da,db)=>{
+      const nk=clamp(k+dk,0,6),na=clamp(a+da,-0.9,0.9),nb=clamp(b+db,-0.9,0.9);
+      const e=viewDisagreement(views,nk,na,nb);
+      if(e<best-1e-9){best=e;k=nk;a=na;b=nb;return true;}
+      return false;
+    };
+    let moved=false;
+    if(tryIt(step[0],0,0)||tryIt(-step[0],0,0)) moved=true;
+    if(tryIt(0,step[1],0)||tryIt(0,-step[1],0)) moved=true;
+    if(tryIt(0,0,step[2])||tryIt(0,0,-step[2])) moved=true;
+    if(!moved){ step=step.map(s=>s*0.5); if(step[0]<0.01) break; }
   }
-  return {k:best,err:bestE,est:true};
+  return {k,a,b,err:best,est:true};
 }
 
 /* Per-landmark convergence: points that land in the same place from
    every angle are real triangulated structure; points that scatter are
    MediaPipe guessing, and are dropped from the measurements. */
-function convergence(views,k,ref){
+// `views` here are ALREADY perspective-corrected.
+function convergence(views,ref){
   const conf=new Float32Array(468).fill(1);
   if(views.length<2) return conf;
   const acc=[];
-  for(let v=0;v<views.length;v++)
-    acc.push(v===0?ref:alignCloud(undoPerspective(views[v],k),ref));
+  for(const v of views) acc.push(alignCloud(v,ref));
   for(let i=0;i<468;i++){
     let mx=0,my=0,mz=0,n=0;
     for(const a of acc){ if(!isFinite(a[i*3]))continue;
@@ -1492,10 +1571,26 @@ function metrics(lm){
 }
 
 // landmark cloud → canonical model space (eyes at y=0, z≈0.055, IOD fixed)
+/* Normalise a capture into the generator's own metric space. The span
+   33<->263 is the OUTER CANTHI, not the pupils: dividing it into
+   AN.IOD (= 2 x AN.eyeX, the interpupillary distance) shrank every
+   capture by 39%. fitShape compares model metres against capture
+   metres, and the fit parameters are clamped to about +/-20%, so that
+   bias could not be absorbed — it pinned headW, jawW, noseW, mouthW
+   and eyeGap to their lower bounds on every scan, for everyone.
+   The reference span is measured off the default head so the two
+   spaces are identical by construction. */
+let _CANTH=null;
+function canthalRef(){
+  if(_CANTH) return _CANTH;
+  const g=modelGetter(DEFAULT_SHAPE), a=g(33), b=g(263);
+  _CANTH=(a&&b)?Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]):0.1053;
+  return _CANTH;
+}
 function toModel(lm){
   const ax=4/3;
   const iod=Math.hypot((lm[33].x-lm[263].x)*ax,lm[33].y-lm[263].y,lm[33].z-lm[263].z)||0.08;
-  const s=AN.IOD/iod, ZG=1.25;
+  const s=canthalRef()/iod, ZG=1.25;
   const cx=(lm[33].x+lm[263].x)/2, cy=(lm[33].y+lm[263].y)/2, cz=(lm[33].z+lm[263].z)/2;
   const o=new Float32Array(468*3);
   for(let i=0;i<468;i++){
@@ -1606,7 +1701,9 @@ function stepDone(skipped){
       for(const i of RIGID){c[0]+=mid[i].x;c[1]+=mid[i].y;c[2]+=mid[i].z;}
       CAP.neutral.c=c.map(v=>v/RIGID.length);
       sampleColors(mid);
-      commitIdentity(toModel(mid),1,null);  // v1 likeness lands immediately
+      // v1 likeness lands immediately. One view cannot solve the camera,
+      // so it gets the assumed arm's-length correction and no shear.
+      commitIdentity(undoPerspective(toModel(mid),2.2,0,0),1,null,null);
       card('CALIBRATING','front ✓ · turns add real depth');
     }
   }
@@ -1631,37 +1728,71 @@ function alignCloud(m,ref){
   }
   return o;
 }
+/* Put the capture in the generator's own frontal frame.
+   Every vertical measurement (chinDrop, browRise, noseLen, mouthDrop,
+   lipH) is a raw Y difference, so any head pitch left in the reference
+   view foreshortens all of them at once. Nothing guarantees the "front"
+   capture was frontal — the subject is looking at a screen, not a lens.
+   Aligning the rigid landmarks to the DEFAULT head (not the fitted one,
+   which would be circular) recovers the pose without assuming it. */
+function canonicalisePose(cloud){
+  const g=modelGetter(DEFAULT_SHAPE);
+  const idx=RIGID.filter(i=>g(i)&&isFinite(cloud[i*3]));
+  if(idx.length<4) return cloud;
+  const P=[],Q=[],cP=[0,0,0],cQ=[0,0,0];
+  for(const i of idx){ const q=g(i);
+    for(let a=0;a<3;a++){ cP[a]+=cloud[i*3+a]; cQ[a]+=q[a]; } }
+  for(let a=0;a<3;a++){ cP[a]/=idx.length; cQ[a]/=idx.length; }
+  for(const i of idx){ const q=g(i);
+    P.push([cloud[i*3]-cP[0],cloud[i*3+1]-cP[1],cloud[i*3+2]-cP[2]]);
+    Q.push([q[0]-cQ[0],q[1]-cQ[1],q[2]-cQ[2]]); }
+  const R=kabsch(P,Q), o=new Float32Array(cloud.length);
+  for(let i=0;i<468;i++){
+    const x=cloud[i*3]-cP[0],y=cloud[i*3+1]-cP[1],z=cloud[i*3+2]-cP[2];
+    o[i*3]  =R[0]*x+R[1]*y+R[2]*z+cQ[0];
+    o[i*3+1]=R[3]*x+R[4]*y+R[5]*z+cQ[1];
+    o[i*3+2]=R[6]*x+R[7]*y+R[8]*z+cQ[2];
+  }
+  return o;
+}
+
 function finishCalibration(){
   CAL.active=false;
   const got=Object.keys(CAL.views);
   if(!CAL.views.center){ card('CALIBRATION','no front view · try again'); return; }
-  const ref=toModel(CAL.views.center);
+  // Correct each view with ITS OWN perspective before fusing. Every view
+  // carries a different distortion, so an average of uncorrected clouds
+  // is not a distorted average — it is unrecoverable.
+  const raw=got.map(k=>toModel(CAL.views[k]));
+  const cam=solveCamera(raw);
+  const corr=raw.map(v=>undoPerspective(v,cam.k,cam.a,cam.b));
+  const ref=corr[got.indexOf('center')];
   const acc=new Float64Array(468*3), w=new Float64Array(468*3);
   for(let j=0;j<468*3;j++){acc[j]=ref[j]*2;w[j]=2;}
-  for(const k of ['left','right','up','down']){
-    if(!CAL.views[k])continue;
-    const al=alignCloud(toModel(CAL.views[k]),ref);
+  for(let v=0;v<corr.length;v++){
+    if(got[v]==='center')continue;
+    const al=alignCloud(corr[v],ref);
     for(let j=0;j<468*3;j++){acc[j]+=al[j];w[j]+=1;}
   }
   const fused=new Float32Array(468*3);
   for(let j=0;j<468*3;j++) fused[j]=acc[j]/w[j];
-  const raw=got.map(k=>toModel(CAL.views[k]));
-  commitIdentity(fused,got.length,raw);
+  commitIdentity(fused,got.length,corr,cam);
   el('b-ref').disabled=false;
   hint('Fused '+got.length+' views · Refine to keep converging');
 }
 
 // running-average successive sessions so likeness accumulates
-function commitIdentity(cloud,nviews,views){
-  // 1. lens: undo the close-range magnification before measuring anything
-  if(views&&views.length>1){
-    const est=estimateLensK(views);
-    ID.lensK=est.k; ID.lensErr=est.err;
-  } else if(ID.lensK==null) ID.lensK=2.2;
-  const corr=undoPerspective(cloud,ID.lensK);
+// `cloud` and `views` arrive already perspective-corrected; `cam` is the
+// camera that was solved for them.
+function commitIdentity(cloud,nviews,views,cam){
+  if(cam){ ID.lensK=cam.k; ID.lensA=cam.a; ID.lensB=cam.b; ID.lensErr=cam.err; }
+  else if(ID.lensK==null){ ID.lensK=2.2; ID.lensA=0; ID.lensB=0; }
+
+  // 1. put it in the generator's frontal frame before anything is measured
+  const corr=canonicalisePose(cloud);
 
   // 2. triangulation confidence from cross-view convergence
-  ID.conf=views&&views.length>1?convergence(views,ID.lensK,corr):null;
+  ID.conf=views&&views.length>1?convergence(views,cloud):null;
 
   // 3. accumulate across sessions so Refine keeps improving the scan
   if(ID.lm&&CAL.sessions>0&&nviews>1){
@@ -1713,6 +1844,7 @@ function reportCard(f,nv){
     'head = '+rat(faceH,noseL)+' nose · '+rat(faceH,lipW)+' lip',
     'soft tissue '+(AV._adip*100).toFixed(0)+'% · bone '+(AV._bone*100).toFixed(0)+'%',
     'lens k '+(ID.lensK||0).toFixed(2)+(ID.lensErr!=null?' (solved)':' (assumed)')+
+      ' · off-axis '+(Math.atan(Math.hypot(ID.lensA||0,ID.lensB||0))*180/Math.PI).toFixed(0)+'°'+
       ' · conv '+(ID.conf?(100*[...ID.conf].filter(c=>c>0.25).length/468).toFixed(0)+'%':'—'),
     'fit '+(ID.fitLog?ID.fitLog.length:0)+' params · '+(ID.fitMs||0)+'ms · worst '+
       (ID.fitLog&&ID.fitLog.length?
