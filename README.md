@@ -17,12 +17,28 @@ Built with love in Vancouver + Jersey Shore energy.
 
 `vibemesh.html` is the ground-up rebuild: a **self-generating parametric
 human** — a real polygon head sculpted from anatomical feature fields
-(clean topology, true eye/mouth apertures), **rigged** with a skeleton
-(root/neck/head/jaw/eyes) plus 8 generated blendshapes, and **puppeted**
-from ~23-byte AvatarState packets. Likeness is earned in two stages:
-measured ratios reshape the generator, then a gaussian RBF warp
-interpolates the base onto your measured landmark cloud — smooth by
-construction, so Refine converges instead of falling apart.
+(bone structure, fat compartments, fascia creases; clean topology, true
+eye/mouth apertures), **rigged** with a skeleton (root/neck/head/jaw/eyes)
+plus 8 generated blendshapes, and **puppeted** from ~23-byte AvatarState
+packets.
+
+Likeness is a **closed-loop parameter search**, not a warp. The guided
+calibrator (turn left/right/up/down) builds a multi-view landmark cloud;
+lens/perspective distortion is solved out by minimising cross-view
+disagreement; 17 named measurements (nose length, eye gap, jaw width,
+chin projection, cheek prominence…) are then read off both the cloud and
+the live model with the *same* functions, and each parameter is moved by
+numeric slope until the model's measurement matches yours. Every value
+stays inside a clamped human range, so Refine converges instead of
+falling apart. Ground-truth recovery test: 0.17 mm mean residual.
+
+**Look:** a `SONDER` post-process replaces the plastic shaded-solid
+reading — macroblock tearing, per-channel chromatic split, particle
+dissolution off the figure's own edges, feedback trails, and a hue
+recolorisation (deep blue → magenta → orange). Its intensity is driven
+by the semantic signals the protocol already sends, so the figure comes
+apart when you speak, move or gesture and re-coheres when you are still.
+Costs nothing on the wire. Toggle `SOLID` to see the shaded surface.
 Live: https://barnickelus.github.io/Vibemesh/vibemesh.html
 
 ### Tesserae renderer (earlier voxel-mosaic build)
