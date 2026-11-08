@@ -875,6 +875,165 @@ function buildColors(H,pos,COL,traits){
   return col;
 }
 
+/* Per-vertex concavity. For each vertex, how far its neighbours sit off
+   its own tangent plane: positive where the surface cups inward (eye
+   sockets, nostrils, the mouth line, nasolabial folds, under the chin),
+   negative on ridges (nose bridge, brow, chin point).
+
+   This is the occlusion a face has purely by its own shape, and its
+   absence is a large part of why untextured CG skin reads as rubber —
+   every crease is lit exactly as brightly as the surface beside it. */
+function computeCavity(pos,nrm,idx,n){
+  const acc=new Float32Array(n), cnt=new Float32Array(n);
+  const edge=(a,b)=>{
+    const dx=pos[b*3]-pos[a*3], dy=pos[b*3+1]-pos[a*3+1], dz=pos[b*3+2]-pos[a*3+2];
+    const L=Math.hypot(dx,dy,dz)||1e-6;
+    acc[a]+=(dx*nrm[a*3]+dy*nrm[a*3+1]+dz*nrm[a*3+2])/L; cnt[a]++;
+  };
+  for(let t=0;t<idx.length;t+=3){
+    const a=idx[t],b=idx[t+1],c=idx[t+2];
+    edge(a,b);edge(b,a);edge(b,c);edge(c,b);edge(c,a);edge(a,c);
+  }
+  const raw=new Float32Array(n);
+  for(let i=0;i<n;i++) raw[i]=cnt[i]?acc[i]/cnt[i]:0;
+  // one smoothing pass over the 1-ring, or single-vertex noise becomes
+  // a speckle that looks like dirt rather than shape
+  const sm=new Float32Array(n), sc=new Float32Array(n);
+  for(let t=0;t<idx.length;t+=3){
+    const v=[idx[t],idx[t+1],idx[t+2]];
+    for(const a of v) for(const b of v){ sm[a]+=raw[b]; sc[a]++; }
+  }
+  const out=new Float32Array(n);
+  for(let i=0;i<n;i++) out[i]=clamp((sc[i]?sm[i]/sc[i]:raw[i])*7.0,-1,1);
+  return out;
+}
+
+/* ── skin shading ──────────────────────────────────────────────────
+   Injected into MeshStandardMaterial rather than written from scratch,
+   so three's skinning, morph targets and light loop keep working.
+   Adds the three things whose absence reads as plastic:
+     · pores — a procedural micro-normal in OBJECT space, so the detail
+       sticks to the skin instead of swimming when the head turns, and
+       roughness broken up by it. One uniform roughness over a whole
+       face is the single loudest plastic cue.
+     · subsurface — light bleeds past the terminator, and it comes back
+       red, because that is the wavelength that survives 2mm of dermis.
+     · cavity — creases sit in their own shadow.                     */
+const SKIN_COMMON=`
+#include <common>
+varying vec3 vObjPos;
+varying float vCav;
+varying float vPor;
+uniform float uSSS, uPore, uOil;
+float sh3(vec3 p){ return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }
+float n3(vec3 p){
+  vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(sh3(i),sh3(i+vec3(1,0,0)),f.x),
+                 mix(sh3(i+vec3(0,1,0)),sh3(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(sh3(i+vec3(0,0,1)),sh3(i+vec3(1,0,1)),f.x),
+                 mix(sh3(i+vec3(0,1,1)),sh3(i+vec3(1,1,1)),f.x),f.y),f.z);
+}
+// Frequencies are chosen to stay RESOLVABLE at the size this head is
+// rendered: a head is ~0.23 m over ~500 px, so anything finer than about
+// 2 mm lands under a pixel and aliases into a rash instead of reading as
+// pores. Fine detail that cannot be resolved is worse than none.
+float skinDetail(vec3 p){
+  return n3(p*300.0)*0.28 + n3(p*560.0)*0.72;
+}`;
+
+const SKIN_NORMAL=`
+#include <normal_fragment_begin>
+{
+  vec3 q=vObjPos;
+  float d0=skinDetail(q);
+  float e=0.0007;                   // matched to the finest octave above
+  vec3 g=vec3(skinDetail(q+vec3(e,0.0,0.0))-d0,
+              skinDetail(q+vec3(0.0,e,0.0))-d0,
+              skinDetail(q+vec3(0.0,0.0,e))-d0);
+  g-=normal*dot(g,normal);          // tilt only, never rescale
+  normal=normalize(normal - g*uPore*vPor*0.85);
+}`;
+
+const SKIN_ROUGH=`
+#include <roughnessmap_fragment>
+{
+  float det=skinDetail(vObjPos);
+  // the T-zone is oily and the cheeks are matte; that contrast is most
+  // of what separates skin from a moulded surface
+  float tz=exp(-pow(vObjPos.x/0.026,2.0));
+  float oil=tz*(0.45+0.55*smoothstep(-0.02,0.09,vObjPos.y));
+  roughnessFactor=clamp(roughnessFactor-oil*uOil+(det-0.5)*0.12*vPor+vCav*0.10,0.20,0.92);
+}`;
+
+const SKIN_LIGHTS=`
+#include <lights_fragment_end>
+#if NUM_DIR_LIGHTS > 0
+{
+  vec3 L=directionalLights[0].direction;
+  float ndl=dot(normal,L);
+  // wrap diffuse: light that entered nearby and surfaced here
+  float wrap=clamp((ndl+0.34)/1.34,0.0,1.0);
+  float bleed=clamp(wrap-max(ndl,0.0),0.0,1.0);
+  vec3 derm=vec3(0.74,0.30,0.22);   // what white light looks like after 2mm of skin
+  reflectedLight.directDiffuse+=diffuseColor.rgb*derm*bleed*uSSS*directionalLights[0].color;
+  // transmission through thin parts — ear rims, nostril wings, lips
+  vec3 V=normalize(vViewPosition);
+  float fres=pow(1.0-clamp(dot(normal,V),0.0,1.0),2.5);
+  float thin=fres*clamp(-vCav,0.0,1.0);
+  float back=pow(clamp(dot(V,-L),0.0,1.0),2.5);
+  reflectedLight.directDiffuse+=diffuseColor.rgb*derm*back*thin*uSSS*1.5;
+  // vellus hair catches light at grazing angles and goes slightly warm
+  reflectedLight.directDiffuse+=vec3(0.34,0.25,0.20)*fres*0.16;
+}
+#endif
+reflectedLight.directDiffuse*=1.0-clamp(vCav,0.0,1.0)*0.55;
+reflectedLight.indirectDiffuse*=1.0-clamp(vCav,0.0,1.0)*0.68;
+// creases do not catch highlights either
+reflectedLight.directSpecular*=1.0-clamp(vCav,0.0,1.0)*0.45;`;
+
+function makeSkinMaterial(opts){
+  const m=new THREE.MeshStandardMaterial(Object.assign(
+    {vertexColors:true,roughness:0.62,metalness:0.0,side:THREE.FrontSide,
+     envMapIntensity:0.30},opts||{}));
+  m.onBeforeCompile=sh=>{
+    sh.uniforms.uSSS={value:0.30};
+    sh.uniforms.uPore={value:1.0};
+    sh.uniforms.uOil={value:0.22};
+    sh.vertexShader=sh.vertexShader
+      .replace('#include <common>',
+        '#include <common>\nattribute float aCav;\nattribute float aPor;\nvarying vec3 vObjPos;\nvarying float vCav;\nvarying float vPor;')
+      .replace('#include <begin_vertex>',
+        '#include <begin_vertex>\nvObjPos=position;\nvCav=aCav;\nvPor=aPor;');
+    sh.fragmentShader=sh.fragmentShader
+      .replace('#include <common>',SKIN_COMMON)
+      .replace('#include <normal_fragment_begin>',SKIN_NORMAL)
+      .replace('#include <roughnessmap_fragment>',SKIN_ROUGH)
+      .replace('#include <lights_fragment_end>',SKIN_LIGHTS);
+  };
+  m.customProgramCacheKey=()=>'vmskin1';
+  return m;
+}
+
+/* Where skin actually has pores. Lips, eyelids and the brow line are
+   effectively poreless, and leaving micro-detail on them is a strong
+   plastic cue — a bumpy lip reads as moulded rubber. The nose and the
+   cheeks carry the most. */
+function computePores(H){
+  const n=H.nv, out=new Float32Array(n);
+  const {MY,EY}=H.P;
+  for(let i=0;i<n;i++){
+    const x=H.canon[i*3],y=H.canon[i*3+1],f=H.front[i];
+    const lip=H.region[i*4],brow=H.region[i*4+1];
+    const lid=Math.exp(-(((Math.abs(x)-EY)/0.021)**2)-((y/0.011)**2))*f;
+    let v=0.72;
+    v+=0.55*Math.exp(-((x/0.017)**2)-(((y+0.030)/0.026)**2))*f;      // nose
+    v+=0.38*Math.exp(-(((Math.abs(x)-0.047)/0.026)**2)-(((y+0.010)/0.030)**2))*f;
+    v*= (1-cl01(lip*1.9))*(1-cl01(brow*1.6))*(1-cl01(lid*1.5));
+    out[i]=clamp(v,0,1.25);
+  }
+  return out;
+}
+
 function computeNormals(pos,idx,n){
   const nrm=new Float32Array(n*3);
   for(let t=0;t<idx.length;t+=3){
@@ -1166,8 +1325,40 @@ const TRAITS={hair:'short',beard:'none'};
    vertex colours (pupil → iris → limbal ring). Avoids projecting a
    flat texture onto a sphere, which smears the iris across the globe. */
 const EYE_R=0.0136;
+/* Sclera is never flat white. The upper half sits in the lid's shadow,
+   the corners go warm and pink from the caruncle and the vessels there,
+   and faint veins run toward the limbus. Painting that in vertex colour
+   costs nothing and removes most of the ping-pong-ball reading. */
+function buildScleraGeo(){
+  const g=new THREE.SphereGeometry(EYE_R,28,20);
+  const p=g.attributes.position, n=p.count, col=new Float32Array(n*3);
+  const c=new THREE.Color();
+  for(let i=0;i<n;i++){
+    const x=p.getX(i)/EYE_R, y=p.getY(i)/EYE_R, z=p.getZ(i)/EYE_R;
+    c.setRGB(0.955,0.935,0.912);
+    c.multiplyScalar(1-cl01((y+0.12)*0.85)*0.58);       // lid shadow, top
+    c.multiplyScalar(1-cl01((-y-0.35))*0.14);           // slight lower bounce
+    const corner=cl01((Math.abs(x)-0.42)/0.45)*cl01(z+0.35);
+    c.lerp(new THREE.Color(0.86,0.56,0.52),corner*0.72);  // caruncle / vessels
+    const vein=Math.max(0,Math.sin(Math.atan2(y,x)*9.0+z*6.0))**6
+               *cl01((Math.abs(x)-0.25)/0.5);
+    c.lerp(new THREE.Color(0.80,0.42,0.42),vein*0.30);
+    col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b;
+  }
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  return g;
+}
+
+/* The cornea: a clear bulge standing ~0.6 mm proud of the sclera over
+   the iris. Its tight specular is the single strongest "this eye is
+   wet and alive" cue, and a flat painted iris has none. */
+function buildCorneaGeo(){
+  return new THREE.SphereGeometry(EYE_R*1.022,26,16,0,Math.PI*2,0,0.50)
+    .rotateX(Math.PI/2);
+}
+
 function buildIrisCap(){
-  const HALF=0.52;                                   // ≈12.4 mm iris
+  const HALF=0.60;                                   // ≈14 mm visible iris
   const g=new THREE.SphereGeometry(EYE_R*1.015,26,14,0,Math.PI*2,0,HALF);
   g.rotateX(Math.PI/2);                              // pole faces +z
   const p=g.attributes.position, n=p.count, col=new Float32Array(n*3);
@@ -1216,6 +1407,8 @@ function buildAvatar(){
   geo.setAttribute('position',new THREE.BufferAttribute(H.pos,3));
   geo.setAttribute('normal',new THREE.BufferAttribute(nrm,3));
   geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+  geo.setAttribute('aCav',new THREE.BufferAttribute(computeCavity(H.pos,nrm,H.idx,H.nv),1));
+  geo.setAttribute('aPor',new THREE.BufferAttribute(computePores(H),1));
   geo.setAttribute('skinIndex',new THREE.BufferAttribute(si,4));
   geo.setAttribute('skinWeight',new THREE.BufferAttribute(sw,4));
   geo.setIndex(H.idx.length>65535?new THREE.BufferAttribute(new Uint32Array(H.idx),1)
@@ -1253,21 +1446,27 @@ function buildAvatar(){
   grp.updateMatrixWorld(true);
   const skel=new THREE.Skeleton(bones);
 
-  const skinMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.62,
-    metalness:0.0,side:THREE.FrontSide});
+  const skinMat=makeSkinMaterial();
   const mesh=new THREE.SkinnedMesh(geo,skinMat);
   mesh.frustumCulled=false;
+  mesh.castShadow=true; mesh.receiveShadow=true;
   grp.add(mesh);
   mesh.bind(skel);
 
   // ── eyeballs ride the eye bones (cornea near flush with the lids) ──
-  const scleraGeo=new THREE.SphereGeometry(EYE_R,24,18);
-  const scleraMat=new THREE.MeshStandardMaterial({color:0xf2ece6,roughness:0.18,metalness:0});
+  const scleraGeo=buildScleraGeo();
+  const scleraMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.26,metalness:0});
   const irisGeo=buildIrisCap();
-  const irisMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.12,metalness:0});
+  // the iris is seen THROUGH the cornea, so it is matte itself; all the
+  // gloss belongs to the clear layer in front of it
+  const irisMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.42,metalness:0});
+  const corneaGeo=buildCorneaGeo();
+  const corneaMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.025,
+    metalness:0.02,transparent:true,opacity:0.07,depthWrite:false});
   const mkEye=()=>{ const g=new THREE.Group();
     g.add(new THREE.Mesh(scleraGeo,scleraMat));
     g.add(new THREE.Mesh(irisGeo,irisMat));
+    const cor=new THREE.Mesh(corneaGeo,corneaMat); cor.renderOrder=2; g.add(cor);
     return g; };
   AV.eyeL=mkEye(); AV.eyeR=mkEye();
   eL.add(AV.eyeL); eR.add(AV.eyeR);      // eye bones sit AT the eyeball centres
@@ -1393,9 +1592,19 @@ function buildBust(H,COL,skel){
   g.setAttribute('skinWeight',new THREE.BufferAttribute(sw2,4));
   g.setIndex(idx);
   g.computeVertexNormals();
-  const m=new THREE.SkinnedMesh(g,new THREE.MeshStandardMaterial({
-    vertexColors:true,roughness:0.72,metalness:0}));
+  // Same skin, same shader. A plain material here left a hard seam at
+  // the jaw where the shading model changed mid-face.
+  {
+    const bn=g.attributes.normal.array, bp=g.attributes.position.array;
+    const bnv=g.attributes.position.count;
+    g.setAttribute('aCav',new THREE.BufferAttribute(
+      computeCavity(bp,bn,g.index.array,bnv),1));
+    const por=new Float32Array(bnv).fill(0.80);
+    g.setAttribute('aPor',new THREE.BufferAttribute(por,1));
+  }
+  const m=new THREE.SkinnedMesh(g,makeSkinMaterial({roughness:0.72}));
   m.frustumCulled=false;
+  m.castShadow=true; m.receiveShadow=true;
   return m;
 }
 
@@ -2516,17 +2725,60 @@ function drawStrip(cx){
 /* ═══ §13 SCENE + LOOP ═══════════════════════════════════════════════ */
 let scene,camera,renderer,orbit={yaw:0,pitch:0,dist:0.60,drag:null};
 let frames=0,lastFps=performance.now(),fpsEma=60,lastT=performance.now();
+/* A studio environment, generated once. Without an environment map a
+   PBR material's specular has nothing to reflect but the three point
+   lights, so skin returns a single dead highlight instead of picking up
+   the room. This is the largest single reason untextured CG skin reads
+   as plastic, and it is cheaper to fix than anything geometric. */
+function buildEnv(rr){
+  const sc=new THREE.Scene();
+  const g=new THREE.SphereGeometry(6,24,16);
+  const m=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,
+    vertexShader:'varying vec3 vP; void main(){ vP=position; '+
+      'gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+    fragmentShader:'varying vec3 vP; void main(){ float h=normalize(vP).y;'+
+      'vec3 sky=vec3(0.52,0.60,0.74), horiz=vec3(0.78,0.76,0.73), grd=vec3(0.16,0.13,0.11);'+
+      'vec3 c=h>0.0?mix(horiz,sky,pow(h,0.65)):mix(horiz,grd,pow(-h,0.45));'+
+      // one soft overhead bank, the way a face is normally lit
+      'float k=smoothstep(0.55,0.98,h)*smoothstep(0.5,0.95,normalize(vP).z*0.5+0.5);'+
+      'c+=vec3(1.0,0.96,0.90)*k*0.85;'+
+      'gl_FragColor=vec4(c,1.0); }'});
+  sc.add(new THREE.Mesh(g,m));
+  const pm=new THREE.PMREMGenerator(rr); pm.compileEquirectangularShader();
+  const t=pm.fromScene(sc,0,0.1,100).texture;
+  pm.dispose(); g.dispose(); m.dispose();
+  return t;
+}
+
 function initScene(){
   renderer=new THREE.WebGLRenderer({canvas:el('gl'),antialias:true,alpha:true});
   renderer.setPixelRatio(Math.min(devicePixelRatio,2));
   renderer.setSize(innerWidth,innerHeight);
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  if('physicallyCorrectLights' in renderer) renderer.physicallyCorrectLights=false;
   if('outputEncoding' in renderer && THREE.sRGBEncoding) renderer.outputEncoding=THREE.sRGBEncoding;
   scene=new THREE.Scene();
+  /* An IBL environment belongs here and is the biggest remaining lever
+     on skin realism — a PBR specular with nothing to reflect is most of
+     why untextured CG skin looks dead. It is NOT enabled because I
+     cannot verify it: this build is checked by rendering headlessly in
+     software (SwiftShader), which does not handle PMREM's half-float
+     cube targets, and every attempt blew the irradiance out to a
+     posterised mess. Shipping a render I have not seen work is how the
+     earlier likeness bugs survived as long as they did. buildEnv() is
+     left in place, ready, for when it can be tested on real hardware. */
   camera=new THREE.PerspectiveCamera(33,innerWidth/innerHeight,0.01,10);
   camera.position.set(0,-0.022,0.60);
-  scene.add(new THREE.HemisphereLight(0x9fb6dd,0x2a2018,0.48));
-  const key=new THREE.DirectionalLight(0xfff3e8,1.05); key.position.set(0.35,0.55,0.95);
-  scene.add(key);
+  scene.add(new THREE.HemisphereLight(0x9fb6dd,0x2a2018,0.30));
+  const key=new THREE.DirectionalLight(0xfff3e8,1.35); key.position.set(0.78,0.74,0.62);
+  key.castShadow=true;
+  key.shadow.mapSize.set(768,768);
+  key.shadow.camera.near=0.05; key.shadow.camera.far=3.0;
+  key.shadow.camera.left=-0.26; key.shadow.camera.right=0.26;
+  key.shadow.camera.top=0.30;   key.shadow.camera.bottom=-0.34;
+  key.shadow.bias=-0.0012; key.shadow.normalBias=0.004; key.shadow.radius=2.5;
+  scene.add(key); scene.add(key.target);
   const fill=new THREE.DirectionalLight(0xbcd6ff,0.34); fill.position.set(-0.75,0.05,0.45);
   scene.add(fill);
   const rim=new THREE.PointLight(0x66d9ff,0.55,2.2); rim.position.set(-0.32,0.22,-0.34);
