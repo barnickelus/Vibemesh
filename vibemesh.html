@@ -937,32 +937,76 @@ float n3(vec3 p){
 // rendered: a head is ~0.23 m over ~500 px, so anything finer than about
 // 2 mm lands under a pixel and aliases into a rash instead of reading as
 // pores. Fine detail that cannot be resolved is worse than none.
+/* Real facial pores are 0.3-0.5 mm across, spaced about 0.5-1 mm. At
+   the size a head renders here that is UNDER A PIXEL, and sub-pixel
+   normal detail does not look like pores, it aliases into a rash.
+   Making the pores bigger to dodge that is the wrong fix: it reads as a
+   correctly-pored head shrunk to the size of a nose.
+
+   Sub-pixel geometric detail physically IS roughness, so each octave is
+   declared at its true size in metres and then split by how many pixels
+   it actually spans: wide enough to resolve, it perturbs the normal;
+   narrower than that, its energy goes into roughness instead. Pores
+   therefore appear as you zoom in and dissolve into sheen as you pull
+   out, which is what skin does. */
+const float P_FINE=0.00040;   // pore spacing
+const float P_MED =0.00110;   // microrelief, the fine polygonal skin grain
+const float P_WIDE=0.00450;   // broad undulation
+const float W_FINE=0.55, W_MED=0.33, W_WIDE=0.12;
+// Depth of each octave, in metres. Skin is roughly self-similar, so
+// depth scales with wavelength — one shared bump height would leave the
+// coarser octaves far too shallow, since slope is depth/wavelength.
+const float H_FINE=0.000030;  // a pore, ~30 um deep  -> slope 0.075
+const float H_MED =0.000062;  // microrelief furrow   -> slope 0.056
+const float H_WIDE=0.000150;  // broad undulation     -> slope 0.033
+
+// gradient of one octave, normalised so amplitude means the same thing
+// at every size
+vec3 octGrad(vec3 p, float size){
+  float e=size*0.35, d0=n3(p/size);
+  return vec3(n3((p+vec3(e,0.0,0.0))/size)-d0,
+              n3((p+vec3(0.0,e,0.0))/size)-d0,
+              n3((p+vec3(0.0,0.0,e))/size)-d0)/e;
+}
 float skinDetail(vec3 p){
-  return n3(p*300.0)*0.28 + n3(p*560.0)*0.72;
-}`;
+  return n3(p/P_FINE)*W_FINE + n3(p/P_MED)*W_MED + n3(p/P_WIDE)*W_WIDE;
+}
+// metres of object space covered by one pixel, here
+float objPerPixel(vec3 p){
+  return max(max(fwidth(p.x),fwidth(p.y)),fwidth(p.z))+1e-9;
+}
+// an octave is drawn as shape only once it spans a couple of pixels
+float octVis(float size, float px){ return smoothstep(1.0,2.6,size/px); }`;
 
 const SKIN_NORMAL=`
 #include <normal_fragment_begin>
 {
   vec3 q=vObjPos;
-  float d0=skinDetail(q);
-  float e=0.0007;                   // matched to the finest octave above
-  vec3 g=vec3(skinDetail(q+vec3(e,0.0,0.0))-d0,
-              skinDetail(q+vec3(0.0,e,0.0))-d0,
-              skinDetail(q+vec3(0.0,0.0,e))-d0);
+  float px=objPerPixel(q);
+  // only the octaves big enough to resolve become shape
+  vec3 g = octGrad(q,P_FINE)*(H_FINE*octVis(P_FINE,px))
+         + octGrad(q,P_MED )*(H_MED *octVis(P_MED ,px))
+         + octGrad(q,P_WIDE)*(H_WIDE*octVis(P_WIDE,px));
   g-=normal*dot(g,normal);          // tilt only, never rescale
-  normal=normalize(normal - g*uPore*vPor*0.85);
+  normal=normalize(normal - g*uPore*vPor);
 }`;
 
 const SKIN_ROUGH=`
 #include <roughnessmap_fragment>
 {
+  float px=objPerPixel(vObjPos);
   float det=skinDetail(vObjPos);
+  // whatever was too fine to draw as shape surfaces here instead, which
+  // is why pulling the camera back leaves sheen rather than smooth vinyl
+  float hidden=W_FINE*(1.0-octVis(P_FINE,px))
+              +W_MED *(1.0-octVis(P_MED ,px))
+              +W_WIDE*(1.0-octVis(P_WIDE,px));
   // the T-zone is oily and the cheeks are matte; that contrast is most
   // of what separates skin from a moulded surface
   float tz=exp(-pow(vObjPos.x/0.026,2.0));
   float oil=tz*(0.45+0.55*smoothstep(-0.02,0.09,vObjPos.y));
-  roughnessFactor=clamp(roughnessFactor-oil*uOil+(det-0.5)*0.12*vPor+vCav*0.10,0.20,0.92);
+  roughnessFactor=clamp(roughnessFactor-oil*uOil
+    +(det-0.5)*0.10*vPor+hidden*vPor*0.30+vCav*0.10,0.20,0.94);
 }`;
 
 const SKIN_LIGHTS=`
@@ -1010,7 +1054,8 @@ function makeSkinMaterial(opts){
       .replace('#include <roughnessmap_fragment>',SKIN_ROUGH)
       .replace('#include <lights_fragment_end>',SKIN_LIGHTS);
   };
-  m.customProgramCacheKey=()=>'vmskin1';
+  m.extensions={derivatives:true};   // fwidth, for the detail LOD
+  m.customProgramCacheKey=()=>'vmskin2';
   return m;
 }
 
