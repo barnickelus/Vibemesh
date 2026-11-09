@@ -341,8 +341,17 @@ const el=id=>document.getElementById(id);
    Proportions follow standard anthropometry (eye line at half head
    height, nose base 0.72H from crown, mouth 0.82H, IOD 0.28H).       */
 const AN={
-  A:0.0770, B:0.1150, C:0.0870, CZ:-0.0120,   // base ellipsoid + z offset
-  eyeX:0.0322, mouthY:-0.0736, noseBase:-0.0500, noseTip:-0.0320,
+  /* Measured against Farkas adult norms, 2026-11-08. The previous
+     values made a cone: temples and cranium far too wide, jaw and mouth
+     far too narrow, an over-long nose and a compressed lower third.
+     That silhouette is the alien/doll read, and no amount of skin
+     shading survives it. See test/anthropometry.js — it fails the
+     build if these drift back out of tolerance.                     */
+  A:0.0720, B:0.1150, C:0.0870, CZ:-0.0120,   // base ellipsoid + z offset
+  eyeX:0.0278,          // ex-ex was 105 mm against a canonical 90
+  mouthY:-0.0635,       // stomion sat too low, squashing the lower third
+  noseBase:-0.0390,     // nasion->subnasale was 63 mm against 52
+  noseTip:-0.0250,
   browY:0.0210, chinY:-0.1150, IOD:0.0644,
 };
 const DEFAULT_SHAPE={headW:1,headD:1,faceLen:1,jawW:1,jawTaper:1,chinProj:1,
@@ -457,7 +466,7 @@ function derived(S){
   const FL=S.faceLen;
   const MY=AN.mouthY*FL, NBY=AN.noseBase*FL, NTY=AN.noseTip*FL*S.noseLen;
   const BY=AN.browY*S.browHeight, CHY=AN.chinY*FL;
-  const LW=0.0245*S.mouthW;
+  const LW=0.0275*S.mouthW;   // cheilion-cheilion ~52 mm after sculpt
   return {A,B,C,CZ,EY,FL,MY,NBY,NTY,BY,CHY,LW,S};
 }
 
@@ -473,7 +482,7 @@ function sculptPoint(th,phi,S,P,out){
       // ── mandible: taper the lower face, pull the back of the jaw in ──
       const tj=cl01((-0.015-y)/0.098);
       const tp=Math.pow(tj,1.35);
-      x*=(1-0.40*tp*S.jawTaper)*(1+(S.jawW-1)*tp*1.1);
+      x*=(1-0.12*tp*S.jawTaper)*(1+(S.jawW-1)*tp*1.1);
       if(zd<0) z+=0.034*Math.pow(tj,1.55)*(-zd);
       // neck-ward tuck under the chin
       z+=0.012*cl01((CHY+0.028-y)/0.03)*(zd<0?-zd:0);
@@ -509,9 +518,9 @@ function sculptPoint(th,phi,S,P,out){
         dx+=Math.sign(x||1e-9)*0.0060*(S.noseW-1)*nm;
       }
       // ── lips ──
-      const lipU=g2(x,LW*1.06,y-(MY+0.0075),0.0078), lipL=g2(x,LW*0.96,y-(MY-0.0108),0.0092);
+      const lipU=g2(x,LW*1.06,y-(MY+0.0057),0.0059), lipL=g2(x,LW*0.96,y-(MY-0.0082),0.0070);
       dz+=0.0062*S.lipFull*f*lipU + 0.0074*S.lipFull*f*lipL;
-      dz-=0.0044*f*g2(x,LW*1.18,y-MY,0.0032);
+      dz-=0.0030*f*g2(x,LW*1.18,y-MY,0.0026);
       // fuller lips are taller as well as more protruding
       dy+=Math.sign(y-MY||1e-9)*0.0075*(S.lipFull-1)*f*g2(x,LW*1.10,y-MY,0.0135);
       dz-=0.0019*f*g2(x,0.0046,y-(MY+0.019),0.0100);      // philtrum
@@ -614,7 +623,7 @@ function buildHead(S, opts){
   // onto the exact ellipse — the edge then reads as an eyelid at any
   // resolution instead of a staircase.
   const EAR=[0.0155*S.eyeSize, 0.0072*S.eyeSize], EYC=0.0008, CANT=0.10;
-  const MAR=[LW*0.90, 0.0013];
+  const MAR=[LW*0.90, 0.0009];
   const eyeR2=(x,y,sx)=>{
     const dx=(x-sx*EY)/EAR[0], dy=(y-EYC)/EAR[1];
     const c=Math.cos(sx*CANT), s=Math.sin(sx*CANT);
@@ -674,10 +683,10 @@ function anchorSpecs(P){
   return [
     [4,0,NTY],[6,0,BY-0.020],[168,0,BY-0.008],[2,0,NBY],[1,0,NTY+0.006],
     [98,0.0170*S.noseW,NBY+0.002],[327,0.0170*S.noseW,NBY+0.002],
-    [33,EY+0.0158*S.eyeSize,0.0005],[133,EY-0.0148*S.eyeSize,0.0012],
-    [362,EY-0.0148*S.eyeSize,0.0012],[263,EY+0.0158*S.eyeSize,0.0005],
+    [33,EY+0.0132*S.eyeSize,0.0005],[133,EY-0.0132*S.eyeSize,0.0012],
+    [362,EY-0.0132*S.eyeSize,0.0012],[263,EY+0.0132*S.eyeSize,0.0005],
     [159,EY,0.0088],[145,EY,-0.0072],[386,EY,0.0088],[374,EY,-0.0072],
-    [61,LW,MY],[291,LW,MY],[0,0,MY+0.0108*S.lipFull],[17,0,MY-0.0168*S.lipFull],
+    [61,LW,MY],[291,LW,MY],[0,0,MY+0.0082*S.lipFull],[17,0,MY-0.0128*S.lipFull],
     [13,0,MY+0.0022],[14,0,MY-0.0026],
     [152,0,CHY+0.0045],[175,0,CHY+0.0165],
     [234,A*0.985,-0.0100],[454,A*0.985,-0.0100],
@@ -1531,12 +1540,12 @@ function buildAvatar(){
   const cav=new THREE.Mesh(new THREE.SphereGeometry(0.024,20,14),
     new THREE.MeshStandardMaterial({color:0x2a0d10,roughness:0.85}));
   cav.scale.set(1.10,0.68,0.42);
-  cav.position.fromArray(toHead(wp([0,H.P.MY-0.006,0.020]))); head.add(cav);
+  cav.position.fromArray(toHead(wp([0,H.P.MY-0.005,0.016]))); head.add(cav);
   const teethMat=new THREE.MeshStandardMaterial({color:0xf2ece2,roughness:0.35});
-  const upT=new THREE.Mesh(new THREE.BoxGeometry(0.028,0.0055,0.007),teethMat);
-  upT.position.fromArray(toHead(wp([0,H.P.MY+0.0024,0.0358]))); head.add(upT);
-  const loT=new THREE.Mesh(new THREE.BoxGeometry(0.025,0.0050,0.007),teethMat);
-  loT.position.fromArray(toJaw(wp([0,H.P.MY-0.0068,0.0352]))); jaw.add(loT);
+  const upT=new THREE.Mesh(new THREE.BoxGeometry(0.026,0.0046,0.006),teethMat);
+  upT.position.fromArray(toHead(wp([0,H.P.MY+0.0030,0.0198]))); head.add(upT);
+  const loT=new THREE.Mesh(new THREE.BoxGeometry(0.023,0.0042,0.006),teethMat);
+  loT.position.fromArray(toJaw(wp([0,H.P.MY-0.0062,0.0194]))); jaw.add(loT);
 
   // ── ears (rigid on the head bone) ──
   const earMat=new THREE.MeshStandardMaterial({

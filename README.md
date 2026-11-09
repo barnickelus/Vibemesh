@@ -32,6 +32,14 @@ numeric slope until the model's measurement matches yours. Every value
 stays inside a clamped human range, so Refine converges instead of
 falling apart. Ground-truth recovery test: 0.17 mm mean residual.
 
+The **base head is measured against adult anthropometric norms**
+(`test/anthropometry.js`, run it — it fails the build on drift). It used
+to fail 12 of 14: temples and cranium far too wide, jaw 16% narrow,
+mouth 25% narrow, an over-long nose and a compressed lower third. That
+is a cone, which is the alien/doll read, and no amount of skin shading
+survives it. Every fitted face is a perturbation of this base, so the
+base being wrong was a ceiling on all of them. Now 0 of 14.
+
 **The voice puppets the face.** Three band-split onset detectors watch
 the mic — a fast envelope pulling away from a slow one by more than a
 dB threshold — and route hits to 21 named anatomical channels (`jaw`,
